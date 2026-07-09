@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/" class="active">掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+            <a href="/events">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 掷骰面板 -->
+            <div class="col" style="flex: 1.6;">
+                <div class="card dice-panel">
+                    <div class="card-header">🎲 掷骰</div>
+
+                    <!-- 自定义骰子构建器 _d_+_ -->
+                    <div class="dice-builder">
+                        <div class="dice-builder-inputs">
+                            <input type="number" id="dice-count" value="1" min="1" max="99"
+                                   placeholder="数量" title="骰子数量">
+                            <span class="dice-builder-label">d</span>
+                            <input type="number" id="dice-sides" value="20" min="2" max="1000"
+                                   placeholder="面数" title="骰子面数">
+                            <span class="dice-builder-label">+</span>
+                            <input type="number" id="dice-mod" value="0" min="-99" max="999"
+                                   placeholder="调整值" title="调整值">
+                        </div>
+                        <button class="btn-roll" onclick="doCustomRoll()" title="投掷">🎲<br>投掷</button>
+                    </div>
+
+                    <!-- 优势/劣势切换 -->
+                    <div class="adv-toggle-row">
+                        <label class="ndn-sync-label" title="勾选后骰子数量始终等于面数（NdN 模式）">
+                            <input type="checkbox" id="ndn-sync" onchange="onNdnSyncChange()">
+                            NdN 同步 (骰数=面数)
+                        </label>
+                        <div class="adv-toggle" id="dice-adv-toggle">
+                            <button class="adv-btn active" data-adv="">正常</button>
+                            <button class="adv-btn" data-adv="adv">✨ 优势</button>
+                            <button class="adv-btn" data-adv="dis">💀 劣势</button>
+                        </div>
+                    </div>
+
+                    <!-- 快捷骰子 -->
+                    <div class="quick-dice">
+                        <button onclick="fillCustomDice(1, 20, 0)">d20</button>
+                        <button onclick="fillCustomDice(1, 4, 0)">d4</button>
+                        <button onclick="fillCustomDice(1, 6, 0)">d6</button>
+                        <button onclick="fillCustomDice(1, 8, 0)">d8</button>
+                        <button onclick="fillCustomDice(1, 10, 0)">d10</button>
+                        <button onclick="fillCustomDice(1, 12, 0)">d12</button>
+                        <button onclick="fillCustomDice(1, 100, 0)">d100</button>
+                        <button onclick="fillCustomDice(3, 6, 0)">3d6</button>
+                        <button onclick="fillCustomDice(4, 6, 0)" style="font-size:0.8rem;">4d6k3</button>
+                        <button onclick="fillCustomDice(2, 6, 3)">2d6+3</button>
+                        <button onclick="fillCustomDice(1, 8, 2)">1d8+2</button>
+                        <button onclick="fillCustomDice(8, 6, 0)">🔥 8d6</button>
+                    </div>
+
+                    <!-- 自由表达式（折叠） -->
+                    <details style="margin-bottom: 1rem;">
+                        <summary style="cursor:pointer; color: var(--text-dim); font-size: 0.9rem;">
+                            高级表达式 (k3 / adv / 自定义格式)
+                        </summary>
+                        <div class="dice-input" style="margin-top: 0.5rem;">
+                            <input type="text" id="dice-expr" placeholder="如: 4d6k3 / adv d20 / 2d8+1d6+3"
+                                   onkeydown="if(event.key==='Enter') doFreeRoll()">
+                            <button onclick="doFreeRoll()">投掷</button>
+                        </div>
+                    </details>
+
+                    <!-- 输出区 -->
+                    <div class="output-area" id="output">
+                        <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                            设置骰子参数 → 选择优势/劣势 → 点击"投掷"开始...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 检定面板 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">🎯 快速检定</div>
+
+                    <div class="dice-input">
+                        <input type="text" id="check-target" placeholder="察觉 / 力量 / 隐匿..."
+                               onkeydown="if(event.key==='Enter') doCheck()">
+                        <button onclick="doCheck()">检定</button>
+                    </div>
+
+                    <!-- 优势/劣势切换 -->
+                    <div class="adv-toggle-row">
+                        <div class="adv-toggle" id="check-adv-toggle">
+                            <button class="adv-btn active" data-adv="">正常</button>
+                            <button class="adv-btn" data-adv="adv">✨ 优势</button>
+                            <button class="adv-btn" data-adv="dis">💀 劣势</button>
+                        </div>
+                    </div>
+
+                    <div class="quick-dice">
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;">力量</span>
+                        <button onclick="fillCheckTarget('运动')">运动</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">敏捷</span>
+                        <button onclick="fillCheckTarget('特技')">特技</button>
+                        <button onclick="fillCheckTarget('巧手')">巧手</button>
+                        <button onclick="fillCheckTarget('隐匿')">隐匿</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">智力</span>
+                        <button onclick="fillCheckTarget('奥秘')">奥秘</button>
+                        <button onclick="fillCheckTarget('历史')">历史</button>
+                        <button onclick="fillCheckTarget('调查')">调查</button>
+                        <button onclick="fillCheckTarget('自然')">自然</button>
+                        <button onclick="fillCheckTarget('宗教')">宗教</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">感知</span>
+                        <button onclick="fillCheckTarget('驯兽')">驯兽</button>
+                        <button onclick="fillCheckTarget('洞悉')">洞悉</button>
+                        <button onclick="fillCheckTarget('医药')">医药</button>
+                        <button onclick="fillCheckTarget('察觉')">察觉</button>
+                        <button onclick="fillCheckTarget('生存')">生存</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">魅力</span>
+                        <button onclick="fillCheckTarget('欺诈')">欺诈</button>
+                        <button onclick="fillCheckTarget('威吓')">威吓</button>
+                        <button onclick="fillCheckTarget('表演')">表演</button>
+                        <button onclick="fillCheckTarget('游说')">游说</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📊 属性生成</div>
+                    <button class="btn btn-primary" onclick="generateAbilities()">🎲 生成属性 (4d6k3)</button>
+                    <div id="gen-result" style="margin-top: 0.75rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ━━━ 优势/劣势切换按钮 ━━━
+        document.querySelectorAll('.adv-toggle').forEach(toggle => {
+            toggle.querySelectorAll('.adv-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.parentElement.querySelectorAll('.adv-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+
+        function getDiceAdvantage() {
+            const active = document.querySelector('#dice-adv-toggle .adv-btn.active');
+            return active ? active.dataset.adv : '';
+        }
+
+        function getCheckAdvantage() {
+            const active = document.querySelector('#check-adv-toggle .adv-btn.active');
+            if (!active) return null;
+            const v = active.dataset.adv;
+            if (v === 'adv') return true;
+            if (v === 'dis') return false;
+            return null;
+        }
+
+        // ━━━ 自定义骰子构建器 ━━━
+        function fillCustomDice(count, sides, mod) {
+            document.getElementById('dice-count').value = count;
+            document.getElementById('dice-sides').value = sides;
+            document.getElementById('dice-mod').value = mod;
+        }
+
+        // NdN 同步：骰数自动跟随面数
+        function onNdnSyncChange() {
+            const synced = document.getElementById('ndn-sync').checked;
+            if (synced) {
+                const sides = document.getElementById('dice-sides').value;
+                document.getElementById('dice-count').value = sides;
+                document.getElementById('dice-count').readOnly = true;
+                document.getElementById('dice-count').style.opacity = '0.6';
+            } else {
+                document.getElementById('dice-count').readOnly = false;
+                document.getElementById('dice-count').style.opacity = '1';
+            }
+        }
+
+        // 监听面数变化，同步模式下自动更新数量
+        document.getElementById('dice-sides').addEventListener('input', function() {
+            if (document.getElementById('ndn-sync').checked) {
+                document.getElementById('dice-count').value = this.value;
+            }
+        });
+
+        function buildDiceExpression() {
+            const count = parseInt(document.getElementById('dice-count').value) || 1;
+            const sides = parseInt(document.getElementById('dice-sides').value) || 20;
+            const mod = parseInt(document.getElementById('dice-mod').value) || 0;
+            const modSign = mod >= 0 ? '+' : '';
+            const adv = getDiceAdvantage();
+
+            let expr = `${count}d${sides}`;
+            if (mod !== 0) {
+                expr += `${modSign}${mod}`;
+            }
+            if (adv === 'adv') expr = 'adv ' + expr;
+            if (adv === 'dis') expr = 'dis ' + expr;
+            return expr;
+        }
+
+        async function doCustomRoll() {
+            const expr = buildDiceExpression();
+            document.getElementById('dice-expr').value = expr;
+
+            const output = document.getElementById('output');
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
+
+            try {
+                const resp = await fetch('/api/roll', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({expression: expr})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    output.innerHTML = `<div class="output-entry" style="color:var(--red)">❌ ${data.error}</div>` + output.innerHTML;
+                    return;
+                }
+
+                output.innerHTML = formatRollResult(data) + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误: ${e.message}</div>` + output.innerHTML;
+            }
+        }
+
+        // ━━━ 自由表达式掷骰 ━━━
+        async function doFreeRoll() {
+            const expr = document.getElementById('dice-expr').value.trim();
+            if (!expr) return;
+
+            const output = document.getElementById('output');
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
+
+            try {
+                const resp = await fetch('/api/roll', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({expression: expr})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    output.innerHTML = `<div class="output-entry" style="color:var(--red)">❌ ${data.error}</div>` + output.innerHTML;
+                    return;
+                }
+
+                output.innerHTML = formatRollResult(data) + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误: ${e.message}</div>` + output.innerHTML;
+            }
+        }
+
+        function formatRollResult(data) {
+            let diceHtml = '';
+            if (data.advantage === true || data.advantage === false) {
+                // 优势/劣势：显示两次投掷
+                const rolls = data.rolls || [];
+                const kept = data.advantage === true ? Math.max(...rolls) : Math.min(...rolls);
+                const dropped = rolls.find(r => r !== kept);
+                const actionLabel = data.advantage === true ? '取高' : '取低';
+                if (rolls.length >= 2) {
+                    diceHtml = `<span style="color:var(--cyan)">[${kept}]</span>, [${dropped}] → ${actionLabel}: ${kept}`;
+                } else {
+                    diceHtml = rolls.join(', ');
+                }
+            } else {
+                diceHtml = data.rolls ? data.rolls.join(', ') : '';
+            }
+
+            let critHtml = '';
+            if (data.is_crit_success) critHtml = ' <span class="crit-success">✨ 大成功！(Natural 20)</span>';
+            if (data.is_crit_failure) critHtml = ' <span class="crit-failure">💀 大失败！(Natural 1)</span>';
+
+            let advHtml = '';
+            if (data.advantage === true) advHtml = ' <span style="color:var(--gold)">(优势)</span>';
+            if (data.advantage === false) advHtml = ' <span style="color:var(--text-dim)">(劣势)</span>';
+
+            return `
+                <div class="output-entry">
+                    <div><b>🎲 ${data.expression}</b>${advHtml}${critHtml}</div>
+                    <div class="result-rolls">投掷: ${diceHtml}${data.modifier ? ' + ' + data.modifier : ''}</div>
+                    <div class="result-total">${data.total}</div>
+                </div>`;
+        }
+
+        // ━━━ 检定 ━━━
+        function fillCheckTarget(target) {
+            document.getElementById('check-target').value = target;
+        }
+
+        async function doCheck() {
+            const target = document.getElementById('check-target').value.trim();
+            if (!target) return;
+
+            const advantage = getCheckAdvantage();
+            const output = document.getElementById('output');
+
+            try {
+                const resp = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target, advantage})
+                });
+                const data = await resp.json();
+
+                let critHtml = '';
+                if (data.is_crit_success) critHtml = ' <span class="crit-success">✨ 大成功！</span>';
+                if (data.is_crit_failure) critHtml = ' <span class="crit-failure">💀 大失败！</span>';
+
+                let modText = '';
+                if (data.ability_mod) modText += `属性: ${data.ability_mod >= 0 ? '+' : ''}${data.ability_mod} `;
+                if (data.prof_bonus) modText += `熟练: +${data.prof_bonus} `;
+
+                // 优势/劣势时显示两次 d20 结果
+                let d20Display = '';
+                const advLabel = data.advantage === true ? '优势' : (data.advantage === false ? '劣势' : '');
+                if (data.advantage === true || data.advantage === false) {
+                    const rolls = data.d20_rolls || [data.d20_roll];
+                    const kept = data.kept_roll;
+                    const dropped = rolls.find(r => r !== kept);
+                    const actionLabel = data.advantage === true ? '取高' : '取低';
+                    if (rolls.length >= 2 && dropped !== undefined) {
+                        d20Display = `d20: <span style="color:var(--cyan)">[${kept}]</span>, [${dropped}] → ${actionLabel}: ${kept}`;
+                    } else {
+                        d20Display = `d20: ${rolls.join(', ')}`;
+                    }
+                } else {
+                    d20Display = `d20: ${data.d20_roll}`;
+                }
+
+                const entry = `
+                    <div class="output-entry">
+                        <div><b>🎯 ${data.label} 检定</b>${advLabel ? ' <span style="color:var(--gold)">(' + advLabel + ')</span>' : ''}${critHtml}</div>
+                        <div class="result-rolls">${d20Display} | ${modText} | 总调整: ${data.total_mod >= 0 ? '+' : ''}${data.total_mod}</div>
+                        <div class="result-total">${data.total}</div>
+                    </div>`;
+
+                output.innerHTML = entry + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误</div>` + output.innerHTML;
+            }
+        }
+
+        // ━━━ 属性生成 ━━━
+        function generateAbilities() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 生成中...</div>' + output.innerHTML;
+
+            fetch('/api/roll', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({expression: '4d6k3'})
+            }).then(r => r.json()).then(data => {
+                const promises = [];
+                for (let i = 0; i < 5; i++) {
+                    promises.push(
+                        fetch('/api/roll', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({expression: '4d6k3'})
+                        }).then(r => r.json())
+                    );
+                }
+
+                Promise.all(promises).then(results => {
+                    const scores = [data.total];
+                    results.forEach(r => scores.push(r.total));
+                    scores.sort((a,b) => b-a);
+
+                    const entry = `
+                        <div class="output-entry">
+                            <div><b>📊 属性值</b> (4d6k3 × 6)</div>
+                            <div class="result-total">[${scores.join(', ')}]</div>
+                            <div style="color: var(--text-dim)">合计: ${scores.reduce((a,b)=>a+b, 0)}</div>
+                        </div>`;
+                    output.innerHTML = entry + output.innerHTML;
+
+                    document.getElementById('gen-result').innerHTML = `
+                        <div style="font-size:1.2rem;color:var(--gold)">[${scores.join(', ')}]</div>
+                        <div style="color:var(--text-dim)">合计: ${scores.reduce((a,b)=>a+b, 0)}</div>`;
+                });
+            });
+        }
+    </script>
+</body>
+</html>

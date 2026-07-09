@@ -1,0 +1,829 @@
+/* DND5E 骰娘 — Web UI 样式 */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #0f3460;
+    --accent: #e94560;
+    --gold: #ffd700;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --green: #4caf50;
+    --red: #f44336;
+    --cyan: #00bcd4;
+    --border: #2a2a4a;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+/* ━━━ 导航栏 ━━━ */
+.navbar {
+    background: var(--surface);
+    border-bottom: 2px solid var(--accent);
+    padding: 0.75rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.navbar-brand {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.navbar-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.navbar-links a {
+    color: var(--text);
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.navbar-links a:hover,
+.navbar-links a.active {
+    background: var(--surface2);
+    color: var(--gold);
+}
+
+/* ━━━ 主布局 ━━━ */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+.row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.col {
+    flex: 1;
+    min-width: 300px;
+}
+
+/* ━━━ 卡片 ━━━ */
+.card {
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ━━━ 掷骰面板 ━━━ */
+.dice-panel {
+    text-align: center;
+}
+
+.dice-input {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.dice-input input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1.1rem;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.dice-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.dice-input button {
+    padding: 0.75rem 1.5rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.dice-input button:hover {
+    background: #ff5a75;
+}
+
+.quick-dice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+.quick-dice button {
+    padding: 0.4rem 0.75rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.quick-dice button:hover {
+    background: var(--accent);
+    color: white;
+}
+
+/* ━━━ 结果输出 ━━━ */
+.output-area {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 1rem;
+    min-height: 200px;
+    max-height: 500px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+.output-entry {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.output-entry:last-child {
+    border-bottom: none;
+}
+
+.result-total {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--cyan);
+    text-align: center;
+    margin: 0.5rem 0;
+}
+
+.result-rolls {
+    color: var(--text-dim);
+}
+
+.crit-success { color: var(--green); font-weight: bold; }
+.crit-failure { color: var(--red); font-weight: bold; }
+
+/* ━━━ 表单 ━━━ */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn {
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: #ff5a75; }
+.btn-success { background: var(--green); color: white; }
+.btn-danger { background: var(--red); color: white; }
+.btn-small { padding: 0.25rem 0.75rem; font-size: 0.85rem; }
+
+/* ━━━ 角色卡 ━━━ */
+.ability-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.ability-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+}
+
+.ability-name {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+}
+
+.ability-score {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.ability-mod {
+    font-size: 0.9rem;
+    color: var(--cyan);
+}
+
+/* ━━━ 技能列表 ━━━ */
+.skill-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+}
+
+.skill-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.skill-item:hover { background: var(--surface2); }
+.skill-item.proficient { border-left: 3px solid var(--green); }
+.skill-item.expertise { border-left: 3px solid var(--gold); }
+
+/* ━━━ HP 条 ━━━ */
+.hp-bar-container {
+    margin: 1rem 0;
+}
+
+.hp-bar {
+    height: 24px;
+    background: var(--bg);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+}
+
+.hp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red), var(--green));
+    border-radius: 12px;
+    transition: width 0.3s ease;
+}
+
+.hp-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* ━━━ 战斗追踪 ━━━ */
+.combatant-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.35rem;
+    background: var(--bg);
+    transition: background 0.2s;
+}
+
+.combatant-row.current {
+    background: var(--surface2);
+    border: 1px solid var(--gold);
+}
+
+.combatant-name {
+    flex: 2;
+    font-weight: bold;
+}
+
+.combatant-init {
+    flex: 1;
+    color: var(--cyan);
+    text-align: center;
+}
+
+.combatant-hp {
+    flex: 2;
+}
+
+.combatant-ac {
+    flex: 1;
+    text-align: center;
+    color: var(--text-dim);
+}
+
+/* ━━━ 怪物/法术卡 ━━━ */
+.info-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.info-title {
+    font-size: 1.3rem;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+}
+
+.info-subtitle {
+    color: var(--gold);
+    margin-bottom: 1rem;
+}
+
+.info-detail {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.info-detail dt {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+
+.info-detail dd {
+    font-size: 0.95rem;
+}
+
+/* ━━━ 随机事件页面 ━━━ */
+.events-output-container {
+    margin-bottom: 0.5rem;
+}
+
+.events-output {
+    min-height: 250px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.event-result-header {
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+}
+
+.event-result-dice {
+    color: var(--cyan);
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.event-result-body {
+    line-height: 1.7;
+    font-size: 0.9rem;
+    padding-left: 0.25rem;
+}
+
+/* ━━━ 事件分组面板 ━━━ */
+.events-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.event-group {
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.event-group[open] {
+    border-color: var(--accent);
+}
+
+.event-group-header {
+    cursor: pointer;
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface2);
+    transition: background 0.2s;
+    list-style: none;
+}
+
+.event-group-header::-webkit-details-marker {
+    display: none;
+}
+
+.event-group-header:hover {
+    background: #1a4a7a;
+}
+
+.event-group-title {
+    font-size: 1.05rem;
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.event-group-count {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+}
+
+/* ━━━ 事件卡片网格 ━━━ */
+.event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.6rem;
+    padding: 1rem;
+}
+
+.event-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.event-card:hover {
+    border-color: var(--accent);
+    background: var(--surface);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(233, 68, 96, 0.15);
+}
+
+.event-card:active {
+    transform: translateY(0);
+}
+
+.event-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.event-card-cmd {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--cyan);
+    font-size: 0.95rem;
+}
+
+.event-card-dice {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    background: var(--surface2);
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+}
+
+.event-card-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+}
+
+.event-card-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin-top: 0.3rem;
+    /* 最多显示2行 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ━━━ 事件结果内嵌表格/骰子 ━━━ */
+.event-result-body b {
+    color: var(--gold);
+}
+
+.event-result-body .dice-highlight {
+    color: var(--cyan);
+    font-weight: bold;
+}
+
+/* ━━━ 响应式 ━━━ */
+@media (max-width: 768px) {
+    .ability-grid { grid-template-columns: repeat(3, 1fr); }
+    .skill-list { grid-template-columns: repeat(2, 1fr); }
+    .navbar { padding: 0.5rem 1rem; }
+    .row { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+    .ability-grid { grid-template-columns: repeat(2, 1fr); }
+    .skill-list { grid-template-columns: 1fr; }
+}
+
+/* ━━━ 头像样式 ━━━ */
+.portrait-container {
+    text-align: center;
+    margin: 0.5rem 0 1rem 0;
+}
+
+.char-portrait {
+    max-width: 200px;
+    max-height: 250px;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    object-fit: cover;
+}
+
+.portrait-actions input::placeholder {
+    color: var(--text-dim);
+}
+
+/* ━━━ 角色详情展开面板 ━━━ */
+.char-detail-grid {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 1rem;
+}
+
+.char-detail-left {
+    display: flex; flex-direction: column; align-items: center;
+}
+
+.char-detail-right {
+    min-width: 0; overflow-y: auto; max-height: 70vh;
+}
+
+.char-quick-stats {
+    display: flex; gap: 0.75rem; margin-bottom: 0.5rem;
+    font-size: 0.9rem; flex-wrap: wrap; justify-content: center;
+}
+.char-quick-stats b { color: var(--gold); }
+
+.char-section {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; margin-bottom: 0.4rem; overflow: hidden;
+}
+.char-section[open] { border-color: var(--accent); }
+.char-section-header {
+    cursor: pointer; padding: 0.5rem 0.75rem;
+    font-size: 0.9rem; font-weight: bold; color: var(--gold);
+    background: var(--surface2); list-style: none;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.char-section-header::-webkit-details-marker { display: none; }
+.char-section-header:hover { background: #1a4a7a; }
+.char-section-body {
+    padding: 0.6rem 0.75rem; font-size: 0.85rem;
+}
+
+.detail-label-sm {
+    font-size: 0.75rem; color: var(--text-dim);
+    text-transform: uppercase; margin-bottom: 0.25rem; font-weight: bold;
+}
+
+.detail-row {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem;
+    padding: 0.3rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { font-weight: 600; color: var(--text); }
+.detail-val { color: var(--text-dim); font-size: 0.8rem; }
+.detail-sub { width: 100%; color: var(--text-dim); font-size: 0.78rem; padding-left: 1.2rem; }
+
+.skill-tag-cloud {
+    display: flex; flex-wrap: wrap; gap: 0.3rem;
+}
+.skill-tag {
+    display: inline-block; padding: 0.2rem 0.5rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; font-size: 0.78rem; color: var(--text-dim);
+    white-space: nowrap;
+}
+.skill-tag.proficient { border-color: var(--green); color: var(--green); }
+.skill-tag.expertise { border-color: var(--gold); color: var(--gold); }
+
+.coin-badge {
+    display: inline-block; padding: 0.2rem 0.5rem;
+    background: var(--surface2); border-radius: 4px;
+    font-size: 0.8rem; color: var(--gold); margin-right: 0.3rem; margin-bottom: 0.2rem;
+}
+
+@media (max-width: 768px) {
+    .char-detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .char-detail-right {
+        max-height: none;
+    }
+}
+
+/* ━━━ 自定义骰子构建器 ━━━ */
+.dice-builder {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.dice-builder-inputs {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.2s;
+}
+
+.dice-builder-inputs:focus-within {
+    border-color: var(--accent);
+}
+
+.dice-builder-inputs input[type="number"] {
+    width: 70px;
+    padding: 0.5rem 0.4rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border);
+    color: var(--gold);
+    text-align: center;
+    font-family: 'Consolas', 'Courier New', monospace;
+    -moz-appearance: textfield;
+}
+
+.dice-builder-inputs input[type="number"]::-webkit-outer-spin-button,
+.dice-builder-inputs input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.dice-builder-inputs input[type="number"]:focus {
+    outline: none;
+    border-bottom-color: var(--accent);
+}
+
+.dice-builder-label {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: var(--text-dim);
+    font-family: 'Consolas', 'Courier New', monospace;
+    user-select: none;
+}
+
+/* ━━━ 大号投掷按钮 ━━━ */
+.btn-roll {
+    padding: 0.75rem 1.8rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.4;
+    min-width: 80px;
+    box-shadow: 0 3px 8px rgba(233, 68, 96, 0.3);
+}
+
+.btn-roll:hover {
+    background: #ff5a75;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(233, 68, 96, 0.4);
+}
+
+.btn-roll:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(233, 68, 96, 0.3);
+}
+
+/* ━━━ 优势/劣势切换按钮组 ━━━ */
+.adv-toggle-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ndn-sync-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.ndn-sync-label input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.ndn-sync-label:hover {
+    color: var(--text);
+}
+
+.adv-toggle {
+    display: flex;
+    gap: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.adv-btn {
+    padding: 0.4rem 1rem;
+    background: var(--bg);
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.adv-btn:last-child {
+    border-right: none;
+}
+
+.adv-btn:hover {
+    background: var(--surface2);
+    color: var(--text);
+}
+
+.adv-btn.active {
+    background: var(--accent);
+    color: white;
+    font-weight: bold;
+}
+
+.adv-btn.active:hover {
+    background: #ff5a75;
+}

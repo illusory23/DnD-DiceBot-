@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色卡 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .item-result-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer; font-size: 0.82rem;
+        }
+        .item-result-row:hover { border-color: var(--accent); background: var(--surface); }
+        /* 背景编辑 */
+        .bg-edit-row { margin-bottom: 0.5rem; }
+        .bg-edit-label { font-size: 0.78rem; color: var(--gold); margin-bottom: 0.15rem; font-weight: bold; }
+        .bg-edit-input {
+            width: 100%; padding: 0.35rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.78rem; font-family: inherit;
+            box-sizing: border-box;
+        }
+        .bg-edit-input:focus { border-color: var(--accent); outline: none; }
+        .bg-textarea { resize: vertical; min-height: 2.5rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/">掷骰</a>
+            <a href="/character" class="active">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+            <a href="/events">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 创建角色 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">📜 创建角色</div>
+                    <div class="form-group">
+                        <label>角色名称 *</label>
+                        <input type="text" id="char-name" placeholder="输入角色名...">
+                    </div>
+                    <div class="form-group">
+                        <label>职业</label>
+                        <input type="text" id="char-class" placeholder="如: 战士 / 法师 / 游荡者">
+                    </div>
+                    <div class="form-group">
+                        <label>种族</label>
+                        <input type="text" id="char-race" placeholder="如: 人类 / 精灵 / 半身人">
+                    </div>
+                    <div class="form-group">
+                        <label>等级</label>
+                        <input type="number" id="char-level" value="1" min="1" max="20">
+                    </div>
+                    <button class="btn btn-primary" onclick="createChar()">✨ 创建角色</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📥 导入角色文件</div>
+                    <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.5rem;">
+                        支持从 Excel (.xlsx) 人物卡文件导入角色
+                    </div>
+                    <input type="file" id="import-file-input" accept=".xlsx,.xls"
+                           style="display:none;" onchange="handleCharFileImport(event)">
+                    <button class="btn btn-primary" onclick="document.getElementById('import-file-input').click()"
+                            style="width:100%;">
+                        📤 选择文件并导入
+                    </button>
+                    <div id="import-status" style="margin-top:0.5rem;font-size:0.8rem;"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">👥 角色列表</div>
+                    <div id="char-list" style="color:var(--text-dim)">加载中...</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">👹 资料库查询生物</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-search" placeholder="搜索怪物/生物..."
+                               onkeydown="if(event.key==='Enter') searchMonster()">
+                        <button onclick="searchMonster()">🔍</button>
+                    </div>
+                    <div id="search-results" style="max-height:180px;overflow-y:auto;margin-top:0.5rem;"></div>
+                    <div id="monster-info"></div>
+                </div>
+            </div>
+
+            <!-- 角色详情 + 物品搜索 -->
+            <div class="col" style="flex: 2; display:flex; flex-direction:column; gap:1rem;">
+                <div id="char-detail" class="card" style="flex:1; overflow-y:auto; max-height:55vh;">
+                    <div class="card-header">📋 角色详情</div>
+                    <div style="color:var(--text-dim); text-align:center; padding:2rem;">
+                        请创建或选择一个角色
+                    </div>
+                </div>
+
+                <!-- 物品/装备搜索面板 -->
+                <div class="card" style="flex:1; overflow-y:auto; max-height:40vh;">
+                    <div class="card-header">⚔️ 武器装备/物品搜索</div>
+                    <div class="dice-input" style="margin-bottom:0.5rem;">
+                        <input type="text" id="item-search-input" placeholder="搜索武器、装备、物品..."
+                               onkeydown="if(event.key==='Enter') doItemSearch()">
+                        <button onclick="doItemSearch()">🔍</button>
+                    </div>
+                    <div id="item-search-results" style="max-height:200px;overflow-y:auto;font-size:0.82rem;">
+                        <div style="color:var(--text-dim);text-align:center;padding:0.5rem;">输入关键词搜索</div>
+                    </div>
+                    <div id="item-detail"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChar = null;
+
+        async function loadCharList() {
+            try {
+                const resp = await fetch('/api/characters');
+                const chars = await resp.json();
+                const el = document.getElementById('char-list');
+
+                if (!chars.length) {
+                    el.innerHTML = '<div style="color:var(--text-dim)">暂无角色</div>';
+                    return;
+                }
+
+                el.innerHTML = chars.map(c => `
+                    <div class="skill-item" onclick="selectChar(${c.id})" style="cursor:pointer;margin-bottom:0.25rem;display:flex;align-items:center;gap:0.5rem;">
+                        <img src="/api/character/${c.id}/portrait?t=${Date.now()}"
+                             style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);"
+                             onerror="this.style.display='none'"
+                             loading="lazy">
+                        <span style="flex:1;">${c.name}</span>
+                        <span style="color:var(--text-dim)">${c.level}级 ${c.class || '-'}</span>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('char-list').innerHTML = '<div style="color:var(--red)">加载失败</div>';
+            }
+        }
+
+        async function createChar() {
+            const name = document.getElementById('char-name').value.trim();
+            if (!name) { alert('请输入角色名'); return; }
+
+            const resp = await fetch('/api/character', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name,
+                    level: parseInt(document.getElementById('char-level').value) || 1,
+                    class: document.getElementById('char-class').value,
+                    race: document.getElementById('char-race').value
+                })
+            });
+
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+
+            currentChar = data;
+            loadCharList();
+            selectChar(data.id);  // 重新获取完整角色数据（含abilities）
+        }
+
+        async function selectChar(id) {
+            try {
+                const resp = await fetch(`/api/character/${id}`);
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                currentChar = data;
+                fetch(`/api/character/${encodeURIComponent(data.name)}/use`, {method:'POST'}).catch(()=>{});
+                renderCharDetail(data);
+            } catch(e) {
+                alert('加载角色失败: ' + e.message);
+            }
+        }
+
+        function renderCharDetail(char) {
+            const el = document.getElementById('char-detail');
+            if (!char || !char.abilities) {
+                el.innerHTML = '<div class="card-header">📋 角色详情</div><div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>';
+                return;
+            }
+
+            const abilities = char.abilities;
+            const mods = char.ability_mods || {};
+            const abbr = {str:'力量', dex:'敏捷', con:'体质', 'int':'智力', wis:'感知', cha:'魅力'};
+
+            // ━━ 属性格 ━━
+            const abilityHtml = Object.entries(abbr).map(([key, label]) => {
+                const score = abilities[key] || 10;
+                const mod = mods[key] || 0;
+                return `<div class="ability-box" onclick="editAbility(${char.id}, '${key}', ${score})" title="点击修改${label}值" style="cursor:pointer;">
+                    <div class="ability-name">${label}</div>
+                    <div class="ability-score">${score}</div>
+                    <div class="ability-mod">${mod >= 0 ? '+' : ''}${mod}</div>
+                </div>`;
+            }).join('');
+
+            // ━━ 技能熟练 ━━
+            const skillProfs = char.skill_proficiencies || {};
+            const skillNames = ['运动','特技','巧手','隐匿','奥秘','历史','调查','自然','宗教',
+                               '驯兽','洞悉','医药','察觉','生存','欺诈','威吓','表演','游说'];
+            const skillHtml = skillNames.map(s => {
+                const prof = skillProfs[s] || {};
+                const isProf = prof.is_proficient;
+                const isExp = prof.is_expertise;
+                let cls = '';
+                let toggleTitle = `点击设为熟练 (当前: 非熟练)`;
+                if (isExp) { cls = 'proficient expertise'; toggleTitle = `点击取消熟练 (当前: 专精)`; }
+                else if (isProf) { cls = 'proficient'; toggleTitle = `点击设为专精 (当前: 熟练)`; }
+                const ab = char.ability_mods || {};
+                const skMap = {运动:'str',特技:'dex',巧手:'dex',隐匿:'dex',奥秘:'int',历史:'int',调查:'int',自然:'int',宗教:'int',
+                              驯兽:'wis',洞悉:'wis',医药:'wis',察觉:'wis',生存:'wis',欺诈:'cha',威吓:'cha',表演:'cha',游说:'cha'};
+                const amod = ab[skMap[s]] || 0;
+                const bonus = amod + (isExp ? (char.proficiency_bonus||2)*2 : (isProf ? (char.proficiency_bonus||2) : 0));
+                return `<span class="skill-tag${cls ? ' ' + cls : ''}" title="${toggleTitle}" onclick="toggleSkill(${char.id}, '${s}', ${!isProf || isExp})" style="cursor:pointer;">${s} ${bonus>=0?'+':''}${bonus}</span>`;
+            }).join('');
+
+            // ━━ 武器装备 ━━
+            const weapons = char.weapons || [];
+            const armor = char.armor || {};
+            let weaponHtml = '';
+            if (weapons.length > 0) {
+                weaponHtml = weapons.map(w => `
+                    <div class="detail-row">
+                        <span class="detail-label">⚔️ ${w.name || w.weapon_name || '未命名'}</span>
+                        <span class="detail-val">命中 +${w.attack_bonus || 0} | 伤害 ${w.damage || w.damage_dice || '-'} ${w.damage_type || ''}</span>
+                        <button class="btn btn-small btn-danger" onclick="removeWeapon(${char.id}, ${w.id || w.weapon_id}, '${(w.name || '').replace(/'/g, "\\'")}')" style="padding:0.15rem 0.4rem;font-size:0.7rem;margin-left:auto;">✕</button>
+                        ${w.description ? `<div class="detail-sub">${w.description}</div>` : ''}
+                        ${w.effect ? `<div class="detail-sub" style="color:var(--gold);">✨ ${w.effect}</div>` : ''}
+                    </div>`).join('');
+            } else {
+                weaponHtml = '<div class="detail-row" style="color:var(--text-dim);">暂无武器</div>';
+            }
+            if (armor && (armor.name || armor.armor_name)) {
+                weaponHtml += `<div class="detail-row"><span class="detail-label">🛡️ ${armor.name || armor.armor_name || '护甲'}</span>
+                    <span class="detail-val">AC ${armor.ac || armor.armor_class || '?'} | ${armor.type || armor.armor_type || ''}</span></div>`;
+            }
+            // 添加武器表单
+            weaponHtml += `
+                <div class="detail-row" style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+                    <div style="display:flex;gap:0.3rem;flex-wrap:wrap;width:100%;align-items:center;">
+                        <input id="new-weapon-name-${char.id}" placeholder="武器名" style="width:80px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="new-weapon-atk-${char.id}" placeholder="命中" value="0" style="width:45px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="new-weapon-dmg-${char.id}" placeholder="伤害" value="1d6" style="width:50px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="new-weapon-type-${char.id}" placeholder="类型" value="挥砍" style="width:50px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <button class="btn btn-small btn-success" onclick="addWeapon(${char.id})" style="padding:0.2rem 0.5rem;font-size:0.75rem;">+添加</button>
+                    </div>
+                </div>`;
+
+            // ━━ 背包物品 ━━
+            const inventory = char.inventory || [];
+            let invHtml = '';
+            if (inventory.length > 0) {
+                invHtml = inventory.map(item => {
+                    const iname = item.item_name || item.name || '?';
+                    const qty = item.quantity || 1;
+                    const iid = item.id;
+                    const loc = item.location || '背包';
+                    const wt = item.weight ? ` (${item.weight}磅)` : '';
+                    const desc = item.description || '';
+                    const eff = item.effect || '';
+                    return `<div class="detail-row">
+                        <span class="detail-label">📦 ${iname}</span>
+                        <span class="detail-val">${loc}${wt}</span>
+                        <span style="display:flex;align-items:center;gap:0.2rem;margin-left:auto;">
+                            <button class="btn btn-small" onclick="adjItemQty(${char.id}, ${iid}, ${qty - 1})" style="padding:0.1rem 0.35rem;font-size:0.7rem;background:var(--surface2);" title="减少">−</button>
+                            <span style="font-weight:bold;color:var(--gold);min-width:20px;text-align:center;font-size:0.8rem;">${qty}</span>
+                            <button class="btn btn-small" onclick="adjItemQty(${char.id}, ${iid}, ${qty + 1})" style="padding:0.1rem 0.35rem;font-size:0.7rem;background:var(--surface2);" title="增加">+</button>
+                            <button class="btn btn-small btn-danger" onclick="removeItem(${char.id}, ${iid}, '${iname.replace(/'/g, "\\'")}')" style="padding:0.15rem 0.35rem;font-size:0.65rem;">✕</button>
+                        </span>
+                        ${desc ? `<div class="detail-sub">${desc}</div>` : ''}
+                        ${eff ? `<div class="detail-sub" style="color:var(--gold);">✨ ${eff}</div>` : ''}
+                    </div>`;
+                }).join('');
+            } else {
+                invHtml = '<div class="detail-row" style="color:var(--text-dim);">暂无物品</div>';
+            }
+            // 添加物品表单 + 合并按钮
+            invHtml += `
+                <div class="detail-row" style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+                    <div style="display:flex;gap:0.3rem;flex-wrap:wrap;width:100%;align-items:center;">
+                        <input id="new-item-name-${char.id}" placeholder="物品名" style="flex:1;min-width:70px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="new-item-qty-${char.id}" placeholder="数量" value="1" style="width:40px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="new-item-loc-${char.id}" placeholder="位置" value="背包" style="width:50px;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <button class="btn btn-small btn-success" onclick="addItem(${char.id})" style="padding:0.2rem 0.5rem;font-size:0.75rem;">+添加</button>
+                        ${inventory.length > 1 ? `<button class="btn btn-small" onclick="stackInventory(${char.id})" style="padding:0.2rem 0.5rem;font-size:0.75rem;background:var(--surface2);color:var(--text);">合并</button>` : ''}
+                    </div>
+                </div>`;
+
+            // ━━ 钱币 ━━
+            const coins = char.coins || {};
+            const coinNames = {cp:'铜币', sp:'银币', ep:'金银币', gp:'金币', pp:'白金币'};
+            const coinOrder = ['cp','sp','ep','gp','pp'];
+            const coinEntries = coinOrder.filter(k => coins[k] !== null && coins[k] !== undefined);
+            let coinHtml = '';
+            if (coinEntries.length > 0) {
+                coinHtml = coinEntries.map(k => {
+                    const v = coins[k] || 0;
+                    return `<div style="display:inline-flex;align-items:center;gap:0.15rem;margin-right:0.5rem;margin-bottom:0.2rem;">
+                        <span class="coin-badge">${coinNames[k]}: <b>${v}</b></span>
+                        <button class="btn btn-small" onclick="adjCoin(${char.id}, '${k}', 1)" style="padding:0.05rem 0.3rem;font-size:0.65rem;background:var(--surface2);line-height:1;" title="+1">+</button>
+                        <button class="btn btn-small" onclick="adjCoin(${char.id}, '${k}', -1)" style="padding:0.05rem 0.3rem;font-size:0.65rem;background:var(--surface2);line-height:1;" title="-1">−</button>
+                    </div>`;
+                }).join('');
+            }
+            if (!coinHtml) coinHtml = '<span style="color:var(--text-dim);">暂无钱币</span>';
+            // 自定义金额调整
+            coinHtml += `
+                <div style="margin-top:0.4rem;display:flex;gap:0.3rem;align-items:center;">
+                    <select id="coin-type-${char.id}" style="padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <option value="cp">铜币 CP</option><option value="sp">银币 SP</option>
+                        <option value="ep">金银币 EP</option><option value="gp" selected>金币 GP</option>
+                        <option value="pp">白金币 PP</option>
+                    </select>
+                    <input id="coin-amount-${char.id}" type="number" placeholder="±数量" style="width:55px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                    <button class="btn btn-small btn-success" onclick="adjCoinInput(${char.id})" style="padding:0.2rem 0.5rem;font-size:0.75rem;">调整</button>
+                </div>`;
+
+            // ━━ 已准备法术 ━━
+            const preparedSpells = char.prepared_spells || [];
+            let spellsHtml = '';
+            if (preparedSpells.length > 0) {
+                spellsHtml = preparedSpells.map(s => {
+                    const sname = s.spell_name || s.name || '?';
+                    const slevel = s.spell_level || 0;
+                    const lvlLabel = slevel > 0 ? `${slevel}环` : '戏法';
+                    return `<span class="skill-tag proficient">${sname}<small> [${lvlLabel}]</small></span>`;
+                }).join('');
+            } else {
+                spellsHtml = '<span style="color:var(--text-dim);">暂无已准备法术</span>';
+            }
+
+            // ━━ 法术位 ━━
+            const spellSlots = char.spell_slots || {};
+            const slotEntries = Object.entries(spellSlots).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
+            let slotsHtml = '';
+            if (slotEntries.length > 0) {
+                slotsHtml = slotEntries.map(([level, info]) => {
+                    const remaining = (info.max || 0) - (info.used || 0);
+                    return `<span class="coin-badge">${level}环: ${remaining}/${info.max || 0}</span>`;
+                }).join(' ');
+            } else {
+                slotsHtml = '<span style="color:var(--text-dim);">暂无法术位</span>';
+            }
+
+            // ━━ 背景信息（可编辑）━━
+            const bg = char.background || {};
+            const bgFields = [
+                {key:'personality_traits', label:'个性'},
+                {key:'personality_traits_ext', label:'个性(补充)'},
+                {key:'ideals', label:'理念'},
+                {key:'bonds', label:'羁绊'},
+                {key:'flaws', label:'缺陷'},
+                {key:'background_feature', label:'背景特性'},
+                {key:'appearance', label:'外貌'},
+                {key:'origin', label:'出身'},
+                {key:'languages', label:'语言'},
+                {key:'tool_proficiencies', label:'熟练工具'},
+                {key:'backstory', label:'背景故事'},
+            ];
+            const longFields = ['backstory', 'appearance', 'personality_traits', 'personality_traits_ext',
+                               'ideals', 'bonds', 'flaws', 'background_feature'];
+            let bgHtml = bgFields.map(f => {
+                const val = bg[f.key] || '';
+                const isLong = longFields.includes(f.key);
+                return `<div class="bg-edit-row">
+                    <div class="bg-edit-label">📝 ${f.label}</div>
+                    ${isLong
+                        ? `<textarea class="bg-edit-input bg-textarea" id="bg-${f.key}-${char.id}" rows="${Math.max(2, Math.min(6, (val.match(/\n/g)||[]).length + 1))}">${val}</textarea>`
+                        : `<input class="bg-edit-input" id="bg-${f.key}-${char.id}" value="${val.replace(/"/g, '&quot;')}">`
+                    }
+                </div>`;
+            }).join('');
+            bgHtml += `<button class="btn btn-primary btn-small" onclick="saveBackground(${char.id})" style="margin-top:0.5rem;width:100%;">💾 保存背景</button>`;
+
+            // ━━ 豁免熟练 ━━
+            const saveProfs = char.save_proficiencies || {};
+            const saveAbbr = ['力量','敏捷','体质','智力','感知','魅力'];
+            const saveTags = saveAbbr.map(s => {
+                const prof = saveProfs[s] || {};
+                const isProf = prof.is_proficient;
+                const akey = {力量:'str',敏捷:'dex',体质:'con',智力:'int',感知:'wis',魅力:'cha'}[s];
+                const amod = mods[akey] || 0;
+                const bonus = amod + (isProf ? (char.proficiency_bonus||2) : 0);
+                const toggleTitle = isProf ? `点击取消豁免熟练 (当前: 熟练)` : `点击设为豁免熟练 (当前: 非熟练)`;
+                return `<span class="skill-tag${isProf ? ' proficient' : ''}" title="${toggleTitle}" onclick="toggleSaveProf(${char.id}, '${s}', ${!isProf})" style="cursor:pointer;">${s} ${bonus>=0?'+':''}${bonus}</span>`;
+            }).join('');
+
+            // ━━ 组装完整HTML ━━
+            const hpPct = char.hp_max ? Math.round(char.hp_current / char.hp_max * 100) : 100;
+            const portraitUrl = `/api/character/${char.id}/portrait?t=${Date.now()}`;
+
+            // 基础信息行
+            const metaParts = [];
+            if (char.alignment) metaParts.push(`🏷️ ${char.alignment}`);
+            if (char.faith) metaParts.push(`🙏 ${char.faith}`);
+            if (char.gender) metaParts.push(`👤 ${char.gender}`);
+            if (char.age) metaParts.push(`🎂 ${char.age}岁`);
+            if (char.height) metaParts.push(`📏 ${char.height}`);
+            if (char.weight_field || char.weight) metaParts.push(`⚖️ ${char.weight_field || char.weight}`);
+            if (char.player) metaParts.push(`🎮 ${char.player}`);
+            const metaLine = metaParts.length > 0 ? `<div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:0.5rem;">${metaParts.join(' | ')}</div>` : '';
+
+            el.innerHTML = `
+                <div class="card-header">📋 ${char.name} — ${char.level || 1}级 ${char.class || '未知'} ${char.race || ''}</div>
+
+                <div class="char-detail-grid">
+                    <!-- 左：头像+基础 -->
+                    <div class="char-detail-left">
+                        <div class="portrait-container">
+                            <img src="${portraitUrl}" alt="${char.name}头像"
+                                 class="char-portrait"
+                                 onerror="this.style.display='none'">
+                        </div>
+                        ${metaLine}
+                        <div class="hp-bar-container">
+                            <div class="hp-bar">
+                                <div class="hp-bar-fill" style="width:${hpPct}%"></div>
+                                <div class="hp-text">❤️ ${char.hp_current || 0}/${char.hp_max || 0}</div>
+                            </div>
+                        </div>
+                        <div class="char-quick-stats">
+                            <span>🛡️ AC: <b>${char.ac || 10}</b></span>
+                            <span>🏃 速度: <b>${char.speed || 30}尺</b></span>
+                            <span>⭐ 熟练: <b>+${char.proficiency_bonus || 2}</b></span>
+                        </div>
+                        ${char.temp_hp ? `<div style="color:var(--cyan);font-size:0.85rem;">💙 临时HP: ${char.temp_hp}</div>` : ''}
+
+                        <div class="ability-grid" style="margin-top:0.75rem;">${abilityHtml}</div>
+
+                        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">
+                            <button class="btn btn-small btn-success" onclick="adjustHpModal(${char.id})">❤️ 调整HP</button>
+                            <button class="btn btn-small btn-primary" onclick="charLongRest('${char.name}')">🛌 长休</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteCharModal(${char.id}, '${char.name.replace(/'/g, "\\'")}')">🗑 删除</button>
+                        </div>
+
+                        <div class="portrait-actions" style="margin-top:0.75rem;">
+                            <div style="display:flex;gap:0.5rem;">
+                                <input type="text" id="portrait-path-input" placeholder="头像路径..." style="flex:1;padding:0.35rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.8rem;">
+                                <button class="btn btn-small btn-primary" onclick="setPortrait(${char.id})">🖼 设置</button>
+                                <button class="btn btn-small btn-danger" onclick="clearPortrait(${char.id})">清除</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右：详细信息 -->
+                    <div class="char-detail-right">
+                        <details class="char-section" open>
+                            <summary class="char-section-header">🎯 技能熟练 & 豁免</summary>
+                            <div class="char-section-body">
+                                <div class="detail-label-sm">技能</div>
+                                <div class="skill-tag-cloud">${skillHtml}</div>
+                                <div class="detail-label-sm" style="margin-top:0.5rem;">豁免</div>
+                                <div class="skill-tag-cloud">${saveTags}</div>
+                            </div>
+                        </details>
+
+                        <details class="char-section">
+                            <summary class="char-section-header">⚔️ 武器装备</summary>
+                            <div class="char-section-body">${weaponHtml}</div>
+                        </details>
+
+                        <details class="char-section">
+                            <summary class="char-section-header">🎒 背包物品 & 钱币</summary>
+                            <div class="char-section-body">
+                                <div class="detail-label-sm">💰 钱币</div>
+                                <div style="margin-bottom:0.5rem;">${coinHtml}</div>
+                                <div class="detail-label-sm">📦 物品 (${inventory.length}件)</div>
+                                ${invHtml}
+                            </div>
+                        </details>
+
+                        <details class="char-section">
+                            <summary class="char-section-header">📖 法术 (${preparedSpells.length}个)</summary>
+                            <div class="char-section-body">
+                                <div class="detail-label-sm">✨ 法术位</div>
+                                <div style="margin-bottom:0.5rem;">${slotsHtml}</div>
+                                <div class="detail-label-sm">📜 已准备法术</div>
+                                <div class="skill-tag-cloud">${spellsHtml}</div>
+                            </div>
+                        </details>
+
+                        <details class="char-section">
+                            <summary class="char-section-header">📝 背景信息</summary>
+                            <div class="char-section-body">${bgHtml}</div>
+                        </details>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function adjustHpModal(charId) {
+            const amount = prompt('HP变化量 (正值增加, 负值减少):', '-10');
+            if (amount === null) return;
+
+            const resp = await fetch(`/api/character/${charId}/hp`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({amount: parseInt(amount)})
+            });
+
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            alert(`新HP: ${data.hp_current}/${data.hp_max}`);
+
+            if (currentChar && currentChar.id === charId) {
+                selectChar(charId);
+            }
+        }
+
+        async function charLongRest(name) {
+            const resp = await fetch(`/api/character/${name}/longrest`, {method:'POST'});
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            alert('长休完成！HP和法术位已恢复。');
+            if (currentChar) selectChar(currentChar.id);
+        }
+
+        async function deleteCharModal(id, name) {
+            if (!confirm(`确认删除角色 "${name}"？\n此操作不可撤销，将永久删除该角色及其所有数据。`)) return;
+
+            try {
+                const resp = await fetch(`/api/character/${id}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) { alert('删除失败: ' + data.error); return; }
+                alert(`已删除角色: ${data.name}`);
+                currentChar = null;
+                loadCharList();
+                document.getElementById('char-detail').innerHTML = `
+                    <div class="card-header">📋 角色详情</div>
+                    <div style="color:var(--text-dim);text-align:center;padding:2rem;">
+                        请创建或选择一个角色
+                    </div>`;
+            } catch(e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        async function saveBackground(charId) {
+            const bgFields = ['personality_traits','personality_traits_ext','ideals','bonds','flaws',
+                             'background_feature','appearance','origin','languages','tool_proficiencies','backstory'];
+            const bg = {};
+            for (const key of bgFields) {
+                const el = document.getElementById(`bg-${key}-${charId}`);
+                if (el) bg[key] = el.value;
+            }
+            const resp = await fetch(`/api/character/${charId}/background`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(bg)
+            });
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            alert('✅ 背景信息已保存');
+        }
+
+        async function setPortrait(charId) {
+            const path = document.getElementById('portrait-path-input').value.trim();
+            if (!path) { alert('请输入头像文件路径'); return; }
+
+            const resp = await fetch(`/api/character/${charId}/portrait`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path})
+            });
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            if (data.warning) {
+                alert('⚠ ' + data.warning);
+                return;  // 文件未找到，不刷新头像
+            }
+            // 成功：刷新头像图片（加时间戳绕过缓存）
+            const img = document.querySelector('.char-portrait');
+            if (img) {
+                img.src = `/api/character/${charId}/portrait?t=${Date.now()}`;
+                img.style.display = '';
+            }
+            // 同步更新角色列表中的缩略图
+            const thumbs = document.querySelectorAll(`#char-list img[src*="/api/character/${charId}/portrait"]`);
+            thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait?t=${Date.now()}`; t.style.display = ''; });
+            alert('✅ 头像已设置');
+        }
+
+        async function clearPortrait(charId) {
+            if (!confirm('确认清除头像？')) return;
+            const resp = await fetch(`/api/character/${charId}/portrait`, {method: 'DELETE'});
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            // 隐藏头像图片，清空输入框
+            const img = document.querySelector('.char-portrait');
+            if (img) img.style.display = 'none';
+            const input = document.getElementById('portrait-path-input');
+            if (input) input.value = '';
+        }
+
+        // ━━━ 怪物搜索 ━━━
+        async function searchMonster() {
+            const query = document.getElementById('monster-search').value.trim();
+            if (query.length < 2) { alert('至少输入2个字'); return; }
+
+            const resultsEl = document.getElementById('search-results');
+            resultsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;padding:0.25rem;">搜索中...</div>';
+
+            try {
+                const resp = await fetch(`/api/monster/${encodeURIComponent(query)}`);
+                const data = await resp.json();
+
+                if (!data.error) {
+                    resultsEl.innerHTML = '';
+                    showMonsterInfo(data);
+                    return;
+                }
+
+                const searchResp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const searchData = await searchResp.json();
+
+                if (!searchData.results || !searchData.results.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">未找到</div>';
+                    return;
+                }
+
+                const monsters = searchData.results.filter(r => r.type === 'monster');
+                if (!monsters.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">未找到匹配的生物</div>';
+                    return;
+                }
+
+                resultsEl.innerHTML = monsters.map(m => `
+                    <div style="padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                border-radius:4px;margin-bottom:0.2rem;cursor:pointer;display:flex;
+                                justify-content:space-between;align-items:center;"
+                         onclick="selectMonsterResult('${m.name.replace(/'/g, "\\'")}')"
+                         onmouseover="this.style.borderColor='var(--accent)'"
+                         onmouseout="this.style.borderColor='var(--border)'">
+                        <span style="font-weight:bold;color:var(--gold);">👹 ${m.name}</span>
+                        <span style="font-size:0.8rem;color:var(--text-dim);">CR:${m.cr || '?'}</span>
+                    </div>
+                `).join('');
+
+            } catch(e) {
+                resultsEl.innerHTML = `<div style="color:var(--red);">搜索失败</div>`;
+            }
+        }
+
+        async function selectMonsterResult(name) {
+            document.getElementById('monster-search').value = name;
+            const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
+            const data = await resp.json();
+            if (!data.error) {
+                document.getElementById('search-results').innerHTML = '';
+                showMonsterInfo(data);
+            }
+        }
+
+        function showMonsterInfo(monster) {
+            // 保存在全局变量中以便后续操作
+            window._selectedMonster = monster;
+
+            const el = document.getElementById('monster-info');
+            el.innerHTML = `
+                <div style="background:var(--bg);border:1px solid var(--accent);border-radius:8px;
+                            padding:0.75rem;margin-top:0.5rem;">
+                    <div style="color:var(--accent);font-weight:bold;margin-bottom:0.35rem;">
+                        👹 ${monster.name}
+                        ${monster.name_en ? `<small style="color:var(--text-dim);font-weight:normal;">${monster.name_en}</small>` : ''}
+                    </div>
+                    <div style="color:var(--gold);font-size:0.85rem;margin-bottom:0.5rem;">
+                        CR: ${monster.cr || '?'} | ${monster.size || '?'} ${monster.type || '?'}
+                        ${monster.legendary ? ' | 传奇: ' + monster.legendary : ''}
+                    </div>
+                    ${monster.detail_text ? `<div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;max-height:250px;overflow-y:auto;">${monster.detail_text}</div>` : '<div style="font-size:0.8rem;color:var(--text-dim);">（无详细描述数据）</div>'}
+                    <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.35rem;">📚 ${monster.source || '未知'}</div>
+                    <button class="btn btn-primary btn-small" onclick="createCharFromMonster()" style="margin-top:0.5rem;">📋 创建为角色</button>
+                </div>`;
+        }
+
+        async function createCharFromMonster() {
+            const monster = window._selectedMonster;
+            if (!monster) { alert('请先搜索生物'); return; }
+
+            try {
+                const resp = await fetch('/api/character/from-monster', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: monster.name,
+                        cr: monster.cr || '0',
+                        size: monster.size || '',
+                        type: monster.type || '',
+                    })
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                alert(`✅ 角色 "${monster.name}" 已创建！\nHP: ${data.hp_current}/${data.hp_max} | AC: ${data.ac}`);
+                loadCharList();
+                selectChar(data.id);  // 获取完整角色数据
+            } catch(e) {
+                alert('创建失败: ' + e.message);
+            }
+        }
+
+        // ━━━ 属性/技能/豁免交互 ━━━
+        async function editAbility(charId, ability, currentScore) {
+            const newScore = prompt(`修改属性值 (当前: ${currentScore}, 范围 1-30):`, currentScore);
+            if (newScore === null) return;
+            const score = parseInt(newScore);
+            if (isNaN(score) || score < 1 || score > 30) { alert('属性值范围 1-30'); return; }
+
+            try {
+                const resp = await fetch(`/api/character/${charId}/ability`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ability, score})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('修改失败: ' + e.message); }
+        }
+
+        async function toggleSkill(charId, skillName, makeProficient) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/skill`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({skill: skillName, proficient: makeProficient})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('操作失败: ' + e.message); }
+        }
+
+        async function toggleSaveProf(charId, abilityName, makeProficient) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/save-prof`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ability: abilityName, proficient: makeProficient})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('操作失败: ' + e.message); }
+        }
+
+        // ━━━ 武器装备管理 ━━━
+        async function addWeapon(charId) {
+            const name = document.getElementById(`new-weapon-name-${charId}`).value.trim();
+            if (!name) { alert('请输入武器名'); return; }
+            const atk = parseInt(document.getElementById(`new-weapon-atk-${charId}`).value) || 0;
+            const dmg = document.getElementById(`new-weapon-dmg-${charId}`).value.trim() || '1d6';
+            const dtype = document.getElementById(`new-weapon-type-${charId}`).value.trim() || '挥砍';
+
+            try {
+                const resp = await fetch(`/api/character/${charId}/weapon`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, attack_bonus: atk, damage: dmg, damage_type: dtype})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('添加失败: ' + e.message); }
+        }
+
+        async function removeWeapon(charId, weaponId, name) {
+            if (!confirm(`确认删除武器 "${name}"？`)) return;
+            try {
+                const resp = await fetch(`/api/character/${charId}/weapon/${weaponId}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('删除失败: ' + e.message); }
+        }
+
+        // ━━━ 物品管理 ━━━
+        async function addItem(charId) {
+            const name = document.getElementById(`new-item-name-${charId}`).value.trim();
+            if (!name) { alert('请输入物品名'); return; }
+            const qty = parseInt(document.getElementById(`new-item-qty-${charId}`).value) || 1;
+            const loc = document.getElementById(`new-item-loc-${charId}`).value.trim() || '背包';
+
+            try {
+                const resp = await fetch(`/api/character/${charId}/item`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, quantity: qty, location: loc})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('添加失败: ' + e.message); }
+        }
+
+        async function adjItemQty(charId, itemId, newQty) {
+            if (newQty < 0) return;
+            try {
+                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({quantity: newQty})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('更新失败: ' + e.message); }
+        }
+
+        async function removeItem(charId, itemId, name) {
+            if (!confirm(`确认删除物品 "${name}"？`)) return;
+            try {
+                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('删除失败: ' + e.message); }
+        }
+
+        async function stackInventory(charId) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/inventory/stack`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                alert(`已合并 ${data.merged} 个重复物品`);
+                selectChar(charId);
+            } catch(e) { alert('合并失败: ' + e.message); }
+        }
+
+        // ━━━ 钱币管理 ━━━
+        async function adjCoin(charId, coinType, amount) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/coin`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({coin_type: coinType, amount})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('调整失败: ' + e.message); }
+        }
+
+        async function adjCoinInput(charId) {
+            const type = document.getElementById(`coin-type-${charId}`).value;
+            const amount = parseInt(document.getElementById(`coin-amount-${charId}`).value) || 0;
+            if (amount === 0) { alert('请输入调整金额（正数增加，负数减少）'); return; }
+            await adjCoin(charId, type, amount);
+        }
+
+        // ━━━ 文件导入 ━━━
+        async function handleCharFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('import-status');
+            statusEl.innerHTML = '<span style="color:var(--cyan);">⏳ 导入中...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const resp = await fetch('/api/character/import', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    statusEl.innerHTML = `<span style="color:var(--red);">❌ ${data.error}</span>`;
+                    return;
+                }
+
+                statusEl.innerHTML = `<span style="color:var(--green);">✅ ${data.name} 导入成功！</span>`;
+                loadCharList();
+                selectChar(data.id);  // 获取完整角色数据
+
+                // 3秒后清除状态
+                setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+            } catch(e) {
+                statusEl.innerHTML = `<span style="color:var(--red);">❌ 导入失败: ${e.message}</span>`;
+            }
+
+            // 清空文件选择器
+            event.target.value = '';
+        }
+
+        // ━━━ 物品搜索 ━━━
+        let itemSearchResults = [];
+
+        async function doItemSearch() {
+            const q = document.getElementById('item-search-input').value.trim();
+            if (!q) return;
+            const el = document.getElementById('item-search-results');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.25rem;">搜索中...</div>';
+            try {
+                // 先查物品表
+                const resp1 = await fetch(`/api/items/search?q=${encodeURIComponent(q)}`);
+                const data1 = await resp1.json();
+                let results = (data1.results || []).slice(0, 30);
+
+                // 无结果时回退到综合搜索（CHM + 项目文件）
+                if (!results.length) {
+                    const resp2 = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                    const data2 = await resp2.json();
+                    results = (data2.results || []).map(r => ({
+                        name: r.name, type: r.type,
+                        detail: r.detail || '', price: '', damage: '', weight: '', item_type: r.type
+                    })).slice(0, 30);
+                }
+
+                if (!results.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;">未找到</div>'; return; }
+                itemSearchResults = results;
+                el.innerHTML = results.map((r, i) => {
+                    const isWpn = !!(r.damage && r.damage.trim());
+                    const btnLabel = isWpn ? '⚔️武器' : '+背包';
+                    return `
+                    <div class="item-result-row" onclick="viewItemDetail(${i})">
+                        <span style="font-weight:bold;color:var(--gold);">${isWpn ? '⚔️' : '📦'} ${r.name}</span>
+                        <span style="display:flex;gap:0.2rem;">
+                            ${currentChar ? '<button class="btn btn-success btn-small" onclick="event.stopPropagation();addItemToCharByIdx(' + i + ')" style="padding:0.1rem 0.35rem;font-size:0.6rem;">' + btnLabel + '</button>' : ''}
+                        </span>
+                    </div>`;
+                }).join('');
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);">搜索失败</div>`; }
+        }
+
+        function viewItemDetail(index) {
+            const item = itemSearchResults[index];
+            if (!item) return;
+            const idx = index;
+            const isWpn = !!(item.damage && item.damage.trim());
+            const btnLabel = isWpn ? '⚔️ 添加为武器' : '➕ 添加到背包';
+            document.getElementById('item-detail').innerHTML =
+                '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.5rem;margin-top:0.3rem;font-size:0.8rem;">' +
+                    '<div style="font-weight:bold;color:var(--accent);">' + (isWpn ? '⚔️ ' : '📦 ') + item.name + '</div>' +
+                    (item.detail ? '<div style="color:var(--text-dim);margin-top:0.2rem;">' + item.detail + '</div>' : '') +
+                    '<div style="margin-top:0.3rem;display:flex;gap:0.3rem;">' +
+                        (currentChar ? '<button class="btn btn-success btn-small" onclick="addItemToCharByIdx(' + idx + ')">' + btnLabel + '</button>' : '<span style="color:var(--text-dim);font-size:0.7rem;">请先选择角色</span>') +
+                        '<button class="btn btn-small" style="background:var(--surface2);color:var(--text);" onclick="document.getElementById(\'item-detail\').innerHTML=\'\'">关闭</button>' +
+                    '</div>' +
+                '</div>';
+        }
+
+        function addItemToCharByIdx(index) {
+            const item = itemSearchResults[index];
+            if (!item) return;
+            addItemToChar(item);
+        }
+
+        async function addItemToChar(item) {
+            if (!currentChar || !currentChar.id) { alert('请先选择一个角色'); return; }
+            const itemName = item.name || item;
+            // 判断是否为武器（有伤害字段）
+            const isWeapon = !!(item.damage && item.damage.trim());
+
+            try {
+                if (isWeapon) {
+                    // 根据角色属性自动计算攻击加值（力量+熟练）
+                    const strScore = (currentChar.abilities && currentChar.abilities.str) || 10;
+                    const strMod = Math.floor((strScore - 10) / 2);
+                    const profBonus = currentChar.proficiency_bonus || 2;
+                    const atkBonus = strMod + profBonus;
+                    // 添加为武器
+                    const resp = await fetch(`/api/character/${currentChar.id}/weapon`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            name: itemName,
+                            attack_bonus: atkBonus,
+                            damage: item.damage || '1d6',
+                            damage_type: item.type || '挥砍',
+                            description: item.detail || ''
+                        })
+                    });
+                    if (!resp.ok) throw new Error((await resp.text()).substring(0, 100));
+                    const data = await resp.json();
+                    if (data.error) { alert(data.error); return; }
+                    alert('✅ "' + itemName + '" 已添加到武器装备');
+                    selectChar(currentChar.id);
+                } else {
+                    // 添加为背包物品
+                    const resp = await fetch(`/api/character/${currentChar.id}/item`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name: itemName, quantity: 1, location: '背包',
+                            description: item.detail || '', weight: parseFloat(item.weight) || 0})
+                    });
+                    if (!resp.ok) throw new Error((await resp.text()).substring(0, 100));
+                    const data = await resp.json();
+                    if (data.error) { alert(data.error); return; }
+                    alert('✅ "' + itemName + '" 已添加到背包');
+                    selectChar(currentChar.id);
+                }
+            } catch(e) { alert('添加失败: ' + e.message); }
+        }
+
+        // 初始加载
+        loadCharList();
+    </script>
+</body>
+</html>

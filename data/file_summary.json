@@ -1,0 +1,74 @@
+{
+  "adventure": {
+    "count": 1,
+    "total_size_kb": 10498.0
+  },
+  "character_doc": {
+    "count": 5,
+    "total_size_kb": 82.60000000000001
+  },
+  "character_sheet": {
+    "count": 21,
+    "total_size_kb": 15067.800000000001
+  },
+  "doc": {
+    "count": 3,
+    "total_size_kb": 443.4
+  },
+  "history": {
+    "count": 4,
+    "total_size_kb": 48.699999999999996
+  },
+  "image": {
+    "count": 145,
+    "total_size_kb": 112379.19999999995
+  },
+  "magic_doc": {
+    "count": 1,
+    "total_size_kb": 0.0
+  },
+  "map": {
+    "count": 10,
+    "total_size_kb": 51968.299999999996
+  },
+  "module_doc": {
+    "count": 10,
+    "total_size_kb": 198.5
+  },
+  "monster_image": {
+    "count": 8,
+    "total_size_kb": 3076.1
+  },
+  "other": {
+    "count": 4,
+    "total_size_kb": 80383.0
+  },
+  "pantheon_doc": {
+    "count": 1,
+    "total_size_kb": 0.0
+  },
+  "pdf": {
+    "count": 7,
+    "total_size_kb": 125467.9
+  },
+  "portrait": {
+    "count": 11,
+    "total_size_kb": 6031.5
+  },
+  "rulebook": {
+    "count": 6,
+    "total_size_kb": 143122.2
+  },
+  "setting": {
+    "count": 1,
+    "total_size_kb": 12639.7
+  },
+  "setting_doc": {
+    "count": 13,
+    "total_size_kb": 31846.100000000006
+  },
+  "text": {
+    "count": 9,
+    "total_size_kb": 142.4
+  }
+}

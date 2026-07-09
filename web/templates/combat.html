@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战斗追踪 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* 怪物搜索结果 */
+        .search-results { margin-top: 0.5rem; max-height: 200px; overflow-y: auto; }
+        .search-result-item {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .search-result-item:hover { background: var(--surface2); border-color: var(--accent); }
+        .search-result-item .name { font-weight: bold; color: var(--gold); }
+        .search-result-item .meta { font-size: 0.8rem; color: var(--text-dim); }
+        .monster-info-card {
+            background: var(--bg); border: 1px solid var(--accent);
+            border-radius: 8px; padding: 1rem; margin-top: 0.75rem;
+        }
+        .monster-info-card .title { font-size: 1.1rem; color: var(--accent); font-weight: bold; margin-bottom: 0.5rem; }
+        .monster-info-card .detail { font-size: 0.85rem; color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .monster-info-card .btn-row { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
+        .damage-row { display: flex; gap: 0.5rem; align-items: center; }
+        .damage-row select { flex: 1; }
+        .damage-row input { flex: 0.5; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/">掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat" class="active">战斗</a>
+            <a href="/spells">法术</a>
+            <a href="/events">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 左栏：添加参与者 + 怪物搜索 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">⚔️ 添加战斗参与者</div>
+
+                    <!-- 从角色卡导入 -->
+                    <div class="form-group">
+                        <label>📋 从角色卡导入</label>
+                        <select id="char-select" onchange="onCharSelect()" style="width:100%;">
+                            <option value="">— 手动输入 —</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>名称</label>
+                        <input type="text" id="combatant-name" placeholder="角色/怪物名">
+                    </div>
+                    <div class="form-group">
+                        <label>先攻加值</label>
+                        <input type="text" id="combatant-init" placeholder="如 +3（填入加值，自动掷d20）" value="+0">
+                    </div>
+                    <div class="form-group">
+                        <label>HP</label>
+                        <input type="number" id="combatant-hp" placeholder="当前HP">
+                    </div>
+                    <div class="form-group">
+                        <label>最大HP</label>
+                        <input type="number" id="combatant-hp-max" placeholder="最大HP">
+                    </div>
+                    <div class="form-group">
+                        <label>AC</label>
+                        <input type="number" id="combatant-ac" placeholder="10" value="10">
+                    </div>
+                    <button class="btn btn-primary" onclick="addCombatant()">➕ 加入战斗</button>
+                </div>
+
+                <!-- 怪物/生物搜索 -->
+                <div class="card">
+                    <div class="card-header">👹 资料库搜索生物</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-search" placeholder="搜索怪物/生物名称..."
+                               onkeydown="if(event.key==='Enter') searchMonster()">
+                        <button onclick="searchMonster()">🔍 搜索</button>
+                    </div>
+                    <div class="search-results" id="search-results"></div>
+                    <div id="monster-info"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">🎯 快速骰</div>
+                    <div class="dice-input">
+                        <input type="text" id="quick-dice" placeholder="d20+5 / 3d6 / adv d20...">
+                        <button onclick="quickRoll()">投掷</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右栏：先攻列表 + 伤害处理 -->
+            <div class="col" style="flex: 2;">
+                <div class="card">
+                    <div class="card-header">
+                        ⚔️ 先攻顺序
+                        <span id="round-info" style="color:var(--gold);margin-left:1rem;"></span>
+                        <button class="btn btn-success" onclick="startCombat()" style="margin-left:0.5rem;font-size:0.8rem;padding:0.2rem 0.6rem;">▶ 开始</button>
+                    </div>
+                    <div id="initiative-list" style="color:var(--text-dim); text-align:center; padding:2rem;">
+                        添加参与者后点击"开始"
+                    </div>
+                    <div style="margin-top:1rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="prevRound()" style="flex:1;min-width:60px;">⏮ 上回合</button>
+                        <button class="btn btn-primary" onclick="prevCombatant()" style="flex:1;min-width:60px;">◀ 上一位</button>
+                        <button class="btn btn-primary" onclick="nextCombatant()" style="flex:1;min-width:60px;">下一位 ▶</button>
+                        <button class="btn btn-primary" onclick="nextRound()" style="flex:1;min-width:60px;">⏭ 下回合</button>
+                        <button class="btn btn-danger" onclick="clearCombat()">🗑 清空</button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- 伤害追踪 -->
+                <div class="card">
+                    <div class="card-header">💥 伤害处理</div>
+                    <div class="damage-row" style="display:flex;flex-direction:column;gap:0.35rem;">
+                        <select id="dmg-target" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                            <option value="">— 选择目标 —</option>
+                        </select>
+                        <input type="number" id="dmg-amount" placeholder="伤害/治疗值" min="0" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                        <div style="display:flex;gap:0.35rem;">
+                            <button class="btn btn-danger" onclick="applyDamage()" style="flex:1;">💥 伤害</button>
+                            <button class="btn btn-success" onclick="applyHeal()" style="flex:1;">💚 治疗</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let combatants = [];
+        let charCache = {};
+
+        // ━━━ 角色下拉框 ━━━
+        async function loadCharSelect() {
+            try {
+                const resp = await fetch('/api/characters');
+                const chars = await resp.json();
+                const select = document.getElementById('char-select');
+                if (chars.length) {
+                    chars.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.name} (${c.level}级 ${c.class || ''} | HP:${c.hp_current || 0}/${c.hp_max || 0})`;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch(e) { console.error('加载角色列表失败', e); }
+        }
+
+        async function onCharSelect() {
+            const charId = document.getElementById('char-select').value;
+            if (!charId) {
+                document.getElementById('combatant-name').value = '';
+                document.getElementById('combatant-init').value = '+0';
+                document.getElementById('combatant-hp').value = '';
+                document.getElementById('combatant-hp-max').value = '';
+                document.getElementById('combatant-ac').value = '10';
+                return;
+            }
+            if (!charCache[charId]) {
+                const resp = await fetch(`/api/character/${charId}`);
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                charCache[charId] = data;
+            }
+            const char = charCache[charId];
+            document.getElementById('combatant-name').value = char.name || '';
+            const dexMod = (char.ability_mods && char.ability_mods.dex) ? char.ability_mods.dex : 0;
+            document.getElementById('combatant-init').value = dexMod >= 0 ? `+${dexMod}` : `${dexMod}`;
+            document.getElementById('combatant-hp').value = char.hp_current || 0;
+            document.getElementById('combatant-hp-max').value = char.hp_max || 0;
+            document.getElementById('combatant-ac').value = char.ac || 10;
+        }
+
+        // ━━━ 添加/管理战斗参与者 ━━━
+        function addCombatant() {
+            const name = document.getElementById('combatant-name').value.trim();
+            if (!name) { alert('请输入名称'); return; }
+
+            const initStr = document.getElementById('combatant-init').value.trim();
+            const hp = parseInt(document.getElementById('combatant-hp').value) || 0;
+            const hpMax = parseInt(document.getElementById('combatant-hp-max').value) || hp;
+            const ac = parseInt(document.getElementById('combatant-ac').value) || 10;
+
+            let initBonus = 0;
+            const bonusMatch = initStr.match(/^([+-]?\d+)$/);
+            if (bonusMatch) initBonus = parseInt(bonusMatch[1]);
+
+            const d20 = Math.floor(Math.random() * 20) + 1;
+            const initiative = d20 + initBonus;
+            const bonusLabel = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`;
+
+            // 检查是否从角色下拉框选择
+            const charSelect = document.getElementById('char-select');
+            const selectedCharId = charSelect ? parseInt(charSelect.value) || null : null;
+            combatants.push({
+                name, initiative,
+                initDetail: `d20(${d20}) ${bonusLabel}`,
+                hp, hpMax, ac, conditions: [],
+                charId: selectedCharId
+            });
+            combatants.sort((a, b) => b.initiative - a.initiative);
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('char-select').value = '';
+        }
+
+        function startCombat() {
+            if (!combatants.length) { alert('请先添加战斗参与者'); return; }
+            combatants.sort((a, b) => b.initiative - a.initiative);
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            document.getElementById('round-info').textContent = '第 1 轮';
+            renderInitiative();
+        }
+
+        function nextCombatant() {
+            // 下一位角色（在当轮内循环，不增加回合数）
+            if (!combatants.length) return;
+            const currentIdx = combatants.findIndex(c => c.isCurrent);
+            if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
+            const nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % combatants.length;
+            combatants[nextIdx].isCurrent = true;
+            renderInitiative();
+        }
+
+        function prevCombatant() {
+            // 返回上一位角色
+            if (!combatants.length) return;
+            const currentIdx = combatants.findIndex(c => c.isCurrent);
+            if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
+            const prevIdx = currentIdx <= 0 ? combatants.length - 1 : currentIdx - 1;
+            combatants[prevIdx].isCurrent = true;
+            renderInitiative();
+        }
+
+        function prevRound() {
+            // 上一回合：回合数-1（最少第1轮），回到先攻最高
+            if (!combatants.length) return;
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            const round = Math.max(1, parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) - 1);
+            document.getElementById('round-info').textContent = `第 ${round} 轮`;
+            renderInitiative();
+        }
+
+        function nextRound() {
+            // 下一回合：回合数+1，回到先攻最高
+            if (!combatants.length) return;
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            const round = parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) + 1;
+            document.getElementById('round-info').textContent = `第 ${round} 轮`;
+            renderInitiative();
+        }
+
+        function renderInitiative() {
+            const el = document.getElementById('initiative-list');
+            if (!combatants.length) {
+                el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:2rem;">战斗列表为空</div>';
+                return;
+            }
+            el.innerHTML = combatants.map((c, i) => {
+                const hpPct = c.hpMax > 0 ? Math.round(c.hp / c.hpMax * 100) : 100;
+                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
+                return `
+                <div class="combatant-row${c.isCurrent ? ' current' : ''}">
+                    <span class="combatant-name">${i + 1}. ${c.name}${c.isCurrent ? ' ◀' : ''}</span>
+                    <span class="combatant-init" title="${c.initDetail || ''}">先攻: ${c.initiative}</span>
+                    <span class="combatant-hp" style="color:${hpColor}">❤️ ${c.hp}/${c.hpMax}</span>
+                    <span class="combatant-ac">🛡️ AC ${c.ac}</span>
+                    ${c.conditions.length ? `<span style="color:var(--red)">[${c.conditions.join(',')}]</span>` : ''}
+                    <button onclick="removeCombatant(${i})" title="脱离战斗"
+                            style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1.1rem;padding:0 0.25rem;"
+                            onmouseover="this.style.color='#ff0000'" onmouseout="this.style.color='var(--red)'">✕</button>
+                </div>`;
+            }).join('');
+        }
+
+        // ━━━ 伤害下拉框（从参战者列表动态更新）━━
+        function updateDmgDropdown() {
+            const select = document.getElementById('dmg-target');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">— 选择目标 —</option>';
+            combatants.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = `${c.name} (HP:${c.hp}/${c.hpMax})`;
+                if (c.name === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        async function applyDamage() {
+            const target = document.getElementById('dmg-target').value;
+            if (!target) { alert('请选择目标'); return; }
+            const amount = parseInt(document.getElementById('dmg-amount').value) || 0;
+            if (amount <= 0) { alert('请输入有效伤害值'); return; }
+
+            const c = combatants.find(c => c.name === target);
+            if (!c) { alert(`未找到: ${target}`); return; }
+
+            c.hp = Math.max(0, c.hp - amount);
+            const status = c.hp <= 0 ? ' 💀 已倒地!' : '';
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('dmg-amount').value = '';
+            await syncCombatantHP(c);
+            alert(`${c.name} 受到 ${amount} 点伤害，剩余 HP: ${c.hp}/${c.hpMax}${status}`);
+        }
+
+        async function applyHeal() {
+            const target = document.getElementById('dmg-target').value;
+            if (!target) { alert('请选择目标'); return; }
+            const amount = parseInt(document.getElementById('dmg-amount').value) || 0;
+            if (amount <= 0) { alert('请输入有效治疗值'); return; }
+
+            const c = combatants.find(c => c.name === target);
+            if (!c) { alert(`未找到: ${target}`); return; }
+
+            const maxHp = c.hpMax || c.hp;
+            c.hp = Math.min(maxHp, c.hp + amount);
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('dmg-amount').value = '';
+            await syncCombatantHP(c);
+            alert(`${c.name} 恢复 ${amount} 点HP，剩余 HP: ${c.hp}/${c.hpMax}`);
+        }
+
+        async function syncCombatantHP(c) {
+            if (!c.charId) return;
+            try {
+                await fetch(`/api/character/${c.charId}/hp`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({amount: c.hp, setAbsolute: true})
+                });
+                delete charCache[c.charId];
+            } catch(e) {}
+        }
+
+        function removeCombatant(index) {
+            const c = combatants[index];
+            if (!confirm(`将 "${c.name}" 脱离战斗？`)) return;
+            combatants.splice(index, 1);
+            // 如果移除的是当前回合者，将下一位置为当前
+            if (c.isCurrent && combatants.length > 0) {
+                combatants[index % combatants.length].isCurrent = true;
+            }
+            renderInitiative();
+            updateDmgDropdown();
+        }
+
+        function clearCombat() {
+            if (!confirm('确认清空战斗？')) return;
+            combatants = [];
+            document.getElementById('round-info').textContent = '';
+            renderInitiative();
+            updateDmgDropdown();
+            localStorage.removeItem(COMBAT_STORAGE);
+        }
+
+        // ━━━ 怪物搜索 ━━━
+        let selectedMonster = null;
+
+        async function searchMonster() {
+            const query = document.getElementById('monster-search').value.trim();
+            if (query.length < 2) { alert('至少输入2个字'); return; }
+
+            const resultsEl = document.getElementById('search-results');
+            resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">搜索中...</div>';
+
+            try {
+                // 先用精确搜索
+                const resp = await fetch(`/api/monster/${encodeURIComponent(query)}`);
+                const data = await resp.json();
+
+                if (!data.error) {
+                    // 精确匹配 — 直接显示详情
+                    selectedMonster = data;
+                    resultsEl.innerHTML = '';
+                    showMonsterInfo(data);
+                    return;
+                }
+
+                // 模糊搜索
+                const searchResp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const searchData = await searchResp.json();
+
+                if (!searchData.results || !searchData.results.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物</div>';
+                    document.getElementById('monster-info').innerHTML = '';
+                    return;
+                }
+
+                // 过滤只显示怪物
+                const monsters = searchData.results.filter(r => r.type === 'monster');
+                if (!monsters.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物（可尝试其他关键词）</div>';
+                    return;
+                }
+
+                resultsEl.innerHTML = monsters.map(m => `
+                    <div class="search-result-item" onclick="selectMonsterResult('${m.name.replace(/'/g, "\\'")}')">
+                        <span class="name">👹 ${m.name}</span>
+                        <span class="meta">CR:${m.cr || '?'} | ${m.source || ''}</span>
+                    </div>
+                `).join('');
+
+            } catch(e) {
+                resultsEl.innerHTML = `<div style="color:var(--red);">搜索失败: ${e.message}</div>`;
+            }
+        }
+
+        async function selectMonsterResult(name) {
+            document.getElementById('monster-search').value = name;
+            const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
+            const data = await resp.json();
+            if (!data.error) {
+                selectedMonster = data;
+                document.getElementById('search-results').innerHTML = '';
+                showMonsterInfo(data);
+            }
+        }
+
+        function showMonsterInfo(monster) {
+            const el = document.getElementById('monster-info');
+            el.innerHTML = `
+                <div class="monster-info-card">
+                    <div class="title">👹 ${monster.name}${monster.name_en ? ' <small style="color:var(--text-dim)">' + monster.name_en + '</small>' : ''}</div>
+                    <div style="color:var(--gold);margin-bottom:0.5rem;">
+                        挑战等级: ${monster.cr || '?'} | ${monster.size || '?'} ${monster.type || '?'}
+                        ${monster.legendary ? ' | 传奇: ' + monster.legendary : ''}
+                    </div>
+                    ${monster.detail_text ? `<div class="detail">${monster.detail_text}</div>` : ''}
+                    <div style="color:var(--text-dim);font-size:0.8rem;">📚 来源: ${monster.source || '未知'}</div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="addMonsterToCombat()">➕ 加入战斗</button>
+                    </div>
+                </div>`;
+        }
+
+        function addMonsterToCombat() {
+            if (!selectedMonster) { alert('请先搜索并选择一个生物'); return; }
+
+            // 解析 CR 获取先攻加值估算
+            let initBonus = 0;
+            const crStr = selectedMonster.cr || '0';
+            const crMatch = crStr.match(/(\d+)/);
+            if (crMatch) {
+                const cr = parseInt(crMatch[1]);
+                initBonus = Math.min(Math.floor(cr / 4), 5);
+            }
+
+            // 估算HP和AC
+            let hpEst = 10, acEst = 10;
+            const detailText = selectedMonster.detail_text || '';
+            const hpMatch = detailText.match(/生命值[：:]\s*(\d+)/);
+            const acMatch = detailText.match(/AC[：:]\s*(\d+)/i) || detailText.match(/护甲等级[：:]\s*(\d+)/);
+            if (hpMatch) hpEst = parseInt(hpMatch[1]);
+            if (acMatch) acEst = parseInt(acMatch[1]);
+
+            // 填充并自动加入战斗
+            document.getElementById('combatant-name').value = selectedMonster.name || '';
+            document.getElementById('combatant-init').value = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`;
+            document.getElementById('combatant-hp').value = hpEst;
+            document.getElementById('combatant-hp-max').value = hpEst;
+            document.getElementById('combatant-ac').value = acEst;
+            document.getElementById('char-select').value = '';
+            // 自动加入战斗
+            addCombatant();
+        }
+
+        // ━━━ 快速骰 ━━━
+        async function quickRoll() {
+            const expr = document.getElementById('quick-dice').value.trim();
+            if (!expr) return;
+            const resp = await fetch('/api/roll', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({expression: expr})
+            });
+            const data = await resp.json();
+            alert(`🎲 ${expr} = ${data.total}`);
+        }
+
+        // ━━━ 战斗状态持久化 ━━━
+        const COMBAT_STORAGE = 'dnd_combat_state';
+
+        function saveCombatState() {
+            if (!combatants.length) {
+                localStorage.removeItem(COMBAT_STORAGE);
+                return;
+            }
+            try {
+                localStorage.setItem(COMBAT_STORAGE, JSON.stringify({
+                    combatants: combatants.map(c => ({...c})),
+                    round: document.getElementById('round-info')?.textContent || ''
+                }));
+            } catch(e) {}
+        }
+
+        function restoreCombatState() {
+            try {
+                const raw = localStorage.getItem(COMBAT_STORAGE);
+                if (!raw) return false;
+                const state = JSON.parse(raw);
+                if (!state.combatants || !state.combatants.length) return false;
+                combatants = state.combatants.map(c => ({...c}));
+                renderInitiative();
+                updateDmgDropdown();
+                if (state.round) {
+                    document.getElementById('round-info').textContent = state.round;
+                }
+                return true;
+            } catch(e) { return false; }
+        }
+
+        // 初始加载
+        loadCharSelect();
+        const restored = restoreCombatState();
+
+        // 每次界面刷新后即时保存（所有战斗操作最终都会调用 renderInitiative）
+        const _origRenderInitiative = renderInitiative;
+        renderInitiative = function() { _origRenderInitiative(); saveCombatState(); };
+
+        // 页面隐藏/关闭前保存
+        window.addEventListener('pagehide', saveCombatState);
+        window.addEventListener('beforeunload', saveCombatState);
+    </script>
+</body>
+</html>
