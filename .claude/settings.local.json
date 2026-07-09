@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import openpyxl; print\\('ok'\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "Bash(rm -f analyze_excel.py excel_analysis.txt data/characters.db.bak)",
+      "Bash(ls *.py *.txt)",
+      "Bash(pip install *)",
+      "Bash(hh.exe -decompress \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\其他参考资料\\\\DND五版不全书v2026.02.12之费伦降临，通通闪开……什么叫拳斗士打过来了？.chm\" \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\骰娘\\\\data\\\\chm_extracted\")",
+      "Bash(7z x *)",
+      "Bash(\"/c/Program Files/NVIDIA Corporation/NVIDIA App/7z.exe\" x \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\其他参考资料\\\\DND五版不全书v2026.02.12之费伦降临，通通闪开……什么叫拳斗士打过来了？.chm\" -o\"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\骰娘\\\\data\\\\chm_extracted\" -y)"
+    ]
+  }
+}

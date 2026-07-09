@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机事件 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        #load-dots {
+            display: inline-block;
+            min-width: 40px;
+            text-align: left;
+            font-weight: bold;
+        }
+    </style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/">掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+            <a href="/events" class="active">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- 页面标题 + 角色选择器 -->
+        <div style="text-align:center; margin-bottom: 1.5rem;">
+            <h1 style="color: var(--gold); font-size: 1.6rem;">🗺️ 随机事件表</h1>
+            <p style="color: var(--text-dim); font-size: 0.9rem;">
+                ⏱ 单次随机事件时间：1小时 &nbsp;|&nbsp;
+                自动链式掷子表 &nbsp;|&nbsp;
+                有活跃角色时自动添加物品至背包
+            </p>
+            <div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; margin-top:0.75rem;">
+                <label style="color:var(--text-dim);font-size:0.9rem;white-space:nowrap;">👤 活跃角色：</label>
+                <select id="active-char-select" onchange="setActiveChar()"
+                        style="padding:0.45rem 0.75rem;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;color:var(--text);font-size:0.9rem;min-width:200px;">
+                    <option value="">— 无活跃角色 —</option>
+                </select>
+                <span id="active-char-status" style="font-size:0.8rem;color:var(--text-dim);"></span>
+            </div>
+        </div>
+
+        <!-- 事件输出区（置顶，占主要空间） -->
+        <div class="events-output-container">
+            <div class="card" style="margin-bottom: 0;">
+                <div class="card-header">
+                    📜 事件结果
+                    <span style="float:right; margin-top: -4px; display:flex; gap:0.35rem;">
+                        <button class="btn btn-small" style="background:var(--surface2);color:var(--gold);border:1px solid var(--gold);" onclick="exportLog()">📝 导出记录</button>
+                        <button class="btn btn-small btn-primary" onclick="clearOutput()">清空</button>
+                    </span>
+                </div>
+                <div class="output-area events-output" id="events-output">
+                    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                        点击下方任意事件按钮开始掷表...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 事件按钮面板（可折叠的大选项栏） -->
+        <div class="events-panels" style="margin-top: 1rem;">
+            {% for group_label, items in event_groups %}
+            <details class="event-group" {% if loop.first %}open{% endif %}>
+                <summary class="event-group-header">
+                    <span class="event-group-title">{{ group_label }}</span>
+                    <span class="event-group-count">{{ items|length }} 个表</span>
+                </summary>
+                <div class="event-grid">
+                    {% for cmd, label, dice, desc in items %}
+                    <div class="event-card" onclick="rollEvent('{{ cmd }}')">
+                        <div class="event-card-header">
+                            <span class="event-card-cmd">.{{ cmd }}</span>
+                            {% if dice %}
+                            <span class="event-card-dice">{{ dice }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="event-card-label">{{ label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+
+        <!-- WP 物品表查询（特殊：带输入框） -->
+        <div class="card" style="margin-top: 1rem; text-align: center;">
+            <div class="card-header">📦 物品表查询</div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; max-width: 500px; margin: 0 auto;">
+                <input type="number" id="wp-num" placeholder="输入编号 1-29（留空列出全部）"
+                       min="1" max="29" style="flex:1; padding:0.5rem; background:var(--bg);
+                       border:1px solid var(--border); border-radius:4px; color:var(--text);"
+                       onkeydown="if(event.key==='Enter') queryWP()">
+                <button class="btn btn-primary" onclick="queryWP()">查询</button>
+                <button class="btn" style="background:var(--surface2);color:var(--text);" onclick="rollEvent('wp')">列出全部</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ━━━ 会话日志 ━━━
+        let sessionLog = [];  // {ts, command, label, dice, output}
+
+        function addToLog(command, label, dice, outputText) {
+            const now = new Date();
+            const ts = now.toLocaleTimeString('zh-CN', {hour12: false});
+            sessionLog.push({
+                ts: ts,
+                date: now.toLocaleDateString('zh-CN'),
+                command: command,
+                label: label,
+                dice: dice,
+                output: outputText
+            });
+        }
+
+        function stripHtml(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
+        }
+
+        function stripAnsi(text) {
+            return text.replace(/\x1b\[[0-9;]*m/g, '');
+        }
+
+        // ━━━ 掷事件表 ━━━
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        async function showLoadingAnimation(container, label) {
+            const div = document.createElement('div');
+            div.className = 'output-entry';
+            div.style.textAlign = 'center';
+            div.innerHTML = '<span style="color:var(--gold);font-size:1.1rem;font-weight:bold;">🎲 ' + label + '中</span><span id="load-dots" style="color:var(--cyan);font-size:1.2rem;"></span>';
+            container.prepend(div);
+            const dotsEl = document.getElementById('load-dots');
+
+            // 阶段1：逐字显示六个点
+            for (let i = 1; i <= 6; i++) {
+                dotsEl.innerHTML = '<span>' + Array(i).fill('<dot>.</dot>').join('') + '</span>';
+                await sleep(100);
+            }
+
+            // 阶段2：逐个弹跳波浪（2弹→4弹2落→6弹4落→1弹→3弹1落→5弹3落→5落）×3
+            const allDots = dotsEl.querySelectorAll('dot');
+            for (let i = 0; i < allDots.length; i++) {
+                allDots[i].style.display = 'inline-block';
+            }
+            // 弹跳顺序：索引1,3,5,0,2,4（即第2,4,6,1,3,5个点）
+            const order = [1, 3, 5, 0, 2, 4];
+            const upMs = 65, downMs = 65, gapMs = 55;
+
+            for (let wave = 0; wave < 3; wave++) {
+                // 依次弹起每个点，前一个点在下个点弹起时落下
+                for (let step = 0; step < order.length; step++) {
+                    const idx = order[step];
+                    // 当前点弹起
+                    allDots[idx].style.transition = 'transform ' + (upMs/1000) + 's ease-out';
+                    allDots[idx].style.transform = 'translateY(-10px)';
+                    // 上一个点落下
+                    if (step > 0) {
+                        const prevIdx = order[step - 1];
+                        allDots[prevIdx].style.transition = 'transform ' + (downMs/1000) + 's ease-in';
+                        allDots[prevIdx].style.transform = 'translateY(0)';
+                    }
+                    await sleep(gapMs + upMs);
+                }
+                // 最后一个点(索引4)落下
+                allDots[order[order.length-1]].style.transition = 'transform ' + (downMs/1000) + 's ease-in';
+                allDots[order[order.length-1]].style.transform = 'translateY(0)';
+                await sleep(downMs + 100);
+            }
+
+            return div;
+        }
+
+        async function rollEvent(command, args) {
+            const output = document.getElementById('events-output');
+
+            // 获取简短的加载文本（如"遭遇中"而非"随机遭遇事件中"）
+            const shortLabels = {
+                qsj100:'事件', zy100:'遭遇', ts100:'探索', dc100:'调查',
+                hj6:'环境变化', sj6:'遭遇特殊事件', rl100:'遭遇人类', ys10:'遭遇野兽',
+                zl12:'遭遇非敌对生物', sw100:'遭遇特殊生物', cl50:'获得材料', cl100:'获得材料',
+                kw100:'获得矿物', fx100:'发现', yj8:'发现遗迹', wp:'物品'
+            };
+            let label = shortLabels[command] || command;
+
+            // 启动动画 + API 请求并行
+            const animPromise = showLoadingAnimation(output, label);
+            const body = {};
+            if (args !== undefined && args !== null) { body.args = String(args); }
+            const fetchPromise = fetch('/api/events/' + command, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            }).then(r => r.json());
+
+            const [loadingDiv, data] = await Promise.all([animPromise, fetchPromise]);
+            loadingDiv.remove();
+
+            if (data.error) {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'output-entry';
+                errDiv.style.color = 'var(--red)';
+                errDiv.innerHTML = '<b>❌ 错误</b>: ' + data.error;
+                output.prepend(errDiv);
+                return;
+            }
+
+            addToLog(command, data.label, data.dice, data.output || '');
+
+            const entry = document.createElement('div');
+            entry.className = 'output-entry event-result';
+            entry.innerHTML = formatEventResult(data);
+            output.prepend(entry);
+
+            const entries = output.querySelectorAll('.output-entry');
+            if (entries.length > 50) {
+                for (let i = 50; i < entries.length; i++) {
+                    entries[i].remove();
+                }
+            }
+        }
+
+        function formatEventResult(data) {
+            let html = '<div class="event-result-header">';
+            html += '<b>' + data.label + '</b>';
+            if (data.dice) {
+                html += ' <span class="event-result-dice">[' + data.dice + ']</span>';
+            }
+            html += ' <span style="font-size:0.75rem;color:var(--text-dim)">.' + data.command + '</span>';
+            html += '</div>';
+            html += '<div class="event-result-body">' + data.html + '</div>';
+            return html;
+        }
+
+        function clearOutput() {
+            const output = document.getElementById('events-output');
+            output.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">已清空。点击事件按钮开始掷表...</div>';
+            sessionLog = [];
+        }
+
+        // ━━━ 导出跑团记录 ━━━
+        function exportLog() {
+            if (sessionLog.length === 0) {
+                alert('暂无事件记录可导出。请先掷一些事件表。');
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-CN');
+            const timeStr = now.toLocaleTimeString('zh-CN', {hour12: false});
+
+            // 解析输出中的物品和钱币收获
+            const allGains = [];
+            for (const entry of sessionLog) {
+                const clean = stripAnsi(entry.output);
+                // 匹配 📦 +X...已添加至背包
+                const itemMatches = clean.matchAll(/📦\s*\+(\d+)(\S+)\s+(.+?)（已添加至背包）/g);
+                for (const m of itemMatches) {
+                    allGains.push(`   物品: ${m[3]} x${m[1]}${m[2]}`);
+                }
+                // 匹配 💰 +X...已添加至角色
+                const coinMatches = clean.matchAll(/💰\s*\+(\d+)\s+(.+?)（已添加至角色）/g);
+                for (const m of coinMatches) {
+                    allGains.push(`   钱币: +${m[1]} ${m[2]}`);
+                }
+                // 匹配无活跃角色时的物品
+                const noCharMatches = clean.matchAll(/📦\s*(.+?)\s*→\s*\+(\d+)(\S+)\s+(.+?)（无活跃角色）/g);
+                for (const m of noCharMatches) {
+                    allGains.push(`   物品(未绑定): ${m[4]} x${m[2]}${m[3]} [${m[1]}]`);
+                }
+            }
+
+            // 按命令类型统计事件
+            const cmdStats = {};
+            const subEventLabels = {
+                '随机遭遇事件':'zy100','随机探索事件':'ts100','随机调查事件':'dc100',
+                '全随机事件':'qsj100','随机环境':'hj6','随机人类':'rl100',
+                '随机野兽':'ys10','随机特殊事件':'sj6','随机非敌对生物':'zl12',
+                '随机特殊生物':'sw100','随机材料':'cl50','随机特殊发现':'fx100',
+                '随机遗迹':'yj8','随机特殊材料':'cl100','随机矿物':'kw100',
+            };
+            for (const entry of sessionLog) {
+                const key = entry.command;
+                if (!cmdStats[key]) cmdStats[key] = {count: 0, label: entry.label};
+                cmdStats[key].count++;
+
+                // 解析子事件
+                const clean = stripAnsi(entry.output);
+                for (const [label, cmdKey] of Object.entries(subEventLabels)) {
+                    const re = new RegExp(label, 'g');
+                    const matches = clean.match(re);
+                    if (matches) {
+                        if (!cmdStats[cmdKey]) cmdStats[cmdKey] = {count: 0, label: label};
+                        // 只计数链式子事件（↳ 开头的行）
+                        const lines = clean.split('\n');
+                        for (const line of lines) {
+                            if (line.includes('↳') && line.includes(label)) {
+                                cmdStats[cmdKey].count++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 构建导出文本
+            const lines = [];
+            const sep = '═'.repeat(64);
+
+            lines.push(sep);
+            lines.push(`  跑团记录 — ${dateStr} ${timeStr}`);
+            lines.push('  Powered by 尘封之卷 · D&D 5E 骰娘 Web版');
+            lines.push(sep);
+            lines.push('');
+
+            // ━━ 目录 ━━
+            lines.push('┏' + '━'.repeat(62) + '┓');
+            lines.push('┃' + '               📑 目  录                        '.padEnd(50) + '┃');
+            lines.push('┗' + '━'.repeat(62) + '┛');
+            lines.push('');
+            lines.push(`  总事件数: ${sessionLog.length} 条`);
+            lines.push(`  获得物品/钱币: ${allGains.length} 项`);
+            lines.push('');
+
+            // 各类事件统计
+            const topLevelKeys = Object.keys(cmdStats).filter(k => sessionLog.some(e => e.command === k));
+            const chainKeys = Object.keys(cmdStats).filter(k => !topLevelKeys.includes(k));
+            for (const key of [...topLevelKeys, ...chainKeys]) {
+                const s = cmdStats[key];
+                if (s.count > 0) {
+                    const isChain = !topLevelKeys.includes(key);
+                    const prefix = isChain ? '    ↳ ' : '  ';
+                    lines.push(`${prefix}${s.label}: ${s.count} 条`);
+                }
+            }
+            lines.push('');
+
+            // ━━ 收获总结 ━━
+            lines.push('┏' + '━'.repeat(62) + '┓');
+            lines.push('┃' + '               🎒 收获总结                      '.padEnd(50) + '┃');
+            lines.push('┗' + '━'.repeat(62) + '┛');
+            lines.push('');
+
+            if (allGains.length > 0) {
+                const gainCounts = {};
+                for (const g of allGains) {
+                    gainCounts[g] = (gainCounts[g] || 0) + 1;
+                }
+                for (const [gain, count] of Object.entries(gainCounts)) {
+                    if (count > 1) {
+                        lines.push(`${gain}  (×${count})`);
+                    } else {
+                        lines.push(gain);
+                    }
+                }
+            } else {
+                lines.push('  （无收获记录）');
+            }
+            lines.push('');
+
+            // ━━ 详细记录 ━━
+            lines.push('─'.repeat(64));
+            lines.push('');
+            lines.push('┏' + '━'.repeat(62) + '┓');
+            lines.push('┃' + '               📜 详细记录                      '.padEnd(50) + '┃');
+            lines.push('┗' + '━'.repeat(62) + '┛');
+            lines.push('');
+
+            for (let i = 0; i < sessionLog.length; i++) {
+                const entry = sessionLog[i];
+                const clean = stripAnsi(entry.output);
+                lines.push(`  [${entry.ts}] ▶ .${entry.command}  (${entry.label})`);
+                if (clean) {
+                    for (const outLine of clean.split('\n')) {
+                        if (outLine.trim()) {
+                            lines.push(`      ${outLine.trim()}`);
+                        }
+                    }
+                }
+                lines.push('');
+            }
+
+            lines.push('─'.repeat(64));
+            lines.push(`  记录导出时间: ${dateStr} ${timeStr}`);
+            lines.push(sep);
+
+            // 创建 Blob 并触发下载（文件名含时分秒，避免同日覆盖）
+            const content = lines.join('\n');
+            const blob = new Blob(['﻿' + content], {type: 'text/plain;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const filenameDate = now.toISOString().slice(0, 10);
+            const filenameTime = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+            const exportFilename = `跑团记录${filenameDate}_${filenameTime}.txt`;
+            a.download = exportFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // 短暂反馈
+            alert(`✅ 跑团记录已导出！\n\n文件: ${exportFilename}\n事件数: ${sessionLog.length} 条\n收获: ${allGains.length} 项`);
+        }
+
+        // ━━━ 物品表查询 ━━━
+        async function queryWP() {
+            const numInput = document.getElementById('wp-num');
+            const num = numInput.value.trim();
+            if (num) {
+                await rollEvent('wp', num);
+            } else {
+                await rollEvent('wp');
+            }
+            numInput.value = '';
+        }
+
+        // ━━━ 活跃角色选择器 ━━━
+        let activeCharId = null;
+
+        async function loadCharSelect() {
+            const select = document.getElementById('active-char-select');
+            try {
+                const resp = await fetch('/api/characters');
+                const chars = await resp.json();
+                if (chars.length) {
+                    chars.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.name} (${c.level || 1}级 ${c.class || ''})`;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch(e) { console.error('加载角色列表失败', e); }
+        }
+
+        async function setActiveChar() {
+            const charId = document.getElementById('active-char-select').value;
+            const statusEl = document.getElementById('active-char-status');
+            if (!charId) {
+                activeCharId = null;
+                statusEl.textContent = '';
+                statusEl.style.color = 'var(--text-dim)';
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/character/${charId}/use`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) {
+                    statusEl.textContent = '❌ ' + data.error;
+                    statusEl.style.color = 'var(--red)';
+                } else {
+                    activeCharId = charId;
+                    statusEl.textContent = '✅ ' + data.name;
+                    statusEl.style.color = 'var(--green)';
+                }
+            } catch(e) {
+                statusEl.textContent = '❌ 设置失败';
+                statusEl.style.color = 'var(--red)';
+            }
+        }
+
+        // 初始化
+        loadCharSelect();
+    </script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>

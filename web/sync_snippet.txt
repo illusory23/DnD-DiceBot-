@@ -1,0 +1,53 @@
+            // ━━━ 动作驱动画布同步（操作时推送，每0.3秒拉取）━━
+            let sharedCanvasTs = 0;
+            let _pushDebounce = null;
+
+            // 仅在本地操作后推送（防抖100ms），不做定时推送避免多端冲突
+            function pushSharedCanvas() {
+                if (_pushDebounce) clearTimeout(_pushDebounce);
+                _pushDebounce = setTimeout(function() {
+                    var s = collectState();
+                    var layers = s.layers.map(function(l) {
+                        return {id:l.id, name:l.name, dataURL:l.dataURL||'', offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1, visible:l.visible!==false};
+                    });
+                    fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({strokes: brushStrokes, layers: layers, tokens: s.mapTokens, texts: s.textBoxes, fog: s.fogPolygons})
+                    }).catch(function(){});
+                }, 100);
+            }
+
+            // 每0.3秒拉取服务端状态
+            function pullSharedCanvas() {
+                fetch('/api/shared-canvas?since=' + sharedCanvasTs).then(function(r) { return r.json(); }).then(function(data) {
+                    if (!data.ok || !data.changed) return;
+                    sharedCanvasTs = data.timestamp;
+                    var state = data.state;
+                    if (state.strokes) {
+                        if (state.strokes.length === 0) { brushStrokes = []; redrawCanvas(); }
+                        else if (state.strokes.length > brushStrokes.length) {
+                            brushStrokes = brushStrokes.concat(state.strokes.slice(brushStrokes.length));
+                            redrawDrawCanvas();
+                        }
+                    }
+                    if (state.layers && state.layers.length > 0) {
+                        mapLayers = []; state.layers.forEach(function(ld) {
+                            if (ld.dataURL) { var img = new Image(); img.src = ld.dataURL; mapLayers.push({id:ld.id,name:ld.name,image:img,dataURL:ld.dataURL,visible:ld.visible!==false,offsetX:ld.offsetX||0,offsetY:ld.offsetY||0,scale:ld.scale||1}); }
+                        });
+                        if (mapLayers.length > 0) activeLayerId = mapLayers[0].id;
+                        redrawCanvas(); renderLayerList();
+                    }
+                    if (state.tokens) {
+                        mapTokens.forEach(function(t) { if (t.el) t.el.remove(); }); mapTokens = [];
+                        state.tokens.forEach(function(td) { mapTokens.push(createMapTokenElement(td.id,td.charId,td.name,td.portraitUrl,td.x,td.y,td.size||48,td.rotation||0)); });
+                    }
+                    if (state.texts) {
+                        textBoxes.forEach(function(b) { if (b.el) b.el.remove(); }); textBoxes = [];
+                        state.texts.forEach(function(td) { var box = createTextBoxElement(td.id,td.x,td.y,td.text,td.fontSize); textBoxes.push(box); overlay.appendChild(box.el); });
+                    }
+                    if (state.fog) { fogPolygons = state.fog.map(function(p) { return {points:p.points,closed:p.closed}; }); redrawFogCanvas(); }
+                }).catch(function(){});
+            }
+            setInterval(pullSharedCanvas, 300);
+
+            // 关键操作时立即推送
+            function onLocalChange() { pushSharedCanvas(); }

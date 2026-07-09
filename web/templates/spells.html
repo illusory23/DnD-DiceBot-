@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>法术管理 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .spell-layout { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 1rem; }
+        .spell-card {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.3rem;
+            cursor: pointer; transition: all 0.15s;
+            display: flex; justify-content: space-between; align-items: center; gap: 0.4rem;
+        }
+        .spell-card:hover { border-color: var(--accent); background: var(--surface); }
+        .spell-card .spell-name { font-weight: bold; color: var(--gold); font-size: 0.85rem; flex:1; }
+        .spell-card .spell-meta { font-size: 0.7rem; color: var(--text-dim); text-align: right; white-space: nowrap; }
+        .spell-card .btn-row { display: flex; gap: 0.2rem; flex-shrink: 0; }
+        .spell-detail-card {
+            background: var(--bg); border: 1px solid var(--accent);
+            border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;
+        }
+        .spell-detail-card .sd-title { font-size: 1rem; color: var(--accent); font-weight: bold; }
+        .spell-detail-card .sd-meta { color: var(--gold); font-size: 0.8rem; margin: 0.3rem 0; }
+        .spell-detail-card .sd-body { font-size: 0.8rem; color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; max-height: 250px; overflow-y: auto; }
+        .learned-spell-row, .prepared-spell-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; font-size: 0.82rem;
+        }
+        .learned-spell-row { cursor: pointer; }
+        .learned-spell-row:hover { border-color: var(--accent); }
+        .learned-spell-row .ls-name { font-weight: bold; flex: 1; }
+        .learned-spell-row .ls-level { color: var(--cyan); font-size: 0.7rem; white-space: nowrap; }
+        .learned-spell-row .ls-meta { color: var(--text-dim); font-size: 0.7rem; }
+        .prepared-spell-row .ps-name { font-weight: bold; flex: 1; }
+        .prepared-spell-row .ps-level { color: var(--gold); font-size: 0.7rem; white-space: nowrap; }
+        .search-hint { font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 1rem; }
+        .mini-form-row { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--border); }
+        .mini-form-row input, .mini-form-row textarea {
+            padding: 0.25rem 0.35rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 3px; color: var(--text); font-size: 0.72rem;
+        }
+        .section-scroll { max-height: 350px; overflow-y: auto; }
+        @media (max-width: 1000px) { .spell-layout { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 700px) { .spell-layout { grid-template-columns: 1fr; } }
+    </style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/">掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells" class="active">法术</a>
+            <a href="/events">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- 顶部栏 -->
+        <div class="card" style="margin-bottom:0.75rem;">
+            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:0.4rem;">
+                    <label style="color:var(--text-dim);font-size:0.82rem;white-space:nowrap;">👤</label>
+                    <select id="spell-char-select" onchange="onSpellCharChange()"
+                            style="padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);
+                                   border-radius:4px;color:var(--text);font-size:0.82rem;min-width:170px;">
+                        <option value="">— 选择角色 —</option>
+                    </select>
+                    <span id="spell-char-status" style="font-size:0.78rem;"></span>
+                </div>
+                <div style="flex:1;display:flex;gap:0.35rem;min-width:200px;">
+                    <input type="text" id="spell-search-input" placeholder="搜索法术资料库..."
+                           style="flex:1;padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;"
+                           onkeydown="if(event.key==='Enter') doSpellSearch()">
+                    <button class="btn btn-primary btn-small" onclick="doSpellSearch()">🔍</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="spell-layout">
+            <!-- 左栏：搜索 + 详情 -->
+            <div>
+                <div class="card" style="padding:0.75rem;">
+                    <div class="card-header" style="font-size:0.95rem;">📖 法术资料库搜索</div>
+                    <div id="spell-search-results" class="search-hint section-scroll">输入关键词搜索...</div>
+                    <div id="spell-detail"></div>
+                </div>
+            </div>
+
+            <!-- 中栏：法术书 -->
+            <div>
+                <div class="card" style="padding:0.75rem;">
+                    <div class="card-header" style="font-size:0.95rem;">
+                        📚 法术书（已学习）
+                        <span id="learned-count" style="color:var(--text-dim);font-size:0.75rem;font-weight:normal;"></span>
+                    </div>
+                    <div id="learned-spells-list" class="section-scroll">
+                        <div class="search-hint">请先选择角色</div>
+                    </div>
+                    <details class="char-section" style="margin-top:0.4rem;" id="manual-add-section">
+                        <summary class="char-section-header" style="font-size:0.8rem;padding:0.4rem 0.6rem;">✏️ 手动添加法术</summary>
+                        <div class="char-section-body" style="padding:0.4rem 0.5rem;">
+                            <div class="mini-form-row">
+                                <input id="man-name" placeholder="法术名*" style="flex:2;min-width:80px;">
+                                <input id="man-level" placeholder="环数(0-9)" value="0" style="width:55px;">
+                                <input id="man-school" placeholder="学派" style="width:55px;">
+                            </div>
+                            <div class="mini-form-row">
+                                <input id="man-cast" placeholder="施法时间" style="flex:1;">
+                                <input id="man-range" placeholder="射程" style="flex:1;">
+                                <input id="man-dur" placeholder="持续时间" style="flex:1;">
+                            </div>
+                            <div class="mini-form-row">
+                                <input id="man-comp" placeholder="成分" style="flex:1;">
+                                <select id="man-ritual" style="padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.72rem;">
+                                    <option value="否">非仪式</option><option value="是">仪式</option></select>
+                                <select id="man-conc" style="padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.72rem;">
+                                    <option value="否">非专注</option><option value="是">专注</option></select>
+                            </div>
+                            <textarea id="man-desc" placeholder="法术描述文本..." rows="2"
+                                      style="width:100%;margin-top:0.25rem;padding:0.25rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.72rem;resize:vertical;"></textarea>
+                            <button class="btn btn-success btn-small" onclick="manualAddSpell()" style="margin-top:0.3rem;width:100%;">➕ 添加到法术书</button>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- 右栏：已准备法术 + 法术书详情 -->
+            <div>
+                <div class="card" style="padding:0.75rem;margin-bottom:0.5rem;">
+                    <div class="card-header" style="font-size:0.95rem;">
+                        ✅ 已准备法术
+                        <span id="prepared-count" style="color:var(--text-dim);font-size:0.75rem;font-weight:normal;"></span>
+                    </div>
+                    <div id="prepared-spells-list" class="section-scroll">
+                        <div class="search-hint">请先选择角色</div>
+                    </div>
+                </div>
+                <!-- 法术书详情面板（点击法术后在此显示） -->
+                <div id="learned-detail-panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let spellCharId = null;
+        let spellSearchResults = [];
+        let selectedSpell = null;
+        let learnedSpellsCache = [];
+
+        // ━━━ 法术环数 ━━━
+        const LEVEL_MAP = {'戏法':0,'一环':1,'二环':2,'三环':3,'四环':4,'五环':5,'六环':6,'七环':7,'八环':8,'九环':9};
+        const LEVEL_REVERSE = ['戏法','一环','二环','三环','四环','五环','六环','七环','八环','九环'];
+
+        function parseSpellLevel(raw) {
+            const s = String(raw || '0').trim();
+            if (LEVEL_MAP[s] !== undefined) return LEVEL_MAP[s];
+            const m = s.match(/(\d+)/);
+            return m ? parseInt(m[1]) : 0;
+        }
+        function levelLabel(n) { return LEVEL_REVERSE[n] || `${n}环`; }
+        function safeVal(v) { return (v && v !== '?' && v !== '') ? v : '—'; }
+
+        // ━━━ 角色 ━━━
+        async function loadSpellCharSelect() {
+            const sel = document.getElementById('spell-char-select');
+            try {
+                const chars = await (await fetch('/api/characters')).json();
+                chars.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = `${c.name} (${c.level||1}级 ${c.class||''})`; sel.appendChild(o); });
+            } catch(e) {}
+        }
+
+        async function onSpellCharChange() {
+            const cid = document.getElementById('spell-char-select').value;
+            const st = document.getElementById('spell-char-status');
+            if (!cid) {
+                spellCharId = null; st.textContent = '';
+                document.getElementById('learned-spells-list').innerHTML = '<div class="search-hint">请先选择角色</div>';
+                document.getElementById('prepared-spells-list').innerHTML = '<div class="search-hint">请先选择角色</div>';
+                document.getElementById('learned-count').textContent = '';
+                document.getElementById('prepared-count').textContent = '';
+                document.getElementById('learned-detail-panel').innerHTML = '';
+                return;
+            }
+            try {
+                const data = await (await fetch(`/api/character/${cid}`)).json();
+                if (data.error) { st.innerHTML = '<span style="color:var(--red);">❌</span>'; return; }
+                spellCharId = cid;
+                st.innerHTML = '<span style="color:var(--green);">✅ ' + data.name + '</span>';
+                fetch(`/api/character/${data.name}/use`, {method:'POST'});
+                document.getElementById('learned-detail-panel').innerHTML = '';
+                refreshAll();
+            } catch(e) { st.innerHTML = '<span style="color:var(--red);">加载失败</span>'; }
+        }
+
+        async function refreshAll() {
+            if (!spellCharId) return;
+            const data = await (await fetch(`/api/character/${spellCharId}`)).json();
+            if (data.error) return;
+            renderLearnedSpells(data.learned_spells || []);
+            renderPreparedSpells(data.prepared_spells || []);
+        }
+
+        // ━━━ 搜索 ━━━
+        async function doSpellSearch() {
+            const q = document.getElementById('spell-search-input').value.trim();
+            if (!q) return;
+            const el = document.getElementById('spell-search-results');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">搜索中...</div>';
+            try {
+                const data = await (await fetch(`/api/spells/search?q=${encodeURIComponent(q)}`)).json();
+                if (data.error) { el.innerHTML = `<div style="color:var(--red);text-align:center;">${data.error}</div>`; return; }
+                if (!data.results.length) { el.innerHTML = '<div class="search-hint">未找到匹配的法术</div>'; return; }
+                spellSearchResults = data.results;
+                el.innerHTML = data.results.map((s, i) => {
+                    const lvlDisplay = safeVal(s.level);
+                    const schDisplay = safeVal(s.school);
+                    return `
+                    <div class="spell-card" onclick="viewSpellDetail(${i})">
+                        <span class="spell-name">${s.name}</span>
+                        <span class="spell-meta">${lvlDisplay} · ${schDisplay}</span>
+                        <span class="btn-row">
+                            ${spellCharId ? `<button class="btn btn-success btn-small" onclick="event.stopPropagation();quickAddLearned(${i})" style="padding:0.15rem 0.4rem;font-size:0.65rem;" title="快速添加到法术书">+📚</button>` : ''}
+                        </span>
+                    </div>`;
+                }).join('');
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);">搜索失败</div>`; }
+        }
+
+        // 从搜索结果添加到法术书 — 必须先获取详情以确保环数正确
+        async function quickAddLearned(index) {
+            const s = spellSearchResults[index];
+            if (!s || !spellCharId) return;
+
+            // 显示加载状态
+            const btn = event.target;
+            btn.textContent = '...';
+            btn.disabled = true;
+
+            try {
+                // 先请求详情API获取正确环数和完整数据
+                const resp = await fetch(`/api/spell-detail/${encodeURIComponent(s.name)}`);
+                const d = await resp.json();
+                if (!d.error) {
+                    const level = parseSpellLevel(d.level);
+                    await doAddLearned(s.name, level,
+                        d.school||'', d.casting_time||'', d.range||'', d.duration||'',
+                        d.components||'', d.ritual||'否', d.concentration||'否',
+                        d.detail_text||'', d.source||'资料库');
+                } else {
+                    // 详情API失败，用搜索结果兜底
+                    await doAddLearned(s.name, parseSpellLevel(s.level),
+                        safeVal(s.school), safeVal(s.casting_time), '', '',
+                        safeVal(s.components), safeVal(s.ritual), safeVal(s.concentration), '', safeVal(s.source));
+                }
+                refreshAll();
+            } catch(e) {
+                alert('添加失败: ' + e.message);
+            } finally {
+                btn.textContent = '+📚';
+                btn.disabled = false;
+            }
+        }
+
+        async function viewSpellDetail(index) {
+            const spell = spellSearchResults[index];
+            if (!spell) return;
+            const el = document.getElementById('spell-detail');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">加载详情...</div>';
+            try {
+                const data = await (await fetch(`/api/spell-detail/${encodeURIComponent(spell.name)}`)).json();
+                if (data.error) { el.innerHTML = `<div style="color:var(--red);">${data.error}</div>`; return; }
+                selectedSpell = data;
+                const lvl = parseSpellLevel(data.level);
+                el.innerHTML = `
+                    <div class="spell-detail-card">
+                        <div class="sd-title">📖 ${data.name} ${data.name_en ? '<small style="color:var(--text-dim);">'+data.name_en+'</small>' : ''}</div>
+                        <div class="sd-meta">${data.level} · ${data.school} | ⏱ ${data.casting_time||'?'} | 🧪 ${data.components||'?'} | 📋 仪式:${data.ritual||'否'} | 🎯 专注:${data.concentration||'否'}</div>
+                        ${data.range ? `<div style="font-size:0.78rem;color:var(--text-dim);">📏 ${data.range} | ⏳ ${data.duration||'?'}</div>` : ''}
+                        ${data.classes ? `<div style="font-size:0.78rem;color:var(--text-dim);">👤 ${data.classes}</div>` : ''}
+                        ${data.detail_text ? `<div class="sd-body" style="margin-top:0.4rem;">${data.detail_text}</div>` : ''}
+                        <div style="margin-top:0.5rem;display:flex;gap:0.3rem;">
+                            ${spellCharId ? `<button class="btn btn-success btn-small" onclick="addDetailedToLearned(${lvl})">➕ 添加到法术书（含详情）</button>` : ''}
+                            <button class="btn btn-small" style="background:var(--surface2);color:var(--text);" onclick="document.getElementById('spell-detail').innerHTML=''">关闭</button>
+                        </div>
+                    </div>`;
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);">加载失败</div>`; }
+        }
+
+        async function addDetailedToLearned(level) {
+            if (!selectedSpell || !spellCharId) return;
+            await doAddLearned(selectedSpell.name, level,
+                selectedSpell.school||'', selectedSpell.casting_time||'',
+                selectedSpell.range||'', selectedSpell.duration||'',
+                selectedSpell.components||'', selectedSpell.ritual||'否',
+                selectedSpell.concentration||'否', selectedSpell.detail_text||'',
+                selectedSpell.source||'资料库');
+            alert('✅ 已添加到法术书');
+            refreshAll();
+        }
+
+        async function doAddLearned(name, level, school, castingTime, range, duration, components, ritual, concentration, description, source) {
+            const resp = await fetch(`/api/character/${spellCharId}/learned-spell`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, level, school, casting_time: castingTime,
+                    range, duration, components, ritual, concentration, description, source})
+            });
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return false; }
+            return true;
+        }
+
+        async function manualAddSpell() {
+            if (!spellCharId) { alert('请先选择角色'); return; }
+            const name = document.getElementById('man-name').value.trim();
+            if (!name) { alert('请输入法术名'); return; }
+            try {
+                const ok = await doAddLearned(name,
+                    parseInt(document.getElementById('man-level').value)||0,
+                    document.getElementById('man-school').value.trim(),
+                    document.getElementById('man-cast').value.trim(),
+                    document.getElementById('man-range').value.trim(),
+                    document.getElementById('man-dur').value.trim(),
+                    document.getElementById('man-comp').value.trim(),
+                    document.getElementById('man-ritual').value,
+                    document.getElementById('man-conc').value,
+                    document.getElementById('man-desc').value.trim(),
+                    '自定义');
+                if (!ok) return;
+                ['man-name','man-cast','man-range','man-dur','man-comp','man-desc'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('man-level').value = '0'; document.getElementById('man-school').value = '';
+                refreshAll();
+            } catch(e) { alert('添加失败: '+e.message); }
+        }
+
+        async function removeLearnedSpell(spellId, name) {
+            if (!confirm(`从法术书删除 "${name}"？`)) return;
+            await fetch(`/api/character/${spellCharId}/learned-spell/${spellId}`, {method:'DELETE'});
+            document.getElementById('learned-detail-panel').innerHTML = '';
+            refreshAll();
+        }
+
+        // ━━━ 法术书列表 + 右侧详情面板 ━━━
+        function renderLearnedSpells(spells) {
+            learnedSpellsCache = spells;
+            const el = document.getElementById('learned-spells-list');
+            document.getElementById('learned-count').textContent = `(${spells.length}个)`;
+            if (!spells.length) {
+                el.innerHTML = '<div class="search-hint">法术书为空。搜索法术或手动添加。</div>';
+                document.getElementById('learned-detail-panel').innerHTML = '';
+                return;
+            }
+            el.innerHTML = spells.map(s => {
+                const lvl = s.spell_level || 0;
+                return `
+                <div class="learned-spell-row" data-sid="${s.id}" onclick="showLearnedDetail(${s.id})">
+                    <span class="ls-name">📜 ${s.spell_name}</span>
+                    <span class="ls-level">[${levelLabel(lvl)}]</span>
+                    ${s.school ? `<span class="ls-meta">${s.school}</span>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function showLearnedDetail(sid) {
+            const spell = learnedSpellsCache.find(s => s.id === sid);
+            if (!spell) return;
+            const el = document.getElementById('learned-detail-panel');
+            const lvl = spell.spell_level || 0;
+
+            let descHtml = '';
+            if (spell.description) {
+                // 描述太长则截断+展开
+                const maxLen = 300;
+                if (spell.description.length > maxLen) {
+                    const short = spell.description.slice(0, maxLen).replace(/<br>/g,'\n');
+                    descHtml = `
+                        <div class="sd-body" style="margin-top:0.4rem;max-height:350px;overflow-y:auto;" id="desc-text-${spell.id}">
+                            ${spell.description}
+                        </div>`;
+                } else {
+                    descHtml = `<div class="sd-body" style="margin-top:0.4rem;max-height:120px;overflow-y:auto;">${spell.description}</div>`;
+                }
+            }
+
+            el.innerHTML = `
+                <div class="card" style="padding:0.65rem;border-color:var(--accent);min-height:55vh;max-height:none;overflow-y:visible;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+                        <span style="font-weight:bold;color:var(--accent);font-size:0.9rem;">📜 ${spell.spell_name}</span>
+                        <button class="btn btn-small" style="background:var(--surface2);color:var(--text);padding:0.1rem 0.35rem;font-size:0.6rem;" onclick="document.getElementById('learned-detail-panel').innerHTML=''">✕</button>
+                    </div>
+                    <div style="color:var(--gold);font-size:0.78rem;margin-bottom:0.3rem;">${levelLabel(lvl)}${spell.school ? ' · '+spell.school+'学派' : ''}</div>
+                    <div style="font-size:0.75rem;color:var(--text-dim);line-height:1.5;">
+                        ${spell.casting_time ? `<div>⏱ ${spell.casting_time}</div>` : ''}
+                        ${spell.range ? `<div>📏 ${spell.range}</div>` : ''}
+                        ${spell.duration ? `<div>⏳ ${spell.duration}</div>` : ''}
+                        ${spell.components ? `<div>🧪 ${spell.components}</div>` : ''}
+                        <div>📋 仪式:${spell.ritual||'否'} | 🎯 专注:${spell.concentration||'否'}</div>
+                        ${spell.source ? `<div>📚 ${spell.source}</div>` : ''}
+                    </div>
+                    ${descHtml}
+                    <div style="margin-top:0.4rem;display:flex;gap:0.25rem;">
+                        <button class="btn btn-primary btn-small" onclick="prepareSpell('${spell.spell_name.replace(/'/g,"\\'")}', ${lvl})" style="font-size:0.7rem;">✅ 准备</button>
+                        <button class="btn btn-danger btn-small" onclick="removeLearnedSpell(${spell.id}, '${spell.spell_name.replace(/'/g,"\\'")}')" style="font-size:0.7rem;">🗑 删除</button>
+                    </div>
+                </div>`;
+            // 高亮
+            document.querySelectorAll('.learned-spell-row').forEach(r => r.style.borderColor = 'var(--border)');
+            const row = document.querySelector(`.learned-spell-row[data-sid="${spell.id}"]`);
+            if (row) row.style.borderColor = 'var(--accent)';
+        }
+
+        // ━━━ 已准备 ━━━
+        async function prepareSpell(name, level) {
+            if (!spellCharId) return;
+            try {
+                const resp = await fetch(`/api/character/${spellCharId}/prepared-spell`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, level})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                refreshAll();
+            } catch(e) { alert('操作失败: '+e.message); }
+        }
+
+        async function unprepareSpell(spellId, name) {
+            if (!confirm(`取消准备 "${name}"？`)) return;
+            await fetch(`/api/character/${spellCharId}/prepared-spell/${spellId}`, {method:'DELETE'});
+            refreshAll();
+        }
+
+        function renderPreparedSpells(spells) {
+            const el = document.getElementById('prepared-spells-list');
+            document.getElementById('prepared-count').textContent = `(${spells.length}个)`;
+            if (!spells.length) { el.innerHTML = '<div class="search-hint">暂无法术被准备。<br>从法术书点击法术→"准备"。</div>'; return; }
+            el.innerHTML = spells.map(s => {
+                const sname = s.spell_name || s.name || '?';
+                return `
+                <div class="prepared-spell-row">
+                    <span class="ps-name">✨ ${sname}</span>
+                    <span class="ps-level">[${levelLabel(s.spell_level || 0)}]</span>
+                    <button class="btn btn-danger btn-small" onclick="unprepareSpell(${s.id}, '${sname.replace(/'/g,"\\'")}')" style="padding:0.15rem 0.35rem;font-size:0.65rem;">✕</button>
+                </div>`;
+            }).join('');
+        }
+
+        loadSpellCharSelect();
+    </script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>

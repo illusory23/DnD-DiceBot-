@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战斗追踪 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* 怪物搜索结果 */
+        .search-results { margin-top: 0.5rem; max-height: 200px; overflow-y: auto; }
+        .search-result-item {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .search-result-item:hover { background: var(--surface2); border-color: var(--accent); }
+        .search-result-item .name { font-weight: bold; color: var(--gold); }
+        .search-result-item .meta { font-size: 0.8rem; color: var(--text-dim); }
+        .monster-info-card {
+            background: var(--bg); border: 1px solid var(--accent);
+            border-radius: 8px; padding: 1rem; margin-top: 0.75rem;
+        }
+        .monster-info-card .title { font-size: 1.1rem; color: var(--accent); font-weight: bold; margin-bottom: 0.5rem; }
+        .monster-info-card .detail { font-size: 0.85rem; color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .monster-info-card .btn-row { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
+        .damage-row { display: flex; gap: 0.5rem; align-items: center; }
+        .damage-row select { flex: 1; }
+        .damage-row input { flex: 0.5; }
+    </style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <div class="navbar-links">
+            <a href="/">掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat" class="active">战斗</a>
+            <a href="/spells">法术</a>
+            <a href="/events">随机事件</a>
+            <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 左栏：添加参与者 + 怪物搜索 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">⚔️ 添加战斗参与者</div>
+
+                    <!-- 从角色卡导入 -->
+                    <div class="form-group">
+                        <label>📋 从角色卡导入</label>
+                        <select id="char-select" onchange="onCharSelect()" style="width:100%;">
+                            <option value="">— 手动输入 —</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>名称</label>
+                        <input type="text" id="combatant-name" placeholder="角色/怪物名">
+                    </div>
+                    <div class="form-group">
+                        <label>先攻加值</label>
+                        <input type="text" id="combatant-init" placeholder="如 +3（填入加值，自动掷d20）" value="+0">
+                    </div>
+                    <div class="form-group">
+                        <label>HP</label>
+                        <input type="number" id="combatant-hp" placeholder="当前HP">
+                    </div>
+                    <div class="form-group">
+                        <label>最大HP</label>
+                        <input type="number" id="combatant-hp-max" placeholder="最大HP">
+                    </div>
+                    <div class="form-group">
+                        <label>AC</label>
+                        <input type="number" id="combatant-ac" placeholder="10" value="10">
+                    </div>
+                    <button class="btn btn-primary" onclick="addCombatant()">➕ 加入战斗</button>
+                </div>
+
+                <!-- 怪物/生物搜索 -->
+                <div class="card">
+                    <div class="card-header">👹 资料库搜索生物</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-search" placeholder="搜索怪物/生物名称..."
+                               onkeydown="if(event.key==='Enter') searchMonster()">
+                        <button onclick="searchMonster()">🔍 搜索</button>
+                    </div>
+                    <div class="search-results" id="search-results"></div>
+                    <div id="monster-info"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">🎯 快速骰</div>
+                    <div class="dice-input">
+                        <input type="text" id="quick-dice" placeholder="d20+5 / 3d6 / adv d20...">
+                        <button onclick="quickRoll()">投掷</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右栏：先攻列表 + 伤害处理 -->
+            <div class="col" style="flex: 2;">
+                <div class="card">
+                    <div class="card-header">
+                        ⚔️ 先攻顺序
+                        <span id="round-info" style="color:var(--gold);margin-left:1rem;"></span>
+                        <button class="btn btn-success" onclick="startCombat()" style="margin-left:0.5rem;font-size:0.8rem;padding:0.2rem 0.6rem;">▶ 开始</button>
+                    </div>
+                    <div id="initiative-list" style="color:var(--text-dim); text-align:center; padding:2rem;">
+                        添加参与者后点击"开始"
+                    </div>
+                    <div style="margin-top:1rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="prevRound()" style="flex:1;min-width:60px;">⏮ 上回合</button>
+                        <button class="btn btn-primary" onclick="prevCombatant()" style="flex:1;min-width:60px;">◀ 上一位</button>
+                        <button class="btn btn-primary" onclick="nextCombatant()" style="flex:1;min-width:60px;">下一位 ▶</button>
+                        <button class="btn btn-primary" onclick="nextRound()" style="flex:1;min-width:60px;">⏭ 下回合</button>
+                        <button class="btn btn-danger" onclick="clearCombat()">🗑 清空</button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- 伤害追踪 -->
+                <div class="card">
+                    <div class="card-header">💥 伤害处理</div>
+                    <div class="damage-row" style="display:flex;flex-direction:column;gap:0.35rem;">
+                        <select id="dmg-target" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                            <option value="">— 选择目标 —</option>
+                        </select>
+                        <input type="number" id="dmg-amount" placeholder="伤害/治疗值" min="0" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                        <div style="display:flex;gap:0.35rem;">
+                            <button class="btn btn-danger" onclick="applyDamage()" style="flex:1;">💥 伤害</button>
+                            <button class="btn btn-success" onclick="applyHeal()" style="flex:1;">💚 治疗</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let combatants = [];
+        let charCache = {};
+
+        // ━━━ 角色下拉框 ━━━
+        async function loadCharSelect() {
+            try {
+                const resp = await fetch('/api/characters');
+                const chars = await resp.json();
+                const select = document.getElementById('char-select');
+                if (chars.length) {
+                    chars.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = `${c.name} (${c.level}级 ${c.class || ''} | HP:${c.hp_current || 0}/${c.hp_max || 0})`;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch(e) { console.error('加载角色列表失败', e); }
+        }
+
+        async function onCharSelect() {
+            const charId = document.getElementById('char-select').value;
+            if (!charId) {
+                document.getElementById('combatant-name').value = '';
+                document.getElementById('combatant-init').value = '+0';
+                document.getElementById('combatant-hp').value = '';
+                document.getElementById('combatant-hp-max').value = '';
+                document.getElementById('combatant-ac').value = '10';
+                return;
+            }
+            if (!charCache[charId]) {
+                const resp = await fetch(`/api/character/${charId}`);
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                charCache[charId] = data;
+            }
+            const char = charCache[charId];
+            document.getElementById('combatant-name').value = char.name || '';
+            const dexMod = (char.ability_mods && char.ability_mods.dex) ? char.ability_mods.dex : 0;
+            document.getElementById('combatant-init').value = dexMod >= 0 ? `+${dexMod}` : `${dexMod}`;
+            document.getElementById('combatant-hp').value = char.hp_current || 0;
+            document.getElementById('combatant-hp-max').value = char.hp_max || 0;
+            document.getElementById('combatant-ac').value = char.ac || 10;
+        }
+
+        // ━━━ 添加/管理战斗参与者 ━━━
+        function addCombatant() {
+            const name = document.getElementById('combatant-name').value.trim();
+            if (!name) { alert('请输入名称'); return; }
+
+            const initStr = document.getElementById('combatant-init').value.trim();
+            const hp = parseInt(document.getElementById('combatant-hp').value) || 0;
+            const hpMax = parseInt(document.getElementById('combatant-hp-max').value) || hp;
+            const ac = parseInt(document.getElementById('combatant-ac').value) || 10;
+
+            let initBonus = 0;
+            const bonusMatch = initStr.match(/^([+-]?\d+)$/);
+            if (bonusMatch) initBonus = parseInt(bonusMatch[1]);
+
+            const d20 = Math.floor(Math.random() * 20) + 1;
+            const initiative = d20 + initBonus;
+            const bonusLabel = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`;
+
+            // 检查是否从角色下拉框选择
+            const charSelect = document.getElementById('char-select');
+            const selectedCharId = charSelect ? parseInt(charSelect.value) || null : null;
+            combatants.push({
+                name, initiative,
+                initDetail: `d20(${d20}) ${bonusLabel}`,
+                hp, hpMax, ac, conditions: [],
+                charId: selectedCharId
+            });
+            combatants.sort((a, b) => b.initiative - a.initiative);
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('char-select').value = '';
+        }
+
+        function startCombat() {
+            if (!combatants.length) { alert('请先添加战斗参与者'); return; }
+            combatants.sort((a, b) => b.initiative - a.initiative);
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            document.getElementById('round-info').textContent = '第 1 轮';
+            renderInitiative();
+        }
+
+        function nextCombatant() {
+            // 下一位角色（在当轮内循环，不增加回合数）
+            if (!combatants.length) return;
+            const currentIdx = combatants.findIndex(c => c.isCurrent);
+            if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
+            const nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % combatants.length;
+            combatants[nextIdx].isCurrent = true;
+            renderInitiative();
+        }
+
+        function prevCombatant() {
+            // 返回上一位角色
+            if (!combatants.length) return;
+            const currentIdx = combatants.findIndex(c => c.isCurrent);
+            if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
+            const prevIdx = currentIdx <= 0 ? combatants.length - 1 : currentIdx - 1;
+            combatants[prevIdx].isCurrent = true;
+            renderInitiative();
+        }
+
+        function prevRound() {
+            // 上一回合：回合数-1（最少第1轮），回到先攻最高
+            if (!combatants.length) return;
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            const round = Math.max(1, parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) - 1);
+            document.getElementById('round-info').textContent = `第 ${round} 轮`;
+            renderInitiative();
+        }
+
+        function nextRound() {
+            // 下一回合：回合数+1，回到先攻最高
+            if (!combatants.length) return;
+            combatants.forEach(c => c.isCurrent = false);
+            combatants[0].isCurrent = true;
+            const round = parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) + 1;
+            document.getElementById('round-info').textContent = `第 ${round} 轮`;
+            renderInitiative();
+        }
+
+        function renderInitiative() {
+            const el = document.getElementById('initiative-list');
+            if (!combatants.length) {
+                el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:2rem;">战斗列表为空</div>';
+                return;
+            }
+            el.innerHTML = combatants.map((c, i) => {
+                const hpPct = c.hpMax > 0 ? Math.round(c.hp / c.hpMax * 100) : 100;
+                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
+                return `
+                <div class="combatant-row${c.isCurrent ? ' current' : ''}">
+                    <span class="combatant-name">${i + 1}. ${c.name}${c.isCurrent ? ' ◀' : ''}</span>
+                    <span class="combatant-init" title="${c.initDetail || ''}">先攻: ${c.initiative}</span>
+                    <span class="combatant-hp" style="color:${hpColor}">❤️ ${c.hp}/${c.hpMax}</span>
+                    <span class="combatant-ac">🛡️ AC ${c.ac}</span>
+                    ${c.conditions.length ? `<span style="color:var(--red)">[${c.conditions.join(',')}]</span>` : ''}
+                    <button onclick="removeCombatant(${i})" title="脱离战斗"
+                            style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1.1rem;padding:0 0.25rem;"
+                            onmouseover="this.style.color='#ff0000'" onmouseout="this.style.color='var(--red)'">✕</button>
+                </div>`;
+            }).join('');
+        }
+
+        // ━━━ 伤害下拉框（从参战者列表动态更新）━━
+        function updateDmgDropdown() {
+            const select = document.getElementById('dmg-target');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">— 选择目标 —</option>';
+            combatants.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = `${c.name} (HP:${c.hp}/${c.hpMax})`;
+                if (c.name === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        async function applyDamage() {
+            const target = document.getElementById('dmg-target').value;
+            if (!target) { alert('请选择目标'); return; }
+            const amount = parseInt(document.getElementById('dmg-amount').value) || 0;
+            if (amount <= 0) { alert('请输入有效伤害值'); return; }
+
+            const c = combatants.find(c => c.name === target);
+            if (!c) { alert(`未找到: ${target}`); return; }
+
+            c.hp = Math.max(0, c.hp - amount);
+            const status = c.hp <= 0 ? ' 💀 已倒地!' : '';
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('dmg-amount').value = '';
+            await syncCombatantHP(c);
+            alert(`${c.name} 受到 ${amount} 点伤害，剩余 HP: ${c.hp}/${c.hpMax}${status}`);
+        }
+
+        async function applyHeal() {
+            const target = document.getElementById('dmg-target').value;
+            if (!target) { alert('请选择目标'); return; }
+            const amount = parseInt(document.getElementById('dmg-amount').value) || 0;
+            if (amount <= 0) { alert('请输入有效治疗值'); return; }
+
+            const c = combatants.find(c => c.name === target);
+            if (!c) { alert(`未找到: ${target}`); return; }
+
+            const maxHp = c.hpMax || c.hp;
+            c.hp = Math.min(maxHp, c.hp + amount);
+            renderInitiative();
+            updateDmgDropdown();
+            document.getElementById('dmg-amount').value = '';
+            await syncCombatantHP(c);
+            alert(`${c.name} 恢复 ${amount} 点HP，剩余 HP: ${c.hp}/${c.hpMax}`);
+        }
+
+        async function syncCombatantHP(c) {
+            if (!c.charId) return;
+            try {
+                await fetch(`/api/character/${c.charId}/hp`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({amount: c.hp, setAbsolute: true})
+                });
+                delete charCache[c.charId];
+            } catch(e) {}
+        }
+
+        function removeCombatant(index) {
+            const c = combatants[index];
+            if (!confirm(`将 "${c.name}" 脱离战斗？`)) return;
+            combatants.splice(index, 1);
+            // 如果移除的是当前回合者，将下一位置为当前
+            if (c.isCurrent && combatants.length > 0) {
+                combatants[index % combatants.length].isCurrent = true;
+            }
+            renderInitiative();
+            updateDmgDropdown();
+        }
+
+        function clearCombat() {
+            if (!confirm('确认清空战斗？')) return;
+            combatants = [];
+            document.getElementById('round-info').textContent = '';
+            renderInitiative();
+            updateDmgDropdown();
+            localStorage.removeItem(COMBAT_STORAGE);
+        }
+
+        // ━━━ 怪物搜索 ━━━
+        let selectedMonster = null;
+
+        async function searchMonster() {
+            const query = document.getElementById('monster-search').value.trim();
+            if (query.length < 2) { alert('至少输入2个字'); return; }
+
+            const resultsEl = document.getElementById('search-results');
+            resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">搜索中...</div>';
+
+            try {
+                // 先用精确搜索
+                const resp = await fetch(`/api/monster/${encodeURIComponent(query)}`);
+                const data = await resp.json();
+
+                if (!data.error) {
+                    // 精确匹配 — 直接显示详情
+                    selectedMonster = data;
+                    resultsEl.innerHTML = '';
+                    showMonsterInfo(data);
+                    return;
+                }
+
+                // 模糊搜索
+                const searchResp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const searchData = await searchResp.json();
+
+                if (!searchData.results || !searchData.results.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物</div>';
+                    document.getElementById('monster-info').innerHTML = '';
+                    return;
+                }
+
+                // 过滤只显示怪物
+                const monsters = searchData.results.filter(r => r.type === 'monster');
+                if (!monsters.length) {
+                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物（可尝试其他关键词）</div>';
+                    return;
+                }
+
+                resultsEl.innerHTML = monsters.map(m => `
+                    <div class="search-result-item" onclick="selectMonsterResult('${m.name.replace(/'/g, "\\'")}')">
+                        <span class="name">👹 ${m.name}</span>
+                        <span class="meta">CR:${m.cr || '?'} | ${m.source || ''}</span>
+                    </div>
+                `).join('');
+
+            } catch(e) {
+                resultsEl.innerHTML = `<div style="color:var(--red);">搜索失败: ${e.message}</div>`;
+            }
+        }
+
+        async function selectMonsterResult(name) {
+            document.getElementById('monster-search').value = name;
+            const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
+            const data = await resp.json();
+            if (!data.error) {
+                selectedMonster = data;
+                document.getElementById('search-results').innerHTML = '';
+                showMonsterInfo(data);
+            }
+        }
+
+        function showMonsterInfo(monster) {
+            const el = document.getElementById('monster-info');
+            el.innerHTML = `
+                <div class="monster-info-card">
+                    <div class="title">👹 ${monster.name}${monster.name_en ? ' <small style="color:var(--text-dim)">' + monster.name_en + '</small>' : ''}</div>
+                    <div style="color:var(--gold);margin-bottom:0.5rem;">
+                        挑战等级: ${monster.cr || '?'} | ${monster.size || '?'} ${monster.type || '?'}
+                        ${monster.legendary ? ' | 传奇: ' + monster.legendary : ''}
+                    </div>
+                    ${monster.detail_text ? `<div class="detail">${monster.detail_text}</div>` : ''}
+                    <div style="color:var(--text-dim);font-size:0.8rem;">📚 来源: ${monster.source || '未知'}</div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="addMonsterToCombat()">➕ 加入战斗</button>
+                    </div>
+                </div>`;
+        }
+
+        function addMonsterToCombat() {
+            if (!selectedMonster) { alert('请先搜索并选择一个生物'); return; }
+
+            // 解析 CR 获取先攻加值估算
+            let initBonus = 0;
+            const crStr = selectedMonster.cr || '0';
+            const crMatch = crStr.match(/(\d+)/);
+            if (crMatch) {
+                const cr = parseInt(crMatch[1]);
+                initBonus = Math.min(Math.floor(cr / 4), 5);
+            }
+
+            // 估算HP和AC
+            let hpEst = 10, acEst = 10;
+            const detailText = selectedMonster.detail_text || '';
+            const hpMatch = detailText.match(/生命值[：:]\s*(\d+)/);
+            const acMatch = detailText.match(/AC[：:]\s*(\d+)/i) || detailText.match(/护甲等级[：:]\s*(\d+)/);
+            if (hpMatch) hpEst = parseInt(hpMatch[1]);
+            if (acMatch) acEst = parseInt(acMatch[1]);
+
+            // 填充并自动加入战斗
+            document.getElementById('combatant-name').value = selectedMonster.name || '';
+            document.getElementById('combatant-init').value = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`;
+            document.getElementById('combatant-hp').value = hpEst;
+            document.getElementById('combatant-hp-max').value = hpEst;
+            document.getElementById('combatant-ac').value = acEst;
+            document.getElementById('char-select').value = '';
+            // 自动加入战斗
+            addCombatant();
+        }
+
+        // ━━━ 快速骰 ━━━
+        async function quickRoll() {
+            const expr = document.getElementById('quick-dice').value.trim();
+            if (!expr) return;
+            const resp = await fetch('/api/roll', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({expression: expr})
+            });
+            const data = await resp.json();
+            alert(`🎲 ${expr} = ${data.total}`);
+        }
+
+        // ━━━ 战斗状态持久化 ━━━
+        const COMBAT_STORAGE = 'dnd_combat_state';
+
+        function saveCombatState() {
+            if (!combatants.length) {
+                localStorage.removeItem(COMBAT_STORAGE);
+                fetch('/api/combat-state', {method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({state: {combatants:[], round:''}})}).catch(()=>{});
+                return;
+            }
+            try {
+                var state = {combatants: combatants.map(c => ({...c})), round: document.getElementById('round-info')?.textContent || ''};
+                localStorage.setItem(COMBAT_STORAGE, JSON.stringify(state));
+                fetch('/api/combat-state', {method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({state: state})}).catch(()=>{});
+            } catch(e) {}
+        }
+
+        // 定时拉取服务器战斗状态
+        setInterval(function() {
+            fetch('/api/combat-state').then(r=>r.json()).then(data => {
+                if (!data.ok || !data.state || !data.state.combatants) return;
+                var s = data.state;
+                var localJson = JSON.stringify(combatants.map(c => ({name:c.name,initiative:c.initiative,hp:c.hp,hpMax:c.hpMax,ac:c.ac,isCurrent:c.isCurrent})));
+                var remoteJson = JSON.stringify(s.combatants.map(c => ({name:c.name,initiative:c.initiative,hp:c.hp,hpMax:c.hpMax,ac:c.ac,isCurrent:c.isCurrent})));
+                if (remoteJson !== localJson && s.combatants.length > 0) {
+                    combatants = s.combatants.map(c => ({...c}));
+                    renderInitiative();
+                    updateDmgDropdown();
+                    if (s.round) document.getElementById('round-info').textContent = s.round;
+                    localStorage.setItem(COMBAT_STORAGE, JSON.stringify(s));
+                }
+            }).catch(()=>{});
+        }, 3000);
+
+        function restoreCombatState() {
+            try {
+                const raw = localStorage.getItem(COMBAT_STORAGE);
+                if (!raw) return false;
+                const state = JSON.parse(raw);
+                if (!state.combatants || !state.combatants.length) return false;
+                combatants = state.combatants.map(c => ({...c}));
+                renderInitiative();
+                updateDmgDropdown();
+                if (state.round) {
+                    document.getElementById('round-info').textContent = state.round;
+                }
+                return true;
+            } catch(e) { return false; }
+        }
+
+        // 初始加载
+        loadCharSelect();
+        const restored = restoreCombatState();
+
+        // 每次界面刷新后即时保存（所有战斗操作最终都会调用 renderInitiative）
+        const _origRenderInitiative = renderInitiative;
+        renderInitiative = function() { _origRenderInitiative(); saveCombatState(); };
+
+        // 页面隐藏/关闭前保存
+        window.addEventListener('pagehide', saveCombatState);
+        window.addEventListener('beforeunload', saveCombatState);
+    </script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+<script>
+(function(){
+    try{var s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));var role=s?s.role||'PL':'PL';
+    fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm)role='DM';
+    if(role==='PL'){var btns=document.querySelectorAll('button:not(.navbar-brand):not([onclick*=\"toggleJoin\"])');var inps=document.querySelectorAll('input,select,textarea');
+    btns.forEach(function(b){if(b.form||b.closest('#join-overlay'))return;b.disabled=true;b.style.opacity='0.4';});
+    inps.forEach(function(i){if(i.closest('#join-overlay'))return;i.disabled=true;i.style.opacity='0.5';});
+    var h=document.createElement('div');h.style.cssText='text-align:center;color:var(--gold);padding:0.5rem;font-size:0.85rem;';h.textContent='PL: ';document.querySelector('.main-container').insertBefore(h,document.querySelector('.main-container').firstChild);}});
+    }catch(e){}
+})();
+</script>
+</body>
+</html>
