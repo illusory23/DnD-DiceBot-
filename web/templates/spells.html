@@ -174,6 +174,13 @@
     </div>
 
     <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
         let spellCharId = null;
         let spellSearchResults = [];
         let selectedSpell = null;
@@ -196,7 +203,8 @@
         async function loadSpellCharSelect() {
             const sel = document.getElementById('spell-char-select');
             try {
-                const chars = await (await fetch('/api/characters')).json();
+                const identity = getIdentity();
+                const chars = await (await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`)).json();
                 chars.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = `${c.name} (${c.level||1}级 ${c.class||''})`; sel.appendChild(o); });
             } catch(e) {}
         }

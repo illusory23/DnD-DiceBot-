@@ -329,6 +329,17 @@
             chatColor = color;
             document.getElementById('chat-color-btn').style.background = color;
             document.getElementById('color-palette').classList.remove('show');
+            // 立即同步颜色到 sessionStorage 和服务端
+            try {
+                var s = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                if (s) { s.color = color; sessionStorage.setItem('dnd_joined_room', JSON.stringify(s)); }
+            } catch(e) {}
+            if (chatUser) {
+                fetch('/api/room/heartbeat', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: chatUser, color: color, role: userRole || 'PL'})
+                }).catch(function(){});
+            }
         };
 
         // 点击其他地方关闭调色板
@@ -370,9 +381,6 @@
                 if (isDM) userRole = 'DM';
                 renderOnlineUsers();
                 if (isDM) {
-                    if (!btnBg || btnBg === 'rgb(0, 188, 212)' || btnBg === '#00bcd4') {
-                        document.getElementById('chat-color-btn').style.background = '#ffd700';
-                    }
                     addSystemMsg('👑 你是主持人 (DM)');
                 }
             });
@@ -389,7 +397,7 @@
             const joinColor = (chatColor !== '#00bcd4') ? chatColor : '';
             fetch('/api/room/join', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: name, color: joinColor})
+                body: JSON.stringify({name: name, color: joinColor, role: userRole || 'PL'})
             });
 
             // 更新sessionStorage
@@ -442,7 +450,7 @@
             var msgRole = msg.role || (msg.is_dm ? 'DM' : 'PL');
             if (msgRole === 'DM') roleBadge = ' <span style="background:var(--gold);color:#000;font-size:0.6rem;padding:0 4px;border-radius:3px;">DM</span>';
             else roleBadge = ' <span style="background:#555;color:#ccc;font-size:0.6rem;padding:0 4px;border-radius:3px;">PL</span>';
-            const nameColor = msg.color || (msg.is_dm ? '#ffd700' : '#00bcd4');
+            const nameColor = msg.color || (msgRole === 'DM' ? '#ffd700' : '#00bcd4');
             const escapedName = msg.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             let displayText = msg.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             displayText = displayText.replace(/@(\S+)/g, '<span class="mention">@$1</span>');
@@ -465,7 +473,7 @@
             badge.textContent = onlineUsers.length + ' 人在线';
             el.innerHTML = onlineUsers.map(u => {
                 var isDmUser = (u.role === 'DM');
-                var color = isDmUser ? '#ffd700' : (u.color || '#00bcd4');
+                var color = u.color || (isDmUser ? '#ffd700' : '#00bcd4');
                 var roleBadge = isDmUser ? ' <span style="background:var(--gold);color:#000;font-size:0.55rem;padding:0 2px;border-radius:2px;">DM</span>' : ' <span style="background:#555;color:#ccc;font-size:0.55rem;padding:0 2px;border-radius:2px;">PL</span>';
                 return `<span class="user-dot" style="color:${color};"><span style="color:${color};">●</span> ${u.name}${roleBadge}</span>`;
             }).join(' ');
@@ -479,7 +487,7 @@
                 if (!chatUser) return;
                 fetch('/api/room/heartbeat', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: chatUser, color: chatColor})
+                    body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL'})
                 }).then(r => r.json()).then(data => {
                     if (data.ok && data.online_users) {
                         onlineUsers = data.online_users;

@@ -660,6 +660,7 @@
                 <button class="tool-btn" onclick="zoomFit()">📐 适应</button>
                 <button class="tool-btn" onclick="resetView()">🏠 重置</button>
                 <button class="tool-btn" id="lock-btn" onclick="toggleMapLock()" title="锁定地图（禁止平移/缩放）">🔓</button>
+                <button class="tool-btn" id="sync-btn" onclick="manualSync()" title="同步/推送地图状态">🔄 同步</button>
                 <button class="tool-btn" onclick="zoomIn()">🔍+</button>
                 <button class="tool-btn" onclick="zoomOut()">🔍-</button>
                 <span class="sep"></span>
@@ -941,6 +942,38 @@
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
     <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
+        // ━━━ 同步按钮（顶层入口，boot 完成后注册真实实现）━━
+        var _bootReady = false;
+        window.manualSync = function() {
+            var btn = document.getElementById('sync-btn');
+            if (!btn) return;
+            if (!_bootReady) {
+                btn.textContent = '⏳ 初始化中...';
+                btn.disabled = true;
+                setTimeout(function() {
+                    if (btn && !_bootReady) { btn.textContent = '🔄 同步'; btn.disabled = false; }
+                }, 2000);
+                return;
+            }
+            // 确定角色：仅信任服务器 /api/dm-status 的返回值
+            var dm = (typeof window._isDM !== 'undefined' && window._isDM === true);
+            if (dm && window._pushMapState) {
+                window._pushMapState();
+            } else if (window._syncMapState) {
+                window._syncMapState();
+            } else if (btn) {
+                btn.textContent = '🔄 同步';
+                btn.disabled = false;
+            }
+        };
+
         // ━━━ 核心状态 ━━━
         const mapArea = document.getElementById('map-area');
         const wrap = document.getElementById('canvas-wrap');
@@ -1830,7 +1863,7 @@
             if (isPanning) { isPanning = false; mapArea.classList.remove('cursor-grabbing'); if (currentTool==='select') mapArea.classList.add('cursor-grab'); debouncedSave(); }
             if (isDrawing && currentStroke) {
                 isDrawing = false;
-                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); onLocalChange(); }
+                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); wsBroadcastStroke(currentStroke); markDirty('strokes'); onLocalChange(); }
                 currentStroke = null; redrawCanvas();
                 saveState();
             }
@@ -1842,8 +1875,15 @@
                     boxSelectRect.remove(); boxSelectRect = null;
                 }
             }
-            if (dragTarget !== null) { dragTarget = null; dragType = null; debouncedSave(); }
-            if (groupDragging) { groupDragging = false; groupDragOffsets = []; debouncedSave(); }
+            if (dragTarget !== null) {
+                if (dragType === 'token') { markDirty('tokens'); wsSend({type: 'tokens_update', data: mapTokens}); }
+                else if (dragType === 'text') { markDirty('texts'); wsSend({type: 'texts_update', data: textBoxes}); }
+                dragTarget = null; dragType = null; debouncedSave();
+            }
+            if (groupDragging) {
+                markDirty('tokens'); wsSend({type: 'tokens_update', data: mapTokens});
+                groupDragging = false; groupDragOffsets = []; debouncedSave();
+            }
         });
 
         mapArea.addEventListener('contextmenu', e => e.preventDefault());
@@ -2079,6 +2119,8 @@
             const box = createTextBoxElement(id, x, y, text, fontSize);
             textBoxes.push(box); overlay.appendChild(box.el);
             debouncedSave();
+            markDirty('texts');
+            wsSend({type: 'texts_update', data: textBoxes});
             return box;
         }
 
@@ -2183,6 +2225,8 @@
             if (selectedElement && selectedElement.type === 'text' && selectedElement.ref === box) selectedElement = null;
             multiSelected = multiSelected.filter(ms => ms.ref !== box);
             debouncedSave();
+            markDirty('texts');
+            wsSend({type: 'texts_update', data: textBoxes});
         }
 
         // ━━━ 群组拖拽 ━━━
@@ -2269,11 +2313,12 @@
             const id = ++tokenIdCounter;
             const token = createMapTokenElement(id, charId, name, portraitUrl, x, y, size, 0);
             mapTokens.push(token);
-            // 异步获取角色数据并更新HP标签
             fetchCharData(charId).then(data => {
                 if (data) updateTokenHpLabel(token, data);
             });
             debouncedSave();
+            markDirty('tokens');
+            wsSend({type: 'tokens_update', data: mapTokens});
             return token;
         }
 
@@ -2282,6 +2327,8 @@
             mapTokens = mapTokens.filter(t => t.id !== token.id);
             multiSelected = multiSelected.filter(ms => ms.ref !== token);
             debouncedSave();
+            markDirty('tokens');
+            wsSend({type: 'tokens_update', data: mapTokens});
         }
 
         // ━━━ 旋转 ━━━
@@ -2337,7 +2384,8 @@
         async function loadCharTokens() {
             const list = document.getElementById('char-token-list');
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 if (!chars.length) { list.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1rem;">暂无角色</div>'; return; }
 
@@ -2758,7 +2806,8 @@
 
         async function loadDicePopupChars() {
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 const select = document.getElementById('dicepop-char');
                 select.innerHTML = '<option value="">⚡ 选择角色</option>';
@@ -3082,7 +3131,8 @@
             // 保留默认选项
             select.innerHTML = '<option value="">— 选择导入的角色 —</option>';
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 if (chars.length) {
                     chars.forEach(c => {
@@ -3548,6 +3598,12 @@
 
             // ━━ PL权限限制 ━━
             function applyRoleRestrictions() {
+                // 同步按钮文案：根据最终角色设置（不覆盖操作中的状态）
+                var syncBtn = document.getElementById('sync-btn');
+                if (syncBtn && syncBtn.textContent !== '⏳ 推送中...' && syncBtn.textContent !== '⏳ 同步中...') {
+                    syncBtn.textContent = isDM ? '📤 推送' : '🔄 同步';
+                    syncBtn.title = isDM ? '推送地图状态到服务器' : '从服务器同步地图状态';
+                }
                 if (userRole === 'PL') {
                     // 隐藏战争迷雾控件
                     var fogWrap = document.getElementById('fog-dropdown-wrap');
@@ -3588,6 +3644,17 @@
                 chatColor = color;
                 document.getElementById('chat-color-btn').style.background = color;
                 document.getElementById('color-palette').classList.remove('show');
+                // 立即同步颜色到 sessionStorage 和服务端
+                try {
+                    var s = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                    if (s) { s.color = color; sessionStorage.setItem('dnd_joined_room', JSON.stringify(s)); }
+                } catch(e) {}
+                if (chatUser) {
+                    fetch('/api/room/heartbeat', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name: chatUser, color: color, role: userRole || 'PL'})
+                    }).catch(function(){});
+                }
             };
 
             // 点击其他地方关闭调色板
@@ -3633,16 +3700,13 @@
                 // 检测DM状态
                 fetch('/api/dm-status').then(r => r.json()).then(data => {
                     isDM = data.is_dm;
+                    window._isDM = isDM;
                     dmName = data.dm_name || '';
                     if (isDM) userRole = 'DM';
                     renderOnlineUsers();  // dmName获取后立即刷新在线列表
-                    // sync button removed - using WebSocket
-                    applyRoleRestrictions();
+                    // sync button restored
+applyRoleRestrictions();
                     if (isDM) {
-                        var btnBg = document.getElementById('chat-color-btn').style.background;
-                        if (!btnBg || btnBg === 'rgb(0, 188, 212)' || btnBg === '#00bcd4') {
-                            document.getElementById('chat-color-btn').style.background = '#ffd700';
-                        }
                         addSystemMsg('👑 你是主持人 (DM)');
                     } else {
                         if (dmName) {
@@ -3663,7 +3727,7 @@
                 const joinColor = (chatColor !== '#00bcd4') ? chatColor : '';
                 fetch('/api/room/join', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: name, color: joinColor})
+                    body: JSON.stringify({name: name, color: joinColor, role: userRole || 'PL'})
                 });
 
                 // 更新sessionStorage
@@ -3823,87 +3887,105 @@
                 return false;
             }
 
-            // DM手动推送地图
-            window.pushMapState = function() {
+            // DM手动推送地图（WebSocket广播 + HTTP持久化）
+            window._pushMapState = function() {
                 var btn = document.getElementById('sync-btn');
+                if (!btn) return;
                 btn.textContent = '⏳ 推送中...';
                 btn.disabled = true;
-                var state = collectState();
-                // 通过WebSocket广播全部状态
-                if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-                    wsClient.send(JSON.stringify({type: 'layers_update', data: state.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL,offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; })}));
-                    wsClient.send(JSON.stringify({type: 'tokens_update', data: state.mapTokens}));
-                    wsClient.send(JSON.stringify({type: 'texts_update', data: state.textBoxes}));
-                    wsClient.send(JSON.stringify({type: 'fog_update', data: state.fogPolygons}));
+                try {
+                    var state = collectState();
+                    var layers = state.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL||'',offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; });
+                    // 1) 通过WebSocket广播（实时协作）
+                    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+                        wsClient.send(JSON.stringify({type: 'layers_update', data: layers}));
+                        wsClient.send(JSON.stringify({type: 'tokens_update', data: state.mapTokens}));
+                        wsClient.send(JSON.stringify({type: 'texts_update', data: state.textBoxes}));
+                        wsClient.send(JSON.stringify({type: 'fog_update', data: state.fogPolygons}));
+                    }
+                    // 2) 同时推送到HTTP共享画布（持久化，供PL同步按钮拉取）
+                    fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({_mode:'full', strokes:state.brushStrokes||[], layers:layers, tokens:state.mapTokens, texts:state.textBoxes, fog:state.fogPolygons})
+                    }).then(function(r){ return r.json(); }).then(function(d){
+                        try { if (d.ok) addSystemMsg('📤 地图状态已推送'); else addSystemMsg('⚠ 推送失败: ' + (d.error||'未知错误')); } catch(ex) {}
+                    }).catch(function(e){ try { addSystemMsg('⚠ 推送失败: ' + e.message); } catch(ex) {} });
+                } catch(e) {
+                    try { addSystemMsg('⚠ 推送失败: ' + e.message); } catch(ex) {}
+                } finally {
+                    btn.textContent = '📤 推送';
+                    btn.disabled = false;
                 }
-                addSystemMsg('📤 地图状态已推送');
-                btn.textContent = '📤 推送'; btn.disabled = false;
             };
 
-            window.syncMapState = function() {
-                const syncBtn = document.getElementById('sync-btn');
+            window._syncMapState = function() {
+                var syncBtn = document.getElementById('sync-btn');
+                if (!syncBtn) return;
                 syncBtn.textContent = '⏳ 同步中...';
                 syncBtn.disabled = true;
-
-                fetch('/api/map-state')
-                    .then(r => r.json())
-                    .then(async data => {
+                // 从服务端共享画布拉取当前状态（since=0 为全量拉取）
+                fetch('/api/shared-canvas?since=0')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
                         if (!data.ok) {
-                            alert('⚠ ' + (data.error || '主机尚未推送地图状态'));
+                            alert('⚠ 服务端暂无共享画布数据');
                             syncBtn.textContent = '🔄 同步';
                             syncBtn.disabled = false;
                             return;
                         }
-                        const state = data.state;
-                        const hasContent = (state.layers && state.layers.length > 0) ||
-                                          (state.mapTokens && state.mapTokens.length > 0) ||
-                                          (state.brushStrokes && state.brushStrokes.length > 0) ||
-                                          (state.textBoxes && state.textBoxes.length > 0);
+                        var sc = data.state || {};
+                        // 将 shared-canvas 格式映射到 applyState 所需格式
+                        var state = {
+                            layers: (sc.layers || []).map(function(l) {
+                                return {id:l.id, name:l.name, dataURL:l.dataURL||'', offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1, visible:l.visible!==false};
+                            }),
+                            mapTokens: sc.tokens || [],
+                            brushStrokes: sc.strokes || [],
+                            textBoxes: sc.texts || [],
+                            fogPolygons: sc.fog || [],
+                        };
+                        var hasContent = state.layers.length > 0 || state.mapTokens.length > 0 ||
+                                          state.brushStrokes.length > 0 || state.textBoxes.length > 0;
                         if (!hasContent) {
-                            alert('⚠ 主机地图暂无内容，请先在主机加载地图后再同步');
+                            alert('⚠ 共享画布暂无内容，请先在画布上绘制或放置内容');
                             syncBtn.textContent = '🔄 同步';
                             syncBtn.disabled = false;
                             return;
                         }
-                        // 清除当前内容
-                        textBoxes.forEach(b => { if (b.el) b.el.remove(); });
-                        mapTokens.forEach(t => { if (t.el) t.el.remove(); });
+                        // 清除当前内容后应用服务端状态
+                        textBoxes.forEach(function(b) { if (b.el) b.el.remove(); });
+                        mapTokens.forEach(function(t) { if (t.el) t.el.remove(); });
                         brushStrokes = []; textBoxes = []; mapTokens = [];
                         mapLayers = []; fogPolygons = state.fogPolygons || [];
                         currentFogPoints = null;
                         selectedElement = null; clearMultiSelect();
-
-                        // 过滤掉迷雾下的标记和文字
-                        const filteredState = {...state};
-                        const fogPolys = state.fogPolygons || [];
-                        if (fogPolys.length > 0 && fogVisible) {
-                            if (filteredState.mapTokens) {
-                                filteredState.mapTokens = filteredState.mapTokens.filter(t => !isUnderFog(t, fogPolys));
-                            }
-                            if (filteredState.textBoxes) {
-                                filteredState.textBoxes = filteredState.textBoxes.filter(b => !isUnderFog(b, fogPolys));
-                            }
-                        }
-
-                        await applyState(filteredState);
-                        redrawCanvas();
-                        applyTransform();
-                        renderLayerList();
-                        const hiddenCount = (state.mapTokens?.length || 0) - (filteredState.mapTokens?.length || 0) +
-                                           (state.textBoxes?.length || 0) - (filteredState.textBoxes?.length || 0);
-                        addSystemMsg('✅ 已同步主机地图状态' + (hiddenCount > 0 ? '（' + hiddenCount + '个对象被迷雾隐藏）' : ''));
-                        syncBtn.textContent = '🔄 同步';
-                        syncBtn.disabled = false;
+                        applyState(state).then(function() {
+                            redrawCanvas();
+                            applyTransform();
+                            renderLayerList();
+                            try { addSystemMsg('✅ 已同步共享画布状态'); } catch(ex) {}
+                            syncBtn.textContent = '🔄 同步';
+                            syncBtn.disabled = false;
+                        }).catch(function(e) {
+                            alert('❌ 同步失败: ' + e.message);
+                            syncBtn.textContent = '🔄 同步';
+                            syncBtn.disabled = false;
+                        });
                     })
-                    .catch(e => {
+                    .catch(function(e) {
                         alert('❌ 同步失败: ' + e.message);
                         syncBtn.textContent = '🔄 同步';
                         syncBtn.disabled = false;
                     });
             };
 
-            // DM 自动推送地图状态
-            let autoPushTimer = null;
+            // boot 完成，标记就绪并更新按钮文案
+            _bootReady = true;
+            var _syncBtnEl = document.getElementById('sync-btn');
+            if (_syncBtnEl && (isDM || userRole === 'DM')) {
+                _syncBtnEl.textContent = '📤 推送';
+                _syncBtnEl.title = '推送地图状态到服务器';
+            }
+
             // ━━━ WebSocket 实时协作画布 ━━━
             let wsClient = null;
             let wsReconnectTimer = null;
@@ -3937,35 +4019,73 @@
 
             function onWsOpen() {
                 wsFlushPending();  // 先发队列中的消息
-                wsBroadcastFullState();  // 再发当前状态
+                // 连接后不立即推送完整本地状态——等待服务端 init→本地恢复→再决定是否需要推送
+                // 避免空状态覆盖服务端数据导致其他客户端内容被清空
+            }
+
+            let _wsRetryCount = 0;
+            const _WS_MAX_RETRIES = 2;
+
+            function _isLocalHost() {
+                var h = location.hostname;
+                return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h.startsWith('192.168.') || h.startsWith('10.') || h.startsWith('172.');
             }
 
             function connectWebSocket() {
                 if (wsClient && wsClient.readyState === WebSocket.OPEN) return;
+                // 远程连接（frp/穿透）跳过 WebSocket，直接用 HTTP 轮询
+                if (!_isLocalHost()) {
+                    addSystemMsg('🌐 远程连接，使用 HTTP 同步模式');
+                    var sb = document.getElementById('sync-btn');
+                    if (sb) sb.style.borderColor = 'var(--cyan)';
+                    return;
+                }
+                // 超过最大重试次数，回退到 HTTP 轮询模式
+                if (_wsRetryCount >= _WS_MAX_RETRIES) {
+                    addSystemMsg('🌐 WebSocket 连接失败，回退 HTTP 同步模式');
+                    var sb2 = document.getElementById('sync-btn');
+                    if (sb2) sb2.style.borderColor = 'var(--cyan)';
+                    return;
+                }
                 var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
                 var wsUrl = protocol + '//' + location.hostname + ':5001';
+                _wsRetryCount++;
                 try {
                     wsClient = new WebSocket(wsUrl);
                 } catch(e) { scheduleWsReconnect(); return; }
 
                 wsClient.onopen = function() {
-                    addSystemMsg('🟢 共享画布已连接');
+                    _wsRetryCount = 0;  // 重置计数器
+                    addSystemMsg('🟢 共享画布已连接（实时同步）');
+                    var sb = document.getElementById('sync-btn');
+                    if (sb) sb.style.borderColor = 'var(--green)';
                     onWsOpen();
                 };
 
                 wsClient.onclose = function() {
-                    addSystemMsg('🔴 共享画布断开，尝试重连...');
+                    if (_wsRetryCount < _WS_MAX_RETRIES) {
+                        addSystemMsg('🔴 共享画布断开，尝试重连...');
+                    }
+                    var sb = document.getElementById('sync-btn');
+                    if (sb) sb.style.borderColor = 'var(--red)';
                     scheduleWsReconnect();
                 };
 
                 wsClient.onerror = function() {
-                    addSystemMsg('⚠ 共享画布连接失败，将自动重试');
+                    if (_wsRetryCount >= _WS_MAX_RETRIES) {
+                        addSystemMsg('🌐 远程连接仅支持 HTTP 同步，请点击同步按钮拉取画布');
+                    }
+                    var sb = document.getElementById('sync-btn');
+                    if (sb) sb.style.borderColor = _wsRetryCount >= _WS_MAX_RETRIES ? 'var(--cyan)' : 'var(--red)';
+                    try { wsClient.close(); } catch(e) {}
                 };
 
                 wsClient.onmessage = function(event) {
                     try {
                         var msg = JSON.parse(event.data);
                         if (msg.type === 'init') {
+                            // 同步时间戳，避免 WS 断开后 HTTP 轮询重复旧数据
+                            sharedCanvasTs = Date.now() / 1000;
                             var state = msg.state || {};
                             // 恢复笔画
                             if (state.strokes && state.strokes.length > 0) {
@@ -4074,8 +4194,6 @@
                         }
                     } catch(e) {}
                 };
-
-                wsClient.onerror = function() { wsClient.close(); };
             }
 
             function scheduleWsReconnect() {
@@ -4242,7 +4360,7 @@
                 badge.textContent = mapOnlineUsers.length + '人在线';
                 el.innerHTML = mapOnlineUsers.map(u => {
                     var isDmUser = (u.role === 'DM');
-                    var color = isDmUser ? '#ffd700' : (u.color || '#00bcd4');
+                    var color = u.color || (isDmUser ? '#ffd700' : '#00bcd4');
                     var roleBadge = isDmUser ? '<span style="background:var(--gold);color:#000;font-size:0.55rem;padding:0 2px;border-radius:2px;">DM</span>' : '<span style="background:#555;color:#ccc;font-size:0.55rem;padding:0 2px;border-radius:2px;">PL</span>';
                     return `<span style="color:${color};font-size:0.7rem;">● ${u.name} ${roleBadge}</span>`;
                 }).join(' ');
@@ -4323,16 +4441,11 @@
                     // 延迟获取DM状态
                     fetch('/api/dm-status').then(r => r.json()).then(data => {
                         isDM = data.is_dm;
+                        window._isDM = isDM;
                         dmName = data.dm_name || '';
                         if (isDM) userRole = 'DM';
-                        // sync button removed - using WebSocket
-                        renderOnlineUsers();
-                        if (isDM) {
-                            var btnBg = document.getElementById('chat-color-btn').style.background;
-                            if (!btnBg || btnBg === 'rgb(0, 188, 212)' || btnBg === '#00bcd4') {
-                                document.getElementById('chat-color-btn').style.background = '#ffd700';
-                            }
-                        }
+                        // sync button restored
+    renderOnlineUsers();
                     });
                 }
             } catch(e) {}
@@ -4340,26 +4453,46 @@
             // ━━━ 页面离开时通知退房 ━━━
             window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
 
-            // ━━━ 动作驱动画布同步（操作时推送，每0.3秒拉取）━━
+            // ━━━ 动作驱动画布同步（增量推送，每0.3秒拉取）━━
             let sharedCanvasTs = 0;
             let _pushDebounce = null;
+            // 脏状态追踪：仅推送变更的组件
+            let _dirtyFlags = { strokes: false, layers: false, tokens: false, texts: false, fog: false };
+
+            function markDirty(component) {
+                if (_dirtyFlags.hasOwnProperty(component)) _dirtyFlags[component] = true;
+                pushSharedCanvas();
+            }
+
             function pushSharedCanvas() {
                 if (_pushDebounce) clearTimeout(_pushDebounce);
                 _pushDebounce = setTimeout(function() {
+                    var hasData = (_dirtyFlags.strokes || _dirtyFlags.layers || _dirtyFlags.tokens || _dirtyFlags.texts || _dirtyFlags.fog);
+                    if (!hasData) return;
+
                     var s = collectState();
-                    var layers = s.layers.map(function(l) {
-                        return {id:l.id, name:l.name, dataURL:l.dataURL||'', offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1, visible:l.visible!==false};
-                    });
+                    var body = {_mode: 'incremental'};
+
+                    if (_dirtyFlags.strokes) { body.strokes = s.brushStrokes.slice(-200); _dirtyFlags.strokes = false; }
+                    if (_dirtyFlags.layers) { body.layers = s.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL||'',offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; }); _dirtyFlags.layers = false; }
+                    if (_dirtyFlags.tokens) { body.tokens = s.mapTokens; _dirtyFlags.tokens = false; }
+                    if (_dirtyFlags.texts) { body.texts = s.textBoxes; _dirtyFlags.texts = false; }
+                    if (_dirtyFlags.fog) { body.fog = s.fogPolygons; _dirtyFlags.fog = false; }
+
                     fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({strokes: brushStrokes, layers: layers, tokens: s.mapTokens, texts: s.textBoxes, fog: s.fogPolygons})
+                        body: JSON.stringify(body)
                     }).catch(function(){});
                 }, 100);
             }
+
             function pullSharedCanvas() {
+                // WebSocket 连接时跳过 HTTP 轮询（WS 实时推送增量，避免冲突闪回）
+                if (wsClient && wsClient.readyState === WebSocket.OPEN) return;
                 fetch('/api/shared-canvas?since=' + sharedCanvasTs).then(function(r) { return r.json(); }).then(function(data) {
                     if (!data.ok || !data.changed) return;
                     sharedCanvasTs = data.timestamp;
                     var state = data.state;
+                    // 笔画：增量追加
                     if (state.strokes) {
                         if (state.strokes.length === 0) { brushStrokes = []; redrawCanvas(); }
                         else if (state.strokes.length > brushStrokes.length) {
@@ -4367,26 +4500,66 @@
                             redrawDrawCanvas();
                         }
                     }
+                    // 图层：按 id 增量合并
                     if (state.layers && state.layers.length > 0) {
-                        mapLayers = []; state.layers.forEach(function(ld) {
-                            if (ld.dataURL) { var img = new Image(); img.src = ld.dataURL; mapLayers.push({id:ld.id,name:ld.name,image:img,dataURL:ld.dataURL,visible:ld.visible!==false,offsetX:ld.offsetX||0,offsetY:ld.offsetY||0,scale:ld.scale||1}); }
+                        var layerMap = {};
+                        mapLayers.forEach(function(l) { layerMap[l.id] = l; });
+                        state.layers.forEach(function(ld) {
+                            if (!ld.dataURL) return;
+                            if (layerMap[ld.id]) {
+                                var ex = layerMap[ld.id];
+                                ex.name = ld.name; ex.visible = ld.visible !== false;
+                                ex.offsetX = ld.offsetX||0; ex.offsetY = ld.offsetY||0; ex.scale = ld.scale||1;
+                                if (ex.dataURL !== ld.dataURL) { ex.dataURL = ld.dataURL; var img = new Image(); img.src = ld.dataURL; ex.image = img; }
+                            } else {
+                                var img = new Image(); img.src = ld.dataURL;
+                                mapLayers.push({id:ld.id,name:ld.name,image:img,dataURL:ld.dataURL,visible:ld.visible!==false,offsetX:ld.offsetX||0,offsetY:ld.offsetY||0,scale:ld.scale||1});
+                            }
                         });
                         if (mapLayers.length > 0) activeLayerId = mapLayers[0].id;
                         redrawCanvas(); renderLayerList();
                     }
+                    // 标记：按 id 增量合并
                     if (state.tokens) {
-                        mapTokens.forEach(function(t) { if (t.el) t.el.remove(); }); mapTokens = [];
-                        state.tokens.forEach(function(td) { mapTokens.push(createMapTokenElement(td.id,td.charId,td.name,td.portraitUrl,td.x,td.y,td.size||48,td.rotation||0)); });
+                        var tokenMap = {};
+                        mapTokens.forEach(function(t) { tokenMap[t.id] = t; });
+                        state.tokens.forEach(function(td) {
+                            if (tokenMap[td.id]) {
+                                var et = tokenMap[td.id];
+                                if (et.el) { et.el.style.left = td.x + 'px'; et.el.style.top = td.y + 'px'; }
+                                et.x = td.x; et.y = td.y; et.size = td.size||48; et.rotation = td.rotation||0;
+                            } else {
+                                mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0));
+                            }
+                        });
                     }
+                    // 文字：按 id 增量合并
                     if (state.texts) {
-                        textBoxes.forEach(function(b) { if (b.el) b.el.remove(); }); textBoxes = [];
-                        state.texts.forEach(function(td) { var box = createTextBoxElement(td.id,td.x,td.y,td.text,td.fontSize); textBoxes.push(box); overlay.appendChild(box.el); });
+                        var textMap = {};
+                        textBoxes.forEach(function(b) { textMap[b.id] = b; });
+                        state.texts.forEach(function(td) {
+                            if (textMap[td.id]) {
+                                var eb = textMap[td.id];
+                                eb.text = td.text; eb.fontSize = td.fontSize;
+                                if (eb.el) { eb.el.style.left = td.x + 'px'; eb.el.style.top = td.y + 'px'; eb.el.textContent = td.text; }
+                                eb.x = td.x; eb.y = td.y;
+                            } else {
+                                var box = createTextBoxElement(td.id, td.x, td.y, td.text, td.fontSize);
+                                textBoxes.push(box); overlay.appendChild(box.el);
+                            }
+                        });
                     }
+                    // 迷雾：直接替换
                     if (state.fog) { fogPolygons = state.fog.map(function(p) { return {points:p.points,closed:p.closed}; }); redrawFogCanvas(); }
                 }).catch(function(){});
             }
             setInterval(pullSharedCanvas, 300);
-            function onLocalChange() { pushSharedCanvas(); }
+
+            // 通用变更通知（标记所有组件脏）
+            function onLocalChange() { _dirtyFlags.strokes = _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true; pushSharedCanvas(); }
+
+            // 启动WebSocket实时协作画布
+            connectWebSocket();
 
 // ━━━ 当用户设置聊天名后启动心跳 ━━━
             const _origSetChatUser = window.setChatUser;

@@ -143,14 +143,10 @@ _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
 MAX_MENTIONS = 100
 
 # ━━━ 共享画布状态（HTTP 轮询，简单可靠）━━
-_shared_canvas: dict = {
-    'strokes': [],
-    'layers': [],
-    'tokens': [],
-    'texts': [],
-    'fog': [],
-}
-_shared_canvas_ts: float = 0.0
+from .shared_state import get_shared_canvas, get_shared_canvas_ts, update_shared_canvas, append_shared_strokes
+
+_map_state: dict | None = None
+_map_state_ts: float = 0.0
 
 @app.route('/api/shared-canvas', methods=['GET'])
 def api_get_shared_canvas():
@@ -160,26 +156,40 @@ def api_get_shared_canvas():
         since_ts = float(since)
     except ValueError:
         since_ts = 0.0
+    state = get_shared_canvas()
+    ts = get_shared_canvas_ts()
     return jsonify({
         'ok': True,
-        'state': _shared_canvas,
-        'timestamp': _shared_canvas_ts,
-        'changed': _shared_canvas_ts > since_ts,
+        'state': state,
+        'timestamp': ts,
+        'changed': ts > since_ts,
     })
 
 
 @app.route('/api/shared-canvas', methods=['POST'])
 def api_push_shared_canvas():
-    """推送画布更新"""
-    global _shared_canvas, _shared_canvas_ts
+    """推送画布更新。支持 _mode: 'full'（全量替换）或 'incremental'（增量合并）。"""
     data = request.get_json(silent=True) or {}
-    # 兼容两种格式: {updates: {...}} 或直接 {...}
     updates = data.get('updates', data)
+    mode = updates.get('_mode', data.get('_mode', 'incremental'))
+    canvas = get_shared_canvas()
+
     for key in ['strokes', 'layers', 'tokens', 'texts', 'fog']:
-        if key in updates and updates[key] is not None:
-            _shared_canvas[key] = updates[key]
-    _shared_canvas_ts = _time.time()
-    return jsonify({'ok': True, 'timestamp': _shared_canvas_ts})
+        if key not in updates or updates[key] is None:
+            continue
+
+        if mode == 'full' or key == 'fog':
+            update_shared_canvas(key, updates[key])
+        elif key == 'strokes':
+            append_shared_strokes(updates[key])
+        else:
+            existing = {item.get('id'): item for item in canvas[key] if isinstance(item, dict)}
+            for item in updates[key]:
+                if isinstance(item, dict) and item.get('id'):
+                    existing[item['id']] = item
+            update_shared_canvas(key, list(existing.values()))
+
+    return jsonify({'ok': True, 'timestamp': get_shared_canvas_ts()})
 
 # ━━━ 战斗状态同步 ━━━
 _combat_state: dict | None = None  # 共享的战斗状态
@@ -357,8 +367,16 @@ def api_check():
 
 @app.route('/api/characters', methods=['GET'])
 def api_list_characters():
-    """列出所有角色"""
-    chars = list_characters()
+    """列出角色。PL 只能看到自己创建/导入的角色，DM 可看到全部。"""
+    name = request.args.get('name', '').strip()
+    role = request.args.get('role', 'PL')
+    client_ip = request.remote_addr or ''
+
+    if role == 'DM' or _is_dm_ip(client_ip):
+        chars = list_characters()
+    else:
+        chars = list_characters(created_by=name)
+
     return jsonify(chars)
 
 
@@ -388,11 +406,12 @@ def api_create_character():
     cls = data.get('class', '')
     race = data.get('race', '')
     background = data.get('background', '')
+    created_by = data.get('created_by', '')
 
     if not name:
         return jsonify({'error': '角色名不能为空'}), 400
 
-    char_id = create_character(name, level, cls, race, background)
+    char_id = create_character(name, level, cls, race, background, created_by=created_by)
     char = get_character(char_id)
 
     global active_char_id
@@ -1302,8 +1321,9 @@ def api_create_from_monster():
     size = data.get('size', '中型')
     mtype = data.get('type', '')
     race_str = f'{size} {mtype}'.strip() or '未知'
+    created_by = data.get('created_by', '')
 
-    char_id = create_character(name, level=max(1, int(cr)), cls='怪物/NPC', race=race_str)
+    char_id = create_character(name, level=max(1, int(cr)), cls='怪物/NPC', race=race_str, created_by=created_by)
     char = get_character(char_id)
 
     # 设置属性
@@ -1371,7 +1391,8 @@ def api_import_character():
         preview = import_and_print_summary(tmp.name)
         # 导入
         data = import_character_from_excel(tmp.name)
-        char_id = import_from_excel_data(data, source_file=_os.path.abspath(tmp.name))
+        created_by = request.form.get('created_by', '')
+        char_id = import_from_excel_data(data, source_file=_os.path.abspath(tmp.name), created_by=created_by)
         char = get_character(char_id)
 
         # 设为活跃角色
@@ -1889,10 +1910,19 @@ def serve_resource(filename):
 # ━━━ 聊天系统 API ━━━
 
 def _is_dm_ip(ip: str) -> bool:
-    """Check if the IP belongs to the DM (localhost or server's own LAN IP)."""
+    """Check if the IP belongs to the DM (localhost or server's own LAN IP).
+
+    注意：使用 frp/内网穿透时，所有远程连接的 remote_addr 都显示为 127.0.0.1，
+    因此 _is_dm_ip() 对所有人返回 True。此时角色判定依赖用户选择而非 IP。
+    """
+    # 如果有多个用户共享同一 IP（frp 特征），IP 检测不可靠，回退到用户选择
+    global _online_users
+    same_ip_users = [n for n, u in _online_users.items() if u.get('ip') == ip]
+    if len(same_ip_users) > 1:
+        return False  # frp 环境：IP 不能区分用户，不自动提权
+
     if ip in ('127.0.0.1', 'localhost', '::1', '0:0:0:0:0:0:0:1'):
         return True
-    # Also check server's LAN IP
     try:
         import socket
         hostname = socket.gethostname()
@@ -2071,10 +2101,18 @@ def api_clear_mentions():
 
 @app.route('/api/dm-status', methods=['GET'])
 def api_dm_status():
-    """返回当前DM信息。DM由IP自动判定（localhost/服务器本机IP）。"""
+    """返回当前DM信息。若已有DM则按名匹配，否则按IP判定。"""
     global _dm_name, _dm_ip
     client_ip = request.remote_addr or 'unknown'
-    is_dm = _is_dm_ip(client_ip)
+    name = request.args.get('name', '').strip()
+
+    if _dm_name is not None:
+        # 已有DM认领：只对DM本人返回true
+        is_dm = (name == _dm_name)
+    else:
+        # DM空缺：localhost可认领
+        is_dm = _is_dm_ip(client_ip)
+
     return jsonify({
         'is_dm': is_dm,
         'dm_name': _dm_name,
@@ -2098,12 +2136,13 @@ def api_room_join():
     client_ip = request.remote_addr or 'unknown'
     is_new = name not in _online_users
 
-    # 尊重用户选择的身份，仅首次加入时若无人认领DM则允许
+    # 尊重用户选择的身份：只有明确选择DM且无人认领时才成为DM
     if role == 'DM' and _dm_name is None:
         _dm_name = name
         _dm_ip = client_ip
     elif role == 'DM' and _dm_name is not None and _dm_name != name:
         role = 'PL'  # 已有人认领DM，后来者降为PL
+    # localhost不再自动成为DM——尊重用户的选择
 
     _online_users[name] = {
         'ip': client_ip,
@@ -2112,11 +2151,6 @@ def api_room_join():
         'last_heartbeat': _time.time(),
         'joined_at': _time.time(),
     }
-
-    # 只有第一个localhost用户是DM，锁定后不更改
-    if _is_dm_ip(client_ip) and _dm_name is None:
-        _dm_name = name
-        _dm_ip = client_ip
 
     # 发送系统消息
     if is_new and _dm_name and name != _dm_name:
@@ -2134,7 +2168,7 @@ def api_room_join():
     return jsonify({
         'ok': True,
         'is_new': is_new,
-        'is_dm': _is_dm_ip(client_ip),
+        'is_dm': (name == _dm_name),  # 只有实际DM才返回true
         'dm_name': _dm_name,
         'online_count': len(_online_users),
     })
@@ -2154,12 +2188,15 @@ def api_room_heartbeat():
 
     if name in _online_users:
         _online_users[name]['last_heartbeat'] = _time.time()
-        if color and color != '#00bcd4':
+        if color:
             _online_users[name]['color'] = color
     else:
         role = data.get('role', 'PL')
         if role == 'DM' and _dm_name is not None and _dm_name != name:
             role = 'PL'
+        if role == 'DM' and _dm_name is None:
+            _dm_name = name
+            _dm_ip = client_ip
         _online_users[name] = {
             'ip': client_ip,
             'color': color,
@@ -2167,9 +2204,6 @@ def api_room_heartbeat():
             'last_heartbeat': _time.time(),
             'joined_at': _time.time(),
         }
-        if _is_dm_ip(client_ip) and _dm_name is None:
-            _dm_name = name
-            _dm_ip = client_ip
 
     return jsonify({
         'ok': True,
@@ -2351,8 +2385,13 @@ def api_delete_resource(filename):
 
 
 def run_server():
-    """启动 Web 服务器"""
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    """启动 Web 服务器 + WebSocket 协作画布"""
+    from .ws_server import run_ws_server
+    import threading
+    ws_thread = threading.Thread(target=run_ws_server, daemon=True, name='ws-canvas')
+    ws_thread.start()
+    # use_reloader=False 避免 Flask 重载器创建子进程导致 WebSocket 端口冲突
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
 
 
 if __name__ == '__main__':

@@ -130,6 +130,13 @@
     </div>
 
     <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
         // ━━━ 会话日志 ━━━
         let sessionLog = [];  // {ts, command, label, dice, output}
 
@@ -455,7 +462,8 @@
         async function loadCharSelect() {
             const select = document.getElementById('active-char-select');
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 if (chars.length) {
                     chars.forEach(c => {

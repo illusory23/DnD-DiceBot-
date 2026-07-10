@@ -124,6 +124,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             player TEXT DEFAULT '',
+            created_by TEXT DEFAULT '',
             level INTEGER DEFAULT 1,
             class TEXT DEFAULT '',
             race TEXT DEFAULT '',
@@ -339,6 +340,7 @@ def _migrate_schema(cursor, conn):
         ('prepared_spell_count', "INTEGER DEFAULT 0"),
         ('portrait_path', "TEXT DEFAULT ''"),
         ('source_file', "TEXT DEFAULT ''"),
+        ('created_by', "TEXT DEFAULT ''"),
     ]
 
     for col_name, col_def in migrations:
@@ -431,7 +433,8 @@ def _migrate_schema(cursor, conn):
 def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
                      background: str = '', alignment: str = '',
                      player: str = '', subrace: str = '', faith: str = '',
-                     gender: str = '', age: str = '', height: str = '', weight: str = '') -> int:
+                     gender: str = '', age: str = '', height: str = '', weight: str = '',
+                     created_by: str = '') -> int:
     """创建角色，返回角色ID"""
     conn = get_db()
     cursor = conn.cursor()
@@ -440,11 +443,11 @@ def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
 
     cursor.execute("""
         INSERT INTO characters (name, level, class, race, background_field, alignment,
-                               proficiency_bonus, player, subrace, faith,
+                               proficiency_bonus, player, created_by, subrace, faith,
                                gender, age, height, weight_field)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (name, level, cls, race, background, alignment, prof,
-          player, subrace, faith, gender, age, height, weight))
+          player, created_by, subrace, faith, gender, age, height, weight))
 
     char_id = cursor.lastrowid
 
@@ -584,11 +587,17 @@ def get_character(name_or_id: str | int) -> dict | None:
     return char
 
 
-def list_characters() -> list[dict]:
-    """列出所有角色"""
+def list_characters(created_by: str | None = None) -> list[dict]:
+    """列出角色。若指定 created_by 则只返回该用户创建的角色；否则返回全部。"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, level, class, race, hp_current, hp_max FROM characters")
+    if created_by:
+        cursor.execute(
+            "SELECT id, name, level, class, race, hp_current, hp_max FROM characters WHERE created_by = ?",
+            (created_by,)
+        )
+    else:
+        cursor.execute("SELECT id, name, level, class, race, hp_current, hp_max FROM characters")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -1377,12 +1386,13 @@ def remove_item(item_id: int) -> bool:
 
 # ━━━ 从 Excel 数据导入角色 ━━━
 
-def import_from_excel_data(data: dict, source_file: str = '') -> int:
+def import_from_excel_data(data: dict, source_file: str = '', created_by: str = '') -> int:
     """从 Excel 解析数据创建完整角色
 
     Args:
         data: utils.excel_importer.import_character_from_excel() 的返回值
         source_file: 导入的 Excel 文件路径（可选）
+        created_by: 导入者名称（用于权限控制）
 
     Returns:
         新创建的角色ID
@@ -1418,7 +1428,7 @@ def import_from_excel_data(data: dict, source_file: str = '') -> int:
     ac = combat.get('ac', 10) or 10
 
     cursor.execute("""
-        INSERT INTO characters (name, player, level, class, race, subrace,
+        INSERT INTO characters (name, player, created_by, level, class, race, subrace,
                                background_field, alignment, faith, gender,
                                age, height, weight_field,
                                hp_max, hp_current, ac, initiative_bonus,
@@ -1426,10 +1436,11 @@ def import_from_excel_data(data: dict, source_file: str = '') -> int:
                                passive_perception, proficiency_bonus,
                                spellcasting_ability, spell_save_dc,
                                prepared_spell_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         name,
         basic.get('player', '') or '',
+        created_by,
         level,
         cls,
         race,

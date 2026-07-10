@@ -170,13 +170,21 @@
     </div>
 
     <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
         let combatants = [];
         let charCache = {};
 
         // ━━━ 角色下拉框 ━━━
         async function loadCharSelect() {
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 const select = document.getElementById('char-select');
                 if (chars.length) {

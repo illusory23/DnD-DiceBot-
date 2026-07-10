@@ -232,6 +232,13 @@
     </div>
 
     <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
         // ━━━ 优势/劣势切换按钮 ━━━
         document.querySelectorAll('.adv-toggle').forEach(toggle => {
             toggle.querySelectorAll('.adv-btn').forEach(btn => {
@@ -457,7 +464,8 @@
         // ━━━ 角色选择器 ━━━
         async function loadCharSelect() {
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 const select = document.getElementById('active-char-select');
                 select.innerHTML = '<option value="">⚡ 选择角色</option>';

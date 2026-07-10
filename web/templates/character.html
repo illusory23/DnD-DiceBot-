@@ -147,9 +147,17 @@
     <script>
         let currentChar = null;
 
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
         async function loadCharList() {
             try {
-                const resp = await fetch('/api/characters');
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const chars = await resp.json();
                 const el = document.getElementById('char-list');
 
@@ -177,6 +185,7 @@
             const name = document.getElementById('char-name').value.trim();
             if (!name) { alert('请输入角色名'); return; }
 
+            const identity = getIdentity();
             const resp = await fetch('/api/character', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -184,7 +193,8 @@
                     name,
                     level: parseInt(document.getElementById('char-level').value) || 1,
                     class: document.getElementById('char-class').value,
-                    race: document.getElementById('char-race').value
+                    race: document.getElementById('char-race').value,
+                    created_by: identity.name
                 })
             });
 
@@ -888,6 +898,8 @@
             try {
                 const formData = new FormData();
                 formData.append('file', file);
+                const identity = getIdentity();
+                if (identity.name) formData.append('created_by', identity.name);
 
                 const resp = await fetch('/api/character/import', {
                     method: 'POST',
