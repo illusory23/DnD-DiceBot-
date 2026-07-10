@@ -97,6 +97,10 @@ _EVENT_GROUPS = [
 
 app = Flask(__name__)
 
+# ━━━ WebSocket 实时协作（flask-sock，与 HTTP 共用 5000 端口）━━━
+from flask_sock import Sock
+sock = Sock(app)
+
 # 当前活跃角色 (简易会话，正式版用 Flask session)
 active_char_id = None
 
@@ -142,8 +146,60 @@ _online_users: dict[str, dict] = {}
 _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
 MAX_MENTIONS = 100
 
-# ━━━ 共享画布状态（HTTP 轮询，简单可靠）━━
+# ━━━ 共享画布状态（HTTP 轮询 + WebSocket 实时）━━
 from .shared_state import get_shared_canvas, get_shared_canvas_ts, update_shared_canvas, append_shared_strokes
+
+_ws_connected: set = set()
+
+
+@sock.route('/ws')
+def ws_canvas(ws):
+    """WebSocket 画布同步，与 HTTP 共用 5000 端口。frp 单隧道兼容。"""
+    _ws_connected.add(ws)
+    try:
+        state = get_shared_canvas()
+        ws.send(_json.dumps({'type': 'init', 'state': state}))
+
+        while True:
+            try:
+                raw = ws.receive()
+                if raw is None:
+                    break
+                data = _json.loads(raw)
+                action_type = data.get('type')
+
+                if action_type == 'stroke':
+                    append_shared_strokes([data.get('data', {})])
+                elif action_type == 'strokes_clear':
+                    update_shared_canvas('strokes', [])
+                elif action_type == 'layers_update':
+                    update_shared_canvas('layers', data.get('data', []))
+                elif action_type == 'tokens_update':
+                    update_shared_canvas('tokens', data.get('data', []))
+                elif action_type == 'texts_update':
+                    update_shared_canvas('texts', data.get('data', []))
+                elif action_type == 'fog_update':
+                    update_shared_canvas('fog', data.get('data', []))
+                elif action_type == 'canvas_update':
+                    canvas = get_shared_canvas()
+                    canvas['canvas'] = data.get('data', {'width': 5000, 'height': 5000})
+                elif action_type == 'clear_all':
+                    for key in ['strokes', 'layers', 'tokens', 'texts', 'fog']:
+                        update_shared_canvas(key, [])
+                    canvas = get_shared_canvas()
+                    canvas['canvas'] = {'width': 5000, 'height': 5000}
+
+                broadcast = _json.dumps(data)
+                for client in list(_ws_connected):
+                    if client != ws:
+                        try:
+                            client.send(broadcast)
+                        except Exception:
+                            _ws_connected.discard(client)
+            except (_json.JSONDecodeError, Exception):
+                pass
+    finally:
+        _ws_connected.discard(ws)
 
 _map_state: dict | None = None
 _map_state_ts: float = 0.0
@@ -158,9 +214,19 @@ def api_get_shared_canvas():
         since_ts = 0.0
     state = get_shared_canvas()
     ts = get_shared_canvas_ts()
+    # 构建响应：图层 dataURL 替换为 server 端 URL（减小 JSON 体积，避免同步超时）
+    resp_state = dict(state)
+    resp_layers = []
+    for l in state.get('layers', []):
+        lc = dict(l)
+        if lc.get('dataURL'):
+            lc['url'] = '/api/shared-canvas/layer/' + str(l['id'])
+            lc['dataURL'] = ''  # 不传输 base64，客户端通过 url 加载
+        resp_layers.append(lc)
+    resp_state['layers'] = resp_layers
     return jsonify({
         'ok': True,
-        'state': state,
+        'state': resp_state,
         'timestamp': ts,
         'changed': ts > since_ts,
     })
@@ -190,6 +256,35 @@ def api_push_shared_canvas():
             update_shared_canvas(key, list(existing.values()))
 
     return jsonify({'ok': True, 'timestamp': get_shared_canvas_ts()})
+
+
+@app.route('/api/shared-canvas/layer/<int:layer_id>', methods=['GET'])
+def api_get_layer_image(layer_id):
+    """获取共享画布图层图片（独立端点，避免 dataURL 嵌入 JSON 导致响应过大）。"""
+    canvas = get_shared_canvas()
+    for layer in canvas.get('layers', []):
+        if layer.get('id') == layer_id:
+            data_url = layer.get('dataURL', '')
+            if not data_url:
+                abort(404)
+            # 解析 dataURL: data:image/png;base64,xxxxx
+            import base64
+            try:
+                header, b64 = data_url.split(',', 1)
+                img_data = base64.b64decode(b64)
+            except Exception:
+                abort(404)
+            # 确定 MIME
+            mime = 'image/png'
+            if 'image/jpeg' in header or 'image/jpg' in header:
+                mime = 'image/jpeg'
+            elif 'image/gif' in header:
+                mime = 'image/gif'
+            elif 'image/webp' in header:
+                mime = 'image/webp'
+            return app.response_class(img_data, mimetype=mime)
+    abort(404)
+
 
 # ━━━ 战斗状态同步 ━━━
 _combat_state: dict | None = None  # 共享的战斗状态
@@ -1059,6 +1154,54 @@ def api_clear_portrait(name_or_id):
 
     update_character(char_id, portrait_path='')
     return jsonify({'success': True})
+
+
+@app.route('/api/character/<name_or_id>/portrait/upload', methods=['POST'])
+def api_upload_portrait(name_or_id):
+    """上传角色头像图片到资源库头像子文件夹，自动命名为角色名。"""
+    try:
+        char_id = int(name_or_id)
+    except ValueError:
+        char = get_character(name_or_id)
+        if not char:
+            return jsonify({'error': '角色不存在'}), 404
+        char_id = char['id']
+
+    char = get_character(char_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'error': '请选择图片文件'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '未选择文件'}), 400
+
+    ext = _os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'):
+        return jsonify({'error': f'不支持的图片格式: {ext}'}), 400
+
+    # 保存到 resources/头像/<角色名><ext>
+    avatar_dir = RESOURCES_DIR / '头像'
+    avatar_dir.mkdir(exist_ok=True)
+    safe_name = ''.join(c for c in char['name'] if c not in r'<>:"/\|?*')
+    filename = f'{safe_name}{ext}'
+    save_path = avatar_dir / filename
+
+    try:
+        file.save(str(save_path))
+    except Exception as e:
+        return jsonify({'error': f'保存失败: {e}'}), 500
+
+    # 更新数据库中的头像路径
+    update_character(char_id, portrait_path=str(save_path))
+
+    return jsonify({
+        'success': True,
+        'path': str(save_path),
+        'url': f'/resources/头像/{filename}',
+    })
 
 
 @app.route('/api/spells/search', methods=['GET'])
@@ -2101,16 +2244,16 @@ def api_clear_mentions():
 
 @app.route('/api/dm-status', methods=['GET'])
 def api_dm_status():
-    """返回当前DM信息。若已有DM则按名匹配，否则按IP判定。"""
+    """返回当前DM信息。有name时按名匹配，无name时按IP回退。"""
     global _dm_name, _dm_ip
     client_ip = request.remote_addr or 'unknown'
     name = request.args.get('name', '').strip()
 
-    if _dm_name is not None:
-        # 已有DM认领：只对DM本人返回true
+    if name and _dm_name is not None:
         is_dm = (name == _dm_name)
+    elif _dm_name is not None:
+        is_dm = _is_dm_ip(client_ip) and (client_ip == _dm_ip)
     else:
-        # DM空缺：localhost可认领
         is_dm = _is_dm_ip(client_ip)
 
     return jsonify({
@@ -2134,7 +2277,23 @@ def api_room_join():
         return jsonify({'ok': False, 'error': 'Name required'})
 
     client_ip = request.remote_addr or 'unknown'
+    # 清理过期在线记录（超过10秒无心跳视为离线）
+    _now = _time.time()
+    stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
+    for n in stale_names:
+        del _online_users[n]
+
     is_new = name not in _online_users
+
+    # ID 唯一性检测：同名且同IP（刷新页面）或旧记录已过期则允许
+    if not is_new:
+        existing = _online_users.get(name, {})
+        existing_ip = existing.get('ip', '')
+        if existing_ip and existing_ip == client_ip:
+            del _online_users[name]
+            is_new = True
+        else:
+            return jsonify({'ok': False, 'error': f'「{name}」已被使用，请更换ID'})
 
     # 尊重用户选择的身份：只有明确选择DM且无人认领时才成为DM
     if role == 'DM' and _dm_name is None:
@@ -2385,12 +2544,8 @@ def api_delete_resource(filename):
 
 
 def run_server():
-    """启动 Web 服务器 + WebSocket 协作画布"""
-    from .ws_server import run_ws_server
-    import threading
-    ws_thread = threading.Thread(target=run_ws_server, daemon=True, name='ws-canvas')
-    ws_thread.start()
-    # use_reloader=False 避免 Flask 重载器创建子进程导致 WebSocket 端口冲突
+    """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
+    # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
 
 

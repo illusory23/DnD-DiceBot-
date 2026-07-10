@@ -470,6 +470,10 @@
                             <span>🏃 速度: <b>${char.speed || 30}尺</b></span>
                             <span>⭐ 熟练: <b>+${char.proficiency_bonus || 2}</b></span>
                         </div>
+                        <div class="char-quick-stats" style="margin-top:0.25rem;">
+                            <span>📏 身高: <b>${char.height || '?'}</b></span>
+                            <span>⚖️ 体重: <b>${char.weight_field || char.weight || '?'}</b></span>
+                        </div>
                         ${char.temp_hp ? `<div style="color:var(--cyan);font-size:0.85rem;">💙 临时HP: ${char.temp_hp}</div>` : ''}
 
                         <div class="ability-grid" style="margin-top:0.75rem;">${abilityHtml}</div>
@@ -481,9 +485,8 @@
                         </div>
 
                         <div class="portrait-actions" style="margin-top:0.75rem;">
-                            <div style="display:flex;gap:0.5rem;">
-                                <input type="text" id="portrait-path-input" placeholder="头像路径..." style="flex:1;padding:0.35rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.8rem;">
-                                <button class="btn btn-small btn-primary" onclick="setPortrait(${char.id})">🖼 设置</button>
+                            <div style="display:flex;gap:0.5rem;align-items:center;">
+                                <input type="file" id="portrait-file-input" accept="image/*" onchange="uploadPortrait(${char.id})" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.8rem;">
                                 <button class="btn btn-small btn-danger" onclick="clearPortrait(${char.id})">清除</button>
                             </div>
                         </div>
@@ -600,31 +603,31 @@
             alert('✅ 背景信息已保存');
         }
 
-        async function setPortrait(charId) {
-            const path = document.getElementById('portrait-path-input').value.trim();
-            if (!path) { alert('请输入头像文件路径'); return; }
+        async function uploadPortrait(charId) {
+            const fileInput = document.getElementById('portrait-file-input');
+            const file = fileInput.files[0];
+            if (!file) { alert('请选择图片文件'); return; }
 
-            const resp = await fetch(`/api/character/${charId}/portrait`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({path})
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const resp = await fetch(`/api/character/${charId}/portrait/upload`, {
+                method: 'POST',
+                body: formData,
             });
             const data = await resp.json();
             if (data.error) { alert(data.error); return; }
-            if (data.warning) {
-                alert('⚠ ' + data.warning);
-                return;  // 文件未找到，不刷新头像
-            }
-            // 成功：刷新头像图片（加时间戳绕过缓存）
+
+            // 成功：刷新头像图片
             const img = document.querySelector('.char-portrait');
             if (img) {
                 img.src = `/api/character/${charId}/portrait?t=${Date.now()}`;
                 img.style.display = '';
             }
             // 同步更新角色列表中的缩略图
-            const thumbs = document.querySelectorAll(`#char-list img[src*="/api/character/${charId}/portrait"]`);
+            const thumbs = document.querySelectorAll(`#char-list img[src*=\"/api/character/${charId}/portrait\"]`);
             thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait?t=${Date.now()}`; t.style.display = ''; });
-            alert('✅ 头像已设置');
+            alert('✅ 头像已上传');
         }
 
         async function clearPortrait(charId) {
