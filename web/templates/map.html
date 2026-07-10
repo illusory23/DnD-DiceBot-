@@ -1080,14 +1080,6 @@
         };
 
         // 聊天面板折叠按钮（顶层入口，boot 完成前也可响应）
-        // 立即隐藏PL不应看到的按钮（isDM默认false，DM-status API稍后纠正）
-        (function(){
-            var fw = document.getElementById('fog-dropdown-wrap');
-            if (fw) fw.style.display = 'none';
-            var cb = document.querySelectorAll('[onclick*=\"clearDrawings\"], [onclick*=\"clearAll\"]');
-            for (var i = 0; i < cb.length; i++) { cb[i].style.display = 'none'; }
-        })();
-
         window.toggleChat = function() {
             var panel = document.getElementById('chat-panel');
             var toggleBtn = document.getElementById('chat-toggle-btn');
@@ -1678,7 +1670,7 @@
             if (tool === 'select') mapArea.classList.add('cursor-grab');
             if (tool === 'text') mapArea.classList.add('cursor-text');
             if (tool === 'brush' || tool === 'eraser' || tool === 'fill') mapArea.classList.add('cursor-brush');
-            if (tool === 'fog') { if (!isDM) { alert('⚠ 只有DM可以使用战争迷雾'); return; } mapArea.classList.add('cursor-brush'); currentFogPoints = null; redrawFogCanvas(); }
+            if (tool === 'fog') { if (window._isDM !== true) { alert('⚠ 只有DM可以使用战争迷雾'); return; } mapArea.classList.add('cursor-brush'); currentFogPoints = null; redrawFogCanvas(); }
             if (tool !== 'select') { deselectAll(); clearMultiSelect(); }
             // 非选择工具时隐藏下拉菜单
             if (tool !== 'select') {
@@ -1887,7 +1879,7 @@
                     debouncedSave();
                 }
                 if (currentTool === 'fog') {
-                    if (!isDM) return;
+                    if (window._isDM !== true) return;
                     if (e.shiftKey && currentFogPoints && currentFogPoints.length >= 3) {
                         // Shift+点击 → 闭合当前多边形并开始新区域
                         currentFogPoints.push(currentFogPoints[0]); // 闭合
@@ -2088,7 +2080,7 @@
         function redrawFogCanvas() {
             if (!fogVisible) return;
             fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
-            var isPL = !isDM;
+            var isPL = window._isDM !== true;
             var fillColor = isPL ? 'rgba(30,30,30,1)' : 'rgba(40,40,40,0.85)';
             var strokeColor = isPL ? 'rgba(200,200,200,0.7)' : 'rgba(180,180,180,0.9)';
             var fogLW = isPL ? 1 : 2;
@@ -2914,7 +2906,7 @@
                 fogCanvas.style.display = 'none';
                 debouncedSave();
             } else if (mode === 'delete') {
-                if (!isDM) { alert('⚠ 只有DM可以删除战争迷雾'); return; }
+                if (window._isDM !== true) { alert('⚠ 只有DM可以删除战争迷雾'); return; }
                 if (confirm('删除所有战争迷雾？此操作不可撤销。')) {
                     fogPolygons = []; currentFogPoints = null;
                     redrawFogCanvas(); debouncedSave();
@@ -3188,7 +3180,7 @@
             debouncedSave();
         }
         function clearDrawings() {
-            if (!isDM) { alert('⚠ 只有DM可以清除内容'); return; }
+            if (window._isDM !== true) { alert('⚠ 只有DM可以清除内容'); return; }
             if (!confirm('清除所有涂画和文字？（角色标记和地图图片保留）')) return;
             brushStrokes = [];
             textBoxes.forEach(b => { if(b.el) b.el.remove(); }); textBoxes = [];
@@ -3198,7 +3190,7 @@
             saveState();
         }
         function clearAll() {
-            if (!isDM) { alert('⚠ 只有DM可以清除全部内容'); return; }
+            if (window._isDM !== true) { alert('⚠ 只有DM可以清除全部内容'); return; }
             if (!confirm('清除全部内容（包括地图图片和角色标记）？')) return;
             brushStrokes = [];
             textBoxes.forEach(b => { if(b.el) b.el.remove(); }); textBoxes = [];
@@ -3714,6 +3706,9 @@
             setTool('select');
             setSelectMode('single');
 
+            // 尽早应用角色限制（isDM默认false=PL，DM-status API返回后纠正）
+            applyRoleRestrictions();
+
             // 定时自动保存（每3秒 + 页面离开时立即保存）
             setInterval(saveState, 3000);
 
@@ -3739,32 +3734,42 @@
             window._chatUser = '';  // 暴露给 IIFE 和顶层代码
             let chatColor = '#00bcd4';
             let chatOpen = false;
+            // 身份锁定：从 sessionStorage 读取（加入后永久有效，跨页面/刷新保持）
             let isDM = false;
             let userRole = 'PL';
+            try {
+                var _initSS = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                if (_initSS && _initSS.is_dm === true) { isDM = true; userRole = 'DM'; }
+                else if (_initSS && _initSS.role === 'DM') { userRole = 'DM'; }
+                else if (_initSS && _initSS.role === 'PL') { userRole = 'PL'; }
+            } catch(e) {}
+            window._isDM = isDM;
+            // 锁定后不再被 API 覆盖（设置 _roleLocked 标志）
+            window._roleLocked = !!(_initSS && _initSS.name);
             let dmName = '';
 
             // ━━ PL权限限制 ━━
             function applyRoleRestrictions() {
-                // 根据角色显示推送或同步按钮
+                var dm = (window._isDM === true);
                 var pushBtn = document.getElementById('push-btn');
                 var syncBtn = document.getElementById('sync-btn');
-                if (isDM) {
+                var fogWrap = document.getElementById('fog-dropdown-wrap');
+                var clearBtns = document.querySelectorAll('[onclick*=\"clearDrawings\"], [onclick*=\"clearAll\"]');
+                var combatInputs = document.querySelectorAll('#sidebar-panel-combat input, #sidebar-panel-combat select, #sidebar-panel-combat button:not(.sidebar-tab)');
+
+                if (dm) {
+                    // DM：显示所有功能按钮
                     if (pushBtn) pushBtn.style.display = '';
                     if (syncBtn) syncBtn.style.display = 'none';
+                    if (fogWrap) fogWrap.style.display = '';
+                    clearBtns.forEach(function(b) { b.style.display = ''; });
+                    combatInputs.forEach(function(el) { el.disabled = false; el.style.opacity = ''; });
                 } else {
+                    // PL：隐藏受限功能
                     if (pushBtn) pushBtn.style.display = 'none';
                     if (syncBtn) syncBtn.style.display = '';
-                }
-                // PL限制：使用 !isDM 判定（比 userRole 更可靠，不受 sessionStorage 干扰）
-                if (!isDM) {
-                    // 隐藏战争迷雾控件
-                    var fogWrap = document.getElementById('fog-dropdown-wrap');
                     if (fogWrap) fogWrap.style.display = 'none';
-                    // 隐藏清除按钮
-                    var clearBtns = document.querySelectorAll('[onclick*="clearDrawings"], [onclick*="clearAll"]');
                     clearBtns.forEach(function(b) { b.style.display = 'none'; });
-                    // 战斗面板只读
-                    var combatInputs = document.querySelectorAll('#sidebar-panel-combat input, #sidebar-panel-combat select, #sidebar-panel-combat button:not(.sidebar-tab)');
                     combatInputs.forEach(function(el) { el.disabled = true; el.style.opacity = '0.5'; });
                 }
             }
@@ -3858,9 +3863,9 @@
                 // 检测DM状态
                 fetch('/api/dm-status?name=' + encodeURIComponent(chatUser || '')).then(r => r.json()).then(data => {
                     isDM = data.is_dm;
-                    window._isDM = isDM;
+                    if (!window._roleLocked) { window._isDM = data.is_dm; }
                     dmName = data.dm_name || '';
-                    if (isDM) userRole = 'DM';
+                    if (isDM && !window._roleLocked) userRole = 'DM';
                     renderOnlineUsers();  // dmName获取后立即刷新在线列表
                     // sync button restored
 applyRoleRestrictions();
@@ -4587,7 +4592,8 @@ applyRoleRestrictions();
                         chatColor = saved.color;
                         document.getElementById('chat-color-btn').style.background = saved.color;
                     }
-                    if (saved.role) userRole = saved.role;
+                    if (saved.is_dm === true) { isDM = true; userRole = 'DM'; window._isDM = true; }
+                    else if (saved.role) userRole = saved.role;
                     document.getElementById('chat-username').value = saved.name;
                     document.getElementById('chat-input').disabled = false;
                     document.getElementById('chat-send-btn').disabled = false;
@@ -4599,28 +4605,33 @@ applyRoleRestrictions();
                     }).catch(function(){});
                     // 自动启动心跳保持在线
                     startHeartbeat();
-                    // 延迟获取DM状态
-                    fetch('/api/dm-status?name=' + encodeURIComponent(chatUser || '')).then(r => r.json()).then(data => {
-                        isDM = data.is_dm;
-                        window._isDM = isDM;
-                        dmName = data.dm_name || '';
-                        if (isDM) userRole = 'DM';
-                        // sync button restored
-    renderOnlineUsers();
-                    });
+                    // 二次确认DM状态（不覆盖sessionStorage已设置的可靠值）
+                    if (isDM === false) {
+                        var _dmName2 = chatUser || window._chatUser;
+                        if (!_dmName2) { try { var _ss2 = JSON.parse(sessionStorage.getItem('dnd_joined_room')); if (_ss2 && _ss2.name) _dmName2 = _ss2.name; } catch(e) {} }
+                        fetch('/api/dm-status?name=' + encodeURIComponent(_dmName2 || '')).then(r => r.json()).then(data => {
+                            if (data.is_dm) { isDM = true; userRole = 'DM'; }
+                            if (!window._roleLocked) { window._isDM = data.is_dm; }
+                            dmName = data.dm_name || '';
+                            renderOnlineUsers();
+                        });
+                    }
                 }
             } catch(e) {}
 
-            // 无条件检测DM状态（确保首次访问也能正确显示推送/同步按钮）
-            fetch('/api/dm-status?name=' + encodeURIComponent(chatUser || '')).then(r => r.json()).then(data => {
-                isDM = data.is_dm;
-                window._isDM = isDM;
-                dmName = data.dm_name || '';
-                if (isDM) userRole = 'DM';
-                renderOnlineUsers();
-                redrawFogCanvas();
-                applyRoleRestrictions();
-            }).catch(function(){});
+            // 二次确认DM状态（仅在sessionStorage未提供可靠值时调用，不覆盖已有值）
+            if (isDM === false && userRole === 'PL') {
+                var _dmCheckName = chatUser || window._chatUser;
+                if (!_dmCheckName) { try { var _ss = JSON.parse(sessionStorage.getItem('dnd_joined_room')); if (_ss && _ss.name) _dmCheckName = _ss.name; } catch(e) {} }
+                fetch('/api/dm-status?name=' + encodeURIComponent(_dmCheckName || '')).then(r => r.json()).then(data => {
+                    if (data.is_dm) { isDM = true; userRole = 'DM'; }
+                    if (!window._roleLocked) { window._isDM = data.is_dm; }
+                    dmName = data.dm_name || '';
+                    renderOnlineUsers();
+                    redrawFogCanvas();
+                    applyRoleRestrictions();
+                }).catch(function(){});
+            }
 
             // ━━━ 页面离开时通知退房 ━━━
             window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
@@ -4768,7 +4779,7 @@ window.toggleJoinColorPalette=function(){B();document.getElementById('join-color
 window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
 fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
 document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
-window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var pb=document.getElementById('push-btn');var sb=document.getElementById('sync-btn');if(pb)pb.style.display='';if(sb)sb.style.display='none';var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _pb=document.getElementById('push-btn');var _sb=document.getElementById('sync-btn');if(_pb)_pb.style.display='none';if(_sb)_sb.style.display='';var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
 document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
 })();
 </script>
