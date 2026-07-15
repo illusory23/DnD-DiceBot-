@@ -168,7 +168,7 @@
 
                 el.innerHTML = chars.map(c => `
                     <div class="skill-item" onclick="selectChar(${c.id})" style="cursor:pointer;margin-bottom:0.25rem;display:flex;align-items:center;gap:0.5rem;">
-                        <img src="/api/character/${c.id}/portrait?t=${Date.now()}"
+                        <img src="/api/character/${c.id}/portrait"
                              style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);"
                              onerror="this.style.display='none'"
                              loading="lazy">
@@ -457,7 +457,7 @@
 
             // ━━ 组装完整HTML ━━
             const hpPct = char.hp_max ? Math.round(char.hp_current / char.hp_max * 100) : 100;
-            const portraitUrl = `/api/character/${char.id}/portrait?t=${Date.now()}`;
+            const portraitUrl = `/api/character/${char.id}/portrait`;
 
             // 基础信息行
             const metaParts = [];
@@ -644,12 +644,12 @@
             // 成功：刷新头像图片
             const img = document.querySelector('.char-portrait');
             if (img) {
-                img.src = `/api/character/${charId}/portrait?t=${Date.now()}`;
+                img.src = `/api/character/${charId}/portrait`;
                 img.style.display = '';
             }
             // 同步更新角色列表中的缩略图
             const thumbs = document.querySelectorAll(`#char-list img[src*=\"/api/character/${charId}/portrait\"]`);
-            thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait?t=${Date.now()}`; t.style.display = ''; });
+            thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait`; t.style.display = ''; });
             alert('✅ 头像已上传');
         }
 

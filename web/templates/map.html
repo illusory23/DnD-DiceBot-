@@ -626,7 +626,7 @@
                     <button class="select-dropdown-btn" id="fog-btn" onclick="toggleFogDropdown()" title="战争迷雾">
                         🌫 迷雾<span class="arrow">▾</span>
                     </button>
-                    <div class="select-dropdown-menu" id="fog-dropdown-menu">
+                    <div class="select-dropdown-menu" id="fog-dropdown-menu" style="left:auto;right:0;">
                         <div class="menu-item" data-mode="draw" onclick="setFogMode('draw')">✏️ 绘制迷雾</div>
                         <div class="menu-item" data-mode="show" onclick="setFogMode('show')">👁 启用迷雾</div>
                         <div class="menu-item" data-mode="hide" onclick="setFogMode('hide')">🚫 隐藏迷雾</div>
@@ -645,7 +645,7 @@
                     <button class="select-dropdown-btn" id="save-btn" onclick="toggleSaveDropdown()" title="存档管理">
                         💾<span class="save-name-badge" id="save-name-badge">存档</span><span class="arrow">▾</span>
                     </button>
-                    <div class="select-dropdown-menu" id="save-dropdown-menu">
+                    <div class="select-dropdown-menu" id="save-dropdown-menu" style="left:auto;right:0;">
                         <div class="menu-item" onclick="saveMapAs()">➕ 保存当前为...</div>
                         <div class="save-divider"></div>
                         <div class="save-section-label">📂 已保存的场景</div>
@@ -671,8 +671,13 @@
                 <button class="tool-btn" onclick="zoomOut()">🔍-</button>
                 <span class="sep"></span>
                 <button class="tool-btn" id="char-panel-btn" onclick="toggleCharPanel()">👤 角色</button>
-                <button class="tool-btn" onclick="clearDrawings()">🗑 清除</button>
-                <button class="tool-btn" style="background:var(--red);color:#fff;border-color:var(--red);" onclick="clearAll()">💣</button>
+                <div class="select-dropdown-wrap" id="clear-dropdown-wrap">
+                    <button class="tool-btn" onclick="toggleClearDropdown()" title="清除">🗑 清除<span style="font-size:0.6rem;margin-left:2px;">▾</span></button>
+                    <div class="select-dropdown-menu" id="clear-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" onclick="clearDrawings()">🗑 清除标注</div>
+                        <div class="menu-item" onclick="clearAll()" style="color:var(--red);">💣 全部清除</div>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- 第二行：导航链接（可折叠） -->
@@ -1542,64 +1547,6 @@
         function toggleSaveDropdown() {
             renderSaveMenu();
             document.getElementById('save-dropdown-menu').classList.toggle('show');
-            // 异步加载服务端存档
-            fetchServerSaves();
-        }
-
-        async function fetchServerSaves() {
-            const listEl = document.getElementById('save-list-items');
-            try {
-                const resp = await fetch('/api/map-saves');
-                const data = await resp.json();
-                if (data.saves && data.saves.length > 0) {
-                    const reg = getSlotRegistry();
-                    let html = listEl.innerHTML;
-                    // 只在有本地存档时加分隔线
-                    if (reg.slots.length > 0) {
-                        html += '<div class="save-divider"></div>';
-                    }
-                    html += '<div class="save-section-label">☁️ 服务器存档</div>';
-                    for (const s of data.saves) {
-                        const dateStr = new Date(s.timestamp * 1000).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-                        html += `
-                        <div class="save-entry">
-                            <span class="save-name" title="${s.name} — ${dateStr}">☁️ ${s.name}</span>
-                            <span style="font-size:0.6rem;color:var(--text-dim);flex-shrink:0;">${dateStr}</span>
-                            <button class="save-action switch" onclick="event.stopPropagation();loadServerSave('${s.name.replace(/'/g,"\\'")}')" title="从服务器加载">🔄</button>
-                            <button class="save-action delete" onclick="event.stopPropagation();deleteServerSave('${s.name.replace(/'/g,"\\'")}')" title="删除">✕</button>
-                        </div>`;
-                    }
-                    listEl.innerHTML = html;
-                }
-            } catch(e) {}
-        }
-
-        async function loadServerSave(name) {
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-            try {
-                const resp = await fetch('/api/map-saves/' + encodeURIComponent(name));
-                const data = await resp.json();
-                if (!data.ok || !data.state) { alert('❌ 服务器存档加载失败'); return; }
-                textBoxes.forEach(b => { if (b.el) b.el.remove(); });
-                mapTokens.forEach(t => { if (t.el) t.el.remove(); });
-                brushStrokes = []; textBoxes = []; mapTokens = [];
-                mapLayers = []; clearAllFogLayers();
-                selectedElement = null; clearMultiSelect();
-                await applyState(data.state);
-                redrawCanvas();
-                applyTransform();
-                renderLayerList();
-                updateAllFogCoverage();
-                alert('✅ 已从服务器加载存档: ' + name);
-            } catch(e) { alert('❌ 加载失败: ' + e.message); }
-        }
-
-        async function deleteServerSave(name) {
-            if (!confirm('删除服务器存档 "' + name + '"？')) return;
-            try {
-                await fetch('/api/map-saves/' + encodeURIComponent(name), {method: 'DELETE'});
-                toggleSaveDropdown();
-            } catch(e) {}
         }
 
         async function saveMapAs(name) {
@@ -2258,11 +2205,22 @@
                         fogCtx.closePath();
                         fogCtx.fill();
                         fogCtx.stroke();
-                        // DM 可见：在多边形中央绘制图层序号
+                        // DM 可见：在多边形内部绘制图层序号
                         if (!isPL && poly.points.length >= 3) {
+                            // 计算重心，如果不在多边形内则螺旋搜索内部点
                             var cx = 0, cy = 0;
                             for (const p of poly.points) { cx += p.x; cy += p.y; }
                             cx /= poly.points.length; cy /= poly.points.length;
+                            if (!isPointInFogPolygon(cx, cy, poly)) {
+                                // 螺旋搜索多边形内部点（步长 20px，最多 200 步）
+                                for (var step = 1; step < 200; step++) {
+                                    var angle = step * 0.5;
+                                    var r = step * 20;
+                                    var tx = cx + r * Math.cos(angle);
+                                    var ty = cy + r * Math.sin(angle);
+                                    if (isPointInFogPolygon(tx, ty, poly)) { cx = tx; cy = ty; break; }
+                                }
+                            }
                             fogCtx.save();
                             fogCtx.shadowColor = 'rgba(0,0,0,0.9)';
                             fogCtx.shadowBlur = 12;
@@ -2779,7 +2737,7 @@
                 if (!chars.length) { list.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1rem;">暂无角色</div>'; return; }
 
                 list.innerHTML = chars.map(c => {
-                    const portraitUrl = `/api/character/${c.id}/portrait?t=${Date.now()}`;
+                    const portraitUrl = `/api/character/${c.id}/portrait?v=${encodeURIComponent(c.portrait_path||'')}`;
                     const hp = c.hp_current ?? '?';
                     const hpMax = c.hp_max ?? '?';
                     return `
@@ -3545,6 +3503,18 @@
             applyTransform();
             debouncedSave();
         }
+        function toggleClearDropdown() {
+            const menu = document.getElementById('clear-dropdown-menu');
+            if (menu) menu.classList.toggle('show');
+        }
+        // 点击其他地方关闭清除下拉菜单
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#clear-dropdown-wrap')) {
+                const m = document.getElementById('clear-dropdown-menu');
+                if (m) m.classList.remove('show');
+            }
+        });
+
         function clearDrawings() {
             if (window._isDM !== true) { alert('⚠ 只有DM可以清除内容'); return; }
             if (!confirm('清除所有涂画和文字？（角色标记和地图图片保留）')) return;
@@ -4167,7 +4137,7 @@
                 var pushBtn = document.getElementById('push-btn');
                 var syncBtn = document.getElementById('sync-btn');
                 var fogWrap = document.getElementById('fog-dropdown-wrap');
-                var clearBtns = document.querySelectorAll('[onclick*=\"clearDrawings\"], [onclick*=\"clearAll\"]');
+                var clearWrap = document.getElementById('clear-dropdown-wrap');
                 var combatInputs = document.querySelectorAll('#sidebar-panel-combat input, #sidebar-panel-combat select, #sidebar-panel-combat button:not(.sidebar-tab)');
 
                 if (dm) {
@@ -4175,14 +4145,14 @@
                     if (pushBtn) pushBtn.style.display = '';
                     if (syncBtn) syncBtn.style.display = 'none';
                     if (fogWrap) fogWrap.style.display = '';
-                    clearBtns.forEach(function(b) { b.style.display = ''; });
+                    if (clearWrap) clearWrap.style.display = '';
                     combatInputs.forEach(function(el) { el.disabled = false; el.style.opacity = ''; });
                 } else {
                     // PL：隐藏受限功能
                     if (pushBtn) pushBtn.style.display = 'none';
                     if (syncBtn) syncBtn.style.display = '';
                     if (fogWrap) fogWrap.style.display = 'none';
-                    clearBtns.forEach(function(b) { b.style.display = 'none'; });
+                    if (clearWrap) clearWrap.style.display = 'none';
                     combatInputs.forEach(function(el) { el.disabled = true; el.style.opacity = '0.5'; });
                 }
             }
