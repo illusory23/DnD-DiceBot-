@@ -267,13 +267,26 @@
             let weaponHtml = '';
             if (weapons.length > 0) {
                 weaponHtml = weapons.map(w => `
-                    <div class="detail-row">
-                        <span class="detail-label">⚔️ ${w.name || w.weapon_name || '未命名'}</span>
-                        <span class="detail-val">命中 +${w.attack_bonus || 0} | 伤害 ${w.damage || w.damage_dice || '-'} ${w.damage_type || ''}</span>
-                        <button class="btn btn-small btn-danger" onclick="removeWeapon(${char.id}, ${w.id || w.weapon_id}, '${(w.name || '').replace(/'/g, "\\'")}')" style="padding:0.15rem 0.4rem;font-size:0.7rem;margin-left:auto;">✕</button>
-                        ${w.description ? `<div class="detail-sub">${w.description}</div>` : ''}
-                        ${w.effect ? `<div class="detail-sub" style="color:var(--gold);">✨ ${w.effect}</div>` : ''}
-                    </div>`).join('');
+                    <div class="detail-row" style="display:flex;gap:0.3rem;align-items:center;flex-wrap:wrap;">
+                        <input value="${w.name || w.weapon_name || ''}" placeholder="武器名"
+                            onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'name', this.value)"
+                            style="width:80px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <span style="font-size:0.75rem;color:var(--text-dim);">命中</span>
+                        <input value="${w.attack_bonus || 0}" placeholder="命中"
+                            onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'attack_bonus', parseInt(this.value)||0)"
+                            style="width:40px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <span style="font-size:0.75rem;color:var(--text-dim);">伤害</span>
+                        <input value="${w.damage || w.damage_dice || ''}" placeholder="1d6"
+                            onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'damage', this.value)"
+                            style="width:50px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input value="${w.damage_type || ''}" placeholder="类型"
+                            onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'damage_type', this.value)"
+                            style="width:45px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <button class="btn btn-small btn-danger" onclick="removeWeapon(${char.id}, ${w.id || w.weapon_id}, '${(w.name || '').replace(/'/g, "\\'")}')" style="padding:0.15rem 0.4rem;font-size:0.7rem;">✕</button>
+                    </div>
+                    ${w.description ? `<input value="${w.description}" placeholder="描述" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'description', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;margin-top:2px;">` : ''}
+                    ${w.effect ? `<input value="${w.effect}" placeholder="效果" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'effect', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;margin-top:2px;">` : ''}
+                `).join('');
             } else {
                 weaponHtml = '<div class="detail-row" style="color:var(--text-dim);">暂无武器</div>';
             }
@@ -302,20 +315,30 @@
                     const qty = item.quantity || 1;
                     const iid = item.id;
                     const loc = item.location || '背包';
-                    const wt = item.weight ? ` (${item.weight}磅)` : '';
+                    const wt = item.weight || '';
                     const desc = item.description || '';
                     const eff = item.effect || '';
-                    return `<div class="detail-row">
-                        <span class="detail-label">📦 ${iname}</span>
-                        <span class="detail-val">${loc}${wt}</span>
-                        <span style="display:flex;align-items:center;gap:0.2rem;margin-left:auto;">
-                            <button class="btn btn-small" onclick="adjItemQty(${char.id}, ${iid}, ${qty - 1})" style="padding:0.1rem 0.35rem;font-size:0.7rem;background:var(--surface2);" title="减少">−</button>
-                            <span style="font-weight:bold;color:var(--gold);min-width:20px;text-align:center;font-size:0.8rem;">${qty}</span>
-                            <button class="btn btn-small" onclick="adjItemQty(${char.id}, ${iid}, ${qty + 1})" style="padding:0.1rem 0.35rem;font-size:0.7rem;background:var(--surface2);" title="增加">+</button>
+                    return `<div class="detail-row" style="display:flex;flex-direction:column;gap:2px;">
+                        <div style="display:flex;gap:0.3rem;align-items:center;flex-wrap:wrap;">
+                            <input value="${iname}" placeholder="物品名"
+                                onchange="updateItem(${char.id}, ${iid}, 'item_name', this.value)"
+                                style="flex:1;min-width:60px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <input value="${loc}" placeholder="位置"
+                                onchange="updateItem(${char.id}, ${iid}, 'location', this.value)"
+                                style="width:50px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <span style="font-size:0.7rem;color:var(--text-dim);">x</span>
+                            <input value="${qty}" type="number" placeholder="数量"
+                                onchange="updateItem(${char.id}, ${iid}, 'quantity', parseInt(this.value)||1)"
+                                style="width:40px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <span style="font-size:0.7rem;color:var(--text-dim);">${wt ? wt+'磅' : ''}</span>
                             <button class="btn btn-small btn-danger" onclick="removeItem(${char.id}, ${iid}, '${iname.replace(/'/g, "\\'")}')" style="padding:0.15rem 0.35rem;font-size:0.65rem;">✕</button>
-                        </span>
-                        ${desc ? `<div class="detail-sub">${desc}</div>` : ''}
-                        ${eff ? `<div class="detail-sub" style="color:var(--gold);">✨ ${eff}</div>` : ''}
+                        </div>
+                        <input value="${desc||''}" placeholder="描述（可选）"
+                            onchange="updateItem(${char.id}, ${iid}, 'description', this.value)"
+                            style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;">
+                        <input value="${eff||''}" placeholder="效果（可选）"
+                            onchange="updateItem(${char.id}, ${iid}, 'effect', this.value)"
+                            style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--gold);font-size:0.7rem;">
                     </div>`;
                 }).join('');
             } else {
@@ -791,6 +814,16 @@
         }
 
         // ━━━ 武器装备管理 ━━━
+        async function updateWeapon(charId, weaponId, field, value) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/weapon/${weaponId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({field, value})
+                });
+                if (!resp.ok) { const d = await resp.json(); if (d.error) { alert(d.error); selectChar(charId); } }
+            } catch(e) { /* silent */ }
+        }
         async function addWeapon(charId) {
             const name = document.getElementById(`new-weapon-name-${charId}`).value.trim();
             if (!name) { alert('请输入武器名'); return; }
@@ -837,6 +870,16 @@
             } catch(e) { alert('添加失败: ' + e.message); }
         }
 
+        async function updateItem(charId, itemId, field, value) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({field, value})
+                });
+                if (!resp.ok) { const d = await resp.json(); if (d.error) { alert(d.error); selectChar(charId); } }
+            } catch(e) { /* silent */ }
+        }
         async function adjItemQty(charId, itemId, newQty) {
             if (newQty < 0) return;
             try {

@@ -467,10 +467,15 @@ def api_list_characters():
     role = request.args.get('role', 'PL')
     client_ip = request.remote_addr or ''
 
+    # DM 可看全部
     if role == 'DM' or _is_dm_ip(client_ip):
         chars = list_characters()
-    else:
+    elif name:
+        # PL 有用户名 → 只看自己创建的
         chars = list_characters(created_by=name)
+    else:
+        # PL 未设置用户名 → 看不到任何角色（安全性）
+        chars = []
 
     return jsonify(chars)
 
@@ -924,6 +929,39 @@ def api_add_weapon(name_or_id):
     return jsonify({'success': True, 'weapon_id': wid, 'name': name})
 
 
+@app.route('/api/character/<name_or_id>/weapon/<int:weapon_id>', methods=['PUT'])
+def api_update_weapon(name_or_id, weapon_id):
+    """更新武器字段（名称/命中/伤害/类型/描述/效果）"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json() or {}
+    field = data.get('field', '')
+    value = data.get('value', '')
+
+    allowed = ['name', 'attack_bonus', 'damage', 'damage_type', 'description', 'effect']
+    if field not in allowed:
+        return jsonify({'error': f'不允许修改字段: {field}'}), 400
+
+    from core.character import get_db
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            f"UPDATE weapons SET {field} = ? WHERE id = ? AND character_id = ?",
+            (value, weapon_id, char['id'])
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            return jsonify({'error': '武器不存在或不属于该角色'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+    return jsonify({'success': True})
+
+
 @app.route('/api/character/<name_or_id>/weapon/<int:weapon_id>', methods=['DELETE'])
 def api_remove_weapon(name_or_id, weapon_id):
     """删除武器"""
@@ -969,15 +1007,40 @@ def api_add_item(name_or_id):
 
 @app.route('/api/character/<name_or_id>/item/<int:item_id>', methods=['PUT'])
 def api_update_item(name_or_id, item_id):
-    """更新物品数量（设 quantity ≤ 0 则删除）"""
+    """更新物品（数量/字段均可）"""
     char = _resolve_char(name_or_id)
     if not char:
         return jsonify({'error': '角色不存在'}), 404
 
     data = request.get_json() or {}
-    qty = int(data.get('quantity', 0))
+    field = data.get('field', '')
+    value = data.get('value')
 
-    from core.character import update_item_quantity as _update_qty, remove_item as _remove_item
+    from core.character import update_item_quantity as _update_qty, remove_item as _remove_item, get_db
+
+    # 字段编辑模式
+    if field:
+        allowed = ['item_name', 'quantity', 'location', 'weight', 'description', 'effect']
+        if field not in allowed:
+            return jsonify({'error': f'不允许修改字段: {field}'}), 400
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                f"UPDATE inventory SET {field} = ? WHERE id = ? AND character_id = ?",
+                (value, item_id, char['id'])
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                return jsonify({'error': '物品不存在'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            conn.close()
+        return jsonify({'success': True})
+
+    # 数量模式（兼容旧接口）
+    qty = int(data.get('quantity', 1))
     if qty <= 0:
         ok = _remove_item(item_id)
         if not ok:
@@ -2019,23 +2082,30 @@ def api_resources():
     """List all files in the resources directory, optionally filtered by category."""
     category = request.args.get('cat', '')
     items = []
-    for f in sorted(RESOURCES_DIR.iterdir()):
+    try:
+        files = sorted(RESOURCES_DIR.iterdir())
+    except Exception as e:
+        return jsonify({'error': f'无法读取资源目录: {e}', 'resources': []}), 500
+    for f in files:
         if not f.is_file():
             continue
-        ext = f.suffix.lower()
-        info = _RESOURCE_CATEGORIES.get(ext, ('📦 其他', 'other'))
-        if category and info[1] != category:
+        try:
+            ext = f.suffix.lower()
+            info = _RESOURCE_CATEGORIES.get(ext, ('📦 其他', 'other'))
+            if category and info[1] != category:
+                continue
+            size_kb = f.stat().st_size / 1024
+            items.append({
+                'name': f.name,
+                'size_kb': round(size_kb, 1),
+                'size_display': f'{size_kb:.1f}KB' if size_kb < 1024 else f'{size_kb/1024:.1f}MB',
+                'ext': ext.lstrip('.'),
+                'icon': info[0].split()[0],
+                'category': info[1],
+                'url': f'/resources/{f.name}',
+            })
+        except Exception:
             continue
-        size_kb = f.stat().st_size / 1024
-        items.append({
-            'name': f.name,
-            'size_kb': round(size_kb, 1),
-            'size_display': f'{size_kb:.1f}KB' if size_kb < 1024 else f'{size_kb/1024:.1f}MB',
-            'ext': ext.lstrip('.'),
-            'icon': info[0].split()[0],
-            'category': info[1],
-            'url': f'/resources/{f.name}',
-        })
     return jsonify({'resources': items})
 
 
@@ -2048,6 +2118,77 @@ def serve_resource(filename):
     if not filepath.exists() or not filepath.is_file():
         return jsonify({'error': 'File not found'}), 404
     return send_file(str(filepath))
+
+
+# ━━━ 服务端地图存档（跨IP同步）━━━━
+MAP_SAVES_DIR = _Path(__file__).parent.parent / 'map_saves'
+MAP_SAVES_DIR.mkdir(exist_ok=True)
+
+
+@app.route('/api/map-saves', methods=['GET'])
+def api_list_map_saves():
+    """列出服务器端所有地图存档"""
+    saves = []
+    for f in sorted(MAP_SAVES_DIR.glob('*.json')):
+        try:
+            stat = f.stat()
+            saves.append({
+                'id': f.stem,
+                'name': f.stem,
+                'size_kb': round(stat.st_size / 1024, 1),
+                'timestamp': stat.st_mtime,
+            })
+        except Exception:
+            continue
+    return jsonify({'saves': saves})
+
+
+@app.route('/api/map-saves/<name>', methods=['GET'])
+def api_get_map_save(name):
+    """加载服务器端地图存档"""
+    safe = ''.join(c for c in name if c not in r'<>:"/\|?*')
+    filepath = MAP_SAVES_DIR / f'{safe}.json'
+    if not filepath.exists():
+        return jsonify({'error': '存档不存在'}), 404
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = _json.load(f)
+        return jsonify({'ok': True, 'state': data})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/map-saves/<name>', methods=['POST'])
+def api_save_map(name):
+    """保存地图存档到服务器"""
+    safe = ''.join(c for c in name if c not in r'<>:"/\|?*')
+    if not safe:
+        return jsonify({'error': '无效的存档名'}), 400
+    data = request.get_json(silent=True) or {}
+    state = data.get('state', data)
+    filepath = MAP_SAVES_DIR / f'{safe}.json'
+    try:
+        tmp = filepath.with_suffix('.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            _json.dump(state, f, ensure_ascii=False)
+        tmp.replace(filepath)
+        return jsonify({'ok': True, 'name': safe})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/map-saves/<name>', methods=['DELETE'])
+def api_delete_map_save(name):
+    """删除服务器端地图存档"""
+    safe = ''.join(c for c in name if c not in r'<>:"/\|?*')
+    filepath = MAP_SAVES_DIR / f'{safe}.json'
+    if not filepath.exists():
+        return jsonify({'error': '存档不存在'}), 404
+    try:
+        filepath.unlink()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ━━━ 聊天系统 API ━━━
@@ -2311,8 +2452,9 @@ def api_room_join():
         'joined_at': _time.time(),
     }
 
-    # 发送系统消息
-    if is_new and _dm_name and name != _dm_name:
+    # 发送系统消息（仅首次加入，重连不重复通知）
+    was_offline = name not in [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) <= 15]
+    if was_offline and _dm_name and name != _dm_name:
         _chat_messages.append({
             'name': '系统',
             'text': f'🔵 {name} 进入房间',
@@ -2479,7 +2621,8 @@ def api_upload_resource():
                '.pdf',                                              # PDF
                '.doc', '.docx',                                     # 文档
                '.xls', '.xlsx',                                     # 表格
-               '.txt', '.md'}                                       # 文本
+               '.txt', '.md',                                       # 文本
+               '.json'}                                             # 存档
     if ext not in allowed:
         return jsonify({'error': f'不支持的文件格式: {ext}，仅支持图片/PDF/文档/表格/TXT'}), 400
 

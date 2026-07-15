@@ -4182,5 +4182,355 @@
     "role": "PL",
     "ip": "127.0.0.1",
     "_ts": 1783713900.421468
+  },
+  {
+    "name": "yrr",
+    "text": "进入了骰娘",
+    "time": "04:23:58",
+    "is_dm": true,
+    "color": "#00bcd4",
+    "role": "DM",
+    "ip": "192.168.1.4",
+    "_ts": 1783715038.9533231
+  },
+  {
+    "name": "yrr",
+    "text": "🎲 d20 = [5]",
+    "time": "04:25:02",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1783715102.5075274
+  },
+  {
+    "name": "yrr",
+    "text": "🎲 d20 = [10]",
+    "time": "04:25:07",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1783715107.3067234
+  },
+  {
+    "name": "yrr",
+    "text": "🎲 祖神 d20 = [3]",
+    "time": "04:25:24",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1783715124.2151644
+  },
+  {
+    "name": "yrr",
+    "text": "🎲 祖神 d20 = [3]",
+    "time": "04:25:27",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1783715127.2815146
+  },
+  {
+    "name": "yrr",
+    "text": "🎲 丹恩·铁拳 4d6k3 = [11]",
+    "time": "04:25:38",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1783715138.450169
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "03:34:21",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784144061.922977
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "03:51:44",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784145104.0179129
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:05:00",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784149500.324191
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:07:44",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784149664.084975
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:12:40",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784149960.0221672
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:13:48",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784150028.3045514
+  },
+  {
+    "name": "系统",
+    "text": "🔵 11 进入房间",
+    "time": "05:14:37",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784150077.6431935,
+    "system": true
+  },
+  {
+    "name": "11",
+    "text": "进入了骰娘",
+    "time": "05:14:39",
+    "is_dm": false,
+    "color": "#e91e63",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784150079.9220295
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:24:11",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784150651.3885543
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:24:30",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784150670.8949008
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "05:26:57",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784150817.5950766
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr3k 进入房间",
+    "time": "05:38:20",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784151500.3429916,
+    "system": true
+  },
+  {
+    "name": "yrr3k",
+    "text": "进入了骰娘",
+    "time": "05:38:20",
+    "is_dm": false,
+    "color": "#ff6e40",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784151500.999048
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr3k 进入房间",
+    "time": "05:38:54",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784151534.5430307,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 yrr3k 退出房间",
+    "time": "05:46:09",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784151969.3557694,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr3k 进入房间",
+    "time": "05:46:15",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784151975.348814,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr3k 进入房间",
+    "time": "05:58:02",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784152682.0348983,
+    "system": true
+  },
+  {
+    "name": "yrr3k",
+    "text": "进入了骰娘",
+    "time": "05:58:20",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784152700.3985705
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr3k 进入房间",
+    "time": "05:58:42",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784152722.6395917,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔵 yrr 进入房间",
+    "time": "06:00:43",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784152843.3764992,
+    "system": true
+  },
+  {
+    "name": "天冥",
+    "text": "我他妈服了",
+    "time": "06:06:03",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784153163.206503
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "06:08:48",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784153328.8593419
+  },
+  {
+    "name": "yrr3k",
+    "text": "进入了骰娘",
+    "time": "06:10:20",
+    "is_dm": false,
+    "color": "#76ff03",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784153420.9025116
+  },
+  {
+    "name": "系统",
+    "text": "🔴 yrr3k 退出房间",
+    "time": "06:12:33",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784153553.839709,
+    "system": true
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "06:14:04",
+    "is_dm": true,
+    "color": "#00bcd4",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784153644.2791157
+  },
+  {
+    "name": "yrr3k",
+    "text": "进入了骰娘",
+    "time": "06:14:12",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784153652.9846663
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "06:18:06",
+    "is_dm": true,
+    "color": "#9c27b0",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784153886.9174242
+  },
+  {
+    "name": "yrr3k",
+    "text": "进入了骰娘",
+    "time": "06:18:09",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784153889.5732586
   }
 ]
