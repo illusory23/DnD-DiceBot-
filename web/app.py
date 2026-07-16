@@ -97,6 +97,14 @@ _EVENT_GROUPS = [
 
 app = Flask(__name__)
 
+# ━━━ 静态文件缓存（浏览器缓存1小时，减少重复加载）━━━
+@app.after_request
+def add_cache_header(response):
+    if response.content_type and ('text/css' in response.content_type or 'application/javascript' in response.content_type):
+        response.cache_control.max_age = 3600
+        response.cache_control.public = True
+    return response
+
 # ━━━ WebSocket 实时协作（flask-sock，与 HTTP 共用 5000 端口）━━━
 from flask_sock import Sock
 sock = Sock(app)
@@ -462,13 +470,13 @@ def api_check():
 
 @app.route('/api/characters', methods=['GET'])
 def api_list_characters():
-    """列出角色。PL 只能看到自己创建/导入的角色，DM 可看到全部。"""
+    """列出角色。DM 可看到全部；PL 只能看到自己创建/导入的角色。"""
     name = request.args.get('name', '').strip()
     role = request.args.get('role', 'PL')
     client_ip = request.remote_addr or ''
 
-    # DM 可看全部
-    if role == 'DM' or _is_dm_ip(client_ip):
+    # DM 可看全部（明确声明为 DM 才放行，不再按 IP 自动提权）
+    if role == 'DM':
         chars = list_characters()
     elif name:
         # PL 有用户名 → 只看自己创建的
@@ -633,7 +641,7 @@ def api_set_ability(name_or_id):
 
 @app.route('/api/character/<name_or_id>/skill', methods=['POST'])
 def api_toggle_skill(name_or_id):
-    """切换技能熟练（熟练 ↔ 非熟练）"""
+    """设置技能熟练和加值"""
     char = _resolve_char(name_or_id)
     if not char:
         return jsonify({'error': '角色不存在'}), 404
@@ -642,13 +650,14 @@ def api_toggle_skill(name_or_id):
     skill_name = data.get('skill', '').strip()
     is_proficient = bool(data.get('proficient', True))
     is_expertise = bool(data.get('expertise', False))
+    bonus = int(data.get('bonus', 0) or 0)
 
     skill = normalize_skill(skill_name)
     if not skill:
         return jsonify({'error': f'无效技能: {skill_name}'}), 400
 
     from core.character import set_skill_proficiency as _set_skill
-    ok = _set_skill(char['id'], skill, is_proficient or is_expertise, is_expertise)
+    ok = _set_skill(char['id'], skill, is_proficient or is_expertise, is_expertise, bonus)
     if not ok:
         return jsonify({'error': '设置失败'}), 400
 
@@ -657,12 +666,13 @@ def api_toggle_skill(name_or_id):
         'skill': skill,
         'is_proficient': is_proficient or is_expertise,
         'is_expertise': is_expertise,
+        'bonus': bonus,
     })
 
 
 @app.route('/api/character/<name_or_id>/save-prof', methods=['POST'])
 def api_toggle_save_prof(name_or_id):
-    """切换豁免熟练"""
+    """设置豁免熟练和加值"""
     char = _resolve_char(name_or_id)
     if not char:
         return jsonify({'error': '角色不存在'}), 404
@@ -670,17 +680,70 @@ def api_toggle_save_prof(name_or_id):
     data = request.get_json() or {}
     ability_name = data.get('ability', '').strip()
     is_proficient = bool(data.get('proficient', True))
+    save_bonus = int(data.get('save_bonus', 0) or 0)
 
     ability = normalize_ability(ability_name)
     if not ability:
         return jsonify({'error': f'无效属性: {ability_name}'}), 400
 
     from core.character import set_save_proficiency as _set_save
-    ok = _set_save(char['id'], ability, is_proficient)
+    ok = _set_save(char['id'], ability, is_proficient, save_bonus)
     if not ok:
         return jsonify({'error': '设置失败'}), 400
 
-    return jsonify({'success': True, 'ability': ability, 'is_proficient': is_proficient})
+    return jsonify({
+        'success': True, 'ability': ability,
+        'is_proficient': is_proficient, 'save_bonus': save_bonus,
+    })
+
+
+# ━━━ 角色特性 API（职业能力/专长/种族特性/特殊能力/其他）━━━
+
+@app.route('/api/character/<name_or_id>/features/<category>', methods=['GET'])
+def api_get_features(name_or_id, category):
+    """获取角色某类特性"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+    features = char.get('features', {}).get(category, [])
+    return jsonify({'features': features})
+
+
+@app.route('/api/character/<name_or_id>/features/<category>', methods=['POST'])
+def api_add_feature(name_or_id, category):
+    """添加角色特性"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': '特性名不能为空'}), 400
+
+    from core.character import add_feature as _add_feat
+    fid = _add_feat(char['id'], category, name, data.get('description', ''))
+    return jsonify({'success': True, 'id': fid, 'name': name})
+
+
+@app.route('/api/character/<name_or_id>/features/<int:feature_id>', methods=['PUT'])
+def api_update_feature(name_or_id, feature_id):
+    """更新特性"""
+    data = request.get_json(silent=True) or {}
+    from core.character import update_feature as _upd_feat
+    ok = _upd_feat(feature_id, **{k: v for k, v in data.items() if k in ('name', 'description', 'category')})
+    if not ok:
+        return jsonify({'error': '更新失败'}), 400
+    return jsonify({'success': True})
+
+
+@app.route('/api/character/<name_or_id>/features/<int:feature_id>', methods=['DELETE'])
+def api_delete_feature(name_or_id, feature_id):
+    """删除特性"""
+    from core.character import delete_feature as _del_feat
+    ok = _del_feat(feature_id)
+    if not ok:
+        return jsonify({'error': '删除失败'}), 404
+    return jsonify({'success': True})
 
 
 # ━━━ 背景信息 API ━━━
@@ -1126,6 +1189,118 @@ def api_delete_character(name_or_id):
     return jsonify({'success': True, 'name': char_name})
 
 
+@app.route('/api/character/<name_or_id>/copy', methods=['POST'])
+def api_copy_character(name_or_id):
+    """复制角色"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_name = data.get('name', '').strip()
+
+    from core.character import copy_character as _copy
+    new_id = _copy(char['id'], new_name)
+    new_char = get_character(new_id)
+    return jsonify({'id': new_id, 'name': new_char['name']})
+
+
+@app.route('/api/character/<name_or_id>/field', methods=['PUT'])
+def api_update_character_field(name_or_id):
+    """更新角色单个字段（AC/速度/熟练/身高/体重/被动察觉等）"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    field = data.get('field', '').strip()
+    value = data.get('value')
+
+    if not field:
+        return jsonify({'error': '缺少 field 参数'}), 400
+
+    # 允许更新的字段
+    int_fields = {
+        'ac', 'speed', 'proficiency_bonus', 'passive_perception', 'initiative_bonus',
+        'level', 'spell_save_dc', 'spell_attack_bonus', 'hp_max', 'hp_current', 'temp_hp',
+    }
+    str_fields = {
+        'height', 'weight_field', 'name', 'class', 'race', 'subrace',
+        'alignment', 'faith', 'gender', 'resistances', 'key_abilities',
+    }
+    if field not in int_fields and field not in str_fields:
+        return jsonify({'error': f'不允许修改字段: {field}'}), 400
+
+    # 数值字段
+    if field in int_fields:
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return jsonify({'error': f'{field} 必须是整数'}), 400
+    else:
+        value = str(value)
+
+    # HP限制：当前HP不能超过上限
+    if field == 'hp_current':
+        hp_max = char.get('hp_max', 10)
+        value = max(0, min(value, hp_max))
+    elif field == 'hp_max':
+        value = max(1, value)
+
+    update_character(char['id'], **{field: value})
+    return jsonify({'success': True, 'field': field, 'value': value})
+
+
+@app.route('/api/character/<name_or_id>/spell-slots', methods=['PUT'])
+def api_update_spell_slots(name_or_id):
+    """直接设置法术位（x/y格式，x为当前已用，y为最大）"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    slots = data.get('slots', {})  # {'1': {'max': 4, 'used': 2}, '2': {...}}
+
+    conn = get_db_conn()
+    cursor = conn.cursor()
+
+    # 确保所有1-9环都存在（先删后插，兼容旧表无唯一约束）
+    for level in range(1, 10):
+        level_str = str(level)
+        slot_data = slots.get(level_str, {})
+        max_slots = int(slot_data.get('max', 0))
+        used_slots = int(slot_data.get('used', 0))
+        used_slots = max(0, min(used_slots, max_slots))  # x不能超过y
+
+        # 检查是否存在
+        cursor.execute(
+            "SELECT id FROM spell_slots WHERE character_id = ? AND slot_level = ?",
+            (char['id'], level_str))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                "UPDATE spell_slots SET max_slots = ?, used_slots = ? WHERE id = ?",
+                (max_slots, used_slots, existing['id']))
+        else:
+            cursor.execute(
+                "INSERT INTO spell_slots (character_id, slot_level, max_slots, used_slots) VALUES (?, ?, ?, ?)",
+                (char['id'], level_str, max_slots, used_slots))
+
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+def get_db_conn():
+    """获取数据库连接（用于直接SQL操作）"""
+    import sqlite3
+    from pathlib import Path
+    db_path = Path(__file__).parent.parent / "data" / "characters.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 @app.route('/api/character/<name_or_id>/portrait', methods=['GET'])
 def api_get_portrait(name_or_id):
     """获取角色头像图片"""
@@ -1269,39 +1444,76 @@ def api_upload_portrait(name_or_id):
 
 @app.route('/api/spells/search', methods=['GET'])
 def api_search_spells_list():
-    """模糊搜索法术列表（最多50条）"""
+    """模糊搜索法术列表（按匹配质量排序）"""
     query = request.args.get('q', '').strip()
     if len(query) < 1:
         return jsonify({'error': '请输入搜索关键词'}), 400
 
-    from core.chm_search import search_spell as _search_spell
-    results = _search_spell(query)
-    items = []
-    for s in results[:50]:
-        items.append({
-            'name': s.get('name_cn', s.get('name', '?')),
+    from core.chm_search import search_spell as _search_spell, _calc_spell_score
+
+    scored_items = []
+    seen_names = set()
+
+    # 1. CHM法术（自带评分排序）
+    for s in _search_spell(query):
+        name = s.get('name_cn', s.get('name', '?'))
+        if name in seen_names: continue
+        score = _calc_spell_score(query, name, s.get('name_en', ''), s.get('name', ''), s.get('tags', ''))
+        seen_names.add(name)
+        scored_items.append((score, {
+            'name': name,
             'name_en': s.get('name_en', ''),
             'level': s.get('level', ''),
             'school': s.get('school', ''),
             'classes': s.get('classes', ''),
             'source': s.get('source', ''),
             'detail': f"{s.get('level','?')}环 {s.get('school','?')} | {s.get('classes','?')}",
-        })
-    # 补充自定义法术
+        }))
+
+    # 2. 自定义法术（评分排序）
     for e in _load_custom('spells'):
-        if query.lower() in e['name'].lower():
-            items.append({
-                'name': e['name'], 'name_en': e.get('name_en', ''),
+        name = e['name']
+        if name in seen_names: continue
+        score = _calc_spell_score(query, name, e.get('name_en', ''))
+        if score > 0:
+            seen_names.add(name)
+            scored_items.append((score, {
+                'name': name, 'name_en': e.get('name_en', ''),
                 'level': e.get('level', ''), 'school': e.get('school', ''),
                 'classes': e.get('classes', ''), 'source': '自定义',
                 'detail': e.get('description', '')[:100],
-            })
-    return jsonify({'query': query, 'results': items, 'total': len(items)})
+            }))
+
+    # 按得分降序
+    scored_items.sort(key=lambda x: x[0], reverse=True)
+    items = [item for _, item in scored_items]
+
+    return jsonify({'query': query, 'results': items[:200], 'total': len(items)})
 
 
 @app.route('/api/spell/<name>', methods=['GET'])
 def api_search_spell(name):
-    """查询法术"""
+    """查询法术（自定义数据优先）"""
+    # 1. 先检查自定义法术
+    for e in _load_custom('spells'):
+        if e['name'].lower() == name.lower():
+            return jsonify({
+                'name': e['name'],
+                'name_en': e.get('name_en', ''),
+                'level': e.get('level', ''),
+                'school': e.get('school', ''),
+                'casting_time': e.get('casting_time', ''),
+                'range': e.get('range', ''),
+                'duration': e.get('duration', ''),
+                'components': e.get('components', ''),
+                'ritual': e.get('ritual', ''),
+                'concentration': e.get('concentration', ''),
+                'classes': e.get('classes', ''),
+                'detail_text': e.get('description', ''),
+                'source': e.get('source', '自定义'),
+            })
+
+    # 2. CHM搜索
     spell = search_spell(name)
     if not spell:
         return jsonify({'error': '未找到法术'}), 404
@@ -1310,45 +1522,106 @@ def api_search_spell(name):
 
 @app.route('/api/monsters/search', methods=['GET'])
 def api_search_monsters():
-    """模糊搜索怪物列表（最多50条）"""
+    """模糊搜索怪物列表（按匹配质量排序——匹配字数越多越靠前）"""
     query = request.args.get('q', '').strip()
     if len(query) < 1:
         return jsonify({'error': '请输入搜索关键词'}), 400
 
-    from core.chm_search import search_monster as _search_monster
-    results = _search_monster(query)
-    items = []
-    for m in results[:50]:
-        items.append({
-            'name': m.get('name_cn', m.get('name', '?')),
-            'name_en': m.get('name_en', ''),
-            'cr': m.get('cr', ''),
-            'size': m.get('size', ''),
-            'type': m.get('type', ''),
-            'source': m.get('source', ''),
-            'detail_link': m.get('detail_link', ''),
-            'detail': f"CR:{m.get('cr','?')} {m.get('size','')} {m.get('type','')}",
-        })
-    # 补充自定义怪物
+    from core.chm_search import search_monster as _search_monster, _calc_match_score
+
+    scored_items = []  # (score, item_dict)
+    seen_names = set()
+
+    def _make_item(name, name_en='', cr='', size='', mtype='', source='', detail='', detail_text='', detail_link=''):
+        return {
+            'name': name, 'name_en': name_en, 'cr': cr,
+            'size': size, 'type': mtype, 'source': source,
+            'detail': detail or f"CR:{cr or '?'} {size or ''} {mtype or ''}",
+            'detail_text': detail_text,
+            'detail_link': detail_link,
+        }
+
+    # 1. 自定义怪物（评分排序）
     for e in _load_custom('monsters'):
-        if query.lower() in e['name'].lower():
-            items.append({
-                'name': e['name'],
-                'name_en': e.get('name_en', ''),
-                'cr': e.get('cr', ''),
-                'size': e.get('size', ''),
-                'type': e.get('type', ''),
-                'source': '自定义',
-                'detail_text': e.get('detail_text', ''),
-                'detail': f"CR:{e.get('cr','?')} {e.get('size','')} {e.get('type','')}",
-            })
-    return jsonify({'query': query, 'results': items, 'total': len(items)})
+        name = e['name']
+        if name in seen_names: continue
+        score = _calc_match_score(query, name, e.get('name_en', ''))
+        if score > 0:
+            seen_names.add(name)
+            scored_items.append((score, _make_item(
+                name, e.get('name_en', ''), e.get('cr', ''), e.get('size', ''),
+                e.get('type', ''), '自定义', '', e.get('detail_text', ''),
+            )))
+
+    # 2. CHM 怪物（已自带评分排序）
+    for m in _search_monster(query):
+        name = m.get('name_cn', m.get('name', '?'))
+        if name in seen_names: continue
+        score = _calc_match_score(query, name, m.get('name_en', ''))
+        if score > 0:
+            seen_names.add(name)
+            scored_items.append((score, _make_item(
+                name, m.get('name_en', ''), m.get('cr', ''), m.get('size', ''),
+                m.get('type', ''), m.get('source', ''),
+                detail_link=m.get('detail_link', ''),
+            )))
+
+    # 3. SRD 怪物（评分排序）
+    try:
+        from utils.data_loader import load_monsters as _load_srd
+        for m in _load_srd():
+            name = m.get('name', '')
+            if name in seen_names: continue
+            score = _calc_match_score(query, name, m.get('name_en', ''))
+            if score > 0:
+                seen_names.add(name)
+                scored_items.append((score, _make_item(
+                    name, m.get('name_en', ''), m.get('cr', ''), m.get('size', ''),
+                    m.get('type', ''), 'SRD',
+                )))
+    except Exception:
+        pass
+
+    # 按得分降序排列
+    scored_items.sort(key=lambda x: x[0], reverse=True)
+    items = [item for _, item in scored_items]
+
+    return jsonify({'query': query, 'results': items[:200], 'total': len(items)})
 
 
 @app.route('/api/monster/<name>', methods=['GET'])
 def api_search_monster(name):
-    """查询怪物（CHM 优先，读取详情页获取完整数据）"""
-    # 先从 CHM 获取完整详情（含 detail_text）
+    """查询怪物（自定义数据优先，CHM 次之，SRD 兜底）"""
+    # 1. 先检查自定义怪物（精确/包含匹配优先）
+    custom_monsters = _load_custom('monsters')
+    for e in custom_monsters:
+        if e['name'].lower() == name.lower():
+            return jsonify({
+                'name': e['name'],
+                'name_en': e.get('name_en', ''),
+                'cr': e.get('cr', '?'),
+                'size': e.get('size', '?'),
+                'type': e.get('type', '?'),
+                'source': e.get('source', '自定义'),
+                'legendary': e.get('legendary', ''),
+                'detail_text': e.get('detail_text', ''),
+                'source_db': 'custom',
+            })
+    for e in custom_monsters:
+        if name.lower() in e['name'].lower():
+            return jsonify({
+                'name': e['name'],
+                'name_en': e.get('name_en', ''),
+                'cr': e.get('cr', '?'),
+                'size': e.get('size', '?'),
+                'type': e.get('type', '?'),
+                'source': e.get('source', '自定义'),
+                'legendary': e.get('legendary', ''),
+                'detail_text': e.get('detail_text', ''),
+                'source_db': 'custom',
+            })
+
+    # 2. 从 CHM 获取完整详情（含 detail_text）
     monster = chm_get_monster_detail(name)
     if monster:
         return jsonify({
@@ -1363,11 +1636,10 @@ def api_search_monster(name):
             'source_db': 'chm',
         })
 
-    # CHM 没找到，尝试模糊搜索
+    # 3. CHM 模糊搜索
     chm_results = chm_search_monster(name)
     if chm_results:
         m = chm_results[0]
-        # 尝试读取详情
         detail_text = ''
         if m.get('detail_link'):
             from core.chm_search import read_detail_page
@@ -1384,7 +1656,7 @@ def api_search_monster(name):
             'source_db': 'chm',
         })
 
-    # 回退到 SRD
+    # 4. 回退到 SRD
     monster = search_monster(name)
     if not monster:
         return jsonify({'error': '未找到怪物'}), 404
@@ -1393,21 +1665,62 @@ def api_search_monster(name):
 
 @app.route('/api/search', methods=['GET'])
 def api_search():
-    """综合搜索（CHM 资料库 + 项目文件）"""
+    """综合搜索（CHM 资料库 + 项目文件 + 自定义资料库，按匹配质量排序）"""
     query = request.args.get('q', '').strip()
     if len(query) < 2:
         return jsonify({'error': '关键词至少2个字'}), 400
 
-    from core.chm_search import search_all_combined as _combined, search_project_files as _search_files
-    results = _combined(query)
-    items = []
+    from core.chm_search import (
+        search_all_combined as _combined,
+        search_project_files as _search_files,
+        _calc_match_score,
+        _calc_spell_score,
+    )
+
+    scored_items = []  # (score, item_dict)
     seen = set()
-    for r in results[:50]:
+
+    def _add(score, item):
+        name = item.get('name', '')
+        if name in seen: return
+        seen.add(name)
+        scored_items.append((score, item))
+
+    # 1. 自定义怪物优先（评分排序，排在最前面）
+    for e in _load_custom('monsters'):
+        name = e['name']
+        score = _calc_match_score(query, name, e.get('name_en', ''))
+        if score > 0:
+            _add(score + 200, {  # 自定义数据高优先级
+                'type': 'monster',
+                'name': name,
+                'name_en': e.get('name_en', ''),
+                'detail': e.get('detail_text', '')[:100],
+                'cr': e.get('cr', ''),
+                'source': e.get('source', '自定义'),
+            })
+
+    # 2. 自定义法术优先（评分排序）
+    for e in _load_custom('spells'):
+        name = e['name']
+        score = _calc_spell_score(query, name, e.get('name_en', ''))
+        if score > 0:
+            _add(score + 200, {
+                'type': 'spell',
+                'name': name,
+                'name_en': e.get('name_en', ''),
+                'detail': e.get('description', '')[:100],
+                'level': e.get('level', ''),
+                'school': e.get('school', ''),
+                'source': e.get('source', '自定义'),
+            })
+
+    # 3. CHM综合搜索（自带评分，去重）
+    for r in _combined(query):
         rtype = r.get('type', '')
         name = r.get('name_cn', r.get('name', r.get('title', '?')))
-        if name in seen: continue
-        seen.add(name)
-        items.append({
+        base_score = 85
+        _add(base_score, {
             'type': rtype,
             'name': name,
             'name_en': r.get('name_en', ''),
@@ -1419,12 +1732,10 @@ def api_search():
             'source': r.get('source', ''),
         })
 
-    # 补充项目文件
+    # 4. 项目文件
     files = _search_files(query)
-    for f in files[:10]:
+    for i, f in enumerate(files[:10]):
         name = f.get('name', '?')
-        if name in seen: continue
-        seen.add(name)
         snippet = f.get('snippet', '') or ''
         cat = f.get('cat_label', '')
         parent = f.get('parent', '')
@@ -1432,7 +1743,7 @@ def api_search():
         if snippet: detail_parts.append(snippet[:200])
         if cat: detail_parts.append(cat)
         if parent: detail_parts.append(parent)
-        items.append({
+        _add(max(0, 40 - i), {
             'type': 'file',
             'name': name,
             'detail': ' | '.join(detail_parts) if detail_parts else '',
@@ -1441,39 +1752,40 @@ def api_search():
             'snippet': snippet,
         })
 
-    # 补充 DND5E 物品表
+    # 5. DND5E物品表（评分排序） + 自定义物品优先
     item_data = _load_items()
     for it in item_data:
-        if it['name'] in seen: continue
-        if query.lower() in it['name'].lower() or query.lower() in it['type'].lower():
-            seen.add(it['name'])
+        name = it['name']
+        score = _calc_match_score(query, name, it.get('name_en', ''))
+        if score > 0 and len(scored_items) < 200:
             detail_parts = []
             if it['price']: detail_parts.append(f"💰{it['price']}")
             if it['damage']: detail_parts.append(f"⚔️{it['damage']}")
             if it['weight']: detail_parts.append(f"⚖️{it['weight']}")
             if it['type']: detail_parts.append(f"📦{it['type']}")
-            items.append({
+            _add(score + 30, {
                 'type': 'item',
-                'name': it['name'],
+                'name': name,
                 'detail': ' | '.join(detail_parts),
             })
-        if len(items) >= 60: break
 
-    # 补充自定义资料库条目
-    for kind, itype in [('spells', 'spell'), ('monsters', 'monster'), ('items', 'item')]:
-        for e in _load_custom(kind):
-            if e['name'] in seen: continue
-            if query.lower() in e['name'].lower():
-                seen.add(e['name'])
-                detail = e.get('description', e.get('detail_text', ''))[:100]
-                items.append({
-                    'type': itype,
-                    'name': e['name'],
-                    'detail': detail,
-                    'source': '自定义',
-                })
+    # 6. 自定义物品
+    for e in _load_custom('items'):
+        name = e['name']
+        score = _calc_match_score(query, name)
+        if score > 0 and len(scored_items) < 200:
+            _add(score + 40, {
+                'type': 'item',
+                'name': name,
+                'detail': e.get('description', '')[:100],
+                'source': '自定义',
+            })
 
-    return jsonify({'query': query, 'results': items, 'total': len(items)})
+    # 按得分降序排列
+    scored_items.sort(key=lambda x: x[0], reverse=True)
+    items = [item for _, item in scored_items]
+
+    return jsonify({'query': query, 'results': items[:200], 'total': len(items)})
 
 
 @app.route('/api/conditions', methods=['GET'])
@@ -1538,6 +1850,32 @@ def api_create_from_monster():
 
     # 设置 HP 和 AC
     update_character(char_id, hp_max=hp_est, hp_current=hp_est, ac=ac_est)
+
+    # ━━ 将无法直接填入的怪物详细数据写入背景特性 ━━
+    detail_text = data.get('detail_text', '')
+    source = data.get('source', '')
+    monster_size = data.get('size', '')
+    monster_type = data.get('type', '')
+    legendary = data.get('legendary', '')
+
+    bg_parts = []
+    if detail_text:
+        bg_parts.append(f"【怪物数据】\n{detail_text}")
+    else:
+        info_parts = []
+        if source: info_parts.append(f"来源：{source}")
+        if monster_size: info_parts.append(f"体型：{monster_size}")
+        if monster_type: info_parts.append(f"类型：{monster_type}")
+        if legendary == '有': info_parts.append("传奇动作：有")
+        if cr_str: info_parts.append(f"挑战等级：{cr_str}")
+        if info_parts:
+            bg_parts.append(f"【怪物数据】\n{' | '.join(info_parts)}")
+            # 估算属性信息
+            bg_parts.append(f"估算属性：力{abilities['str']} 敏{abilities['dex']} 体{abilities['con']} 智{abilities['int']} 感{abilities['wis']} 魅{abilities['cha']}")
+
+    if bg_parts:
+        from core.character import set_background
+        set_background(char_id, background_feature='\n\n'.join(bg_parts))
 
     # 设置活跃角色
     global active_char_id
@@ -2520,11 +2858,13 @@ def api_get_combat_state():
 
 @app.route('/api/combat-state', methods=['POST'])
 def api_push_combat_state():
-    """推送战斗状态（任何人可推送，最新覆盖）"""
+    """推送战斗状态（用服务器时间戳标记版本）"""
     global _combat_state, _combat_state_ts
     data = request.get_json(silent=True) or {}
-    _combat_state = data.get('state', {})
+    state = data.get('state', {})
     _combat_state_ts = _time.time()
+    state['_ts'] = _combat_state_ts  # 嵌入服务器时间戳
+    _combat_state = state
     return jsonify({'ok': True, 'timestamp': _combat_state_ts})
 
 

@@ -528,7 +528,10 @@ def cmd_char(args: str) -> tuple[str | None, str | None]:
             preview = import_and_print_summary(filepath)
             # 导入
             data = import_character_from_excel(filepath)
-            char_id = import_from_excel_data(data, source_file=os.path.abspath(filepath))
+            # CLI 导入使用系统用户名作为 created_by
+            import getpass
+            cli_user = getpass.getuser()
+            char_id = import_from_excel_data(data, source_file=os.path.abspath(filepath), created_by=cli_user)
             char = get_character(char_id)
             set_active_char(char_id)
 

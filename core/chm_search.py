@@ -151,94 +151,196 @@ def read_detail_page(rel_path: str) -> str | None:
 
 # ━━━ 搜索函数 ━━━
 
+def _calc_spell_score(query: str, name_cn: str, name_en: str = '', full_name: str = '', tags: str = '') -> int:
+    """计算法术匹配得分，得分越高越相关"""
+    query_lower = query.lower().strip()
+    name_cn_lower = name_cn.lower()
+    name_en_lower = name_en.lower()
+    full_lower = full_name.lower()
+
+    # 精确名称匹配
+    if query_lower == name_cn_lower:
+        return 1000
+    if query_lower == name_en_lower:
+        return 950
+
+    # 前缀匹配
+    if name_cn_lower.startswith(query_lower):
+        return 800
+    if name_en_lower.startswith(query_lower):
+        return 780
+
+    # 包含匹配
+    if query_lower in name_cn_lower:
+        return 600
+    if query_lower in name_en_lower or query_lower in full_lower:
+        return 550
+
+    # 中文逐字匹配
+    if any('一' <= c <= '鿿' for c in query_lower):
+        match_count = sum(1 for ch in query_lower if ch in name_cn)
+        if match_count > 0:
+            score = match_count * 10
+            if match_count >= len(query_lower):
+                score += 100
+            return score
+
+    # 拼音首字母匹配
+    if len(query_lower) <= 4 and len(name_cn) >= 2:
+        initials = ''.join(w[0].lower() for w in name_cn.split() if w)
+        if query_lower == initials:
+            return 200
+
+    # 标签匹配（学派、职业等）
+    if tags and query_lower in tags.lower():
+        return 50
+
+    return 0
+
+
 def search_spell(query: str) -> list[dict]:
     """搜索法术
 
-    支持中文名、英文名、拼音首字母匹配。
-    返回匹配的法术列表（最多20条）。
+    支持中文名、英文名、拼音首字母匹配。按匹配质量排序。
+    返回匹配的法术列表（最多50条）。
     """
     spells = _get_spells()
     query_lower = query.lower().strip()
-    results = []
+    scored = []
 
     for s in spells:
         name_cn = s.get('name_cn', '')
         name_en = s.get('name_en', '')
         full_name = s.get('name', '')
+        tags = s.get('tags', '')
 
-        # 完全匹配优先
-        if query_lower == name_cn.lower() or query_lower == name_en.lower():
-            results.insert(0, s)
-            continue
+        score = _calc_spell_score(query_lower, name_cn, name_en, full_name, tags)
 
-        # 包含匹配
-        if (query_lower in name_cn.lower() or
-            query_lower in name_en.lower() or
-            query_lower in full_name.lower()):
-            results.append(s)
-            continue
+        # 单字查询：允许1个字匹配
+        if score == 0 and len(query_lower) == 1 and any('一' <= c <= '鿿' for c in query_lower):
+            for ch in query_lower:
+                if ch in name_cn.lower():
+                    score = 5
+                    break
 
-        # 拼音首字母匹配
-        # 取中文名的拼音首字母简拼
-        # 简化: 检查每个字的首字母
-        if len(query_lower) <= 4 and len(name_cn) >= 2:
-            initials = ''.join(w[0].lower() for w in name_cn.split() if w)
-            if query_lower == initials:
-                results.append(s)
-                continue
+        if score > 0:
+            name_len_penalty = min(len(name_cn), 20) * 0.1
+            scored.append((score - name_len_penalty, s))
 
-        # 标签匹配（学派、职业等）
-        tags = s.get('tags', '').lower()
-        if query_lower in tags:
-            results.append(s)
+    # 按得分降序排列
+    scored.sort(key=lambda x: x[0], reverse=True)
 
-    return results[:20]
+    # 去重并返回
+    seen = set()
+    merged = []
+    for _, s in scored:
+        key = s.get('name_cn', s.get('name', ''))
+        if key not in seen:
+            seen.add(key)
+            merged.append(s)
+
+    return merged[:50]
+
+
+def _calc_match_score(query: str, name_cn: str, name_en: str = '', full_name: str = '') -> int:
+    """计算匹配得分，得分越高越相关"""
+    query_lower = query.lower().strip()
+    name_cn_lower = name_cn.lower()
+    name_en_lower = name_en.lower()
+    full_lower = full_name.lower()
+
+    # 精确名称匹配：最高分
+    if query_lower == name_cn_lower:
+        return 1000
+    if query_lower == name_en_lower:
+        return 950
+
+    # 查询词完整出现在名称开头（前缀匹配优先）
+    if name_cn_lower.startswith(query_lower):
+        return 800
+    if name_en_lower.startswith(query_lower):
+        return 780
+
+    # 查询词完整包含在名称中
+    if query_lower in name_cn_lower:
+        return 600
+    if query_lower in name_en_lower or query_lower in full_lower:
+        return 550
+
+    # 中文逐字匹配：每个匹配的字10分，完全匹配额外+100
+    if any('一' <= c <= '鿿' for c in query_lower):
+        match_count = sum(1 for ch in query_lower if ch in name_cn)
+        if match_count > 0:
+            score = match_count * 10
+            if match_count >= len(query_lower):
+                score += 100  # 所有字都匹配的加分
+            return score
+
+    # CR匹配
+    if query_lower == name_cn_lower:
+        return 5
+
+    # 类型匹配
+    if query_lower in name_cn_lower:
+        return 3
+
+    return 0
 
 
 def search_monster(query: str) -> list[dict]:
     """搜索怪物
 
-    支持中文名、英文名匹配。对于多字中文查询会逐字模糊匹配。
-    返回匹配的怪物列表（最多20条）。
+    支持中文名、英文名匹配。按匹配质量排序——匹配字数越多排越前。
+    返回匹配的怪物列表（最多50条）。
     """
     monsters = _get_monsters()
     query_lower = query.lower().strip()
-    results = []
+    scored = []  # (score, monster_dict)
 
     for m in monsters:
         name_cn = m.get('name_cn', '')
         name_en = m.get('name_en', '')
         full_name = m.get('name', '')
 
-        if query_lower == name_cn.lower() or query_lower == name_en.lower():
-            results.insert(0, m)
-            continue
+        score = _calc_match_score(query_lower, name_cn, name_en, full_name)
 
-        if (query_lower in name_cn.lower() or
-            query_lower in name_en.lower() or
-            query_lower in full_name.lower()):
-            results.append(m)
-            continue
-
-        # 中文逐字匹配：查询词中任意单个字在怪物名中出现即匹配（处理"僵尸"→"丧尸"这类译名差异）
-        if any('一' <= c <= '鿿' for c in query_lower):
+        # 单字查询：允许1个字匹配
+        if score == 0 and len(query_lower) == 1 and any('一' <= c <= '鿿' for c in query_lower):
             for ch in query_lower:
-                if ch in name_cn:
-                    results.append(m)
+                if ch in name_cn.lower():
+                    score = 5
                     break
 
         # CR匹配
-        cr = m.get('cr', '')
-        if query_lower == cr.lower():
-            results.append(m)
-            continue
+        if score == 0:
+            cr = m.get('cr', '')
+            if query_lower == cr.lower():
+                score = 3
 
         # 类型匹配
-        mtype = m.get('type', '').lower()
-        if query_lower in mtype:
-            results.append(m)
+        if score == 0:
+            mtype = m.get('type', '').lower()
+            if query_lower in mtype:
+                score = 2
 
-    return results[:20]
+        if score > 0:
+            # 名称越短越精确（相同得分时更短排前面）
+            name_len_penalty = min(len(name_cn), 20) * 0.1
+            scored.append((score - name_len_penalty, m))
+
+    # 按得分降序排列
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # 去重并返回
+    seen = set()
+    merged = []
+    for _, m in scored:
+        key = m.get('name_cn', m.get('name', ''))
+        if key not in seen:
+            seen.add(key)
+            merged.append(m)
+
+    return merged[:50]
 
 
 def search_all(query: str) -> list[dict]:
@@ -532,27 +634,35 @@ def get_file_summary_text() -> str:
 
 
 def search_all_combined(query: str) -> list[dict]:
-    """综合搜索：CHM资料库 + 项目文件"""
-    results = []
+    """综合搜索：CHM资料库 + 项目文件（按匹配质量排序）"""
+    scored_results = []  # (score, item_dict)
 
     # CHM规则搜索
     chm_results = search_all(query)
-    for r in chm_results[:8]:
-        results.append(r)
+    for i, r in enumerate(chm_results[:15]):
+        score = max(0, 100 - i)  # 保持原始顺序，稍加权
+        scored_results.append((score, r))
 
-    # 法术搜索
+    # 法术搜索（自带评分排序，已排好）
     spell_results = search_spell(query)
-    for s in spell_results[:3]:
-        results.append({
+    for i, s in enumerate(spell_results[:10]):
+        score = 80 - i  # 法术结果整体权重稍低
+        scored_results.append((score, {
             'type': 'spell',
             'name': s.get('name_cn', s.get('name', '')),
+            'name_en': s.get('name_en', ''),
             'detail': f"{s.get('level', '')} {s.get('school', '')} | {s.get('classes', '')}",
-        })
+            'level': s.get('level', ''),
+            'school': s.get('school', ''),
+            'classes': s.get('classes', ''),
+            'source': s.get('source', ''),
+        }))
 
-    # 怪物搜索
+    # 怪物搜索（自带评分排序，已排好）
     monster_results = search_monster(query)
-    for m in monster_results[:3]:
-        results.append({
+    for i, m in enumerate(monster_results[:10]):
+        score = 80 - i
+        scored_results.append((score, {
             'type': 'monster',
             'name': m.get('name_cn', m.get('name', '')),
             'name_en': m.get('name_en', ''),
@@ -560,11 +670,14 @@ def search_all_combined(query: str) -> list[dict]:
             'cr': m.get('cr', ''),
             'path': m.get('detail_link', ''),
             'source': m.get('source', ''),
-        })
+        }))
 
     # 项目文件搜索
     file_results = search_project_files(query)
-    for f in file_results[:8]:
-        results.append(f)
+    for i, f in enumerate(file_results[:10]):
+        score = max(0, 60 - i)
+        scored_results.append((score, f))
 
-    return results[:25]
+    # 按得分降序排列
+    scored_results.sort(key=lambda x: x[0], reverse=True)
+    return [item for _, item in scored_results[:50]]

@@ -307,6 +307,17 @@ def init_db() -> None:
             effect TEXT DEFAULT '',
             FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
         );
+
+        -- 角色特性（职业能力/专长/种族特性/特殊能力/其他特性）
+        CREATE TABLE IF NOT EXISTS character_features (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            character_id INTEGER,
+            category TEXT NOT NULL DEFAULT 'other',
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+        );
     """)
 
     # ━━━ 自动迁移: 为旧数据库添加新列 ━━━
@@ -341,6 +352,8 @@ def _migrate_schema(cursor, conn):
         ('portrait_path', "TEXT DEFAULT ''"),
         ('source_file', "TEXT DEFAULT ''"),
         ('created_by', "TEXT DEFAULT ''"),
+        ('resistances', "TEXT DEFAULT ''"),
+        ('key_abilities', "TEXT DEFAULT ''"),
     ]
 
     for col_name, col_def in migrations:
@@ -583,6 +596,16 @@ def get_character(name_or_id: str | int) -> dict | None:
     cursor.execute("SELECT * FROM inventory WHERE character_id = ? ORDER BY id", (char_id,))
     char['inventory'] = [dict(r) for r in cursor.fetchall()]
 
+    # 特性（按类别分组）
+    cursor.execute("SELECT * FROM character_features WHERE character_id = ? ORDER BY category, sort_order, id", (char_id,))
+    features = [dict(r) for r in cursor.fetchall()]
+    char['features'] = {}
+    for f in features:
+        cat = f.get('category', 'other')
+        if cat not in char['features']:
+            char['features'][cat] = []
+        char['features'][cat].append(f)
+
     conn.close()
     return char
 
@@ -611,7 +634,7 @@ def update_character(char_id: int, **kwargs) -> bool:
                'ac', 'initiative_bonus', 'speed', 'hit_dice', 'hd_count',
                'xp', 'passive_perception', 'spellcasting_ability',
                'spell_attack_bonus', 'spell_save_dc', 'prepared_spell_count',
-               'portrait_path', 'source_file']
+               'portrait_path', 'source_file', 'resistances', 'key_abilities']
     updates = {k: v for k, v in kwargs.items() if k in allowed}
 
     if not updates:
@@ -1049,6 +1072,129 @@ def delete_character(char_id: int) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+def copy_character(char_id: int, new_name: str = '') -> int:
+    """复制角色，返回新角色ID"""
+    char = get_character(char_id)
+    if not char:
+        raise ValueError('角色不存在')
+
+    if not new_name:
+        new_name = f"{char['name']} (副本)"
+
+    # 创建新角色基础信息
+    new_id = create_character(
+        name=new_name,
+        level=char.get('level', 1),
+        cls=char.get('class', ''),
+        race=char.get('race', ''),
+        background=char.get('background_field', ''),
+        alignment=char.get('alignment', ''),
+        player=char.get('player', ''),
+        subrace=char.get('subrace', ''),
+        faith=char.get('faith', ''),
+        gender=char.get('gender', ''),
+        age=char.get('age', ''),
+        height=char.get('height', ''),
+        weight=char.get('weight_field', ''),
+        created_by=char.get('created_by', ''),
+    )
+
+    # 复制属性
+    abilities = char.get('abilities', {})
+    for key, score in abilities.items():
+        set_ability(new_id, key, score)
+
+    # 复制战斗属性
+    update_character(new_id,
+        hp_max=char.get('hp_max', 10),
+        hp_current=char.get('hp_current', 10),
+        ac=char.get('ac', 10),
+        speed=char.get('speed', 30),
+        proficiency_bonus=char.get('proficiency_bonus', 2),
+        passive_perception=char.get('passive_perception', 10),
+        hit_dice=char.get('hit_dice', '1d8'),
+        hd_count=char.get('hd_count', 1),
+        xp=char.get('xp', 0),
+        initiative_bonus=char.get('initiative_bonus', 0),
+    )
+
+    # 复制技能熟练
+    for skill_name, prof in char.get('skill_proficiencies', {}).items():
+        set_skill_proficiency(new_id, skill_name,
+            prof.get('is_proficient', False),
+            prof.get('is_expertise', False),
+            prof.get('bonus', 0))
+
+    # 复制豁免熟练
+    for ability_name, prof in char.get('save_proficiencies', {}).items():
+        set_save_proficiency(new_id, ability_name,
+            prof.get('is_proficient', False),
+            prof.get('save_bonus', 0))
+
+    # 复制法术位
+    from collections import OrderedDict
+    slots = char.get('spell_slots', {})
+    if slots:
+        slot_map = {str(k): v.get('max', 0) for k, v in slots.items()}
+        init_spell_slots(new_id, slot_map)
+
+    # 复制武器
+    for w in char.get('weapons', []):
+        add_weapon(new_id, w.get('name', ''), w.get('attack_bonus', 0),
+            w.get('damage_dice', ''), w.get('damage_type', ''),
+            w.get('is_proficient', False), w.get('ammo', ''),
+            w.get('notes', ''), w.get('description', ''),
+            w.get('effect', ''))
+
+    # 复制护甲
+    armor = char.get('armor', {})
+    if armor:
+        set_armor(new_id, armor.get('armor_name', ''),
+            armor.get('armor_ac', 0), armor.get('armor_max_dex', ''),
+            armor.get('shield_name', ''), armor.get('shield_ac', 0),
+            armor.get('shield_weight', ''))
+
+    # 复制钱币
+    coins = char.get('coins', {})
+    if coins:
+        set_coins(new_id, coins.get('cp', 0), coins.get('sp', 0),
+            coins.get('ep', 0), coins.get('gp', 0), coins.get('pp', 0))
+
+    # 复制已准备法术
+    for spell in char.get('prepared_spells', []):
+        add_prepared_spell(new_id, spell.get('spell_name', ''),
+            spell.get('spell_level', 0))
+
+    # 复制法术书
+    for spell in char.get('learned_spells', []):
+        add_learned_spell(new_id, spell.get('spell_name', ''),
+            spell.get('spell_level', 0), spell.get('school', ''),
+            spell.get('casting_time', ''), spell.get('range', ''),
+            spell.get('duration', ''), spell.get('components', ''),
+            spell.get('ritual', '否'), spell.get('concentration', '否'),
+            spell.get('description', ''), spell.get('source', '自定义'))
+
+    # 复制背景
+    bg = char.get('background', {})
+    if bg:
+        bg_kwargs = {k: v for k, v in bg.items()
+                     if k in ('personality_traits', 'personality_traits_ext',
+                              'ideals', 'bonds', 'flaws', 'background_feature',
+                              'appearance', 'backstory', 'origin', 'languages',
+                              'tool_proficiencies')}
+        if bg_kwargs:
+            set_background(new_id, **bg_kwargs)
+
+    # 复制物品
+    for item in char.get('inventory', []):
+        add_item(new_id, item.get('item_name', ''),
+            item.get('quantity', 1), item.get('weight', 0),
+            item.get('value', ''), item.get('location', '背包'),
+            item.get('description', ''), item.get('effect', ''))
+
+    return new_id
 
 
 # ━━━ 武器管理 ━━━
@@ -1580,6 +1726,60 @@ def import_from_excel_data(data: dict, source_file: str = '', created_by: str = 
         update_character(char_id, source_file=source_file)
 
     return char_id
+
+
+# ━━━ 角色特性管理（职业能力/专长/种族特性/特殊能力/其他） ━━━
+
+FEATURE_CATEGORIES = {
+    'class_feature': '职业能力',
+    'feat': '专长',
+    'racial_trait': '种族特性',
+    'special_ability': '特殊能力',
+    'other': '其他特性',
+}
+
+
+def add_feature(char_id: int, category: str, name: str, description: str = '') -> int:
+    """添加角色特性，返回特性ID"""
+    conn = get_db()
+    cursor = conn.cursor()
+    # 获取当前最大排序
+    cursor.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM character_features WHERE character_id = ? AND category = ?",
+        (char_id, category))
+    next_order = cursor.fetchone()[0]
+    cursor.execute(
+        "INSERT INTO character_features (character_id, category, name, description, sort_order) VALUES (?, ?, ?, ?, ?)",
+        (char_id, category, name, description, next_order))
+    conn.commit()
+    fid = cursor.lastrowid
+    conn.close()
+    return fid
+
+
+def update_feature(feature_id: int, **kwargs) -> bool:
+    """更新特性字段（name, description, category, sort_order）"""
+    allowed = ['name', 'description', 'category', 'sort_order']
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return False
+    conn = get_db()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [feature_id]
+    conn.execute(f"UPDATE character_features SET {set_clause} WHERE id = ?", values)
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_feature(feature_id: int) -> bool:
+    """删除特性"""
+    conn = get_db()
+    cursor = conn.execute("DELETE FROM character_features WHERE id = ?", (feature_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
 
 
 # 初始化数据库

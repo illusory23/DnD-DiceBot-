@@ -608,7 +608,7 @@
         <!-- 第一行：绘图和功能工具（始终可见） -->
         <div class="toolbar-row toolbar-row-1">
             <div class="toolbar-left">
-                <a href="/" class="brand" id="map-brand">🎲 骰娘</a>
+                <a href="/" class="brand">🎲 骰娘</a>
                 <span class="sep"></span>
                 <div class="select-dropdown-wrap" id="select-dropdown-wrap">
                     <button class="select-dropdown-btn active" id="select-btn" onclick="toggleSelectDropdown()" title="选择工具">
@@ -970,20 +970,6 @@ fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(
 document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
 window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharTokens==='function')loadCharTokens();if(typeof loadMapCombatCharSelect==='function')loadMapCombatCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var pb=document.getElementById('push-btn');var sb=document.getElementById('sync-btn');if(pb)pb.style.display='';if(sb)sb.style.display='none';var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _pb=document.getElementById('push-btn');var _sb=document.getElementById('sync-btn');if(_pb)_pb.style.display='none';if(_sb)_sb.style.display='';var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
 document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
-})();
-</script>
-<script>
-(function(){
-    var ref = document.referrer;
-    if (ref && ref.indexOf(location.origin) === 0 && ref.indexOf('/map') === -1) {
-        var brand = document.getElementById('map-brand');
-        if (brand) {
-            brand.href = 'javascript:history.back()';
-            brand.textContent = '← 返回';
-            brand.title = '返回上一页面（保持原状态）';
-            brand.style.color = '#ffd700';
-        }
-    }
 })();
 </script>
 </body>
