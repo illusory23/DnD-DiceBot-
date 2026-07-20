@@ -441,7 +441,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
     if use_nekox_skill_rows:
         neko_skill_rows = {
             26: '运动', 28: '特技', 29: '巧手', 30: '隐匿',
-            33: '调查', 34: '历史', 35: '自然', 36: '宗教',
+            32: '调查', 33: '奥秘', 34: '历史', 35: '自然', 36: '宗教',
             38: '察觉', 39: '洞悉', 40: '驯兽', 41: '医疗', 42: '生存',
             44: '游说', 45: '欺诈', 46: '威吓', 47: '表演',
         }
@@ -866,6 +866,49 @@ def _import_equipment_sheet(wb) -> dict:
     return {'weapon_descriptions': weapon_descriptions}
 
 
+def _sanitize_wps_xlsx(filepath: Path):
+    """修复 WPS 表格保存的 xlsx 兼容性问题，返回内存中的文件对象
+
+    WPS 在数据有效性(下拉框)的 sqref 属性中用分号分隔多个区域
+    (如 sqref="R19;T19")，而 OOXML 标准要求空格分隔，
+    openpyxl 严格校验会抛出 TypeError: expected MultiCellRange。
+    此函数将工作表 XML 中 sqref 属性内的分号替换为空格。
+    """
+    import io
+    import zipfile
+
+    def _fix_sqref(match: re.Match) -> bytes:
+        return match.group(0).replace(b';', b' ')
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(str(filepath), 'r') as src, \
+            zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if info.filename.startswith('xl/worksheets/') and info.filename.endswith('.xml'):
+                data = re.sub(rb'sqref="[^"]*"', _fix_sqref, data)
+            dst.writestr(info, data)
+    buf.seek(0)
+    return buf
+
+
+def _load_workbook_compat(filepath: Path, openpyxl):
+    """加载工作簿；遇到 WPS 分号 sqref 导致的解析错误时自动修复后重试"""
+    try:
+        return openpyxl.load_workbook(str(filepath), data_only=True)
+    except TypeError:
+        # WPS 兼容性问题：修复 sqref 后重试
+        try:
+            fixed = _sanitize_wps_xlsx(filepath)
+            return openpyxl.load_workbook(fixed, data_only=True)
+        except Exception:
+            raise ValueError(
+                f"无法解析该 Excel 文件（可能由 WPS 保存，存在兼容性问题）。\n"
+                f"请尝试用 Microsoft Excel 或 LibreOffice 打开并另存为 .xlsx 后重新导入。\n"
+                f"文件: {filepath}"
+            )
+
+
 def import_character_from_excel(filepath: str | Path) -> dict:
     """从 DND 5E 人物卡 Excel 文件导入角色数据
 
@@ -893,7 +936,7 @@ def import_character_from_excel(filepath: str | Path) -> dict:
     if not filepath.exists():
         raise FileNotFoundError(f"文件不存在: {filepath}")
 
-    wb = openpyxl.load_workbook(str(filepath), data_only=True)
+    wb = _load_workbook_compat(filepath, openpyxl)
 
     # 尝试提取嵌入图片（最佳努力）
     extracted_images = []

@@ -1,0 +1,71 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-07-20 更新 1: 地图图层消失修复与防丢加固
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【问题】
+    更新2(P0-1 图片与状态分离)实施后，地图底图从 base64 迁移到
+    maps/layers/ 独立文件。迁移本身成功(2.png 1.3MB)，但共享画布
+    JSON 中 layers 被清空，地图界面打开后图层消失，仅战争迷雾保留。
+
+【根因】
+    1. 服务端: 迁移后 layers 被清空(shared_canvas.json)"layers":[]，
+       但 maps/layers/2.png 仍在磁盘，形成"孤立图层文件"
+    2. 前端保存: _light 备份故意清空 dataURL、dbSetSync 不等待事务，
+       导致客户端 base64 备份被销毁，无兜底恢复路径
+    3. applyState(): URL 加载失败时静默丢弃图层，无报错无回退
+
+【修改文件】
+    web/shared_state.py     (新增孤立图层恢复 + 损坏文件跳过)
+    web/static/map.js       (3处修复: 加载回退/保存加固/错误日志)
+    web/app.py              (兼容端点回退到文件服务)
+
+【修复 1: shared_state.py — 启动时自动恢复孤立图层 + 从备份提取位置参数】
+    新增 _load_layer_meta_from_backups():
+    - 扫描 backups/ 目录中的旧 shared_canvas.json
+    - 提取每个图层的原始 offsetX/offsetY/scale/name
+    - 按修改时间倒序，取第一个有效备份
+
+    改进 _recover_orphan_layer_images():
+    - 扫描 maps/layers/ 下的图片文件
+    - 若 JSON 中没有对应引用，自动重建图层条目
+    - **从备份提取原始位置/缩放参数**，恢复后图层在原位显示
+    - 跳过 ≤120 字节的疑似损坏文件（如 1×1 像素占位图）
+    - 从文件名提取 id，无法提取则用 hash 生成唯一 id
+    - 有恢复时标记 migrated=True 触发立即落盘
+
+    实测恢复结果:
+    图层 "三猪小径-开幕" → offsetX=1242 offsetY=759 scale=4.15 ✅
+
+【修复 2: map.js applyState() — URL 加载失败回退】
+    - URL 加载失败时自动回退到 /api/shared-canvas/layer/<id> 兼容端点
+    - 两轮均失败后保留占位图层(visible=false, 名称带⚠标记)
+    - 输出 console.warn 记录加载失败原因
+    - 不再静默丢弃图层
+
+【修复 3: map.js 保存机制加固】
+    saveState() / saveStateFull() / debouncedSave() / autoSaveLoop():
+    - _light 备份不再强制清空 dataURL（改为保留 ≤200KB 的图层）
+    - saveState() 改用 dbSetAndWait 等待 IndexedDB 事务确认
+    - 新增 _emergency 键: 页面关闭时同步写入图层 dataURL 到
+      localStorage，启动时作为最后一道兜底恢复
+
+【修复 4: map.js mergeRemoteLayers() — 加载失败日志】
+    - img.onerror 独立处理: 远程图层加载失败时保留旧图回退
+    - 新图层加载失败时标记 _loadFailed，输出 console.warn
+
+【修复 5: app.py — 兼容端点回退到文件服务】
+    api_get_layer_image:
+    - dataURL 为空时不再直接 404，改为遍历 maps/layers/<id>.* 文件
+    - 文件存在则直接 send_file 返回，实现服务端兜底
+
+【杂项】
+    - 删除 maps/layers/300.png、99.png（1×1 像素损坏占位图，各 70B）
+
+【验证方法】
+    1. 启动 python dnd_bot.py --web
+       观察控制台: [shared_state] 恢复孤立图层: 2.png → id=2
+    2. 打开地图界面，确认地图底图恢复显示
+    3. DevTools → Application → localStorage:
+       确认 dnd_map_state_light 的 layers 中保留了 dataURL (≤200KB)
+       确认 dnd_map_state_emergency 键存在
+    4. 添加新图层 → 关闭页面 → 重新打开 → 确认全部图层恢复

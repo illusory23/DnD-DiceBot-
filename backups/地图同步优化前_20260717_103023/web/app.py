@@ -96,8 +96,6 @@ _EVENT_GROUPS = [
 ]
 
 app = Flask(__name__)
-# 请求体大小上限（资源上传最大 50MB，留余量；防止恶意超大 JSON 耗尽内存）
-app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
 
 # ━━━ 静态文件缓存（浏览器缓存1小时，减少重复加载）━━━
 @app.after_request
@@ -156,240 +154,143 @@ _online_users: dict[str, dict] = {}
 _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
 MAX_MENTIONS = 100
 
-# ━━━ 共享画布状态（WebSocket 实时为主 + HTTP 轮询降级）━━
-from .shared_state import (
-    get_shared_canvas, get_shared_canvas_ts, update_shared_canvas,
-    append_shared_strokes, apply_incremental, remove_shared_strokes,
-    clear_shared_canvas, get_state_snapshot, get_version, save_layer_image,
-)
+# ━━━ 共享画布状态（HTTP 轮询 + WebSocket 实时）━━
+from .shared_state import get_shared_canvas, get_shared_canvas_ts, update_shared_canvas, append_shared_strokes
 
 _ws_connected: set = set()
-_ws_lock = _threading.Lock()
-_canvas_meta: dict = {'width': 5000, 'height': 5000}  # 画布尺寸元数据（不持久化）
-
-
-def _ws_broadcast(payload: str, exclude=None):
-    """向所有 WebSocket 客户端广播；发送失败的死连接立即清理。"""
-    with _ws_lock:
-        clients = list(_ws_connected)
-    for client in clients:
-        if client is exclude:
-            continue
-        try:
-            client.send(payload)
-        except Exception:
-            with _ws_lock:
-                _ws_connected.discard(client)
-
-
-def _ws_send_init(ws):
-    """向单个客户端发送全量初始状态（含版本号）。"""
-    state = get_state_snapshot()
-    state['canvas'] = dict(_canvas_meta)
-    ws.send(_json.dumps({'type': 'init', 'state': state, 'version': state.get('_ver', 0)}))
-
-
-def _apply_canvas_message(data: dict) -> tuple[int | None, bool]:
-    """将一条画布消息应用到权威状态。
-
-    返回 (新版本号或None, 是否需要广播)。
-    """
-    global _canvas_meta
-    action_type = data.get('type')
-
-    if action_type == 'stroke':
-        return append_shared_strokes([data.get('data', {})]), True
-    if action_type == 'strokes_remove':
-        return remove_shared_strokes(data.get('data', [])), True
-    if action_type == 'strokes_clear':
-        return update_shared_canvas('strokes', []), True
-    if action_type == 'op':
-        # 操作语义消息: {type:'op', key, upsert:[...], remove:[ids]}
-        payload = data.get('data', {}) if isinstance(data.get('data'), dict) else data
-        key = payload.get('key')
-        if key in ('layers', 'tokens', 'texts', 'fog'):
-            ver = apply_incremental(key, payload.get('upsert') or [],
-                                    payload.get('remove') or [])
-            return ver, True
-        return None, False
-    if action_type in ('layers_update', 'tokens_update', 'texts_update', 'fog_update'):
-        key = action_type.split('_')[0]
-        return update_shared_canvas(key, data.get('data', [])), True
-    if action_type == 'canvas_update':
-        _canvas_meta = data.get('data', {'width': 5000, 'height': 5000})
-        return get_version(), True
-    if action_type == 'clear_all':
-        ver = clear_shared_canvas()
-        _canvas_meta = {'width': 5000, 'height': 5000}
-        return ver, True
-    return None, False
 
 
 @sock.route('/ws')
 def ws_canvas(ws):
     """WebSocket 画布同步，与 HTTP 共用 5000 端口。frp 单隧道兼容。"""
-    with _ws_lock:
-        _ws_connected.add(ws)
+    _ws_connected.add(ws)
     try:
-        _ws_send_init(ws)
+        state = get_shared_canvas()
+        ws.send(_json.dumps({'type': 'init', 'state': state}))
 
         while True:
-            raw = ws.receive()
-            if raw is None:
-                break
             try:
+                raw = ws.receive()
+                if raw is None:
+                    break
                 data = _json.loads(raw)
-            except (ValueError, TypeError):
-                continue
-            try:
-                # 断线重连后的状态对账：版本不一致则单发全量
-                if data.get('type') == 'sync':
-                    if int(data.get('version', -1)) != get_version():
-                        _ws_send_init(ws)
-                    continue
+                action_type = data.get('type')
 
-                ver, should_broadcast = _apply_canvas_message(data)
-                if should_broadcast:
-                    if ver is not None:
-                        data['_ver'] = ver
-                    # 图层消息剥离 base64（图片应走 /api/shared-canvas/layer-image 上传）
-                    if data.get('type') == 'layers_update':
-                        for l in data.get('data', []):
-                            if isinstance(l, dict) and l.get('url') and l.get('dataURL'):
-                                l['dataURL'] = ''
-                    _ws_broadcast(_json.dumps(data), exclude=ws)
-            except Exception as e:
-                print(f'[ws] 处理画布消息失败: {type(e).__name__}: {e}')
+                if action_type == 'stroke':
+                    append_shared_strokes([data.get('data', {})])
+                elif action_type == 'strokes_clear':
+                    update_shared_canvas('strokes', [])
+                elif action_type == 'layers_update':
+                    update_shared_canvas('layers', data.get('data', []))
+                elif action_type == 'tokens_update':
+                    update_shared_canvas('tokens', data.get('data', []))
+                elif action_type == 'texts_update':
+                    update_shared_canvas('texts', data.get('data', []))
+                elif action_type == 'fog_update':
+                    update_shared_canvas('fog', data.get('data', []))
+                elif action_type == 'canvas_update':
+                    canvas = get_shared_canvas()
+                    canvas['canvas'] = data.get('data', {'width': 5000, 'height': 5000})
+                elif action_type == 'clear_all':
+                    for key in ['strokes', 'layers', 'tokens', 'texts', 'fog']:
+                        update_shared_canvas(key, [])
+                    canvas = get_shared_canvas()
+                    canvas['canvas'] = {'width': 5000, 'height': 5000}
+
+                broadcast = _json.dumps(data)
+                for client in list(_ws_connected):
+                    if client != ws:
+                        try:
+                            client.send(broadcast)
+                        except Exception:
+                            _ws_connected.discard(client)
+            except (_json.JSONDecodeError, Exception):
+                pass
     finally:
-        with _ws_lock:
-            _ws_connected.discard(ws)
+        _ws_connected.discard(ws)
 
+_map_state: dict | None = None
+_map_state_ts: float = 0.0
 
 @app.route('/api/shared-canvas', methods=['GET'])
 def api_get_shared_canvas():
-    """获取共享画布状态。
-
-    支持 ?since=<时间戳> 或 ?since_ver=<版本号>；未变化时只返回轻量应答，
-    不携带全量状态（P1-2：降低轮询流量）。
-    """
+    """获取共享画布状态"""
+    since = request.args.get('since', '0')
+    try:
+        since_ts = float(since)
+    except ValueError:
+        since_ts = 0.0
+    state = get_shared_canvas()
     ts = get_shared_canvas_ts()
-    ver = get_version()
-
-    since_ver = request.args.get('since_ver')
-    if since_ver is not None:
-        try:
-            unchanged = int(since_ver) == ver
-        except ValueError:
-            unchanged = False
-    else:
-        try:
-            since_ts = float(request.args.get('since', '0'))
-        except ValueError:
-            since_ts = 0.0
-        unchanged = not (ts > since_ts)
-
-    if unchanged:
-        return jsonify({'ok': True, 'changed': False, 'timestamp': ts, 'version': ver})
-
-    state = get_state_snapshot()
-    state['canvas'] = dict(_canvas_meta)
-    # 兼容旧数据：仍残留 dataURL 的图层替换为图片端点 URL，不内嵌 base64
+    # 构建响应：图层 dataURL 替换为 server 端 URL（减小 JSON 体积，避免同步超时）
+    resp_state = dict(state)
+    resp_layers = []
     for l in state.get('layers', []):
-        if isinstance(l, dict) and l.get('dataURL'):
-            if not l.get('url'):
-                l['url'] = '/api/shared-canvas/layer/' + str(l.get('id'))
-            l['dataURL'] = ''
+        lc = dict(l)
+        if lc.get('dataURL'):
+            lc['url'] = '/api/shared-canvas/layer/' + str(l['id'])
+            lc['dataURL'] = ''  # 不传输 base64，客户端通过 url 加载
+        resp_layers.append(lc)
+    resp_state['layers'] = resp_layers
     return jsonify({
         'ok': True,
-        'state': state,
+        'state': resp_state,
         'timestamp': ts,
-        'version': state.get('_ver', ver),
-        'changed': True,
+        'changed': ts > since_ts,
     })
 
 
 @app.route('/api/shared-canvas', methods=['POST'])
 def api_push_shared_canvas():
-    """推送画布更新（HTTP 降级通道，WS 断开时使用）。
-
-    支持 _mode: 'full'（全量替换）或 'incremental'（按 id 合并）；
-    增量模式可带 _removed: {key: [id, ...]} 实现删除同步（P1-1）。
-    """
+    """推送画布更新。支持 _mode: 'full'（全量替换）或 'incremental'（增量合并）。"""
     data = request.get_json(silent=True) or {}
     updates = data.get('updates', data)
     mode = updates.get('_mode', data.get('_mode', 'incremental'))
-    removed = updates.get('_removed') or data.get('_removed') or {}
+    canvas = get_shared_canvas()
 
-    ver = get_version()
     for key in ['strokes', 'layers', 'tokens', 'texts', 'fog']:
-        items = updates.get(key)
-        removed_ids = removed.get(key) or []
-        if items is None and not removed_ids:
+        if key not in updates or updates[key] is None:
             continue
 
         if mode == 'full' or key == 'fog':
-            ver = update_shared_canvas(key, items or [])
+            update_shared_canvas(key, updates[key])
         elif key == 'strokes':
-            if items:
-                ver = append_shared_strokes(items)
-            if removed_ids:
-                ver = remove_shared_strokes(removed_ids)
+            append_shared_strokes(updates[key])
         else:
-            ver = apply_incremental(key, items or [], removed_ids)
+            existing = {item.get('id'): item for item in canvas[key] if isinstance(item, dict)}
+            for item in updates[key]:
+                if isinstance(item, dict) and item.get('id'):
+                    existing[item['id']] = item
+            update_shared_canvas(key, list(existing.values()))
 
-    # 有变更则通知 WS 在线客户端拉取（HTTP 推送方通常自身无 WS 连接）
-    return jsonify({'ok': True, 'timestamp': get_shared_canvas_ts(), 'version': ver})
-
-
-@app.route('/api/shared-canvas/layer-image', methods=['POST'])
-def api_upload_layer_image():
-    """上传图层图片（P0-1：图片与画布状态分离，只在状态中保存 URL）。
-
-    请求体: {id: <图层id>, dataURL: 'data:image/png;base64,...'}
-    响应:  {ok: true, url: '/maps/layers/xxx.png'}
-    """
-    data = request.get_json(silent=True) or {}
-    layer_id = data.get('id')
-    data_url = data.get('dataURL', '')
-    if layer_id is None or not data_url.startswith('data:image'):
-        return jsonify({'ok': False, 'error': '参数无效：需要 id 和 dataURL'}), 400
-    url = save_layer_image(layer_id, data_url)
-    if not url:
-        return jsonify({'ok': False, 'error': '图片保存失败（格式不支持或磁盘错误）'}), 500
-    return jsonify({'ok': True, 'url': url})
+    return jsonify({'ok': True, 'timestamp': get_shared_canvas_ts()})
 
 
 @app.route('/api/shared-canvas/layer/<int:layer_id>', methods=['GET'])
 def api_get_layer_image(layer_id):
-    """获取共享画布图层图片（兼容端点；dataURL 为空时回退到 maps/layers/ 文件）。"""
+    """获取共享画布图层图片（独立端点，避免 dataURL 嵌入 JSON 导致响应过大）。"""
     canvas = get_shared_canvas()
     for layer in canvas.get('layers', []):
         if layer.get('id') == layer_id:
             data_url = layer.get('dataURL', '')
-            if data_url:
-                import base64
-                try:
-                    header, b64 = data_url.split(',', 1)
-                    img_data = base64.b64decode(b64)
-                except Exception:
-                    break  # dataURL 损坏，尝试文件回退
-                else:
-                    mime = 'image/png'
-                    if 'image/jpeg' in header or 'image/jpg' in header:
-                        mime = 'image/jpeg'
-                    elif 'image/gif' in header:
-                        mime = 'image/gif'
-                    elif 'image/webp' in header:
-                        mime = 'image/webp'
-                    return app.response_class(img_data, mimetype=mime)
-            # dataURL 为空或损坏，回退到 maps/layers/ 文件
-            for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
-                fpath = MAPS_DIR / 'layers' / f'{layer_id}{ext}'
-                if fpath.exists() and fpath.is_file():
-                    mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-                                '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
-                    return send_file(str(fpath), mimetype=mime_map.get(ext, 'image/png'))
-            break
+            if not data_url:
+                abort(404)
+            # 解析 dataURL: data:image/png;base64,xxxxx
+            import base64
+            try:
+                header, b64 = data_url.split(',', 1)
+                img_data = base64.b64decode(b64)
+            except Exception:
+                abort(404)
+            # 确定 MIME
+            mime = 'image/png'
+            if 'image/jpeg' in header or 'image/jpg' in header:
+                mime = 'image/jpeg'
+            elif 'image/gif' in header:
+                mime = 'image/gif'
+            elif 'image/webp' in header:
+                mime = 'image/webp'
+            return app.response_class(img_data, mimetype=mime)
     abort(404)
 
 
@@ -2772,14 +2673,6 @@ def api_dm_status():
 
 # ━━━ 房间/在线用户 API ━━━
 
-def _prune_stale_users():
-    """清理过期在线记录（超过10秒无心跳视为离线）。"""
-    _now = _time.time()
-    stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
-    for n in stale_names:
-        del _online_users[n]
-
-
 @app.route('/api/room/join', methods=['POST'])
 def api_room_join():
     """用户加入房间。"""
@@ -2792,7 +2685,11 @@ def api_room_join():
         return jsonify({'ok': False, 'error': 'Name required'})
 
     client_ip = request.remote_addr or 'unknown'
-    _prune_stale_users()
+    # 清理过期在线记录（超过10秒无心跳视为离线）
+    _now = _time.time()
+    stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
+    for n in stale_names:
+        del _online_users[n]
 
     is_new = name not in _online_users
 
@@ -2823,7 +2720,6 @@ def api_room_join():
     }
 
     # 发送系统消息（仅首次加入，重连不重复通知）
-    _now = _time.time()
     was_offline = name not in [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) <= 15]
     if was_offline and _dm_name and name != _dm_name:
         _chat_messages.append({
@@ -2857,9 +2753,6 @@ def api_room_heartbeat():
         return jsonify({'ok': False, 'error': 'Name required'})
 
     client_ip = request.remote_addr or 'unknown'
-
-    # 清理超时用户，确保离线玩家从所有人的在线列表中消失
-    _prune_stale_users()
 
     if name in _online_users:
         _online_users[name]['last_heartbeat'] = _time.time()
@@ -2917,61 +2810,61 @@ def api_room_leave():
     return jsonify({'ok': True, 'online_count': len(_online_users)})
 
 
-# ━━━ 战斗状态同步 API（带磁盘持久化）━━
+# ━━━ 地图状态同步 API ━━━
 
-_COMBAT_SAVE_FILE = _Path(__file__).parent / 'combat_state.json'
-
-
-def _load_combat_state():
-    """启动时从磁盘恢复战斗状态，防止重启丢失和控制台 404 刷屏。"""
-    try:
-        if _COMBAT_SAVE_FILE.exists():
-            with open(_COMBAT_SAVE_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, dict) and data.get('combatants') is not None:
-                return data, data.get('_ts', 0.0)
-    except Exception:
-        pass
-    return {'combatants': [], 'round': ''}, 0.0
+@app.route('/api/map-state', methods=['GET'])
+def api_get_map_state():
+    """玩家拉取主机推送的地图状态（不含战争迷雾内容）。"""
+    global _map_state, _map_state_ts
+    if _map_state is None:
+        return jsonify({'ok': False, 'error': '主机尚未推送地图状态'}), 404
+    return jsonify({
+        'ok': True,
+        'state': _map_state,
+        'timestamp': _map_state_ts,
+    })
 
 
-def _save_combat_state():
-    """保存战斗状态到磁盘。"""
-    global _combat_state, _combat_state_ts
-    try:
-        data = dict(_combat_state) if _combat_state else {'combatants': [], 'round': ''}
-        data['_ts'] = _combat_state_ts
-        tmp = _COMBAT_SAVE_FILE.with_suffix('.tmp')
-        with open(tmp, 'w', encoding='utf-8') as f:
-            _json.dump(data, f, ensure_ascii=False)
-        tmp.replace(_COMBAT_SAVE_FILE)
-    except Exception as e:
-        print(f'[combat-state] 保存失败: {e}')
+@app.route('/api/map-state', methods=['POST'])
+def api_push_map_state():
+    """主机推送地图状态到服务器。"""
+    global _map_state, _map_state_ts, _dm_name, _dm_ip
+    data = request.get_json(silent=True) or {}
+    client_ip = request.remote_addr or 'unknown'
+
+    # 只有DM可以推送
+    if not _is_dm_ip(client_ip):
+        return jsonify({'ok': False, 'error': '只有DM可以推送地图状态'}), 403
+
+    # 注册DM（如果尚未注册）
+    if _dm_name is None:
+        _dm_name = data.get('dm_name', 'DM')
+
+    _map_state = data.get('state', {})
+    _map_state_ts = _time.time()
+    return jsonify({'ok': True, 'timestamp': _map_state_ts})
 
 
-# 模块加载时恢复战斗状态
-_combat_state, _combat_state_ts = _load_combat_state()
-if _combat_state.get('combatants'):
-    print(f'[combat-state] 已从磁盘恢复战斗状态 ({len(_combat_state["combatants"])} 名参战者)')
-
+# ━━━ 战斗状态同步 API ━━━
 
 @app.route('/api/combat-state', methods=['GET'])
 def api_get_combat_state():
-    """获取共享的战斗状态（从内存返回，首次启动从磁盘加载，不再是 None）。"""
+    """获取共享的战斗状态"""
     global _combat_state, _combat_state_ts
+    if _combat_state is None:
+        return jsonify({'ok': False, 'error': '暂无战斗状态'}), 404
     return jsonify({'ok': True, 'state': _combat_state, 'timestamp': _combat_state_ts})
 
 
 @app.route('/api/combat-state', methods=['POST'])
 def api_push_combat_state():
-    """推送战斗状态（用服务器时间戳标记版本），自动持久化到磁盘。"""
+    """推送战斗状态（用服务器时间戳标记版本）"""
     global _combat_state, _combat_state_ts
     data = request.get_json(silent=True) or {}
     state = data.get('state', {})
     _combat_state_ts = _time.time()
-    state['_ts'] = _combat_state_ts
+    state['_ts'] = _combat_state_ts  # 嵌入服务器时间戳
     _combat_state = state
-    _save_combat_state()
     return jsonify({'ok': True, 'timestamp': _combat_state_ts})
 
 
@@ -3065,8 +2958,7 @@ def api_delete_resource(filename):
 def run_server():
     """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
     # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
-    # debug=False：生产使用；避免 Werkzeug 调试器暴露远程执行入口
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
 
 
 if __name__ == '__main__':

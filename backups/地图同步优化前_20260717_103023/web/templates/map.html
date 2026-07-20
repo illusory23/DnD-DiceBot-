@@ -657,8 +657,8 @@
                 <button class="tool-btn" id="layer-panel-btn" onclick="toggleLayerPanel()">📐 图层</button>
             </div>
             <div class="toolbar-right">
-                <button class="tool-btn" onclick="zoomFit()" title="自适应适配窗口">📐 适应</button>
-                <button class="tool-btn" onclick="resetView()" title="回到100%原始比例">🏠 重置</button>
+                <button class="tool-btn" onclick="zoomFit()">📐 适应</button>
+                <button class="tool-btn" onclick="resetView()">🏠 重置</button>
                 <span id="identity-badge" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:0.75rem;color:var(--text);white-space:nowrap;margin:0 4px;">
                     <span id="identity-dot" style="width:8px;height:8px;border-radius:50%;background:#888;flex-shrink:0;"></span>
                     <span id="identity-name" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;">未登录</span>
@@ -756,7 +756,7 @@
                 <button onclick="toggleLayerPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;">✕</button>
             </div>
             <div class="layer-panel-list" id="layer-list"></div>
-            <div class="layer-panel-footer" id="layer-panel-footer">
+            <div class="layer-panel-footer">
                 <button id="move-layer-btn" onclick="toggleMoveLayer()" style="margin-bottom:0.2rem;">📌 移动当前图层</button>
                 <button onclick="addNewLayer()">➕ 导入地图图层</button>
             </div>
@@ -955,7 +955,7 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map.js?v=9"></script>
+    <script src="/static/map.js?v=7"></script>
 <script>
 (function(){
 var K='dnd_joined_room';

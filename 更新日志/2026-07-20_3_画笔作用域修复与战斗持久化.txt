@@ -1,0 +1,33 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-07-20 更新 3: 画笔修复(最终) + 战斗状态持久化
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【修改文件】
+    web/static/map.js       (作用域修复 + window 全局导出)
+    web/templates/map.html  (版本号 v7→v9)
+    web/app.py              (战斗状态磁盘持久化)
+
+【修复 1: 画笔失效 - 作用域问题(最终根因)】
+    根因: map.js 第 3220 行起有 (async function boot() { ... })();  IIFE 包裹，
+          wsBroadcastStroke / wsSendOp / markDirty / onLocalChange /
+          pushSharedCanvas / wsIsOpen / _anyDirty 等 WebSocket 辅助函数
+          全部定义在 IIFE 内部，但鼠标事件处理器在 IIFE 外部，无法访问。
+    修复:
+      - genStrokeId / _strokeSeq 移至文件顶部(第 10 行)，IIFE 之前
+      - 在 IIFE 内部添加 7 个 window._xxx 全局导出
+      - 所有外部调用点改为 window._xxx()，函数定义保持原名不变
+      - 恢复 })(); 结尾闭合 IIFE
+
+【修复 2: 战斗状态 404 刷屏 + 重启丢失】
+    问题: _combat_state 初始为 None，GET 端点显式返回 404("暂无战斗状态")；
+          且只存内存，重启丢失，前端每 3 秒轮询导致控制台刷屏。
+    修复:
+      - 新增 _load_combat_state(): 启动时从 combat_state.json 恢复
+      - 新增 _save_combat_state(): POST 推送时自动落盘
+      - GET 端点移除 404 逻辑，始终返回 ok:true
+      - 服务端重启后战斗状态不丢失
+
+【验证】
+    - 语法: new Function() 通过，大括号/括号平衡为 0
+    - 战斗状态: 重启后 GET /api/combat-state 返回 200(不再 404)
+    - 持久化: POST 推送后重启 → combat_state.json 保留数据

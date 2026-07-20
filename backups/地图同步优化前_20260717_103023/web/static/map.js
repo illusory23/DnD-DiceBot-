@@ -6,12 +6,6 @@
             } catch(e) { return { name: '', role: 'PL' }; }
         }
 
-        // ━━━ 笔画 ID 生成器（必须在文件最前面，避免前面代码出错导致未定义）━━
-        let _strokeSeq = 0;
-        function genStrokeId() {
-            return 's' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8) + '_' + (++_strokeSeq);
-        }
-
         // ━━━ 同步按钮（顶层入口，boot 完成后注册真实实现）━━
         var _bootReady = false;
         window.manualSync = function() {
@@ -299,7 +293,7 @@
                 tokenIdCounter, textIdCounter,
                 canvasWidth: canvas.width, canvasHeight: canvas.height,
                 scale, offsetX, offsetY,
-                layers: mapLayers.map(l => ({id:l.id, name:l.name, dataURL:l.dataURL, url:l.url||'', visible:l.visible, offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1})),
+                layers: mapLayers.map(l => ({id:l.id, name:l.name, dataURL:l.dataURL, visible:l.visible, offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1})),
                 fogLayers: fogLayers.map(l => ({
                     id: l.id, name: l.name, visible: l.visible,
                     polygons: l.polygons.map(p => ({points: p.points, closed: p.closed}))
@@ -320,9 +314,6 @@
                 canvas.height = state.canvasHeight || 5000;
                 drawCanvas.width = canvas.width; drawCanvas.height = canvas.height;
                 fogCanvas.width = canvas.width; fogCanvas.height = canvas.height;
-                // Canvas 尺寸变更后上下文状态全部重置，恢复绘制属性
-                drawCtx.globalCompositeOperation = 'source-over';
-                drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round';
 
                 // ━━ 先恢复非图片数据（立即显示），图片逐张后台加载 ━━
                 restoreNonImageData(state);
@@ -338,36 +329,16 @@
                         if (idx >= layersToLoad.length) { resolve(true); return; }
                         const ld = layersToLoad[idx++];
                         const img = new Image();
-                        var retried = false;  // 是否已完成回退重试
-                        img.onload = function() {
+                        img.onload = img.onerror = () => {
                             if (img.width > 0) {
                                 mapLayers.push({
                                     id: ld.id, name: ld.name, image: img,
-                                    dataURL: ld.dataURL, url: ld.url || '', visible: ld.visible !== false,
+                                    dataURL: ld.dataURL, visible: ld.visible !== false,
                                     offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
                                 });
                             }
                             redrawCanvas();
-                            setTimeout(loadNext, 50);
-                        };
-                        img.onerror = function() {
-                            // URL 加载失败 → 回退到服务端兼容端点
-                            if (!retried && ld.url && !ld.dataURL) {
-                                retried = true;
-                                var fallbackUrl = '/api/shared-canvas/layer/' + ld.id;
-                                console.warn('图层 URL 加载失败，尝试兼容端点: ' + ld.url + ' → ' + fallbackUrl);
-                                img.src = fallbackUrl;
-                                return;
-                            }
-                            // 两轮都失败：保留占位图层，输出警告（不再静默丢弃）
-                            console.warn('图层加载失败(已重试): id=' + ld.id + ' name=' + ld.name + ' url=' + ld.url);
-                            // 加入占位图层，保持图层列表完整（后续可通过 WS init 修复）
-                            mapLayers.push({
-                                id: ld.id, name: ld.name + ' ⚠️加载失败', image: null,
-                                dataURL: ld.dataURL, url: ld.url || '', visible: false,
-                                offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
-                            });
-                            redrawCanvas();
+                            // 每张图加载后间隔 50ms 再加载下一张，让主线程处理用户交互
                             setTimeout(loadNext, 50);
                         };
                         img.src = ld.url || ld.dataURL;
@@ -447,31 +418,15 @@
         }
 
         function saveState() {
-            // 可靠保存：IndexedDB 等待事务确认，localStorage 保留 dataURL 作为兜底
+            // 轻量保存：只写 localStorage _light（同步可靠），IndexedDB 异步不阻塞
             const state = collectState();
-            // 异步但等待确认，确保 IndexedDB 写入完整（页面正常操作时调用）
-            dbSetAndWait(STORAGE_KEY, state).catch(function(){});
+            dbSetSync(STORAGE_KEY, state);
             try {
-                // _light 备份保留 dataURL（限制单层 ≤200KB 避免超出 localStorage 5MB 上限）
                 const light = {
                     ...state,
-                    layers: state.layers.map(function(l) {
-                        var dataLen = (l.dataURL || '').length;
-                        return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
-                    }),
+                    layers: state.layers.map(l => ({...l, dataURL: ''})),
                 };
                 localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
-                // 紧急兜底：单独保存图层 dataURL（仅含图片数据，用于极端情况恢复）
-                var emergency = { layers: [] };
-                for (var ei = 0; ei < state.layers.length; ei++) {
-                    var el = state.layers[ei];
-                    if (el.dataURL && el.dataURL.length > 0) {
-                        emergency.layers.push({id: el.id, dataURL: el.dataURL});
-                    }
-                }
-                if (emergency.layers.length > 0) {
-                    localStorage.setItem(STORAGE_KEY + '_emergency', JSON.stringify(emergency));
-                }
             } catch(e) {}
         }
 
@@ -481,10 +436,7 @@
             try {
                 const light = {
                     ...state,
-                    layers: state.layers.map(function(l) {
-                        var dataLen = (l.dataURL || '').length;
-                        return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
-                    }),
+                    layers: state.layers.map(l => ({...l, dataURL: ''})),
                 };
                 localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
             } catch(e) {}
@@ -496,10 +448,7 @@
             debouncedSave._timer = setTimeout(() => {
                 try {
                     const s = collectState();
-                    const light = { ...s, layers: s.layers.map(function(l) {
-                        var dataLen = (l.dataURL || '').length;
-                        return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
-                    })};
+                    const light = { ...s, layers: s.layers.map(l => ({...l, dataURL: ''})) };
                     localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
                 } catch(e) {}
             }, 300);
@@ -1007,21 +956,8 @@
             // 画笔/橡皮
             if (e.button === 0) {
                 if (currentTool === 'brush' || currentTool === 'eraser') {
-                    // 诊断：验证 drawCtx 是否可用
-                    if (!window._brushDiagDone) {
-                        window._brushDiagDone = true;
-                        try {
-                            drawCtx.fillStyle = '#ff0000';
-                            drawCtx.fillRect(100, 100, 5, 5);
-                            var testData = drawCtx.getImageData(100, 100, 1, 1);
-                            console.log('🖌 画笔诊断: drawCtx可用, 测试像素RGBA=(' + testData.data[0] + ',' + testData.data[1] + ',' + testData.data[2] + ',' + testData.data[3] + ') drawCanvas尺寸=' + drawCanvas.width + 'x' + drawCanvas.height);
-                            drawCtx.clearRect(100, 100, 5, 5);
-                        } catch(err) {
-                            console.error('❌ 画笔诊断失败: drawCtx不可用!', err);
-                        }
-                    }
                     isDrawing = true;
-                    currentStroke = { id: genStrokeId(), tool: currentTool, color: currentTool==='eraser'?'#000':brushColor, size: brushSize, points: [] };
+                    currentStroke = { tool: currentTool, color: currentTool==='eraser'?'#000':brushColor, size: brushSize, points: [] };
                     currentStroke.points.push(screenToCanvas(e.clientX, e.clientY));
                     e.preventDefault();
                 }
@@ -1172,7 +1108,7 @@
             if (isPanning) { isPanning = false; mapArea.classList.remove('cursor-grabbing'); if (currentTool==='select') mapArea.classList.add('cursor-grab'); debouncedSave(); }
             if (isDrawing && currentStroke) {
                 isDrawing = false;
-                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); window._wsBroadcastStroke(currentStroke); window._markDirty('strokes'); window._onLocalChange(); }
+                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); wsBroadcastStroke(currentStroke); markDirty('strokes'); onLocalChange(); }
                 currentStroke = null; redrawCanvas();
                 saveState();
             }
@@ -1185,19 +1121,12 @@
                 }
             }
             if (dragTarget !== null) {
-                // 拖拽结束只广播被拖动的单个对象（P1-1：操作语义，避免全量广播）
-                if (dragType === 'token') { window._wsSendOp('tokens', [tokenNetData(dragTarget)], []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
-                else if (dragType === 'text') { window._wsSendOp('texts', [textNetData(dragTarget)], []); if (!window._wsIsOpen()) window._markDirty('texts'); }
+                if (dragType === 'token') { markDirty('tokens'); wsSend({type: 'tokens_update', data: mapTokens}); }
+                else if (dragType === 'text') { markDirty('texts'); wsSend({type: 'texts_update', data: textBoxes}); }
                 dragTarget = null; dragType = null; debouncedSave();
             }
             if (groupDragging) {
-                var movedTokens = [], movedTexts = [];
-                groupDragOffsets.forEach(function(gd) {
-                    if (gd.type === 'token') movedTokens.push(tokenNetData(gd.ref));
-                    else if (gd.type === 'text') movedTexts.push(textNetData(gd.ref));
-                });
-                if (movedTokens.length) { window._wsSendOp('tokens', movedTokens, []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
-                if (movedTexts.length) { window._wsSendOp('texts', movedTexts, []); if (!window._wsIsOpen()) window._markDirty('texts'); }
+                markDirty('tokens'); wsSend({type: 'tokens_update', data: mapTokens});
                 groupDragging = false; groupDragOffsets = []; debouncedSave();
             }
         });
@@ -1541,7 +1470,7 @@
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
                     if (dragging) {
-                        window._wsSendOp('texts', [textNetData(box)], []); if (!window._wsIsOpen()) window._markDirty('texts'); debouncedSave();
+                        markDirty('texts'); wsSend({type: 'texts_update', data: textBoxes}); debouncedSave();
                     }
                 }
                 window.addEventListener('mousemove', onMove);
@@ -1559,8 +1488,6 @@
                 box.text = el.textContent; box.fontSize = parseInt(el.style.fontSize) || 16;
                 deselectAll();
                 debouncedSave();
-                window._wsSendOp('texts', [textNetData(box)], []);
-                if (!window._wsIsOpen()) window._markDirty('texts');
             });
             handle.addEventListener('mousedown', (ev) => {
                 ev.stopPropagation(); ev.preventDefault();
@@ -1578,8 +1505,8 @@
             const box = createTextBoxElement(id, x, y, text, fontSize);
             textBoxes.push(box); overlay.appendChild(box.el);
             debouncedSave();
-            window._wsSendOp('texts', [textNetData(box)], []);
-            if (!window._wsIsOpen()) window._markDirty('texts');
+            markDirty('texts');
+            wsSend({type: 'texts_update', data: textBoxes});
             return box;
         }
 
@@ -1684,8 +1611,8 @@
             if (selectedElement && selectedElement.type === 'text' && selectedElement.ref === box) selectedElement = null;
             multiSelected = multiSelected.filter(ms => ms.ref !== box);
             debouncedSave();
-            window._wsSendOp('texts', [], [box.id]);
-            if (!window._wsIsOpen()) window._markDirty('texts');
+            markDirty('texts');
+            wsSend({type: 'texts_update', data: textBoxes});
         }
 
         // ━━━ 群组拖拽 ━━━
@@ -1761,7 +1688,7 @@
                 const sx = ev.clientX; const sy = ev.clientY;
                 const sSize = token.size;
                 function mv(ev2) { const d = Math.max(20, Math.min(200, sSize + (ev2.clientX-sx + ev2.clientY-sy)/2)); token.size = d; el.style.width = d+'px'; el.style.height = d+'px'; }
-                function up() { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); debouncedSave(); window._wsSendOp('tokens', [tokenNetData(token)], []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
+                function up() { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); debouncedSave(); }
                 window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
             });
 
@@ -1778,8 +1705,8 @@
                 if (data) updateTokenHpLabel(token, data);
             });
             debouncedSave();
-            window._wsSendOp('tokens', [tokenNetData(token)], []);
-            if (!window._wsIsOpen()) window._markDirty('tokens');
+            markDirty('tokens');
+            wsSend({type: 'tokens_update', data: mapTokens});
             return token;
         }
 
@@ -1788,8 +1715,8 @@
             mapTokens = mapTokens.filter(t => t.id !== token.id);
             multiSelected = multiSelected.filter(ms => ms.ref !== token);
             debouncedSave();
-            window._wsSendOp('tokens', [], [token.id]);
-            if (!window._wsIsOpen()) window._markDirty('tokens');
+            markDirty('tokens');
+            wsSend({type: 'tokens_update', data: mapTokens});
         }
 
         // ━━━ 旋转 ━━━
@@ -1822,7 +1749,6 @@
         }
 
         function endRotate() {
-            if (rotToken) { window._wsSendOp('tokens', [tokenNetData(rotToken)], []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
             isRotating = false; rotToken = null;
             debouncedSave();
         }
@@ -2031,30 +1957,20 @@
 
             if (!mapLayers.length) {
                 html += '<div style="color:var(--text-dim);text-align:center;padding:0.5rem;">暂无图层</div>';
-            } else if (isPL) {
-                // PL 只读视图：仅显示图层名称和缩放比例，无操作按钮
-                html += '<div style="font-size:0.7rem;color:var(--text-dim);padding:0.2rem 0.3rem;border-bottom:1px solid var(--border);margin-bottom:0.2rem;">🖼 地图图层（只读）</div>';
-                html += mapLayers.map((l, i) => `
-                    <div class="layer-item" style="opacity:${l.visible !== false ? '1' : '0.5'}">
-                        <span style="font-size:0.8rem;">${l.visible !== false ? '👁' : '🚫'}</span>
-                        <span class="layer-name" style="cursor:default;">${l.name}</span>
-                        <span style="font-size:0.6rem;color:var(--cyan);flex-shrink:0;">${Math.round((l.scale||1)*100)}%</span>
-                    </div>
-                `).join('');
-            } else {
-                html += mapLayers.map((l, i) => `
-                    <div class="layer-item${l.id === activeLayerId ? ' active' : ''}" onclick="setActiveLayer(${l.id})">
-                        <button class="layer-btn" onclick="event.stopPropagation();toggleLayerVis(${l.id})" title="显示/隐藏">${l.visible !== false ? '👁' : '🚫'}</button>
-                        <span class="layer-name" ondblclick="event.stopPropagation();startRenameLayer(${l.id})" title="双击改名">${l.name}</span>
-                        <span style="font-size:0.6rem;color:var(--cyan);flex-shrink:0;">${Math.round((l.scale||1)*100)}%</span>
-                        <button class="layer-btn" onclick="event.stopPropagation();scaleLayer(${l.id}, 0.1)" title="缩小图层">🔍-</button>
-                        <button class="layer-btn" onclick="event.stopPropagation();scaleLayer(${l.id}, -0.1)" title="放大图层">🔍+</button>
-                        <button class="layer-btn" onclick="event.stopPropagation();moveLayerUp(${l.id})" title="上移" ${i === 0 ? 'disabled' : ''}>▲</button>
-                        <button class="layer-btn" onclick="event.stopPropagation();moveLayerDown(${l.id})" title="下移" ${i === mapLayers.length-1 ? 'disabled' : ''}>▼</button>
-                        <button class="layer-btn" onclick="event.stopPropagation();removeLayer(${l.id})" title="删除" style="color:var(--red);">✕</button>
-                    </div>
-                `).join('');
             }
+
+            html += mapLayers.map((l, i) => `
+                <div class="layer-item${l.id === activeLayerId ? ' active' : ''}" onclick="setActiveLayer(${l.id})">
+                    <button class="layer-btn" onclick="event.stopPropagation();toggleLayerVis(${l.id})" title="显示/隐藏">${l.visible !== false ? '👁' : '🚫'}</button>
+                    <span class="layer-name" ondblclick="event.stopPropagation();startRenameLayer(${l.id})" title="双击改名">${l.name}</span>
+                    <span style="font-size:0.6rem;color:var(--cyan);flex-shrink:0;">${Math.round((l.scale||1)*100)}%</span>
+                    <button class="layer-btn" onclick="event.stopPropagation();scaleLayer(${l.id}, 0.1)" title="缩小图层">🔍-</button>
+                    <button class="layer-btn" onclick="event.stopPropagation();scaleLayer(${l.id}, -0.1)" title="放大图层">🔍+</button>
+                    <button class="layer-btn" onclick="event.stopPropagation();moveLayerUp(${l.id})" title="上移" ${i === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="layer-btn" onclick="event.stopPropagation();moveLayerDown(${l.id})" title="下移" ${i === mapLayers.length-1 ? 'disabled' : ''}>▼</button>
+                    <button class="layer-btn" onclick="event.stopPropagation();removeLayer(${l.id})" title="删除" style="color:var(--red);">✕</button>
+                </div>
+            `).join('');
             el.innerHTML = html;
         }
 
@@ -2150,7 +2066,7 @@
 
                     mapLayers.push({
                         id: layerId, name: name, image: img,
-                        dataURL: e.target.result, url: '', visible: true,
+                        dataURL: e.target.result, visible: true,
                         offsetX: cx, offsetY: cy, scale: initScale
                     });
                     activeLayerId = layerId;
@@ -2158,12 +2074,7 @@
                     redrawCanvas();
                     renderLayerList();
                     saveState();
-                    // P0-1: 先上传图片拿到 url，再广播元数据（网络上不传 base64）
-                    var newLayer = mapLayers[mapLayers.length - 1];
-                    uploadLayerImage(newLayer).then(function() {
-                        window._markDirty('layers');
-                        window._onLocalChange();
-                    });
+                onLocalChange();
                 };
                 img.src = e.target.result;
             };
@@ -2236,7 +2147,7 @@
 
                 mapLayers.push({
                     id: layerId, name: cleanName, image: img,
-                    dataURL: dataURL, url: url, visible: true,
+                    dataURL: dataURL, visible: true,
                     offsetX: cx, offsetY: cy, scale: initScale
                 });
                 activeLayerId = layerId;
@@ -2244,7 +2155,7 @@
                 redrawCanvas();
                 renderLayerList();
                 saveState();
-            window._onLocalChange();
+            onLocalChange();
             };
             img.onerror = () => {
                 alert('加载地图失败: ' + name);
@@ -2608,7 +2519,7 @@
             debouncedSave();
         }
 
-        // ━━━ 重置：回到 1:1（100%）原始比例，内容居中 ━━━
+        // ━━━ 重置：根据当前画布内容重置视角 ━━━
         function resetView() {
             if (mapLocked) return;
             const bounds = getContentBounds();
@@ -2617,10 +2528,14 @@
                 scale = 1; offsetX = 0; offsetY = 0;
             } else {
                 const rect = mapArea.getBoundingClientRect();
-                // 重置为 100% 原始比例，内容居中
-                scale = 1;
+                const pad = 40;
                 const contentW = bounds.maxX - bounds.minX;
                 const contentH = bounds.maxY - bounds.minY;
+                const cp = Math.max(contentW, contentH) * 0.05 + 20;
+                const totalW = contentW + cp * 2;
+                const totalH = contentH + cp * 2;
+
+                scale = Math.min((rect.width - pad*2) / totalW, (rect.height - pad*2) / totalH, 3);
                 const cx = bounds.minX + contentW / 2;
                 const cy = bounds.minY + contentH / 2;
                 offsetX = rect.width / 2 - cx * scale;
@@ -3165,26 +3080,6 @@
                                 }
                             }
                         }
-                        // 紧急兜底：IndexedDB 也无 dataURL，尝试 _emergency 键
-                        if (state.layers.every(l => !l.dataURL)) {
-                            const emergRaw = localStorage.getItem(STORAGE_KEY + '_emergency');
-                            if (emergRaw) {
-                                try {
-                                    const emerg = JSON.parse(emergRaw);
-                                    if (emerg.layers) {
-                                        const emergMap = {};
-                                        for (const el of emerg.layers) {
-                                            if (el.dataURL) emergMap[el.id] = el.dataURL;
-                                        }
-                                        for (const l of state.layers) {
-                                            if (!l.dataURL && emergMap[l.id]) {
-                                                l.dataURL = emergMap[l.id];
-                                            }
-                                        }
-                                    }
-                                } catch(e) {}
-                            }
-                        }
                     }
 
                     await applyState(state);
@@ -3246,13 +3141,10 @@
             let autoSaveTimer = null;
             async function autoSaveLoop() {
                 if (document.hidden) { autoSaveTimer = setTimeout(autoSaveLoop, 3000); return; }
-                // 轻量保存到 localStorage（保留 dataURL ≤200KB 的图层），IndexedDB 异步备份
+                // 轻量保存：只写 _light to localStorage，不写 dataURL 到 IndexedDB
                 try {
                     const s = collectState();
-                    const light = { ...s, layers: s.layers.map(function(l) {
-                        var dataLen = (l.dataURL || '').length;
-                        return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
-                    })};
+                    const light = { ...s, layers: s.layers.map(l => ({...l, dataURL: ''})) };
                     localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
                 } catch(e) {}
                 autoSaveTimer = setTimeout(autoSaveLoop, 3000);
@@ -3269,7 +3161,7 @@
                 clearTimeout(autoSaveTimer);
                 clearTimeout(debouncedSave._timer);
                 saveState(); saveMapCombatLocal();
-                window._pushSharedCanvas();
+                pushSharedCanvas();
             };
             window.addEventListener('pagehide', saveOnUnload);
             window.addEventListener('beforeunload', saveOnUnload);
@@ -3314,7 +3206,6 @@
                 var syncBtn = document.getElementById('sync-btn');
                 var fogWrap = document.getElementById('fog-dropdown-wrap');
                 var clearWrap = document.getElementById('clear-dropdown-wrap');
-                var layerFooter = document.getElementById('layer-panel-footer');
                 var combatInputs = document.querySelectorAll('#sidebar-panel-combat input, #sidebar-panel-combat select, #sidebar-panel-combat button:not(.sidebar-tab)');
 
                 if (dm) {
@@ -3323,7 +3214,6 @@
                     if (syncBtn) syncBtn.style.display = 'none';
                     if (fogWrap) fogWrap.style.display = '';
                     if (clearWrap) clearWrap.style.display = '';
-                    if (layerFooter) layerFooter.style.display = '';
                     combatInputs.forEach(function(el) { el.disabled = false; el.style.opacity = ''; });
                 } else {
                     // PL：隐藏受限功能，但允许添加参战者、填入先攻
@@ -3331,7 +3221,6 @@
                     if (syncBtn) syncBtn.style.display = '';
                     if (fogWrap) fogWrap.style.display = 'none';
                     if (clearWrap) clearWrap.style.display = 'none';
-                    if (layerFooter) layerFooter.style.display = 'none';
                     combatInputs.forEach(function(el) {
                         if (el.closest('.pl-allowed')) return; // PL可用控件跳过
                         el.disabled = true; el.style.opacity = '0.5';
@@ -3594,40 +3483,34 @@ applyRoleRestrictions();
                 }
             }
 
-            // DM手动推送地图（P0-1：先上传图层图片拿 url，网络上不传 base64）
+            // DM手动推送地图（WebSocket广播 + HTTP持久化）
             window._pushMapState = function() {
                 var btn = document.getElementById('push-btn');
                 if (!btn) return;
                 btn.textContent = '⏳ 推送中...';
                 btn.disabled = true;
-                ensureLayersUploaded().then(function() {
+                try {
                     var state = collectState();
-                    var layers = mapLayers.map(layerNetData);
-                    if (window._wsIsOpen()) {
-                        // WS 单通道推送（服务端应用后自动持久化，P1-2）
-                        wsSend({type: 'layers_update', data: layers});
-                        wsSend({type: 'tokens_update', data: state.mapTokens});
-                        wsSend({type: 'texts_update', data: state.textBoxes});
-                        wsSend({type: 'fog_update', data: state.fogLayers});
-                        try { addSystemMsg('📤 地图状态已推送（实时通道）'); } catch(ex) {}
-                        btn.textContent = '📤 推送';
-                        btn.disabled = false;
-                        return;
+                    var layers = state.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL||'',offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; });
+                    // 1) 通过WebSocket广播（实时协作）
+                    if (_wsClient && _wsClient.readyState === WebSocket.OPEN) {
+                        _wsClient.send(JSON.stringify({type: 'layers_update', data: layers}));
+                        _wsClient.send(JSON.stringify({type: 'tokens_update', data: state.mapTokens}));
+                        _wsClient.send(JSON.stringify({type: 'texts_update', data: state.textBoxes}));
+                        _wsClient.send(JSON.stringify({type: 'fog_update', data: state.fogLayers}));
                     }
-                    // HTTP 降级通道
-                    return fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
+                    // 2) 同时推送到HTTP共享画布（持久化，供PL同步按钮拉取）
+                    fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({_mode:'full', strokes:state.brushStrokes||[], layers:layers, tokens:state.mapTokens, texts:state.textBoxes, fog:state.fogLayers})
                     }).then(function(r){ return r.json(); }).then(function(d){
-                        if (d && d.version !== undefined) sharedCanvasVer = d.version;
                         try { if (d.ok) addSystemMsg('📤 地图状态已推送'); else addSystemMsg('⚠ 推送失败: ' + (d.error||'未知错误')); } catch(ex) {}
-                        btn.textContent = '📤 推送';
-                        btn.disabled = false;
-                    });
-                }).catch(function(e){
+                    }).catch(function(e){ try { addSystemMsg('⚠ 推送失败: ' + e.message); } catch(ex) {} });
+                } catch(e) {
                     try { addSystemMsg('⚠ 推送失败: ' + e.message); } catch(ex) {}
+                } finally {
                     btn.textContent = '📤 推送';
                     btn.disabled = false;
-                });
+                }
             };
 
             window._syncMapState = function() {
@@ -3717,10 +3600,10 @@ applyRoleRestrictions();
             // ━━━ WebSocket 实时协作画布 ━━━
             // 使用全局 _wsClient（wsSend 等全局函数需要访问）
             let wsReconnectTimer = null;
-            let _wsHadConnected = false;
             function wsBroadcastFullState() {
                 var s = collectState();
-                wsSend({type: 'layers_update', data: mapLayers.map(layerNetData)});
+                var layers = s.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL||'',offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; });
+                wsSend({type: 'layers_update', data: layers});
                 wsSend({type: 'tokens_update', data: s.mapTokens});
                 wsSend({type: 'texts_update', data: s.textBoxes});
                 wsSend({type: 'fog_update', data: s.fogLayers});
@@ -3728,12 +3611,7 @@ applyRoleRestrictions();
 
             function onWsOpen() {
                 wsFlushPending();  // 先发队列中的消息
-                // 断线重连后主动对账：版本不一致时服务端会回发全量 init（P1-2）
-                if (_wsHadConnected) {
-                    try { _wsClient.send(JSON.stringify({type:'sync', version: sharedCanvasVer})); } catch(e) {}
-                }
-                _wsHadConnected = true;
-                // 首次连接不立即推送完整本地状态——等待服务端 init→本地恢复→再决定是否需要推送
+                // 连接后不立即推送完整本地状态——等待服务端 init→本地恢复→再决定是否需要推送
                 // 避免空状态覆盖服务端数据导致其他客户端内容被清空
             }
 
@@ -3772,9 +3650,6 @@ applyRoleRestrictions();
                 _wsClient.onmessage = function(event) {
                     try {
                         var msg = JSON.parse(event.data);
-                        // 跟踪服务端版本号（P1-1）
-                        if (msg._ver !== undefined) sharedCanvasVer = msg._ver;
-                        if (msg.version !== undefined) sharedCanvasVer = msg.version;
                         if (msg.type === 'init') {
                             // 同步时间戳，避免 WS 断开后 HTTP 轮询重复旧数据
                             sharedCanvasTs = Date.now() / 1000;
@@ -3782,45 +3657,116 @@ applyRoleRestrictions();
                             // 恢复笔画
                             if (state.strokes && state.strokes.length > 0) {
                                 brushStrokes = state.strokes.map(function(s) { return {...s}; });
-                                redrawDrawCanvas();
                             }
-                            // 差量合并（带拖拽保护）；服务端为空时保留本地内容（等待 DM 推送）
-                            if (state.tokens && state.tokens.length > 0) mergeRemoteTokens(state.tokens, [], true);
-                            if (state.texts && state.texts.length > 0) mergeRemoteTexts(state.texts, [], true);
-                            if (state.fog && state.fog.length > 0) applyRemoteFog(state.fog);
-                            if (state.layers && state.layers.length > 0) mergeRemoteLayers(state.layers, true);
-                            redrawCanvas();
-                            renderLayerList();
+                            // 异步加载图层图片后再绘制
+                            function finishInit() {
+                                if (state.tokens && state.tokens.length > 0) {
+                                    mapTokens.forEach(function(t) { if (t.el) t.el.remove(); });
+                                    mapTokens = [];
+                                    state.tokens.forEach(function(td) {
+                                        var token = createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0);
+                                        mapTokens.push(token);
+                                    });
+                                    tokenIdCounter = state.tokens.length;
+                                }
+                                if (state.texts && state.texts.length > 0) {
+                                    textBoxes.forEach(function(b) { if (b.el) b.el.remove(); });
+                                    textBoxes = [];
+                                    state.texts.forEach(function(td) {
+                                        var box = createTextBoxElement(td.id, td.x, td.y, td.text, td.fontSize);
+                                        textBoxes.push(box); overlay.appendChild(box.el);
+                                    });
+                                    textIdCounter = state.texts.length;
+                                }
+                                if (state.fog && state.fog.length > 0) {
+                                    // 兼容新旧格式
+                                    if (state.fog[0].polygons !== undefined) {
+                                        fogLayers = state.fog.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
+                                    } else {
+                                        fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:state.fog.map(function(p){return{points:p.points,closed:p.closed};})}];
+                                    }
+                                    fogLayerIdCounter = fogLayers.length;
+                                    activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
+                                    redrawFogCanvas();
+                                }
+                                redrawCanvas();
+                                renderLayerList();
+                            }
+                            if (state.layers && state.layers.length > 0) {
+                                mapLayers = [];
+                                var loaded = 0;
+                                var total = state.layers.length;
+                                state.layers.forEach(function(ld) {
+                                    if (ld.dataURL) {
+                                        var img = new Image();
+                                        img.onload = function() {
+                                            mapLayers.push({id: ld.id, name: ld.name, image: img, dataURL: ld.dataURL, visible: ld.visible !== false, offsetX: ld.offsetX||0, offsetY: ld.offsetY||0, scale: ld.scale||1});
+                                            loaded++;
+                                            if (loaded === total) {
+                                                if (mapLayers.length > 0) { activeLayerId = mapLayers[0].id; layerIdCounter = mapLayers.length; }
+                                                finishInit();
+                                            }
+                                        };
+                                        img.onerror = function() { loaded++; if (loaded === total) finishInit(); };
+                                        img.src = ld.url || ld.dataURL;
+                                    } else {
+                                        loaded++;
+                                        if (loaded === total) finishInit();
+                                    }
+                                });
+                            } else {
+                                finishInit();
+                            }
                         } else if (msg.type === 'stroke') {
-                            // 远程笔画：按 id 去重后追加（P1-1）
-                            var sd = msg.data || {};
-                            if (!sd.id || !brushStrokes.some(function(s){ return s.id === sd.id; })) {
-                                brushStrokes.push(sd);
-                                redrawDrawCanvas();
-                            }
-                        } else if (msg.type === 'strokes_remove') {
-                            var rmIds = {};
-                            (msg.data||[]).forEach(function(id){ rmIds[id] = true; });
-                            brushStrokes = brushStrokes.filter(function(s){ return !s.id || !rmIds[s.id]; });
+                            // 远程笔画：直接追加并绘制
+                            brushStrokes.push(msg.data);
                             redrawDrawCanvas();
                         } else if (msg.type === 'strokes_clear') {
                             brushStrokes = [];
                             redrawCanvas();
-                        } else if (msg.type === 'op') {
-                            // 操作语义消息：单体增删改（P1-1）
-                            var op = msg.data || {};
-                            if (op.key === 'tokens') mergeRemoteTokens(op.upsert, op.remove, false);
-                            else if (op.key === 'texts') mergeRemoteTexts(op.upsert, op.remove, false);
-                            else if (op.key === 'fog') applyRemoteFog(op.upsert);
-                            else if (op.key === 'layers') mergeRemoteLayers(op.upsert, false);
                         } else if (msg.type === 'layers_update') {
-                            mergeRemoteLayers(msg.data || [], true);
+                            var ldList = msg.data || [];
+                            mapLayers = [];
+                            if (ldList.length === 0) { redrawCanvas(); renderLayerList(); }
+                            else {
+                                var ldLoaded = 0;
+                                var ldTotal = ldList.length;
+                                ldList.forEach(function(ld) {
+                                    if (ld.dataURL) {
+                                        var img = new Image();
+                                        img.onload = function() {
+                                            mapLayers.push({id: ld.id, name: ld.name, image: img, dataURL: ld.dataURL, visible: ld.visible !== false, offsetX: ld.offsetX||0, offsetY: ld.offsetY||0, scale: ld.scale||1});
+                                            ldLoaded++; if (ldLoaded === ldTotal) { if (mapLayers.length > 0) { activeLayerId = mapLayers[0].id; layerIdCounter = mapLayers.length; } redrawCanvas(); renderLayerList(); }
+                                        };
+                                        img.onerror = function() { ldLoaded++; if (ldLoaded === ldTotal) { redrawCanvas(); renderLayerList(); } };
+                                        img.src = ld.url || ld.dataURL;
+                                    } else { ldLoaded++; if (ldLoaded === ldTotal) { redrawCanvas(); renderLayerList(); } }
+                                });
+                            }
                         } else if (msg.type === 'tokens_update') {
-                            mergeRemoteTokens(msg.data || [], [], true);
+                            mapTokens.forEach(function(t) { if (t.el) t.el.remove(); });
+                            mapTokens = [];
+                            (msg.data||[]).forEach(function(td) {
+                                var token = createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0);
+                                mapTokens.push(token);
+                            });
                         } else if (msg.type === 'texts_update') {
-                            mergeRemoteTexts(msg.data || [], [], true);
+                            textBoxes.forEach(function(b) { if (b.el) b.el.remove(); });
+                            textBoxes = [];
+                            (msg.data||[]).forEach(function(td) {
+                                var box = createTextBoxElement(td.id, td.x, td.y, td.text, td.fontSize);
+                                textBoxes.push(box); overlay.appendChild(box.el);
+                            });
                         } else if (msg.type === 'fog_update') {
-                            applyRemoteFog(msg.data || []);
+                            var fd = msg.data || [];
+                            if (fd.length > 0 && fd[0].polygons !== undefined) {
+                                fogLayers = fd.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
+                            } else {
+                                fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:fd.map(function(p){return{points:p.points,closed:p.closed};})}];
+                            }
+                            fogLayerIdCounter = fogLayers.length;
+                            activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
+                            redrawFogCanvas();
                         } else if (msg.type === 'clear_all') {
                             brushStrokes = []; textBoxes.forEach(function(b) { if(b.el) b.el.remove(); });
                             textBoxes = []; mapTokens.forEach(function(t) { if(t.el) t.el.remove(); });
@@ -4053,7 +3999,7 @@ applyRoleRestrictions();
 
                     mapLayers.push({
                         id: layerId, name: cleanName, image: img,
-                        dataURL: dataURL, url: url, visible: true,
+                        dataURL: dataURL, visible: true,
                         offsetX: cx, offsetY: cy, scale: initScale
                     });
                     activeLayerId = layerId;
@@ -4061,7 +4007,6 @@ applyRoleRestrictions();
                     redrawCanvas();
                     renderLayerList();
                     saveState();
-                    window._markDirty('layers');
                 };
                 img.onerror = () => { alert('加载资源失败: ' + name); };
                 img.src = url;
@@ -4210,19 +4155,14 @@ applyRoleRestrictions();
             // ━━━ 页面离开时通知退房 ━━━
             window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
 
-            // ━━━ 动作驱动画布同步（WS 实时为主，HTTP 轮询降级）━━
+            // ━━━ 动作驱动画布同步（增量推送，每0.3秒拉取）━━
             let sharedCanvasTs = 0;
-            let sharedCanvasVer = -1;  // 服务端单调版本号（P1-1）
         // ━━━ WebSocket 安全包装（全局作用域，带消息队列）━━
         let _wsClient = null;
         let wsPendingMessages = [];
 
-        function wsIsOpen() {
-            return !!(_wsClient && _wsClient.readyState === WebSocket.OPEN);
-        }
-
         function wsSend(msg) {
-            if (window._wsIsOpen()) {
+            if (_wsClient && _wsClient.readyState === WebSocket.OPEN) {
                 _wsClient.send(JSON.stringify(msg));
             } else {
                 wsPendingMessages.push(msg);
@@ -4232,7 +4172,7 @@ applyRoleRestrictions();
         function wsFlushPending() {
             while (wsPendingMessages.length > 0) {
                 var msg = wsPendingMessages.shift();
-                if (window._wsIsOpen()) {
+                if (_wsClient && _wsClient.readyState === WebSocket.OPEN) {
                     _wsClient.send(JSON.stringify(msg));
                 } else {
                     break;
@@ -4240,342 +4180,127 @@ applyRoleRestrictions();
             }
         }
 
-        // ━━━ 网络序列化辅助（P1-1：干净的数据结构，图层只传 url 不传 base64）━━
-        // _strokeSeq / genStrokeId 已移至文件顶部
-
-        function layerNetData(l) {
-            var d = {id:l.id, name:l.name, url:l.url||'', dataURL:'',
-                     offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1, visible:l.visible!==false};
-            if (!d.url) d.dataURL = l.dataURL || '';  // 未上传成功时回退 base64
-            return d;
-        }
-
-        function tokenNetData(t) {
-            return {id:t.id, charId:t.charId, name:t.name, portraitUrl:t.portraitUrl,
-                    x:t.x, y:t.y, size:t.size||48, rotation:t.rotation||0};
-        }
-
-        function textNetData(b) {
-            return {id:b.id, x:b.x, y:b.y, text:b.text, fontSize:b.fontSize};
-        }
-
-        // 操作语义消息：单体增删改，避免全量广播（P1-1）
-        // 同时登记"本地最近编辑"，用于防回弹（他人稍旧的全量消息不覆盖本地刚做的修改）
-        let _recentLocalEdit = { tokens: {}, texts: {} };
-        let _recentLocalRemove = { tokens: {}, texts: {} };
-        var _EDIT_GRACE_MS = 4000;
-
-        function _isRecent(reg, key, id) {
-            var t = reg[key] && reg[key][id];
-            if (!t) return false;
-            if (Date.now() - t > _EDIT_GRACE_MS) { delete reg[key][id]; return false; }
-            return true;
-        }
-        function isRecentLocalEdit(key, id) { return _isRecent(_recentLocalEdit, key, id); }
-        function isRecentLocalRemove(key, id) { return _isRecent(_recentLocalRemove, key, id); }
-
-        function wsSendOp(key, upsert, remove) {
-            if (_recentLocalEdit[key]) {
-                (upsert||[]).forEach(function(it){ if (it && it.id !== undefined) _recentLocalEdit[key][it.id] = Date.now(); });
-                (remove||[]).forEach(function(id){ _recentLocalRemove[key][id] = Date.now(); delete _recentLocalEdit[key][id]; });
-            }
-            wsSend({type:'op', data:{key:key, upsert:upsert||[], remove:remove||[]}});
-        }
-
-        // 图层图片上传（P0-1：图片与状态分离，状态中只存 url）
-        function uploadLayerImage(layer) {
-            if (!layer || !layer.dataURL || layer.url) return Promise.resolve(layer);
-            return fetch('/api/shared-canvas/layer-image', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({id: layer.id, dataURL: layer.dataURL})
-            }).then(function(r){ return r.json(); }).then(function(d){
-                if (d.ok && d.url) layer.url = d.url;
-                return layer;
-            }).catch(function(){ return layer; });
-        }
-
-        function ensureLayersUploaded() {
-            return Promise.all(mapLayers.map(function(l){ return uploadLayerImage(l); }));
-        }
-
         function wsBroadcastStroke(stroke) {
-            wsSend({type: 'stroke', data: {id:stroke.id, tool:stroke.tool, color:stroke.color, size:stroke.size, points:stroke.points.slice(-100)}});
+            wsSend({type: 'stroke', data: {tool:stroke.tool, color:stroke.color, size:stroke.size, points:stroke.points.slice(-100)}});
         }
 
         // ━━━ 共享画布脏状态追踪（全局作用域，供 addTextBox/removeTextBox 等调用）━━
         let _pushDebounce = null;
-        let _pushInFlight = false;
         let _dirtyFlags = { strokes: false, layers: false, tokens: false, texts: false, fog: false };
-
-        function _anyDirty() {
-            return _dirtyFlags.strokes || _dirtyFlags.layers || _dirtyFlags.tokens || _dirtyFlags.texts || _dirtyFlags.fog;
-        }
 
         function markDirty(component) {
             if (_dirtyFlags.hasOwnProperty(component)) _dirtyFlags[component] = true;
-            window._pushSharedCanvas();
+            pushSharedCanvas();
         }
 
         function pushSharedCanvas() {
             if (_pushDebounce) clearTimeout(_pushDebounce);
             _pushDebounce = setTimeout(function() {
-                _pushDebounce = null;
-                if (!window._anyDirty()) return;
+                var hasData = (_dirtyFlags.strokes || _dirtyFlags.layers || _dirtyFlags.tokens || _dirtyFlags.texts || _dirtyFlags.fog);
+                if (!hasData) return;
 
                 var s = collectState();
-
-                // WS 连接时走 WS 单通道（P1-2），不再重复发 HTTP POST
-                if (window._wsIsOpen()) {
-                    // strokes 已在落笔时逐条广播（带 id 去重），此处无需重发
-                    _dirtyFlags.strokes = false;
-                    if (_dirtyFlags.layers) { wsSend({type:'layers_update', data: mapLayers.map(layerNetData)}); _dirtyFlags.layers = false; }
-                    if (_dirtyFlags.tokens) { wsSend({type:'tokens_update', data: s.mapTokens}); _dirtyFlags.tokens = false; }
-                    if (_dirtyFlags.texts)  { wsSend({type:'texts_update', data: s.textBoxes}); _dirtyFlags.texts = false; }
-                    if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: s.fogLayers}); _dirtyFlags.fog = false; }
-                    return;
-                }
-
-                // HTTP 降级通道
                 var body = {_mode: 'incremental'};
+
                 if (_dirtyFlags.strokes) { body.strokes = s.brushStrokes.slice(-200); _dirtyFlags.strokes = false; }
-                if (_dirtyFlags.layers) { body.layers = mapLayers.map(layerNetData); _dirtyFlags.layers = false; }
+                if (_dirtyFlags.layers) { body.layers = s.layers.map(function(l) { return {id:l.id,name:l.name,dataURL:l.dataURL||'',offsetX:l.offsetX||0,offsetY:l.offsetY||0,scale:l.scale||1,visible:l.visible!==false}; }); _dirtyFlags.layers = false; }
                 if (_dirtyFlags.tokens) { body.tokens = s.mapTokens; _dirtyFlags.tokens = false; }
                 if (_dirtyFlags.texts) { body.texts = s.textBoxes; _dirtyFlags.texts = false; }
                 if (_dirtyFlags.fog) { body.fog = s.fogLayers; _dirtyFlags.fog = false; }
 
                 fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
                     body: JSON.stringify(body)
-                }).then(function(r){ return r.json(); }).then(function(d){
-                    _pushInFlight = false;
-                    if (d && d.version !== undefined) sharedCanvasVer = d.version;
-                }).catch(function(){ _pushInFlight = false; });
-                _pushInFlight = true;
+                }).catch(function(){});
             }, 100);
         }
 
-        function onLocalChange() { _dirtyFlags.strokes = _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true; window._pushSharedCanvas(); }
-
-        // ━━━ 暴露关键函数到全局 window（事件处理器在 IIFE 外部，通过 window._xxx 访问）━━
-        window._wsBroadcastStroke = wsBroadcastStroke;
-        window._wsSendOp = wsSendOp;
-        window._markDirty = markDirty;
-        window._onLocalChange = onLocalChange;
-        window._pushSharedCanvas = pushSharedCanvas;
-        window._wsSend = wsSend;
-        window._wsIsOpen = wsIsOpen;
-        window._anyDirty = _anyDirty;
-
-            // ━━━ 远程数据差量合并（P1-3：按 id diff 更新 DOM，保护拖拽中的对象）━━
-            function _isDraggingRef(ref) {
-                if (dragTarget !== null && dragTarget === ref) return true;
-                if (groupDragging && groupDragOffsets.some(function(g){ return g.ref === ref; })) return true;
-                return false;
-            }
-
-            function mergeRemoteTokens(list, removeIds, removeMissing) {
-                var incoming = {};
-                (list||[]).forEach(function(td){ if (td && td.id !== undefined) incoming[td.id] = td; });
-                var removeSet = {};
-                (removeIds||[]).forEach(function(id){ removeSet[id] = true; });
-                var maxId = 0;
-                // 更新/删除现有
-                mapTokens = mapTokens.filter(function(t) {
-                    if (_isDraggingRef(t)) { delete incoming[t.id]; return true; }  // 本地拖拽优先
-                    // 防回弹：全量消息不覆盖/删除本地保护期内刚编辑的对象（op 精确操作不受限）
-                    if (removeMissing && isRecentLocalEdit('tokens', t.id)) { delete incoming[t.id]; return true; }
-                    if (removeSet[t.id] || (removeMissing && !(t.id in incoming))) {
-                        if (t.el) t.el.remove();
-                        return false;
-                    }
-                    var td = incoming[t.id];
-                    if (td) {
-                        t.x = td.x; t.y = td.y; t.size = td.size||48; t.rotation = td.rotation||0;
-                        t.name = td.name;
-                        if (t.el) {
-                            t.el.style.left = td.x + 'px'; t.el.style.top = td.y + 'px';
-                            t.el.style.width = t.size + 'px'; t.el.style.height = t.size + 'px';
-                            applyTokenRotation(t);
-                        }
-                        delete incoming[t.id];
-                    }
-                    return true;
-                });
-                // 新增（防回弹：本地刚删除的对象不因他人稍旧的全量而复活）
-                Object.keys(incoming).forEach(function(id) {
-                    var td = incoming[id];
-                    if (removeMissing && isRecentLocalRemove('tokens', td.id)) return;
-                    mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0));
-                });
-                mapTokens.forEach(function(t){ maxId = Math.max(maxId, t.id||0); });
-                tokenIdCounter = Math.max(tokenIdCounter, maxId);
-                updateAllFogCoverage();
-            }
-
-            function mergeRemoteTexts(list, removeIds, removeMissing) {
-                var incoming = {};
-                (list||[]).forEach(function(td){ if (td && td.id !== undefined) incoming[td.id] = td; });
-                var removeSet = {};
-                (removeIds||[]).forEach(function(id){ removeSet[id] = true; });
-                textBoxes = textBoxes.filter(function(b) {
-                    if (_isDraggingRef(b)) { delete incoming[b.id]; return true; }
-                    // 防回弹：全量消息不覆盖/删除本地保护期内刚编辑的对象
-                    if (removeMissing && isRecentLocalEdit('texts', b.id)) { delete incoming[b.id]; return true; }
-                    if (removeSet[b.id] || (removeMissing && !(b.id in incoming))) {
-                        if (b.el) b.el.remove();
-                        return false;
-                    }
-                    var td = incoming[b.id];
-                    if (td) {
-                        b.x = td.x; b.y = td.y; b.text = td.text; b.fontSize = td.fontSize;
-                        if (b.el) {
-                            b.el.style.left = td.x + 'px'; b.el.style.top = td.y + 'px';
-                            if (b.el.textContent !== td.text) b.el.textContent = td.text;
-                        }
-                        delete incoming[b.id];
-                    }
-                    return true;
-                });
-                Object.keys(incoming).forEach(function(id) {
-                    var td = incoming[id];
-                    if (removeMissing && isRecentLocalRemove('texts', td.id)) return;
-                    var box = createTextBoxElement(td.id, td.x, td.y, td.text, td.fontSize);
-                    textBoxes.push(box); overlay.appendChild(box.el);
-                });
-                var maxId = 0;
-                textBoxes.forEach(function(b){ maxId = Math.max(maxId, b.id||0); });
-                textIdCounter = Math.max(textIdCounter, maxId);
-            }
-
-            function mergeRemoteLayers(list, removeMissing) {
-                var incoming = {};
-                (list||[]).forEach(function(ld){ if (ld && (ld.dataURL || ld.url || ld.id !== undefined)) incoming[ld.id] = ld; });
-                var changed = false;
-                mapLayers = mapLayers.filter(function(l) {
-                    if (removeMissing && !(l.id in incoming)) { changed = true; return false; }
-                    var ld = incoming[l.id];
-                    if (ld) {
-                        l.name = ld.name; l.visible = ld.visible !== false;
-                        l.offsetX = ld.offsetX||0; l.offsetY = ld.offsetY||0; l.scale = ld.scale||1;
-                        var src = ld.url || ld.dataURL;
-                        var curSrc = l.url || l.dataURL;
-                        if (src && src !== curSrc) {
-                            var img = new Image();
-                            var oldImage = l.image;  // 保留旧图，新图加载失败时回退
-                            img.onload = function(){ redrawCanvas(); };
-                            img.onerror = function(){
-                                console.warn('远程图层更新失败(保留旧图): id=' + ld.id + ' src=' + src);
-                                l.image = oldImage;  // 回退到旧图
-                            };
-                            img.src = src;
-                            l.image = img; l.url = ld.url||''; l.dataURL = ld.dataURL||'';
-                        }
-                        delete incoming[l.id];
-                        changed = true;
-                    }
-                    return true;
-                });
-                Object.keys(incoming).forEach(function(id) {
-                    var ld = incoming[id];
-                    var src = ld.url || ld.dataURL;
-                    if (!src) return;
-                    var img = new Image();
-                    img.onload = function(){ redrawCanvas(); renderLayerList(); };
-                    img.onerror = function(){
-                        console.warn('远程新图层加载失败: id=' + ld.id + ' name=' + ld.name + ' src=' + src);
-                        // 标记为加载失败（可见但无图片，待后续修复）
-                        ld._loadFailed = true;
-                    };
-                    img.src = src;
-                    mapLayers.push({id:ld.id, name:ld.name, image:img, url:ld.url||'', dataURL:ld.dataURL||'',
-                                    visible:ld.visible!==false, offsetX:ld.offsetX||0, offsetY:ld.offsetY||0, scale:ld.scale||1});
-                    changed = true;
-                });
-                if (mapLayers.length > 0 && !mapLayers.some(function(l){ return l.id === activeLayerId; })) {
-                    activeLayerId = mapLayers[0].id;
-                }
-                var maxId = 0;
-                mapLayers.forEach(function(l){ maxId = Math.max(maxId, l.id||0); });
-                layerIdCounter = Math.max(layerIdCounter, maxId);
-                if (changed) { redrawCanvas(); renderLayerList(); }
-            }
-
-            function applyRemoteFog(fd) {
-                fd = fd || [];
-                if (fd.length > 0 && fd[0].polygons !== undefined) {
-                    fogLayers = fd.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
-                } else if (fd.length > 0) {
-                    fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:fd.map(function(p){return{points:p.points,closed:p.closed};})}];
-                } else {
-                    fogLayers = [];
-                }
-                fogLayerIdCounter = fogLayers.length;
-                activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
-                redrawFogCanvas();
-            }
-
-            function mergeRemoteStrokes(list) {
-                // 按 id 去重合并（P1-1）；对无 id 的旧数据退回长度差追加
-                var localIds = {};
-                brushStrokes.forEach(function(s){ if (s.id) localIds[s.id] = true; });
-                var fresh = (list||[]).filter(function(s){ return s.id && !localIds[s.id]; });
-                if (fresh.length === 0 && (list||[]).length > brushStrokes.length) {
-                    fresh = list.slice(brushStrokes.length).filter(function(s){ return !s.id; });
-                }
-                if (fresh.length > 0) {
-                    brushStrokes = brushStrokes.concat(fresh);
-                    redrawDrawCanvas();
-                }
-            }
+        function onLocalChange() { _dirtyFlags.strokes = _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true; pushSharedCanvas(); }
 
             function pullSharedCanvas() {
                 // WebSocket 连接时跳过 HTTP 轮询（WS 实时推送增量，避免冲突闪回）
-                if (window._wsIsOpen()) return;
-                // 防回弹：本地有未推送的修改或推送在途时暂停拉取，等状态推完再对齐
-                if (window._anyDirty() || _pushDebounce || _pushInFlight) return;
-                fetch('/api/shared-canvas?since_ver=' + sharedCanvasVer).then(function(r) { return r.json(); }).then(function(data) {
+                if (_wsClient && _wsClient.readyState === WebSocket.OPEN) return;
+                fetch('/api/shared-canvas?since=' + sharedCanvasTs).then(function(r) { return r.json(); }).then(function(data) {
                     if (!data.ok || !data.changed) return;
                     sharedCanvasTs = data.timestamp;
-                    if (data.version !== undefined) sharedCanvasVer = data.version;
                     var state = data.state;
-                    // 笔画：按 id 合并
+                    // 笔画：增量追加
                     if (state.strokes) {
                         if (state.strokes.length === 0) { brushStrokes = []; redrawCanvas(); }
-                        else mergeRemoteStrokes(state.strokes);
+                        else if (state.strokes.length > brushStrokes.length) {
+                            brushStrokes = brushStrokes.concat(state.strokes.slice(brushStrokes.length));
+                            redrawDrawCanvas();
+                        }
                     }
-                    // 图层/标记/文字：按 id 差量合并（全量语义：本地多余的删除）
-                    if (state.layers) mergeRemoteLayers(state.layers, true);
-                    if (state.tokens) mergeRemoteTokens(state.tokens, [], true);
-                    if (state.texts) mergeRemoteTexts(state.texts, [], true);
+                    // 图层：按 id 增量合并
+                    if (state.layers && state.layers.length > 0) {
+                        var layerMap = {};
+                        mapLayers.forEach(function(l) { layerMap[l.id] = l; });
+                        state.layers.forEach(function(ld) {
+                            if (!ld.dataURL) return;
+                            if (layerMap[ld.id]) {
+                                var ex = layerMap[ld.id];
+                                ex.name = ld.name; ex.visible = ld.visible !== false;
+                                ex.offsetX = ld.offsetX||0; ex.offsetY = ld.offsetY||0; ex.scale = ld.scale||1;
+                                if (ex.dataURL !== ld.dataURL) { ex.dataURL = ld.dataURL; var img = new Image(); img.src = ld.url || ld.dataURL; ex.image = img; }
+                            } else {
+                                var img = new Image(); img.src = ld.url || ld.dataURL;
+                                mapLayers.push({id:ld.id,name:ld.name,image:img,dataURL:ld.dataURL,visible:ld.visible!==false,offsetX:ld.offsetX||0,offsetY:ld.offsetY||0,scale:ld.scale||1});
+                            }
+                        });
+                        if (mapLayers.length > 0) activeLayerId = mapLayers[0].id;
+                        redrawCanvas(); renderLayerList();
+                    }
+                    // 标记：按 id 增量合并
+                    if (state.tokens) {
+                        var tokenMap = {};
+                        mapTokens.forEach(function(t) { tokenMap[t.id] = t; });
+                        state.tokens.forEach(function(td) {
+                            if (tokenMap[td.id]) {
+                                var et = tokenMap[td.id];
+                                if (et.el) { et.el.style.left = td.x + 'px'; et.el.style.top = td.y + 'px'; }
+                                et.x = td.x; et.y = td.y; et.size = td.size||48; et.rotation = td.rotation||0;
+                            } else {
+                                mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0));
+                            }
+                        });
+                    }
+                    // 文字：按 id 增量合并
+                    if (state.texts) {
+                        var textMap = {};
+                        textBoxes.forEach(function(b) { textMap[b.id] = b; });
+                        state.texts.forEach(function(td) {
+                            if (textMap[td.id]) {
+                                var eb = textMap[td.id];
+                                eb.text = td.text; eb.fontSize = td.fontSize;
+                                if (eb.el) { eb.el.style.left = td.x + 'px'; eb.el.style.top = td.y + 'px'; eb.el.textContent = td.text; }
+                                eb.x = td.x; eb.y = td.y;
+                            } else {
+                                var box = createTextBoxElement(td.id, td.x, td.y, td.text, td.fontSize);
+                                textBoxes.push(box); overlay.appendChild(box.el);
+                            }
+                        });
+                    }
                     // 迷雾：直接替换
-                    if (state.fog) applyRemoteFog(state.fog);
+                    if (state.fog) {
+                        if (state.fog.length > 0 && state.fog[0].polygons !== undefined) {
+                            fogLayers = state.fog.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
+                        } else {
+                            fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:state.fog.map(function(p){return{points:p.points,closed:p.closed};})}];
+                        }
+                        fogLayerIdCounter = fogLayers.length;
+                        activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
+                        redrawFogCanvas();
+                    }
                 }).catch(function(){});
             }
-            // 立即拉取一次 + 每1.5秒轮询（仅 WS 断开时实际发请求；WS 在线时直接跳过）
+            // 立即拉取一次 + 每300ms增量轮询（所有人进入地图即自动同步共享画布）
             pullSharedCanvas();
-            setInterval(pullSharedCanvas, 1500);
+            setInterval(pullSharedCanvas, 300);
 
             // 通用变更通知
 
             // 启动WebSocket实时协作画布（与HTTP共用5000端口 /ws路径）
             connectWebSocket();
-
-            // 画笔诊断：启动后 3 秒测试 drawCtx 是否可用
-            setTimeout(function() {
-                try {
-                    var testCtx = drawCanvas.getContext('2d');
-                    testCtx.fillStyle = '#ff0000';
-                    testCtx.fillRect(50, 50, 10, 10);
-                    var pixel = testCtx.getImageData(50, 50, 1, 1).data;
-                    testCtx.clearRect(50, 50, 10, 10);
-                    if (pixel[0] === 255 && pixel[3] === 255) {
-                        console.log('🖌 画笔诊断通过: drawCtx 正常, drawCanvas=' + drawCanvas.width + 'x' + drawCanvas.height);
-                    } else {
-                        console.warn('⚠ 画笔诊断异常: drawCtx 绘制结果RGBA=(' + pixel.join(',') + '), canvas尺寸=' + drawCanvas.width + 'x' + drawCanvas.height);
-                    }
-                } catch(e) {
-                    console.error('❌ 画笔诊断失败: drawCtx 测试抛出异常', e);
-                }
-            }, 3000);
 
             // 2秒后检测同步状态
             setTimeout(function() {
