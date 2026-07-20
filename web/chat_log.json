@@ -1,417 +1,5 @@
 [
   {
-    "name": "5MKF",
-    "text": "🎲 5MKF d20 = [10]",
-    "time": "02:33:04",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783621984.2217705
-  },
-  {
-    "name": "5MKF",
-    "text": "🎲 5MKF d20 = [9]",
-    "time": "02:33:04",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783621984.3201478
-  },
-  {
-    "name": "5MKF",
-    "text": "🎲 5MKF d20 = [15]",
-    "time": "02:33:04",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783621984.4877162
-  },
-  {
-    "name": "5MKF",
-    "text": "🎲 5MKF d20 优势 = [6] [6,6] 取高",
-    "time": "02:33:05",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783621985.7577484
-  },
-  {
-    "name": "5MKF",
-    "text": "🎲 5MKF d20 劣势 = [3] [3,16] 取低",
-    "time": "02:33:06",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783621986.1117737
-  },
-  {
-    "name": "系统",
-    "text": "🔵 5MKF 进入房间",
-    "time": "02:36:01",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622161.699667,
-    "system": true
-  },
-  {
-    "name": "5MKF",
-    "text": "进入了骰娘",
-    "time": "02:36:01",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622161.7479477
-  },
-  {
-    "name": "系统",
-    "text": "🔵 AgnesYu 进入房间",
-    "time": "02:36:01",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622161.8405695,
-    "system": true
-  },
-  {
-    "name": "AgnesYu",
-    "text": "进入了骰娘",
-    "time": "02:36:01",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622161.8829098
-  },
-  {
-    "name": "系统",
-    "text": "🔵 TISH 进入房间",
-    "time": "02:36:04",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622164.7725255,
-    "system": true
-  },
-  {
-    "name": "TISH",
-    "text": "进入了骰娘",
-    "time": "02:36:05",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622165.0420525
-  },
-  {
-    "name": "系统",
-    "text": "🔴 5MKF 退出房间",
-    "time": "02:36:41",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622201.4922674,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔵 11 进入房间",
-    "time": "02:37:22",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622242.8768883,
-    "system": true
-  },
-  {
-    "name": "11",
-    "text": "进入了骰娘",
-    "time": "02:37:22",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622242.8844595
-  },
-  {
-    "name": "11",
-    "text": "?",
-    "time": "02:37:29",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622249.2084837
-  },
-  {
-    "name": "系统",
-    "text": "🔵 12 进入房间",
-    "time": "02:37:29",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622249.2313006,
-    "system": true
-  },
-  {
-    "name": "12",
-    "text": "进入了骰娘",
-    "time": "02:37:29",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622249.273887
-  },
-  {
-    "name": "天冥",
-    "text": "?",
-    "time": "02:37:33",
-    "is_dm": true,
-    "color": "#00bcd4",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1783622253.9650695
-  },
-  {
-    "name": "13",
-    "text": "进入了骰娘",
-    "time": "02:43:08",
-    "is_dm": true,
-    "color": "#ffd700",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1783622588.1185772
-  },
-  {
-    "name": "系统",
-    "text": "🔴 天冥 退出房间",
-    "time": "02:43:37",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622617.0828865,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔵 o 进入房间",
-    "time": "02:44:09",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622649.785081,
-    "system": true
-  },
-  {
-    "name": "o",
-    "text": "进入了骰娘",
-    "time": "02:44:09",
-    "is_dm": false,
-    "color": "#607d8b",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622649.7915745
-  },
-  {
-    "name": "天冥",
-    "text": "进入了骰娘",
-    "time": "02:44:33",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622673.4302006
-  },
-  {
-    "name": "天冥",
-    "text": "🎲 棕熊 d20 = [8]",
-    "time": "02:44:43",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "DM",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1783622683.4071324
-  },
-  {
-    "name": "系统",
-    "text": "🔵 TISH 进入房间",
-    "time": "02:48:34",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622914.9021115,
-    "system": true
-  },
-  {
-    "name": "TISH",
-    "text": "进入了骰娘",
-    "time": "02:48:34",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622914.9396198
-  },
-  {
-    "name": "系统",
-    "text": "🔵 AgnesYu 进入房间",
-    "time": "02:48:59",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622939.466468,
-    "system": true
-  },
-  {
-    "name": "AgnesYu",
-    "text": "进入了骰娘",
-    "time": "02:48:59",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783622939.7877386
-  },
-  {
-    "name": "系统",
-    "text": "🔴 AgnesYu 退出房间",
-    "time": "02:49:25",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622965.509353,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 TISH 退出房间",
-    "time": "02:49:54",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783622994.407508,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔵 TISH 进入房间",
-    "time": "02:50:14",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623014.64085,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 TISH 退出房间",
-    "time": "02:50:20",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623020.2822428,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 AgnesYu 退出房间",
-    "time": "02:50:34",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623034.5003088,
-    "system": true
-  },
-  {
-    "name": "TISH",
-    "text": "对",
-    "time": "02:50:41",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1783623041.6536863
-  },
-  {
-    "name": "TISH",
-    "text": "1",
-    "time": "02:51:05",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783623065.9925392
-  },
-  {
-    "name": "系统",
-    "text": "🔴 TISH 退出房间",
-    "time": "02:51:12",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623072.4881682,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 TISH 退出房间",
-    "time": "02:52:44",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623164.706546,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 天冥 退出房间",
-    "time": "02:53:02",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1783623182.6987326,
-    "system": true
-  },
-  {
-    "name": "AgnesYu",
-    "text": "进入了骰娘",
-    "time": "02:53:16",
-    "is_dm": false,
-    "color": "#ffd700",
-    "role": "PL",
-    "ip": "127.0.0.1",
-    "_ts": 1783623196.3662174
-  },
-  {
-    "name": "天冥",
-    "text": "进入了骰娘",
-    "time": "02:54:28",
-    "is_dm": true,
-    "color": "#ffd700",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1783623268.304965
-  },
-  {
     "name": "系统",
     "text": "🔵 AgnesYu 进入房间",
     "time": "02:55:15",
@@ -5096,5 +4684,405 @@
     "role": "PL",
     "ip": "127.0.0.1",
     "_ts": 1784557948.7423675
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "22:36:02",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784558162.445062
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "22:41:20",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784558480.8092015
+  },
+  {
+    "name": "白芸",
+    "text": "进入了骰娘",
+    "time": "22:42:33",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784558553.5652893
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:42:41",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784558561.5840938
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:42:46",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784558566.3889
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:42:56",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784558576.4521203
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "22:46:23",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784558783.0928147
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白芸 退出房间",
+    "time": "22:47:34",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1784558854.2980788,
+    "system": true
+  },
+  {
+    "name": "DSDAZE",
+    "text": "进入了骰娘",
+    "time": "22:50:12",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559012.6455548
+  },
+  {
+    "name": "DSDAZE",
+    "text": "1",
+    "time": "22:50:22",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559022.0929244
+  },
+  {
+    "name": "DSDAZE",
+    "text": "1",
+    "time": "22:50:26",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559026.8961527
+  },
+  {
+    "name": "DSDAZE",
+    "text": "1",
+    "time": "22:50:28",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559028.6264338
+  },
+  {
+    "name": "DSDAZE",
+    "text": "123",
+    "time": "22:50:39",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559039.2507157
+  },
+  {
+    "name": "DSDAZE",
+    "text": "1",
+    "time": "22:50:46",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559046.3308144
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:51:33",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559093.686941
+  },
+  {
+    "name": "白芸",
+    "text": "2",
+    "time": "22:51:38",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559098.692349
+  },
+  {
+    "name": "白芸",
+    "text": "3",
+    "time": "22:51:42",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559102.0348902
+  },
+  {
+    "name": "天冥",
+    "text": "111",
+    "time": "22:51:44",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784559104.318513
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:51:46",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559106.4590886
+  },
+  {
+    "name": "白芸",
+    "text": "0",
+    "time": "22:51:49",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559109.0720801
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:51:51",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559111.8351042
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:51:54",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559114.6283317
+  },
+  {
+    "name": "白芸",
+    "text": "0",
+    "time": "22:51:58",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559118.3282301
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:52:02",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559122.8740096
+  },
+  {
+    "name": "白芸",
+    "text": "9",
+    "time": "22:52:05",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559125.2493005
+  },
+  {
+    "name": "白芸",
+    "text": "9",
+    "time": "22:52:07",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559127.741988
+  },
+  {
+    "name": "白芸",
+    "text": "7",
+    "time": "22:52:10",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559130.2164698
+  },
+  {
+    "name": "白芸",
+    "text": "0",
+    "time": "22:52:13",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559133.541085
+  },
+  {
+    "name": "白芸",
+    "text": "1",
+    "time": "22:52:15",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559135.7340262
+  },
+  {
+    "name": "白芸",
+    "text": "0",
+    "time": "22:52:21",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559141.6992357
+  },
+  {
+    "name": "白芸",
+    "text": "9",
+    "time": "22:52:25",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559145.4932125
+  },
+  {
+    "name": "白芸",
+    "text": "3",
+    "time": "22:52:28",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559148.0732288
+  },
+  {
+    "name": "白芸",
+    "text": "7",
+    "time": "22:52:30",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559150.100589
+  },
+  {
+    "name": "白芸",
+    "text": "2",
+    "time": "22:52:32",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559152.3034647
+  },
+  {
+    "name": "白芸",
+    "text": "4",
+    "time": "22:52:35",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559155.4077442
+  },
+  {
+    "name": "DSDAZE",
+    "text": "1",
+    "time": "22:53:18",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1784559198.9655976
+  },
+  {
+    "name": "天冥",
+    "text": "ok的",
+    "time": "22:53:25",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784559205.6701863
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "22:53:52",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784559232.9052687
+  },
+  {
+    "name": "天冥",
+    "text": "1",
+    "time": "22:53:58",
+    "is_dm": true,
+    "color": "#e91e63",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784559238.4242516
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "22:56:51",
+    "is_dm": true,
+    "color": "#607d8b",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1784559411.51766
   }
 ]

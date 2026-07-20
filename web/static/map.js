@@ -191,6 +191,9 @@
         let layerIdCounter = 0;
         let brushStrokes = [];
         let currentStroke = null;
+        // 填充持久化：保存填充后的画布快照（base64），重绘时恢复
+        let fillBaseImage = new Image();  // 填充基底图片
+        let fillBaseDataURL = '';        // 基底 dataURL（用于持久化）
         let textBoxes = [];
         let textIdCounter = 0;
         let mapTokens = [];      // {id, charId, name, portraitUrl, x, y, size, rotation, selected, el}
@@ -320,6 +323,7 @@
                 canvas.height = state.canvasHeight || 5000;
                 drawCanvas.width = canvas.width; drawCanvas.height = canvas.height;
                 fogCanvas.width = canvas.width; fogCanvas.height = canvas.height;
+                fillBaseImage = new Image(); fillBaseDataURL = '';  // 尺寸变更后清除填充缓存
                 // Canvas 尺寸变更后上下文状态全部重置，恢复绘制属性
                 drawCtx.globalCompositeOperation = 'source-over';
                 drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round';
@@ -904,8 +908,13 @@
         }
 
         function redrawDrawCanvas() {
-            // 绘画画布：画笔笔画（橡皮擦除）
+            // 1. 画填充基底（Image 避免 drawImage(超大离屏canvas) 静默失败）
             drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            drawCtx.globalCompositeOperation = 'source-over';
+            if (fillBaseDataURL && fillBaseImage.complete && fillBaseImage.naturalWidth > 0) {
+                try { drawCtx.drawImage(fillBaseImage, 0, 0); } catch(e) {}
+            }
+            // 2. 画笔画（含橡皮擦除，destination-out 会同时擦除填充基底——符合直觉）
             for (const s of brushStrokes) {
                 if (s.points.length < 1) continue;
                 drawCtx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over';
@@ -1035,22 +1044,36 @@
                     const pt = screenToCanvas(e.clientX, e.clientY);
                     const fx = Math.round(pt.x), fy = Math.round(pt.y);
                     e.preventDefault();
-                    // 优先尝试洪水填充，失败则画实心圆
-                    let filled = false;
+                    // 洪水填充直接画在可见的 drawCtx 上（跳过 fillCanvas drawImage 的兼容性问题）
                     try {
-                        if (drawCtx.getImageData(fx, fy, 1, 1).data[3] !== 0) {
-                            floodFill(fx, fy, brushColor);
-                            filled = true;
+                        var alpha = drawCtx.getImageData(fx, fy, 1, 1).data[3];
+                        if (alpha === 0) {
+                            floodFillTransparent(drawCtx, drawCanvas.width, drawCanvas.height, fx, fy, brushColor);
+                        } else {
+                            floodFillOnCanvas(drawCtx, drawCanvas.width, drawCanvas.height, fx, fy, brushColor);
                         }
-                    } catch(err) {}
-                    if (!filled) {
-                        const r = Math.max(brushSize, 20);
-                        drawCtx.fillStyle = brushColor;
-                        drawCtx.beginPath();
-                        drawCtx.arc(fx, fy, r, 0, Math.PI*2);
-                        drawCtx.fill();
+                    } catch(err) { console.error('填充失败:', err); }
+                    // 边界增强：先画深色粗线描边，再画原色细线，确保边界醒目
+                    for (const s of brushStrokes) {
+                        if (s.points.length < 1 || s.tool === 'eraser') continue;
+                        drawCtx.globalCompositeOperation = 'source-over';
+                        drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round';
+                        // 底层：深色描边（宽度+2）
+                        drawCtx.strokeStyle = 'rgba(0,0,0,0.5)'; drawCtx.lineWidth = s.size + 2;
+                        drawCtx.beginPath(); drawCtx.moveTo(s.points[0].x, s.points[0].y);
+                        for (let i = 1; i < s.points.length; i++) drawCtx.lineTo(s.points[i].x, s.points[i].y);
+                        drawCtx.stroke();
+                        // 顶层：原色原宽
+                        drawCtx.strokeStyle = s.color; drawCtx.lineWidth = s.size;
+                        drawCtx.beginPath(); drawCtx.moveTo(s.points[0].x, s.points[0].y);
+                        for (let i = 1; i < s.points.length; i++) drawCtx.lineTo(s.points[i].x, s.points[i].y);
+                        drawCtx.stroke();
                     }
-                    redrawDrawCanvas();
+                    // 持久化：保存 drawCanvas 快照为 Image，供后续 redrawDrawCanvas 恢复
+                    fillBaseDataURL = drawCanvas.toDataURL('image/png');
+                    fillBaseImage = new Image();
+                    fillBaseImage.src = fillBaseDataURL;
+                    window._markDirty('strokes'); window._onLocalChange();
                     debouncedSave();
                 }
                 if (currentTool === 'fog') {
@@ -1403,18 +1426,73 @@
             }
         }
 
-        // ━━━ 填充工具（限定区域洪水填充，避免大画布卡顿）━━
+        // ━━━ 填充工具（限定区域洪水填充，可指定目标 canvas 上下文）━━
         function floodFill(sx, sy, fillColor) {
-            const w = drawCanvas.width, h = drawCanvas.height;
+            floodFillOnCanvas(drawCtx, drawCanvas.width, drawCanvas.height, sx, sy, fillColor);
+        }
+        // 填充透明区域（闭合笔画内部的空白），遇到非透明像素（笔画边界）即停止
+        // 若填充触碰到采样框边缘 → 说明未闭合，撤销填充
+        function floodFillTransparent(ctx, cw, ch, sx, sy, fillColor) {
+            const boxSize = 800;
+            const x0 = Math.max(0, sx - boxSize/2);
+            const y0 = Math.max(0, sy - boxSize/2);
+            const x1 = Math.min(cw, sx + boxSize/2);
+            const y1 = Math.min(ch, sy + boxSize/2);
+            const bw = x1 - x0, bh = y1 - y0;
+            if (bw <= 0 || bh <= 0) return;
+
+            const imageData = ctx.getImageData(x0, y0, bw, bh);
+            const data = imageData.data;
+            const lx = sx - x0, ly = sy - y0;
+
+            // 获取填充颜色 RGBA
+            const tmp = document.createElement('canvas'); tmp.width = 1; tmp.height = 1;
+            const tctx = tmp.getContext('2d'); tctx.fillStyle = fillColor; tctx.fillRect(0,0,1,1);
+            const fd = tctx.getImageData(0,0,1,1).data;
+            const fillR = fd[0], fillG = fd[1], fillB = fd[2], fillA = fd[3];
+
+            // 只填充透明像素（边界为非透明像素）
+            const visited = new Uint8Array(bw * bh);
+            const stack = [lx, ly];
+            const maxOps = 500000;
+            let ops = 0;
+            let edgeTouched = false;  // 是否触碰到了采样框边缘（未闭合）
+
+            while (stack.length > 0 && ops < maxOps) {
+                const y = stack.pop();
+                const x = stack.pop();
+                ops++;
+                if (x < 0 || x >= bw || y < 0 || y >= bh) continue;
+                const vi = y * bw + x;
+                if (visited[vi]) continue;
+                const idx = vi * 4;
+                if (data[idx+3] !== 0) continue;  // 遇到非透明像素（笔画边界），停止
+                visited[vi] = 1;
+                // 检测是否触碰到采样框边缘
+                if (x <= 0 || x >= bw-1 || y <= 0 || y >= bh-1) edgeTouched = true;
+                data[idx] = fillR; data[idx+1] = fillG; data[idx+2] = fillB; data[idx+3] = fillA;
+                stack.push(x+1, y, x-1, y, x, y+1, x, y-1);
+            }
+            if (!edgeTouched) {
+                // 闭合区域内 → 应用填充
+                ctx.putImageData(imageData, x0, y0);
+                console.log('🪣 填充: 已应用 (闭合区域 ops='+ops+')');
+            } else {
+                // 触碰边缘 → 未闭合，不填充
+                console.log('🪣 填充: 未闭合区域，跳过 (edgeTouched=true ops='+ops+')');
+                // 不调用 putImageData，填充被丢弃
+            }
+        }
+        function floodFillOnCanvas(ctx, cw, ch, sx, sy, fillColor) {
             // 限定采样区域：点击位置周围 800×800 像素
             const boxSize = 800;
             const x0 = Math.max(0, sx - boxSize/2);
             const y0 = Math.max(0, sy - boxSize/2);
-            const x1 = Math.min(w, sx + boxSize/2);
-            const y1 = Math.min(h, sy + boxSize/2);
+            const x1 = Math.min(cw, sx + boxSize/2);
+            const y1 = Math.min(ch, sy + boxSize/2);
             const bw = x1 - x0, bh = y1 - y0;
 
-            const imageData = drawCtx.getImageData(x0, y0, bw, bh);
+            const imageData = ctx.getImageData(x0, y0, bw, bh);
             const data = imageData.data;
             const lx = sx - x0, ly = sy - y0;
             const targetIdx = (ly * bw + lx) * 4;
@@ -1445,12 +1523,12 @@
                 data[idx] = fillR; data[idx+1] = fillG; data[idx+2] = fillB; data[idx+3] = fillA;
                 stack.push(x+1, y, x-1, y, x, y+1, x, y-1);
             }
-            drawCtx.putImageData(imageData, x0, y0);
+            ctx.putImageData(imageData, x0, y0);
 
             // 如果填充满整个采样框，可能是大空白区域，用 fillRect 补充
             if (ops >= maxOps) {
-                drawCtx.fillStyle = fillColor;
-                drawCtx.fillRect(x0, y0, bw, bh);
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(x0, y0, bw, bh);
             }
         }
 
@@ -2645,16 +2723,18 @@
             if (window._isDM !== true) { alert('⚠ 只有DM可以清除内容'); return; }
             if (!confirm('清除所有涂画和文字？（角色标记和地图图片保留）')) return;
             brushStrokes = [];
+            fillBaseImage = new Image(); fillBaseDataURL = '';  // 清除填充基底
             textBoxes.forEach(b => { if(b.el) b.el.remove(); }); textBoxes = [];
             selectedElement = null; clearMultiSelect(); redrawCanvas();
-            wsSend({type: 'strokes_clear'});
-            wsSend({type: 'texts_update', data: []});
+            window._wsSend({type: 'strokes_clear'});
+            window._wsSend({type: 'texts_update', data: []});
             saveState();
         }
         function clearAll() {
             if (window._isDM !== true) { alert('⚠ 只有DM可以清除全部内容'); return; }
             if (!confirm('清除全部内容（包括地图图片和角色标记）？')) return;
             brushStrokes = [];
+            fillBaseImage = new Image(); fillBaseDataURL = '';  // 清除填充基底
             textBoxes.forEach(b => { if(b.el) b.el.remove(); }); textBoxes = [];
             mapTokens.forEach(t => { if(t.el) t.el.remove(); }); mapTokens = [];
             selectedElement = null; clearMultiSelect(); mapLayers = []; activeLayerId = null;
@@ -3822,7 +3902,8 @@ applyRoleRestrictions();
                         } else if (msg.type === 'fog_update') {
                             applyRemoteFog(msg.data || []);
                         } else if (msg.type === 'clear_all') {
-                            brushStrokes = []; textBoxes.forEach(function(b) { if(b.el) b.el.remove(); });
+                            brushStrokes = []; fillBaseImage = new Image(); fillBaseDataURL = '';
+                            textBoxes.forEach(function(b) { if(b.el) b.el.remove(); });
                             textBoxes = []; mapTokens.forEach(function(t) { if(t.el) t.el.remove(); });
                             mapTokens = []; mapLayers = []; clearAllFogLayers();
                             redrawCanvas(); redrawFogCanvas(); renderLayerList();
