@@ -111,6 +111,12 @@
             padding: 0.25rem 0.3rem;
             min-height: 2px;
             transition: all 0.2s;
+            max-height: 340px;
+            overflow-y: auto;
+        }
+        /* 总角色组可以更高一些 */
+        .char-group[data-group-id="__all__"] .group-body {
+            max-height: 380px;
         }
         .group-body.drag-target-group {
             background: rgba(233,68,96,0.08);

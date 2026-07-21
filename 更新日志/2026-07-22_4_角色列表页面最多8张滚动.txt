@@ -1,0 +1,49 @@
+# 角色列表页面 — 8张限制 + 下拉滚动
+
+## 新增文件
+- frontend/src/api/character.ts — 角色 API 调用模块
+- frontend/src/views/CharacterList.vue — 角色列表页面
+
+## 修改文件
+- frontend/src/router/index.ts — 注册 /characters 路由
+- frontend/src/views/HomePage.vue — 角色管理卡片移除"即将"标记，状态栏更新
+
+## 角色列表页面功能
+
+### 卡片网格布局
+- 桌面端：4列 × 2行 = 最多同时展示 8 张角色卡
+- 平板端（<900px）：2列布局
+- 手机端（<500px）：1列布局
+- 超出8张时，容器显示滚动条，下拉滑动查看更多
+
+### 每张卡片展示
+- 圆形头像占位（名字首字）
+- 角色名 + 种族·职业
+- 等级徽章（Lv.X）
+- HP 血条（颜色：绿>50% / 黄>25% / 红<=25%）
+- AC 护甲值
+- 可见性锁图标（隐藏角色半透明+虚线边框）
+
+### 操作按钮
+- 👁️/🔒 切换角色可见性（DM控制是否对玩家显示）
+- 📋 复制角色卡（自动序号命名）
+- 🗑️ 删除角色卡（含确认提示）
+
+### 视图切换
+- 👑 DM视角（默认）：显示全部角色卡
+- 🎭 玩家视角：仅显示 visible_to_players=true 的角色
+
+### 滚动条美化
+- 细滚动条，主题色 #c9a96e
+- 平滑滚动
+
+### 状态处理
+- 加载中：旋转 spinner 动画
+- 空列表：空状态提示（图标 + 文案）
+- 错误：红色错误提示框
+
+## API 对接
+- GET /api/characters?dm_view=true/false — 获取角色列表
+- POST /api/characters/{id}/copy — 复制角色
+- DELETE /api/characters/{id} — 删除角色
+- PUT /api/characters/{id}/visibility?visible=true/false — 切换可见性

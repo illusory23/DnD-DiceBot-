@@ -1,0 +1,44 @@
+# 0环戏法栏位 + 角色卡可见性控制
+
+## 修改文件
+- backend/app/core/dnd5e_rules.py
+- backend/app/core/character.py
+- backend/app/schemas/character.py
+- backend/app/routers/character.py
+
+## 功能一：0环戏法（Cantrip）栏位
+
+### 改动
+- STANDARD_SPELL_SLOTS 表每级新增 '0' 环（戏法已知数量）
+- 级数增长：1-3级=3个, 4-9级=4个, 10-20级=5个
+- 戏法不消耗法术位（used_slots 始终为 0）
+- 格式与1-9环完全一致，前端可直接按同格式展示
+
+### 示例
+  1级施法者：0环×3, 1环×2
+  5级施法者：0环×4, 1环×4, 2环×3, 3环×2
+
+## 功能二：角色卡可见性控制（DM工具）
+
+### 数据库
+- characters 表新增 visible_to_players 列（INTEGER DEFAULT 1）
+- 自动迁移兼容旧数据库
+
+### API
+- GET /api/characters?dm_view=true   → DM视角：返回全部角色
+- GET /api/characters?dm_view=false  → 玩家视角：仅返回 visible_to_players=1 的角色
+- PUT /api/characters/{id}/visibility?visible=true   → 设为全员可见
+- PUT /api/characters/{id}/visibility?visible=false  → 设为仅DM可见
+- GET /api/characters/{id}  → 响应新增 visible_to_players 字段
+
+### 使用场景
+  DM在角色卡界面点击"对玩家可见"按钮 → PUT /api/characters/1/visibility?visible=true
+  DM关闭可见 → PUT /api/characters/1/visibility?visible=false
+  玩家端列表查询 → GET /api/characters?dm_view=false（自动过滤隐藏角色）
+
+### 响应格式
+  CharacterListItem 新增字段：
+    "visible_to_players": true/false
+
+  CharacterResponse 新增字段：
+    "visible_to_players": true/false
