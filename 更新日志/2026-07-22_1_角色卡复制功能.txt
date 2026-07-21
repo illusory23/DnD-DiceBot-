@@ -1,0 +1,31 @@
+# 角色卡复制功能（序号命名）
+
+## 修改文件
+- `backend/app/core/character.py`
+- `backend/app/routers/character.py`
+
+## 新增功能
+- **POST /api/characters/{char_id}/copy** — 复制角色卡
+
+## 命名规则
+- 原名无序号（如"哥布林"）→ 原名自动改为"哥布林1号"，副本为"哥布林2号"
+- 原名有序号（如"哥布林3号"）→ 原名不变，副本为当前最大序号+1（如"哥布林4号"）
+- 自动扫描所有同名基础角色，确保序号不冲突
+
+## 技术细节
+- `core/character.py`:
+  - 新增 `_parse_name_number()` 解析角色名提取基础名和序号
+  - 新增 `copy_character()` 深拷贝角色及其所有关联表（属性、技能、豁免、法术位、武器、护甲、钱币、背包、背景、法术书、死亡豁免）
+  - 新增 `_copy_related_table()` 通用关联表行复制工具
+  - 新增 `import re` 依赖
+- `routers/character.py`:
+  - 新增 `POST /{char_id}/copy` 端点
+
+## API 响应示例
+```json
+{
+  "original": {"id": 1, "name": "哥布林1号"},
+  "copy": {"id": 2, "name": "哥布林2号"},
+  "character": { /* 完整角色数据 */ }
+}
+```
