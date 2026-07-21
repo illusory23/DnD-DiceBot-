@@ -50,6 +50,86 @@
             border-radius: 3px; color: var(--text); font-size: 0.75rem; text-align: center;
         }
         .spell-slot-item input:focus { border-color: var(--accent); outline: none; }
+        /* 防止角色名过长撑破卡片 */
+        #char-detail .card-header {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        /* 角色列表拖拽排序 */
+        .char-list-item {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; margin-bottom: 0.25rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; cursor: default; font-size: 0.85rem;
+            transition: all 0.15s, transform 0.1s;
+        }
+        .char-list-item:hover { background: var(--surface2); }
+        .char-list-item.dragging { opacity: 0.4; border-style: dashed; }
+        .char-list-item.drag-over {
+            border-color: var(--accent); border-style: solid;
+            background: var(--surface2);
+            box-shadow: 0 0 6px rgba(233,68,96,0.3);
+        }
+        .drag-handle {
+            cursor: grab; color: var(--text-dim); font-size: 1rem;
+            user-select: none; flex-shrink: 0; line-height: 1;
+            padding: 0 0.15rem; transition: color 0.15s;
+        }
+        .drag-handle:hover { color: var(--gold); }
+        .drag-handle:active { cursor: grabbing; }
+        /* 角色分组 */
+        .char-group {
+            margin-bottom: 0.35rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+        .char-group.group-dragging { opacity: 0.4; border-style: dashed; }
+        .char-group.group-drag-over {
+            border-color: var(--accent);
+            box-shadow: 0 0 6px rgba(233,68,96,0.3);
+        }
+        .group-header {
+            display: flex; align-items: center; gap: 0.35rem;
+            padding: 0.4rem 0.5rem;
+            background: var(--surface2);
+            cursor: pointer; user-select: none;
+            font-size: 0.82rem; font-weight: bold;
+            color: var(--gold); transition: background 0.15s;
+        }
+        .group-header:hover { background: #1a4a7a; }
+        .group-header.collapsed { border-radius: 6px; }
+        .group-arrow {
+            font-size: 0.55rem; transition: transform 0.2s;
+            display: inline-block; width: 10px;
+            color: var(--text-dim);
+        }
+        .group-header.collapsed .group-arrow { transform: rotate(0deg); }
+        .group-header:not(.collapsed) ~ .group-body { display: block; }
+        .group-header.collapsed ~ .group-body { display: none; }
+        .group-body {
+            padding: 0.25rem 0.3rem;
+            min-height: 2px;
+            transition: all 0.2s;
+        }
+        .group-body.drag-target-group {
+            background: rgba(233,68,96,0.08);
+            border: 1px dashed var(--accent);
+            border-radius: 4px;
+            min-height: 36px;
+        }
+        .group-drag-handle { cursor: grab; min-width: 12px; }
+        .group-drag-handle:active { cursor: grabbing; }
+        .group-action-btn {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 0.7rem; padding: 0.1rem 0.25rem;
+            border-radius: 3px; transition: all 0.15s;
+            opacity: 0.5;
+        }
+        .group-header:hover .group-action-btn { opacity: 1; }
+        .group-action-btn:hover { background: var(--surface); color: var(--text); }
+        .group-delete-btn:hover { background: var(--red) !important; color: #fff !important; }
+        .group-name-input:focus { outline: none; }
     </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -112,6 +192,12 @@
                         <label>等级</label>
                         <input type="number" id="char-level" value="1" min="1" max="20">
                     </div>
+                    <div class="form-group">
+                        <label>分组</label>
+                        <select id="new-char-group" style="width:100%;padding:0.5rem 0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.95rem;">
+                            <option value="">— 无分组 —</option>
+                        </select>
+                    </div>
                     <button class="btn btn-primary" onclick="createChar()">✨ 创建角色</button>
                 </div>
 
@@ -130,7 +216,9 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">👥 角色列表</div>
+                    <div class="card-header">👥 角色列表
+                        <button class="btn btn-small btn-primary" onclick="window.createNewGroup()" title="创建分组" style="margin-left:0.5rem;font-size:0.7rem;padding:0.15rem 0.4rem;">📁 新建分组</button>
+                    </div>
                     <div id="char-list" style="color:var(--text-dim)">加载中...</div>
                 </div>
 
@@ -172,7 +260,7 @@
         </div>
     </div>
 
-    <script src="/static/character.js?v=3"></script>
+    <script src="/static/character.js?v=7"></script>
 <script>
 (function(){
 var K='dnd_joined_room';

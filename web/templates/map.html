@@ -24,6 +24,7 @@
             display: flex; align-items: center; gap: 0.4rem;
             padding: 0 0.75rem; height: var(--toolbar-h);
             justify-content: space-between;
+            overflow-x: auto; overflow-y: hidden;
         }
         .toolbar-left, .toolbar-right {
             display: flex; align-items: center; gap: 0.4rem;
@@ -281,13 +282,14 @@
             border-radius: 4px; cursor: pointer; font-size: 0.82rem;
             transition: all 0.15s; white-space: nowrap;
             display: flex; align-items: center; gap: 0.25rem;
+            min-width: 0; overflow: hidden;
         }
         .select-dropdown-btn:hover { background: var(--surface2); }
         .select-dropdown-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
         .select-dropdown-btn .arrow { font-size: 0.6rem; margin-left: 0.15rem; }
         .select-dropdown-menu {
-            display: none; position: absolute; top: 100%; left: 0;
-            margin-top: 2px; background: var(--surface); border: 1px solid var(--accent);
+            display: none; position: fixed;
+            margin-top: 0; background: var(--surface); border: 1px solid var(--accent);
             border-radius: 4px; z-index: 300; min-width: 130px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden;
         }
@@ -437,7 +439,7 @@
         #save-list-items .save-entry .save-action.save-overwrite:hover { background: var(--cyan); color: #000; }
         #save-btn.has-active { border-color: var(--green); }
         #save-btn .save-name-badge {
-            max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 80px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             display: inline-block; vertical-align: middle; color: var(--green);
         }
 
@@ -577,6 +579,30 @@
         .res-action-btn.delete:hover { background: var(--red); }
         .res-action-btn.load-map { color: var(--cyan); }
         .res-action-btn.load-map:hover { background: var(--cyan); color: #000; }
+
+        /* 地图侧边栏角色分组 */
+        .map-char-group {
+            margin-bottom: 0.25rem;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .map-group-header {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.3rem 0.4rem;
+            background: var(--surface2);
+            cursor: pointer; user-select: none;
+            font-size: 0.75rem; font-weight: bold;
+            color: var(--gold); transition: background 0.15s;
+        }
+        .map-group-header:hover { background: #1a4a7a; }
+        .map-group-header.collapsed { border-radius: 5px; }
+        .map-group-arrow {
+            font-size: 0.5rem; transition: transform 0.2s;
+            color: var(--text-dim); width: 8px;
+        }
+        .map-group-name { flex: 1; }
+        .map-group-body { padding: 0.15rem 0.2rem; }
     </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -665,8 +691,6 @@
                     <span id="identity-role" style="font-size:0.65rem;color:var(--text-dim);">—</span>
                 </span>
                 <button class="tool-btn" id="lock-btn" onclick="toggleMapLock()" title="锁定地图（禁止平移/缩放）">🔓</button>
-                <button class="tool-btn" id="push-btn" onclick="window._pushMapState&&window._pushMapState()" title="推送当前画布到共享画布（DM备用）" style="display:none;">📤 推送</button>
-                <button class="tool-btn" id="sync-btn" onclick="if(!window._syncMapState){this.textContent='⏳ 加载中...';this.disabled=true;setTimeout(function(){var b=document.getElementById('sync-btn');if(b){b.textContent='🔄 同步';b.disabled=false;}},3000);return;}window._syncMapState()" title="从共享画布拉取最新状态（PL备用）">🔄 同步</button>
                 <button class="tool-btn" onclick="zoomIn()">🔍+</button>
                 <button class="tool-btn" onclick="zoomOut()">🔍-</button>
                 <span class="sep"></span>
@@ -935,6 +959,7 @@
             <option value="text">📝 文本</option>
             <option value="doc">📋 文档</option>
             <option value="sheet">📊 表格</option>
+            <option value="save">💾 存档</option>
             <option value="audio">🎵 音频</option>
             <option value="other">📦 其他</option>
           </select>
@@ -955,7 +980,7 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map.js?v=16"></script>
+    <script src="/static/map.js?v=26"></script>
 <script>
 (function(){
 var K='dnd_joined_room';
@@ -968,7 +993,7 @@ window.toggleJoinColorPalette=function(){B();document.getElementById('join-color
 window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
 fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
 document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
-window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharTokens==='function')loadCharTokens();if(typeof loadMapCombatCharSelect==='function')loadMapCombatCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var pb=document.getElementById('push-btn');var sb=document.getElementById('sync-btn');if(pb)pb.style.display='';if(sb)sb.style.display='none';var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _pb=document.getElementById('push-btn');var _sb=document.getElementById('sync-btn');if(_pb)_pb.style.display='none';if(_sb)_sb.style.display='';var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharTokens==='function')loadCharTokens();if(typeof loadMapCombatCharSelect==='function')loadMapCombatCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
 document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
 })();
 </script>

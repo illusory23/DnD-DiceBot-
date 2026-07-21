@@ -12,31 +12,6 @@
             return 's' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8) + '_' + (++_strokeSeq);
         }
 
-        // ━━━ 同步按钮（顶层入口，boot 完成后注册真实实现）━━
-        var _bootReady = false;
-        window.manualSync = function() {
-            var btn = document.getElementById('sync-btn');
-            if (!btn) return;
-            if (!_bootReady) {
-                btn.textContent = '⏳ 初始化中...';
-                btn.disabled = true;
-                setTimeout(function() {
-                    if (btn && !_bootReady) { btn.textContent = '🔄 同步'; btn.disabled = false; }
-                }, 2000);
-                return;
-            }
-            // 确定角色：仅信任服务器 /api/dm-status 的返回值
-            var dm = (typeof window._isDM !== 'undefined' && window._isDM === true);
-            if (dm && window._pushMapState) {
-                window._pushMapState();
-            } else if (window._syncMapState) {
-                window._syncMapState();
-            } else if (btn) {
-                btn.textContent = '🔄 同步';
-                btn.disabled = false;
-            }
-        };
-
         // 聊天加入按钮（顶层入口，boot 完成前也可响应）
         window.setChatUser = function() {
             var input = document.getElementById('chat-username');
@@ -315,7 +290,7 @@
         }
 
         function applyState(state) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 if (!state) { resolve(false); return; }
 
                 // 恢复画布尺寸
@@ -329,7 +304,7 @@
                 drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round';
 
                 // ━━ 先恢复非图片数据（立即显示），图片逐张后台加载 ━━
-                restoreNonImageData(state);
+                try { restoreNonImageData(state); } catch(e) { console.error('恢复非图片数据失败:', e); }
 
                 // 图层图片逐张加载（setTimeout 让出主线程，每张间隔 50ms）
                 layerIdCounter = state.layerIdCounter || 0;
@@ -344,34 +319,38 @@
                         const img = new Image();
                         var retried = false;  // 是否已完成回退重试
                         img.onload = function() {
-                            if (img.width > 0) {
-                                mapLayers.push({
-                                    id: ld.id, name: ld.name, image: img,
-                                    dataURL: ld.dataURL, url: ld.url || '', visible: ld.visible !== false,
-                                    offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
-                                });
-                            }
-                            redrawCanvas();
+                            try {
+                                if (img.width > 0) {
+                                    mapLayers.push({
+                                        id: ld.id, name: ld.name, image: img,
+                                        dataURL: ld.dataURL, url: ld.url || '', visible: ld.visible !== false,
+                                        offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
+                                    });
+                                }
+                                redrawCanvas();
+                            } catch(e) { console.error('图层 onload 处理失败:', e); }
                             setTimeout(loadNext, 50);
                         };
                         img.onerror = function() {
-                            // URL 加载失败 → 回退到服务端兼容端点
-                            if (!retried && ld.url && !ld.dataURL) {
-                                retried = true;
-                                var fallbackUrl = '/api/shared-canvas/layer/' + ld.id;
-                                console.warn('图层 URL 加载失败，尝试兼容端点: ' + ld.url + ' → ' + fallbackUrl);
-                                img.src = fallbackUrl;
-                                return;
-                            }
-                            // 两轮都失败：保留占位图层，输出警告（不再静默丢弃）
-                            console.warn('图层加载失败(已重试): id=' + ld.id + ' name=' + ld.name + ' url=' + ld.url);
-                            // 加入占位图层，保持图层列表完整（后续可通过 WS init 修复）
-                            mapLayers.push({
-                                id: ld.id, name: ld.name + ' ⚠️加载失败', image: null,
-                                dataURL: ld.dataURL, url: ld.url || '', visible: false,
-                                offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
-                            });
-                            redrawCanvas();
+                            try {
+                                // URL 加载失败 → 回退到服务端兼容端点
+                                if (!retried && ld.url && !ld.dataURL) {
+                                    retried = true;
+                                    var fallbackUrl = '/api/shared-canvas/layer/' + ld.id;
+                                    console.warn('图层 URL 加载失败，尝试兼容端点: ' + ld.url + ' → ' + fallbackUrl);
+                                    img.src = fallbackUrl;
+                                    return;
+                                }
+                                // 两轮都失败：保留占位图层，输出警告（不再静默丢弃）
+                                console.warn('图层加载失败(已重试): id=' + ld.id + ' name=' + ld.name + ' url=' + ld.url);
+                                // 加入占位图层，保持图层列表完整（后续可通过 WS init 修复）
+                                mapLayers.push({
+                                    id: ld.id, name: ld.name + ' ⚠️加载失败', image: null,
+                                    dataURL: ld.dataURL, url: ld.url || '', visible: false,
+                                    offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
+                                });
+                                redrawCanvas();
+                            } catch(e) { console.error('图层 onerror 处理失败:', e); }
                             setTimeout(loadNext, 50);
                         };
                         img.src = ld.url || ld.dataURL;
@@ -433,10 +412,10 @@
                     document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
                     redrawFogCanvas();
 
-                    // 恢复视图
-                    scale = state.scale || 1;
-                    offsetX = state.offsetX || 0;
-                    offsetY = state.offsetY || 0;
+                    // 恢复视图（校验合法性，防止 NaN/Infinity 导致比例异常）
+                    scale = (typeof state.scale === 'number' && isFinite(state.scale) && state.scale > 0) ? state.scale : 1;
+                    offsetX = (typeof state.offsetX === 'number' && isFinite(state.offsetX)) ? state.offsetX : 0;
+                    offsetY = (typeof state.offsetY === 'number' && isFinite(state.offsetY)) ? state.offsetY : 0;
 
                     // 恢复战斗状态
                     if (state.mapCombatants && state.mapCombatants.length) {
@@ -454,7 +433,7 @@
             // 可靠保存：IndexedDB 等待事务确认，localStorage 保留 dataURL 作为兜底
             const state = collectState();
             // 异步但等待确认，确保 IndexedDB 写入完整（页面正常操作时调用）
-            dbSetAndWait(STORAGE_KEY, state).catch(function(){});
+            dbSetAndWait(STORAGE_KEY, state).catch(function(e){ console.error('⚠ IndexedDB 保存失败:', e); });
             try {
                 // _light 备份保留 dataURL（限制单层 ≤200KB 避免超出 localStorage 5MB 上限）
                 const light = {
@@ -464,7 +443,8 @@
                         return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
                     }),
                 };
-                localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
+                const lightJson = JSON.stringify(light);
+                localStorage.setItem(STORAGE_KEY + '_light', lightJson);
                 // 紧急兜底：单独保存图层 dataURL（仅含图片数据，用于极端情况恢复）
                 var emergency = { layers: [] };
                 for (var ei = 0; ei < state.layers.length; ei++) {
@@ -476,7 +456,7 @@
                 if (emergency.layers.length > 0) {
                     localStorage.setItem(STORAGE_KEY + '_emergency', JSON.stringify(emergency));
                 }
-            } catch(e) {}
+            } catch(e) { console.error('⚠ localStorage 保存失败 (可能超出配额):', e); }
         }
 
         // 带 IndexedDB 确认的完整保存（定时自动保存用，确保图层 dataURL 可靠落盘）
@@ -642,7 +622,11 @@
 
         function toggleSaveDropdown() {
             renderSaveMenu();
-            document.getElementById('save-dropdown-menu').classList.toggle('show');
+            const btn = document.getElementById('save-btn');
+            const menu = document.getElementById('save-dropdown-menu');
+            const willShow = !menu.classList.contains('show');
+            if (willShow) positionDropdownMenu(btn, menu);
+            menu.classList.toggle('show');
         }
 
         async function saveMapAs(name) {
@@ -848,10 +832,40 @@
             saveState();
         }
 
+        // ━━━ 下拉菜单 fixed 定位辅助（解决工具栏 overflow 裁剪问题）━━
+        function positionDropdownMenu(btn, menu) {
+            const btnRect = btn.getBoundingClientRect();
+            // 检测是否右对齐（HTML 中设置了 right 属性的菜单）
+            const isRightAligned = menu.style.right && menu.style.right !== 'auto';
+            if (isRightAligned) {
+                menu.style.left = 'auto';
+                menu.style.right = (window.innerWidth - btnRect.right) + 'px';
+            } else {
+                menu.style.left = btnRect.left + 'px';
+                menu.style.right = 'auto';
+            }
+            menu.style.top = (btnRect.bottom + 2) + 'px';
+            // 等待渲染后修正越界
+            requestAnimationFrame(() => {
+                const mr = menu.getBoundingClientRect();
+                if (mr.right > window.innerWidth - 4) {
+                    menu.style.left = 'auto';
+                    menu.style.right = '4px';
+                }
+                if (mr.left < 4) {
+                    menu.style.left = '4px';
+                    menu.style.right = 'auto';
+                }
+            });
+        }
+
         // ━━━ 选择模式下拉菜单 ━━━
         function toggleSelectDropdown() {
             if (currentTool !== 'select') { setTool('select'); }
+            const btn = document.getElementById('select-btn');
             const menu = document.getElementById('select-dropdown-menu');
+            const willShow = !menu.classList.contains('show');
+            if (willShow) positionDropdownMenu(btn, menu);
             menu.classList.toggle('show');
         }
 
@@ -962,6 +976,9 @@
         wrap.addEventListener('wheel', handleWheel);
 
         mapArea.addEventListener('mousedown', (e) => {
+            // 兜底清理：释放前一次可能未正确结束的拖拽状态
+            if (dragTarget !== null) { dragTarget = null; dragType = null; }
+            if (groupDragging) { groupDragging = false; groupDragOffsets = []; }
             // 点击面板时不处理地图事件
             if (e.target.closest('#token-info-panel') || e.target.closest('#layer-panel')) return;
             // 旋转手柄
@@ -1114,6 +1131,7 @@
 
         window.addEventListener('mousemove', (e) => {
             if (isDraggingPanel) return;
+            if (_justDropped) return;
             if (isRotating) {
                 updateRotate(e);
                 return;
@@ -1191,6 +1209,7 @@
         });
 
         window.addEventListener('mouseup', () => {
+            if (_justDropped) return;
             if (isRotating) { endRotate(); }
             if (isPanning) { isPanning = false; mapArea.classList.remove('cursor-grabbing'); if (currentTool==='select') mapArea.classList.add('cursor-grab'); debouncedSave(); }
             if (isDrawing && currentStroke) {
@@ -1208,20 +1227,24 @@
                 }
             }
             if (dragTarget !== null) {
-                // 拖拽结束只广播被拖动的单个对象（P1-1：操作语义，避免全量广播）
-                if (dragType === 'token') { window._wsSendOp('tokens', [tokenNetData(dragTarget)], []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
-                else if (dragType === 'text') { window._wsSendOp('texts', [textNetData(dragTarget)], []); if (!window._wsIsOpen()) window._markDirty('texts'); }
-                dragTarget = null; dragType = null; debouncedSave();
+                // 先清空拖拽状态，防止后续操作异常导致 token 粘在鼠标上
+                const doneTarget = dragTarget, doneType = dragType;
+                dragTarget = null; dragType = null;
+                if (doneType === 'token') { try { window._wsSendOp('tokens', [tokenNetData(doneTarget)], []); } catch(e) {} if (!window._wsIsOpen()) window._markDirty('tokens'); }
+                else if (doneType === 'text') { try { window._wsSendOp('texts', [textNetData(doneTarget)], []); } catch(e) {} if (!window._wsIsOpen()) window._markDirty('texts'); }
+                debouncedSave();
             }
             if (groupDragging) {
                 var movedTokens = [], movedTexts = [];
-                groupDragOffsets.forEach(function(gd) {
+                groupDragging = false;
+                var offsets = groupDragOffsets; groupDragOffsets = [];
+                offsets.forEach(function(gd) {
                     if (gd.type === 'token') movedTokens.push(tokenNetData(gd.ref));
                     else if (gd.type === 'text') movedTexts.push(textNetData(gd.ref));
                 });
-                if (movedTokens.length) { window._wsSendOp('tokens', movedTokens, []); if (!window._wsIsOpen()) window._markDirty('tokens'); }
-                if (movedTexts.length) { window._wsSendOp('texts', movedTexts, []); if (!window._wsIsOpen()) window._markDirty('texts'); }
-                groupDragging = false; groupDragOffsets = []; debouncedSave();
+                if (movedTokens.length) { try { window._wsSendOp('tokens', movedTokens, []); } catch(e) {} if (!window._wsIsOpen()) window._markDirty('tokens'); }
+                if (movedTexts.length) { try { window._wsSendOp('texts', movedTexts, []); } catch(e) {} if (!window._wsIsOpen()) window._markDirty('texts'); }
+                debouncedSave();
             }
         });
 
@@ -1921,44 +1944,90 @@
             }
         }
 
+        function renderMapCharCard(c) {
+            const portraitUrl = `/api/character/${c.id}/portrait?v=${encodeURIComponent(c.portrait_path||'')}`;
+            const hp = c.hp_current ?? '?';
+            const hpMax = c.hp_max ?? '?';
+            return `
+            <div class="char-token-card"
+                 draggable="true"
+                 data-char-id="${c.id}"
+                 data-char-name="${c.name}"
+                 data-portrait="${portraitUrl}"
+                 onclick="onSidebarCharClick(${c.id}, event)"
+                 ondragstart="onCharDragStart(event)"
+                 ondblclick="placeCharOnMap(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${portraitUrl}')">
+                <img class="token-thumb" src="${portraitUrl}"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+                     loading="lazy">
+                <div class="token-thumb placeholder" style="display:none;">👤</div>
+                <div class="token-info">
+                    <div class="token-name">
+                        ${c.name}
+                        <button onclick="event.stopPropagation();event.preventDefault();showSidebarCharInfo(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
+                                style="background:var(--accent);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:0.6rem;padding:0.1rem 0.35rem;margin-left:0.2rem;vertical-align:middle;"
+                                title="查看详细信息">📋</button>
+                    </div>
+                    <div class="token-meta">${c.level || 1}级 ${c.class || ''} | ❤️${hp}/${hpMax}</div>
+                </div>
+            </div>`;
+        }
+
         async function loadCharTokens() {
             const list = document.getElementById('char-token-list');
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
-                const chars = await resp.json();
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
+                const groups = (!Array.isArray(data) && data.groups) ? data.groups : [];
+
                 if (!chars.length) { list.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1rem;">暂无角色</div>'; return; }
 
-                list.innerHTML = chars.map(c => {
-                    const portraitUrl = `/api/character/${c.id}/portrait?v=${encodeURIComponent(c.portrait_path||'')}`;
-                    const hp = c.hp_current ?? '?';
-                    const hpMax = c.hp_max ?? '?';
-                    return `
-                    <div class="char-token-card"
-                         draggable="true"
-                         data-char-id="${c.id}"
-                         data-char-name="${c.name}"
-                         data-portrait="${portraitUrl}"
-                         onclick="onSidebarCharClick(${c.id}, event)"
-                         ondragstart="onCharDragStart(event)"
-                         ondblclick="placeCharOnMap(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${portraitUrl}')">
-                        <img class="token-thumb" src="${portraitUrl}"
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-                             loading="lazy">
-                        <div class="token-thumb placeholder" style="display:none;">👤</div>
-                        <div class="token-info">
-                            <div class="token-name">
-                                ${c.name}
-                                <button onclick="event.stopPropagation();event.preventDefault();showSidebarCharInfo(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
-                                        style="background:var(--accent);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:0.6rem;padding:0.1rem 0.35rem;margin-left:0.2rem;vertical-align:middle;"
-                                        title="查看详细信息">📋</button>
-                            </div>
-                            <div class="token-meta">${c.level || 1}级 ${c.class || ''} | ❤️${hp}/${hpMax}</div>
-                        </div>
-                    </div>`;
-                }).join('');
+                let html = '';
+                // 总角色组（全部角色）
+                html += renderMapGroupHTML({id: '__all__', name: '总角色组'}, chars);
+                // 各分组
+                for (const g of groups) {
+                    const groupChars = chars.filter(c => String(c.group_id) === String(g.id));
+                    html += renderMapGroupHTML(g, groupChars);
+                }
+
+                list.innerHTML = html;
             } catch(e) { list.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">加载失败</div>'; }
         }
+
+        function renderMapGroupHTML(g, groupChars) {
+            const isAll = g.id === '__all__';
+            const gid = isAll ? '__all__' : (g.id || '');
+            const gname = g.name || '分组';
+            const isEmpty = groupChars.length === 0;
+            if (isEmpty && !isAll) return '';  // 跳过空分组
+            const countBadge = `<span style="color:var(--text-dim);font-size:0.65rem;">${groupChars.length}</span>`;
+
+            const items = groupChars.map(c => renderMapCharCard(c)).join('');
+            const emptyHint = isEmpty ? '<div style="color:var(--text-dim);font-size:0.7rem;padding:0.2rem 0.5rem;opacity:0.5;">拖拽角色到地图上</div>' : '';
+
+            return `
+            <div class="map-char-group">
+                <div class="map-group-header" onclick="toggleMapGroup(this)" title="点击折叠/展开">
+                    <span class="map-group-arrow">▼</span>
+                    <span class="map-group-name">${gname}</span>
+                    ${countBadge}
+                </div>
+                <div class="map-group-body">
+                    ${items}${emptyHint}
+                </div>
+            </div>`;
+        }
+
+        window.toggleMapGroup = function(header) {
+            const body = header.nextElementSibling;
+            const arrow = header.querySelector('.map-group-arrow');
+            const isCollapsed = header.classList.toggle('collapsed');
+            body.style.display = isCollapsed ? 'none' : '';
+            arrow.textContent = isCollapsed ? '▶' : '▼';
+        };
 
         // 点击侧边栏角色📋按钮 → 左侧弹出信息面板
         async function showSidebarCharInfo(charId, name) {
@@ -1989,13 +2058,16 @@
         mapArea.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
         mapArea.addEventListener('drop', (e) => {
             e.preventDefault();
+            // 强制重置所有拖拽状态，防止 token 粘在鼠标上
+            dragTarget = null; dragType = null; isPanning = false;
+            groupDragging = false; groupDragOffsets = [];
             _justDropped = true;
-            setTimeout(() => { _justDropped = false; }, 100);
+            setTimeout(() => { _justDropped = false; }, 500);
             try {
                 const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                 if (data.charId) {
                     const pt = screenToCanvas(e.clientX, e.clientY);
-                    const token = addMapToken(parseInt(data.charId), data.name, data.portrait, pt.x - 24, pt.y - 24);
+                    addMapToken(parseInt(data.charId), data.name, data.portrait, pt.x - 24, pt.y - 24);
                 }
             } catch(ex) {}
         });
@@ -2334,7 +2406,11 @@
         // ━━━ 视图操作 ━━━
         // ━━━ 迷雾下拉菜单 ━━━
         function toggleFogDropdown() {
-            document.getElementById('fog-dropdown-menu').classList.toggle('show');
+            const btn = document.getElementById('fog-btn');
+            const menu = document.getElementById('fog-dropdown-menu');
+            const willShow = !menu.classList.contains('show');
+            if (willShow) positionDropdownMenu(btn, menu);
+            menu.classList.toggle('show');
         }
         function toggleFogVisibility() {
             setFogMode(fogVisible ? 'hide' : 'show');
@@ -2472,7 +2548,8 @@
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
-                const chars = await resp.json();
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
                 const select = document.getElementById('dicepop-char');
                 select.innerHTML = '<option value="">⚡ 选择角色</option>';
                 chars.forEach(c => {
@@ -2708,8 +2785,12 @@
             debouncedSave();
         }
         function toggleClearDropdown() {
+            const btn = document.querySelector('#clear-dropdown-wrap > .tool-btn');
             const menu = document.getElementById('clear-dropdown-menu');
-            if (menu) menu.classList.toggle('show');
+            if (!menu) return;
+            const willShow = !menu.classList.contains('show');
+            if (willShow && btn) positionDropdownMenu(btn, menu);
+            menu.classList.toggle('show');
         }
         // 点击其他地方关闭清除下拉菜单
         document.addEventListener('click', (e) => {
@@ -2815,7 +2896,8 @@
                 const identity = getIdentity();
                 const role = identity.name ? identity.role : 'DM';
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(role)}`);
-                const chars = await resp.json();
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
                 if (chars.length) {
                     chars.forEach(c => {
                         const opt = document.createElement('option');
@@ -3208,19 +3290,25 @@
             redrawFogCanvas();
             renderLayerList();
 
-            // ━━ 步骤2：加载上次关闭时的状态 ━━
-            // 优先从 localStorage 轻量备份加载（同步写入，页面关闭时可靠保存）
-            // IndexedDB 的 dbSetSync 不等待事务完成，关闭时可能来不及提交
+            // ━━ 步骤2：恢复上次关闭/刷新时的状态（优先 _unload → _light → IndexedDB）━━
             let state = null;
-            const lightRaw = localStorage.getItem(STORAGE_KEY + '_light');
-            if (lightRaw) {
-                try { state = JSON.parse(lightRaw); } catch(e) {}
+            // 1. 优先：刷新前的紧急保存（_unload，beforeunload 时同步写入，包含完整状态）
+            const unloadRaw = localStorage.getItem(STORAGE_KEY + '_unload');
+            if (unloadRaw) {
+                try { state = JSON.parse(unloadRaw); localStorage.removeItem(STORAGE_KEY + '_unload'); } catch(e) {}
             }
-            // 回退到 IndexedDB（可能不是最新的，但作为兜底）
+            // 2. 回退：轻量备份（_light，正常操作过程中频繁同步写入）
+            if (!state) {
+                const lightRaw = localStorage.getItem(STORAGE_KEY + '_light');
+                if (lightRaw) {
+                    try { state = JSON.parse(lightRaw); } catch(e) {}
+                }
+            }
+            // 3. 兜底：IndexedDB 完整数据（异步写入，可能非最新）
             if (!state) {
                 state = await dbGetSync(STORAGE_KEY);
             }
-            // 旧版格式兼容
+            // 4. 旧版格式兼容
             if (!state) {
                 const legacyRaw = localStorage.getItem(STORAGE_KEY);
                 if (legacyRaw) {
@@ -3230,39 +3318,39 @@
 
             if (state) {
                 try {
-                    // 图层 dataURL 轻量备份中为空，从 IndexedDB 补全
-                    if (state.layers && state.layers.length > 0 && state.layers.every(l => !l.dataURL)) {
-                        const dbState = await dbGetSync(STORAGE_KEY);
-                        if (dbState && dbState.layers) {
-                            // 按 id 匹配合并 dataURL
-                            const dbLayerMap = {};
-                            for (const dl of dbState.layers) {
-                                if (dl.dataURL) dbLayerMap[dl.id] = dl.dataURL;
-                            }
-                            for (const l of state.layers) {
-                                if (!l.dataURL && dbLayerMap[l.id]) {
-                                    l.dataURL = dbLayerMap[l.id];
+                    // 按层从 IndexedDB / _emergency 补全被 localStorage 截断的 dataURL
+                    if (state.layers && state.layers.length > 0) {
+                        const needsDataURL = state.layers.filter(l => !l.dataURL);
+                        if (needsDataURL.length > 0) {
+                            // 从 IndexedDB 补全
+                            const dbState = await dbGetSync(STORAGE_KEY);
+                            if (dbState && dbState.layers) {
+                                const dbLayerMap = {};
+                                for (const dl of dbState.layers) {
+                                    if (dl.dataURL) dbLayerMap[dl.id] = dl.dataURL;
+                                }
+                                for (const l of needsDataURL) {
+                                    if (dbLayerMap[l.id]) l.dataURL = dbLayerMap[l.id];
                                 }
                             }
-                        }
-                        // 紧急兜底：IndexedDB 也无 dataURL，尝试 _emergency 键
-                        if (state.layers.every(l => !l.dataURL)) {
-                            const emergRaw = localStorage.getItem(STORAGE_KEY + '_emergency');
-                            if (emergRaw) {
-                                try {
-                                    const emerg = JSON.parse(emergRaw);
-                                    if (emerg.layers) {
-                                        const emergMap = {};
-                                        for (const el of emerg.layers) {
-                                            if (el.dataURL) emergMap[el.id] = el.dataURL;
-                                        }
-                                        for (const l of state.layers) {
-                                            if (!l.dataURL && emergMap[l.id]) {
-                                                l.dataURL = emergMap[l.id];
+                            // _emergency 兜底补充仍未恢复的层
+                            const stillMissing = needsDataURL.filter(l => !l.dataURL);
+                            if (stillMissing.length > 0) {
+                                const emergRaw = localStorage.getItem(STORAGE_KEY + '_emergency');
+                                if (emergRaw) {
+                                    try {
+                                        const emerg = JSON.parse(emergRaw);
+                                        if (emerg.layers) {
+                                            const emergMap = {};
+                                            for (const el of emerg.layers) {
+                                                if (el.dataURL) emergMap[el.id] = el.dataURL;
+                                            }
+                                            for (const l of stillMissing) {
+                                                if (emergMap[l.id]) l.dataURL = emergMap[l.id];
                                             }
                                         }
-                                    }
-                                } catch(e) {}
+                                    } catch(e) {}
+                                }
                             }
                         }
                     }
@@ -3284,6 +3372,10 @@
                     dbSetSync(STORAGE_KEY, state);
 
                     console.log('✅ 已恢复上次关闭时的地图状态');
+                    // 标记本地状态已恢复，阻止 WS init / HTTP 轮询用服务端旧数据覆盖
+                    window._localStateRestored = true;
+                    // 5 秒后自动清除保护标志，届时本地状态应已推送至服务器，恢复正常同步
+                    setTimeout(function() { window._localStateRestored = false; }, 5000);
                     return;
                 } catch(e) {
                     console.warn('恢复状态失败，使用空白画布:', e);
@@ -3344,10 +3436,21 @@
                 if (!document.hidden) { clearTimeout(autoSaveTimer); autoSaveTimer = setTimeout(autoSaveLoop, 200); }
             });
 
-            // 页面隐藏/跳转时立即保存（同步写 _light 确保不丢，IndexedDB 来不及等）
+            // 页面隐藏/跳转时立即保存（同步写专用键 + _light 确保刷新不丢数据）
             const saveOnUnload = () => {
                 clearTimeout(autoSaveTimer);
                 clearTimeout(debouncedSave._timer);
+                // 写入专用 _unload 键（最高优先恢复），strip 大 dataURL 防止超出 localStorage 配额
+                try {
+                    const s = collectState();
+                    s._unloadAt = Date.now();
+                    // 与 _light 一样截断大 dataURL，确保可靠写入
+                    s.layers = s.layers.map(function(l) {
+                        var dataLen = (l.dataURL || '').length;
+                        return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
+                    });
+                    localStorage.setItem(STORAGE_KEY + '_unload', JSON.stringify(s));
+                } catch(e) { console.error('⚠ 紧急保存 _unload 失败:', e); }
                 saveState(); saveMapCombatLocal();
                 window._pushSharedCanvas();
             };
@@ -3390,8 +3493,6 @@
 
             function applyRoleRestrictions() {
                 var dm = (window._isDM === true);
-                var pushBtn = document.getElementById('push-btn');
-                var syncBtn = document.getElementById('sync-btn');
                 var fogWrap = document.getElementById('fog-dropdown-wrap');
                 var clearWrap = document.getElementById('clear-dropdown-wrap');
                 var layerFooter = document.getElementById('layer-panel-footer');
@@ -3399,16 +3500,12 @@
 
                 if (dm) {
                     // DM：显示所有功能按钮
-                    if (pushBtn) pushBtn.style.display = '';
-                    if (syncBtn) syncBtn.style.display = 'none';
                     if (fogWrap) fogWrap.style.display = '';
                     if (clearWrap) clearWrap.style.display = '';
                     if (layerFooter) layerFooter.style.display = '';
                     combatInputs.forEach(function(el) { el.disabled = false; el.style.opacity = ''; });
                 } else {
                     // PL：隐藏受限功能，但允许添加参战者、填入先攻
-                    if (pushBtn) pushBtn.style.display = 'none';
-                    if (syncBtn) syncBtn.style.display = '';
                     if (fogWrap) fogWrap.style.display = 'none';
                     if (clearWrap) clearWrap.style.display = 'none';
                     if (layerFooter) layerFooter.style.display = 'none';
@@ -3514,7 +3611,6 @@
                     dmName = data.dm_name || '';
                     if (isDM && !window._roleLocked) userRole = 'DM';
                     renderOnlineUsers();  // dmName获取后立即刷新在线列表
-                    // sync button restored
 applyRoleRestrictions();
                     if (isDM) {
                         addSystemMsg('👑 你是主持人 (DM)');
@@ -3651,6 +3747,13 @@ applyRoleRestrictions();
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({name: _cu, color: chatColor, role: userRole})
                     }).then(r => r.json()).then(data => {
+                        if (data.need_rejoin) {
+                            // 用户被服务端清理（超时/重启），自动重新加入
+                            fetch('/api/room/join', {
+                                method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({name: _cu, color: chatColor, role: userRole || 'PL'})
+                            }).catch(() => {});
+                        }
                         if (data.ok && data.online_users) {
                             mapOnlineUsers = data.online_users;
                             renderOnlineUsers();
@@ -3660,8 +3763,10 @@ applyRoleRestrictions();
             }
 
             // ━━━ 离开房间 ━━━
+            let _hasLeft = false;
             function leaveRoom() {
-                if (!chatUser) return;
+                if (!chatUser || _hasLeft) return;
+                _hasLeft = true;
                 // 使用 sendBeacon 确保页面卸载时也能发送
                 const data = JSON.stringify({name: chatUser});
                 if (navigator.sendBeacon) {
@@ -3671,126 +3776,6 @@ applyRoleRestrictions();
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: data
                     }).catch(() => {});
-                }
-            }
-
-            // DM手动推送地图（P0-1：先上传图层图片拿 url，网络上不传 base64）
-            window._pushMapState = function() {
-                var btn = document.getElementById('push-btn');
-                if (!btn) return;
-                btn.textContent = '⏳ 推送中...';
-                btn.disabled = true;
-                ensureLayersUploaded().then(function() {
-                    var state = collectState();
-                    var layers = mapLayers.map(layerNetData);
-                    if (window._wsIsOpen()) {
-                        // WS 单通道推送（服务端应用后自动持久化，P1-2）
-                        wsSend({type: 'layers_update', data: layers});
-                        wsSend({type: 'tokens_update', data: state.mapTokens});
-                        wsSend({type: 'texts_update', data: state.textBoxes});
-                        wsSend({type: 'fog_update', data: state.fogLayers});
-                        try { addSystemMsg('📤 地图状态已推送（实时通道）'); } catch(ex) {}
-                        btn.textContent = '📤 推送';
-                        btn.disabled = false;
-                        return;
-                    }
-                    // HTTP 降级通道
-                    return fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({_mode:'full', strokes:state.brushStrokes||[], layers:layers, tokens:state.mapTokens, texts:state.textBoxes, fog:state.fogLayers})
-                    }).then(function(r){ return r.json(); }).then(function(d){
-                        if (d && d.version !== undefined) sharedCanvasVer = d.version;
-                        try { if (d.ok) addSystemMsg('📤 地图状态已推送'); else addSystemMsg('⚠ 推送失败: ' + (d.error||'未知错误')); } catch(ex) {}
-                        btn.textContent = '📤 推送';
-                        btn.disabled = false;
-                    });
-                }).catch(function(e){
-                    try { addSystemMsg('⚠ 推送失败: ' + e.message); } catch(ex) {}
-                    btn.textContent = '📤 推送';
-                    btn.disabled = false;
-                });
-            };
-
-            window._syncMapState = function() {
-                var syncBtn = document.getElementById('sync-btn');
-                if (!syncBtn) return;
-                syncBtn.textContent = '⏳ 同步中...';
-                syncBtn.disabled = true;
-                fetch('/api/shared-canvas?since=0')
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (!data.ok) {
-                            try { addSystemMsg('⚠ 服务端无响应，请确认服务器已启动'); } catch(ex) {}
-                            syncBtn.textContent = '🔄 同步';
-                            syncBtn.disabled = false;
-                            return;
-                        }
-                        var sc = data.state || {};
-                        var canvasMeta = sc.canvas || {};
-                        var state = {
-                            canvasWidth: canvasMeta.width || 5000,
-                            canvasHeight: canvasMeta.height || 5000,
-                            layers: (sc.layers || []).map(function(l) {
-                                return {id:l.id, name:l.name, dataURL:l.dataURL||'', url:l.url||'', offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1, visible:l.visible!==false};
-                            }),
-                            layerIdCounter: (sc.layers || []).reduce(function(max,l){return Math.max(max,l.id||0);}, 0),
-                            activeLayerId: (sc.layers || []).length > 0 ? sc.layers[0].id : null,
-                            mapTokens: sc.tokens || [],
-                            tokenIdCounter: (sc.tokens || []).reduce(function(max,t){return Math.max(max,t.id||0);}, 0),
-                            brushStrokes: sc.strokes || [],
-                            textBoxes: sc.texts || [],
-                            textIdCounter: (sc.texts || []).reduce(function(max,t){return Math.max(max,t.id||0);}, 0),
-                            fogLayers: (sc.fog || []).length > 0 && sc.fog[0].polygons !== undefined
-                                ? sc.fog.map(function(l){return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return {points:p.points,closed:p.closed};})};})
-                                : [{id:1,name:'迷雾 1',visible:true,polygons:(sc.fog||[]).map(function(p){return {points:p.points,closed:p.closed};})}],
-                            fogVisible: true,
-                        };
-                        var layersWithData = (sc.layers || []).filter(function(l){return l.dataURL || l.url;});
-                        var hasContent = layersWithData.length > 0 || (sc.tokens||[]).length > 0 ||
-                                          (sc.strokes||[]).length > 0 || (sc.texts||[]).length > 0;
-                        if (!hasContent) {
-                            try { addSystemMsg('⚠ 共享画布暂无内容，请等待DM点击📤推送按钮'); } catch(ex) {}
-                            syncBtn.textContent = '🔄 同步';
-                            syncBtn.disabled = false;
-                            return;
-                        }
-                        try { addSystemMsg('⏳ 正在加载共享画布...'); } catch(ex) {}
-                        var syncTimedOut = false;
-                        var syncTimer = setTimeout(function() {
-                            syncTimedOut = true;
-                            syncBtn.textContent = '🔄 同步';
-                            syncBtn.disabled = false;
-                            try { addSystemMsg('⚠ 同步超时，请重试或等待DM推送更小尺寸的地图'); } catch(ex) {}
-                        }, 15000);
-                        applyState(state).then(function() {
-                            if (syncTimedOut) return;
-                            clearTimeout(syncTimer);
-                            redrawCanvas(); applyTransform(); renderLayerList();
-                            try { addSystemMsg('✅ 已同步共享画布状态'); } catch(ex) {}
-                            syncBtn.textContent = '🔄 同步'; syncBtn.disabled = false;
-                        }).catch(function(e) {
-                            if (syncTimedOut) return;
-                            clearTimeout(syncTimer);
-                            try { addSystemMsg('❌ 同步失败: ' + e.message); } catch(ex) {}
-                            syncBtn.textContent = '🔄 同步'; syncBtn.disabled = false;
-                        });
-                    })
-                    .catch(function(e) {
-                        try { addSystemMsg('❌ 同步失败: ' + e.message); } catch(ex) {}
-                        syncBtn.textContent = '🔄 同步'; syncBtn.disabled = false;
-                    });
-            };
-
-            // boot 完成，标记就绪并根据角色显示对应按钮
-            _bootReady = true;
-            var _pushBtn = document.getElementById('push-btn');
-            var _syncBtn = document.getElementById('sync-btn');
-            if (_pushBtn && _syncBtn) {
-                if (isDM || userRole === 'DM') {
-                    _pushBtn.style.display = '';
-                    _syncBtn.style.display = 'none';
-                } else {
-                    _pushBtn.style.display = 'none';
-                    _syncBtn.style.display = '';
                 }
             }
 
@@ -3817,13 +3802,6 @@ applyRoleRestrictions();
                 // 避免空状态覆盖服务端数据导致其他客户端内容被清空
             }
 
-            function _wsBorderColor(col) {
-                var pb = document.getElementById('push-btn');
-                var sb = document.getElementById('sync-btn');
-                if (pb) pb.style.borderColor = col;
-                if (sb) sb.style.borderColor = col;
-            }
-
             function connectWebSocket() {
                 if (_wsClient && _wsClient.readyState === WebSocket.OPEN) return;
                 // WebSocket 与 HTTP 共用 5000 端口（/ws 路径），frp 单隧道兼容
@@ -3835,17 +3813,14 @@ applyRoleRestrictions();
 
                 _wsClient.onopen = function() {
                     addSystemMsg('🟢 共享画布已连接（实时同步）');
-                    _wsBorderColor('var(--green)');
                     onWsOpen();
                 };
 
                 _wsClient.onclose = function() {
-                    _wsBorderColor('var(--red)');
                     scheduleWsReconnect();
                 };
 
                 _wsClient.onerror = function() {
-                    _wsBorderColor('var(--red)');
                     try { _wsClient.close(); } catch(e) {}
                 };
 
@@ -3856,9 +3831,19 @@ applyRoleRestrictions();
                         if (msg._ver !== undefined) sharedCanvasVer = msg._ver;
                         if (msg.version !== undefined) sharedCanvasVer = msg.version;
                         if (msg.type === 'init') {
-                            // 同步时间戳，避免 WS 断开后 HTTP 轮询重复旧数据
+                            // 同步时间戳 / 版本号，避免 WS 断开后 HTTP 轮询重复旧数据
                             sharedCanvasTs = Date.now() / 1000;
                             var state = msg.state || {};
+                            // 如果刚从 localStorage 恢复了本地最新状态，跳过 init 的全量覆盖合并
+                            // （服务端数据可能不是最新的，会覆盖本地 token 尺寸、图层比例等）
+                            if (window._localStateRestored) {
+                                // 仅恢复服务端有而本地没有的笔画（新内容）
+                                if (state.strokes && state.strokes.length > 0 && brushStrokes.length === 0) {
+                                    brushStrokes = state.strokes.map(function(s) { return {...s}; });
+                                    redrawDrawCanvas();
+                                }
+                                return;
+                            }
                             // 恢复笔画
                             if (state.strokes && state.strokes.length > 0) {
                                 brushStrokes = state.strokes.map(function(s) { return {...s}; });
@@ -4413,6 +4398,8 @@ applyRoleRestrictions();
                     if (_dirtyFlags.tokens) { wsSend({type:'tokens_update', data: s.mapTokens}); _dirtyFlags.tokens = false; }
                     if (_dirtyFlags.texts)  { wsSend({type:'texts_update', data: s.textBoxes}); _dirtyFlags.texts = false; }
                     if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: s.fogLayers}); _dirtyFlags.fog = false; }
+                    // 本地状态已推送至服务器，可以恢复正常的服务端同步
+                    window._localStateRestored = false;
                     return;
                 }
 
@@ -4429,6 +4416,7 @@ applyRoleRestrictions();
                 }).then(function(r){ return r.json(); }).then(function(d){
                     _pushInFlight = false;
                     if (d && d.version !== undefined) sharedCanvasVer = d.version;
+                    window._localStateRestored = false;
                 }).catch(function(){ _pushInFlight = false; });
                 _pushInFlight = true;
             }, 100);
@@ -4613,6 +4601,9 @@ applyRoleRestrictions();
                 if (window._wsIsOpen()) return;
                 // 防回弹：本地有未推送的修改或推送在途时暂停拉取，等状态推完再对齐
                 if (window._anyDirty() || _pushDebounce || _pushInFlight) return;
+                // 本地状态刚从磁盘恢复时跳过拉取，防止服务端旧数据覆盖本地最新状态
+                // （token 尺寸、图层比例等会被服务端旧值覆盖）
+                if (window._localStateRestored) return;
                 fetch('/api/shared-canvas?since_ver=' + sharedCanvasVer).then(function(r) { return r.json(); }).then(function(data) {
                     if (!data.ok || !data.changed) return;
                     sharedCanvasTs = data.timestamp;
@@ -4666,8 +4657,8 @@ applyRoleRestrictions();
                     var hasData = (sc.strokes||[]).length > 0 || (sc.layers||[]).length > 0 || (sc.tokens||[]).length > 0;
                     if (wsOk && hasData) addSystemMsg('✅ 共享画布就绪 (' + (sc.strokes||[]).length + '笔/' + (sc.layers||[]).length + '层/' + (sc.tokens||[]).length + '标记)');
                     else if (wsOk) addSystemMsg('🟢 实时同步已连接，等待内容...');
-                    else if (hasData) addSystemMsg('🌐 HTTP同步模式，点击🔄同步获取画布');
-                    else addSystemMsg('📋 画布就绪，等待绘制或DM推送');
+                    else if (hasData) addSystemMsg('🌐 画布已就绪（HTTP同步模式）');
+                    else addSystemMsg('📋 画布就绪，等待绘制');
                 }).catch(function(){});
             }, 2000);
 

@@ -489,6 +489,13 @@
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL'})
                 }).then(r => r.json()).then(data => {
+                    if (data.need_rejoin) {
+                        // 用户被服务端清理（超时/重启），自动重新加入
+                        fetch('/api/room/join', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL'})
+                        }).catch(() => {});
+                    }
                     if (data.ok && data.online_users) {
                         onlineUsers = data.online_users;
                         renderOnlineUsers();
@@ -497,8 +504,10 @@
             }, 10000);
         }
 
+        let _hasLeft = false;
         function leaveRoom() {
-            if (!chatUser) return;
+            if (!chatUser || _hasLeft) return;
+            _hasLeft = true;
             const data = JSON.stringify({name: chatUser});
             if (navigator.sendBeacon) {
                 navigator.sendBeacon('/api/room/leave', new Blob([data], {type: 'application/json'}));

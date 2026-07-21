@@ -153,7 +153,10 @@ def init_db() -> None:
             prepared_spell_count INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             portrait_path TEXT DEFAULT '',
-            source_file TEXT DEFAULT ''
+            source_file TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
+            group_id INTEGER DEFAULT NULL,
+            FOREIGN KEY (group_id) REFERENCES character_groups(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS abilities (
@@ -318,6 +321,14 @@ def init_db() -> None:
             sort_order INTEGER DEFAULT 0,
             FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
         );
+
+        -- 角色分组
+        CREATE TABLE IF NOT EXISTS character_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL DEFAULT '新分组',
+            sort_order INTEGER DEFAULT 0,
+            created_by TEXT DEFAULT ''
+        );
     """)
 
     # ━━━ 自动迁移: 为旧数据库添加新列 ━━━
@@ -354,6 +365,8 @@ def _migrate_schema(cursor, conn):
         ('created_by', "TEXT DEFAULT ''"),
         ('resistances', "TEXT DEFAULT ''"),
         ('key_abilities', "TEXT DEFAULT ''"),
+        ('sort_order', "INTEGER DEFAULT 0"),
+        ('group_id', "INTEGER DEFAULT NULL"),
     ]
 
     for col_name, col_def in migrations:
@@ -447,7 +460,7 @@ def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
                      background: str = '', alignment: str = '',
                      player: str = '', subrace: str = '', faith: str = '',
                      gender: str = '', age: str = '', height: str = '', weight: str = '',
-                     created_by: str = '') -> int:
+                     created_by: str = '', group_id: int | None = None) -> int:
     """创建角色，返回角色ID"""
     conn = get_db()
     cursor = conn.cursor()
@@ -457,10 +470,10 @@ def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
     cursor.execute("""
         INSERT INTO characters (name, level, class, race, background_field, alignment,
                                proficiency_bonus, player, created_by, subrace, faith,
-                               gender, age, height, weight_field)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               gender, age, height, weight_field, group_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (name, level, cls, race, background, alignment, prof,
-          player, created_by, subrace, faith, gender, age, height, weight))
+          player, created_by, subrace, faith, gender, age, height, weight, group_id))
 
     char_id = cursor.lastrowid
 
@@ -616,14 +629,79 @@ def list_characters(created_by: str | None = None) -> list[dict]:
     cursor = conn.cursor()
     if created_by:
         cursor.execute(
-            "SELECT id, name, level, class, race, hp_current, hp_max FROM characters WHERE created_by = ?",
+            "SELECT id, name, level, class, race, hp_current, hp_max, group_id FROM characters WHERE created_by = ? ORDER BY sort_order, id",
             (created_by,)
         )
     else:
-        cursor.execute("SELECT id, name, level, class, race, hp_current, hp_max FROM characters")
+        cursor.execute("SELECT id, name, level, class, race, hp_current, hp_max, group_id FROM characters ORDER BY sort_order, id")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def list_character_groups(created_by: str | None = None) -> list[dict]:
+    """列出角色分组。PL 只能看到自己创建的分组和全局分组。"""
+    conn = get_db()
+    cursor = conn.cursor()
+    if created_by:
+        cursor.execute(
+            "SELECT * FROM character_groups WHERE created_by = ? OR created_by = '' ORDER BY sort_order, id",
+            (created_by,)
+        )
+    else:
+        cursor.execute("SELECT * FROM character_groups ORDER BY sort_order, id")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_character_group(name: str, created_by: str = '') -> int:
+    """创建角色分组，返回分组 ID。"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO character_groups (name, sort_order, created_by) VALUES (?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM character_groups), ?)",
+        (name, created_by)
+    )
+    conn.commit()
+    gid = cursor.lastrowid
+    conn.close()
+    return gid
+
+
+def update_character_group(group_id: int, **kwargs) -> bool:
+    """更新分组（name, sort_order）。"""
+    allowed = ['name', 'sort_order']
+    updates = {k: v for k, v in kwargs.items() if k in allowed}
+    if not updates:
+        return False
+    conn = get_db()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [group_id]
+    conn.execute(f"UPDATE character_groups SET {set_clause} WHERE id = ?", values)
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_character_group(group_id: int) -> bool:
+    """删除分组，角色自动移回未分组（group_id = NULL）。"""
+    conn = get_db()
+    # 将组内角色移回未分组
+    conn.execute("UPDATE characters SET group_id = NULL WHERE group_id = ?", (group_id,))
+    conn.execute("DELETE FROM character_groups WHERE id = ?", (group_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def set_character_group(char_id: int, group_id: int | None) -> bool:
+    """将角色移入指定分组（group_id=None 表示移回未分组）。"""
+    conn = get_db()
+    conn.execute("UPDATE characters SET group_id = ? WHERE id = ?", (group_id, char_id))
+    conn.commit()
+    conn.close()
+    return True
 
 
 def update_character(char_id: int, **kwargs) -> bool:

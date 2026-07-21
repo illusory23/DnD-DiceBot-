@@ -23,6 +23,9 @@ from core.character import (
     long_rest, set_skill_proficiency, set_save_proficiency,
     update_character, delete_character, death_save,
     resolve_portrait_path,
+    list_character_groups, create_character_group,
+    update_character_group, delete_character_group,
+    set_character_group,
 )
 from utils.data_loader import search_spell, search_monster, load_conditions
 from core.chm_search import (
@@ -569,7 +572,7 @@ def api_check():
 
 @app.route('/api/characters', methods=['GET'])
 def api_list_characters():
-    """列出角色。DM 可看到全部；PL 只能看到自己创建/导入的角色。"""
+    """列出角色和分组。DM 可看到全部；PL 只能看到自己创建/导入的角色和分组。"""
     name = request.args.get('name', '').strip()
     role = request.args.get('role', 'PL')
     client_ip = request.remote_addr or ''
@@ -577,14 +580,87 @@ def api_list_characters():
     # DM 可看全部（明确声明为 DM 才放行，不再按 IP 自动提权）
     if role == 'DM':
         chars = list_characters()
+        groups = list_character_groups()
     elif name:
         # PL 有用户名 → 只看自己创建的
         chars = list_characters(created_by=name)
+        groups = list_character_groups(created_by=name)
     else:
         # PL 未设置用户名 → 看不到任何角色（安全性）
         chars = []
+        groups = []
 
-    return jsonify(chars)
+    return jsonify({'characters': chars, 'groups': groups})
+
+
+@app.route('/api/characters/reorder', methods=['POST'])
+def api_reorder_characters():
+    """角色列表拖动排序。接收按新顺序排列的角色 ID 列表。"""
+    data = request.get_json(silent=True) or {}
+    ordered_ids = data.get('ids', [])
+    if not ordered_ids or not isinstance(ordered_ids, list):
+        return jsonify({'error': '请提供角色ID列表'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    for i, char_id in enumerate(ordered_ids):
+        cursor.execute("UPDATE characters SET sort_order = ? WHERE id = ?", (i, char_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ━━━ 角色分组管理 ━━━
+
+@app.route('/api/character-groups', methods=['POST'])
+def api_create_group():
+    """创建角色分组"""
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '新分组').strip()
+    if not name:
+        return jsonify({'error': '分组名不能为空'}), 400
+    created_by = data.get('created_by', '')
+    gid = create_character_group(name, created_by)
+    return jsonify({'ok': True, 'id': gid, 'name': name})
+
+
+@app.route('/api/character-groups/<int:group_id>', methods=['PUT'])
+def api_update_group(group_id):
+    """更新分组（重命名）"""
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': '分组名不能为空'}), 400
+    update_character_group(group_id, name=name)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/character-groups/<int:group_id>', methods=['DELETE'])
+def api_delete_group(group_id):
+    """删除分组，角色移回未分组"""
+    delete_character_group(group_id)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/character-groups/reorder', methods=['POST'])
+def api_reorder_groups():
+    """分组拖动排序"""
+    data = request.get_json(silent=True) or {}
+    ordered_ids = data.get('ids', [])
+    if not ordered_ids or not isinstance(ordered_ids, list):
+        return jsonify({'error': '请提供分组ID列表'}), 400
+    for i, gid in enumerate(ordered_ids):
+        update_character_group(gid, sort_order=i)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/character/<int:char_id>/group', methods=['PUT'])
+def api_set_char_group(char_id):
+    """将角色移入/移出分组"""
+    data = request.get_json(silent=True) or {}
+    group_id = data.get('group_id')  # None 表示移回未分组
+    set_character_group(char_id, group_id)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/character/<name_or_id>', methods=['GET'])
@@ -614,11 +690,12 @@ def api_create_character():
     race = data.get('race', '')
     background = data.get('background', '')
     created_by = data.get('created_by', '')
+    group_id = data.get('group_id')
 
     if not name:
         return jsonify({'error': '角色名不能为空'}), 400
 
-    char_id = create_character(name, level, cls, race, background, created_by=created_by)
+    char_id = create_character(name, level, cls, race, background, created_by=created_by, group_id=group_id)
     char = get_character(char_id)
 
     global active_char_id
@@ -2510,6 +2587,7 @@ _RESOURCE_CATEGORIES = {
     '.txt': ('📝 文本', 'text'), '.md': ('📝 文本', 'text'),
     '.docx': ('📋 文档', 'doc'), '.doc': ('📋 文档', 'doc'),
     '.xlsx': ('📊 表格', 'sheet'), '.xls': ('📊 表格', 'sheet'),
+    '.json': ('💾 存档', 'save'),
     '.mp3': ('🎵 音频', 'audio'), '.wav': ('🎵 音频', 'audio'), '.ogg': ('🎵 音频', 'audio'),
 }
 
@@ -2773,11 +2851,24 @@ def api_dm_status():
 # ━━━ 房间/在线用户 API ━━━
 
 def _prune_stale_users():
-    """清理过期在线记录（超过10秒无心跳视为离线）。"""
+    """清理过期在线记录（超过10秒无心跳视为离线），并发送退出消息。"""
+    global _dm_name
     _now = _time.time()
     stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
     for n in stale_names:
         del _online_users[n]
+        # 发送退出消息（与 api_room_leave 保持一致）
+        if _dm_name and n != _dm_name:
+            _chat_messages.append({
+                'name': '系统',
+                'text': f'🔴 {n} 退出房间',
+                'time': _time.strftime('%H:%M:%S'),
+                'is_dm': False,
+                'color': '#888888',
+                'ip': 'system',
+                '_ts': _time.time(),
+                'system': True,
+            })
 
 
 @app.route('/api/room/join', methods=['POST'])
@@ -2848,15 +2939,13 @@ def api_room_join():
 
 @app.route('/api/room/heartbeat', methods=['POST'])
 def api_room_heartbeat():
-    """心跳：更新在线状态，返回在线用户列表。若用户不在列表中则自动补登。"""
+    """心跳：更新在线状态，返回在线用户列表。用户不在列表中时返回 need_rejoin 标志。"""
     global _online_users, _dm_name
     data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     color = data.get('color', '#00bcd4')
     if not name:
         return jsonify({'ok': False, 'error': 'Name required'})
-
-    client_ip = request.remote_addr or 'unknown'
 
     # 清理超时用户，确保离线玩家从所有人的在线列表中消失
     _prune_stale_users()
@@ -2866,19 +2955,16 @@ def api_room_heartbeat():
         if color:
             _online_users[name]['color'] = color
     else:
-        role = data.get('role', 'PL')
-        if role == 'DM' and _dm_name is not None and _dm_name != name:
-            role = 'PL'
-        if role == 'DM' and _dm_name is None:
-            _dm_name = name
-            _dm_ip = client_ip
-        _online_users[name] = {
-            'ip': client_ip,
-            'color': color,
-            'role': role,
-            'last_heartbeat': _time.time(),
-            'joined_at': _time.time(),
-        }
+        # 不自动重新注册——避免 leaveRoom 后又被心跳拉回来导致重复退出消息
+        return jsonify({
+            'ok': True,
+            'need_rejoin': True,
+            'online_users': [
+                {'name': n, 'color': u['color'], 'role': u.get('role', 'PL')}
+                for n, u in _online_users.items()
+            ],
+            'online_count': len(_online_users),
+        })
 
     return jsonify({
         'ok': True,
@@ -3013,8 +3099,21 @@ def api_upload_resource():
     # 确保目录存在
     RESOURCES_DIR.mkdir(exist_ok=True)
 
-    # 处理重名
-    safe_name = file.filename
+    # 清理文件名：替换 Windows/Linux 非法字符
+    import re as _re
+    raw_name = file.filename
+    # 替换路径分隔符和非法字符为下划线
+    safe_name = _re.sub(r'[\\/:*?"<>|]', '_', raw_name)
+    # 合并连续下划线，去除首尾下划线和空格
+    safe_name = _re.sub(r'_+', '_', safe_name).strip('_ .')
+    if not safe_name:
+        safe_name = 'unnamed'
+    # 保留扩展名（如果原来的扩展名还在）
+    if '.' in raw_name:
+        raw_ext = _os.path.splitext(raw_name)[1]
+        safe_base = _os.path.splitext(safe_name)[0]
+        safe_name = safe_base + raw_ext
+
     dest = RESOURCES_DIR / safe_name
     counter = 1
     name_base, name_ext = _os.path.splitext(safe_name)

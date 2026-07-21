@@ -17,7 +17,8 @@
                 // 未登录时也能看到所有角色（用于快速加入战斗）
                 const role = identity.name ? identity.role : 'DM';
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(role)}`);
-                const chars = await resp.json();
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
                 const select = document.getElementById('char-select');
                 if (!select) return;
                 // 清除旧选项，保留默认项

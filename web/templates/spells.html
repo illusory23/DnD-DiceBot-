@@ -204,7 +204,8 @@
             const sel = document.getElementById('spell-char-select');
             try {
                 const identity = getIdentity();
-                const chars = await (await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`)).json();
+                const data = await (await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`)).json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
                 chars.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = `${c.name} (${c.level||1}级 ${c.class||''})`; sel.appendChild(o); });
             } catch(e) {}
         }

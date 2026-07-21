@@ -8,39 +8,374 @@
             } catch(e) { return { name: '', role: 'PL' }; }
         }
 
+        let charListGroups = [];
+        let charListChars = [];
+
+        function renderCharItem(c) {
+            return `
+                <div class="char-list-item" draggable="true"
+                     data-char-id="${c.id}" data-group-id="${c.group_id || ''}">
+                    <span class="drag-handle" title="拖动排序">⠿</span>
+                    <img src="/api/character/${c.id}/portrait"
+                         style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);"
+                         onerror="this.style.display='none'"
+                         loading="lazy">
+                    <span style="flex:1;cursor:pointer;" onclick="selectChar(${c.id})">${c.name}</span>
+                    <span style="color:var(--text-dim);font-size:0.75rem;">${c.level}级 ${c.class || '-'}</span>
+                    <button class="btn btn-small" onclick="event.stopPropagation();copyCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="复制角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">📋</button>
+                    <button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="删除角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">🗑</button>
+                </div>`;
+        }
+
+        function renderCharListHTML() {
+            const groups = charListGroups;
+            const chars = charListChars;
+            let html = '';
+
+            // 总角色组（显示全部角色，不可拖动/删除）
+            html += renderGroupHTML({id: '__all__', name: '总角色组', _isDefault: true, _collapsed: false}, chars);
+
+            // 各分组及其角色（类型归一化比较，group_id 可能是字符串或数字）
+            for (const g of groups) {
+                const groupChars = chars.filter(c => String(c.group_id) === String(g.id));
+                html += renderGroupHTML(g, groupChars);
+            }
+
+            return html;
+        }
+
+        function renderGroupHTML(g, groupChars) {
+            const isDefault = g._isDefault;
+            const gid = g.id || '';
+            const gname = g.name || '分组';
+            const collapsed = g._collapsed ? ' collapsed' : '';
+            const arrow = g._collapsed ? '▶' : '▼';
+            const countBadge = `<span style="color:var(--text-dim);font-size:0.7rem;margin-left:0.3rem;">${groupChars.length}</span>`;
+
+            let headerActions = '';
+            if (!isDefault) {
+                headerActions = `
+                    <button class="group-action-btn" onclick="event.stopPropagation();startRenameGroup('${gid}')" title="重命名分组">✏️</button>
+                    <button class="group-action-btn group-delete-btn" onclick="event.stopPropagation();deleteGroup('${gid}')" title="删除分组">✕</button>`;
+            }
+
+            const items = groupChars.map(c => renderCharItem(c)).join('');
+            const emptyHint = groupChars.length === 0
+                ? '<div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.5rem;opacity:0.5;">拖动角色到此处</div>'
+                : '';
+
+            return `
+                <div class="char-group" data-group-id="${gid}" draggable="${isDefault ? 'false' : 'true'}">
+                    <div class="group-header${collapsed}" onclick="toggleGroup('${gid}')">
+                        <span class="drag-handle group-drag-handle" title="拖动排序" onclick="event.stopPropagation()" style="${isDefault ? 'visibility:hidden;' : ''}">⠿</span>
+                        <span class="group-arrow">${arrow}</span>
+                        <span class="group-name" data-gid="${gid}">${gname}</span>
+                        ${countBadge}
+                        <span style="flex:1;"></span>
+                        ${headerActions}
+                    </div>
+                    <div class="group-body">
+                        ${items}${emptyHint}
+                    </div>
+                </div>`;
+        }
+
+        function applyCharListEvents() {
+            const el = document.getElementById('char-list');
+            // 角色项拖拽
+            let dragCharId = null;
+            const charItems = el.querySelectorAll('.char-list-item');
+            charItems.forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    dragCharId = parseInt(this.dataset.charId);
+                    this.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', 'char:' + this.dataset.charId);
+                    setTimeout(() => { this.style.opacity = '0.4'; }, 0);
+                });
+                item.addEventListener('dragend', function(e) {
+                    this.classList.remove('dragging');
+                    this.style.opacity = '';
+                    el.querySelectorAll('.char-list-item').forEach(it => it.classList.remove('drag-over'));
+                    el.querySelectorAll('.group-body').forEach(b => b.classList.remove('drag-target-group'));
+                    dragCharId = null;
+                });
+                item.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    this.classList.add('drag-over');
+                });
+                item.addEventListener('dragleave', function(e) {
+                    this.classList.remove('drag-over');
+                });
+                item.addEventListener('drop', function(e) {
+                    // 总角色组内不接受拖放排序
+                    if (this.closest('.char-group[data-group-id="__all__"]')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('drag-over');
+                    if (!dragCharId || dragCharId === parseInt(this.dataset.charId)) return;
+                    // 移动 DOM
+                    this.parentNode.insertBefore(
+                        el.querySelector(`.char-list-item[data-char-id="${dragCharId}"]`),
+                        this.nextSibling
+                    );
+                    // 发送排序
+                    const allChars = [...el.querySelectorAll('.char-list-item')];
+                    const orderedIds = allChars.map(it => parseInt(it.dataset.charId));
+                    saveCharOrder(orderedIds);
+                    // 更新分组归属（如果跨越了分组）
+                    updateCharGroupAfterDrop(dragCharId, this.closest('.char-group').dataset.groupId);
+                });
+            });
+
+            // 分组体接受角色拖放（总角色组不接受拖放）
+            const groupBodies = el.querySelectorAll('.group-body');
+            groupBodies.forEach(body => {
+                const groupEl = body.closest('.char-group');
+                const gid = groupEl ? groupEl.dataset.groupId : null;
+                // 总角色组不接受拖放（只读视图）
+                if (gid === '__all__') return;
+                body.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    this.classList.add('drag-target-group');
+                });
+                body.addEventListener('dragleave', function(e) {
+                    if (!this.contains(e.relatedTarget)) this.classList.remove('drag-target-group');
+                });
+                body.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('drag-target-group');
+                    if (!dragCharId) return;
+                    const groupId = this.closest('.char-group').dataset.groupId || null;
+                    const item = el.querySelector(`.char-list-item[data-char-id="${dragCharId}"]`);
+                    if (item) this.appendChild(item);
+                    updateCharGroup(dragCharId, groupId);
+                });
+            });
+
+            // 分组拖拽排序
+            let dragGroupId = null;
+            const groups = el.querySelectorAll('.char-group[draggable="true"]');
+            groups.forEach(g => {
+                g.addEventListener('dragstart', function(e) {
+                    dragGroupId = this.dataset.groupId;
+                    this.classList.add('group-dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', 'group:' + this.dataset.groupId);
+                    setTimeout(() => { this.style.opacity = '0.4'; }, 0);
+                });
+                g.addEventListener('dragend', function(e) {
+                    this.classList.remove('group-dragging');
+                    this.style.opacity = '';
+                    el.querySelectorAll('.char-group').forEach(gr => gr.classList.remove('group-drag-over'));
+                    dragGroupId = null;
+                });
+                g.addEventListener('dragover', function(e) {
+                    if (dragGroupId === this.dataset.groupId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    this.classList.add('group-drag-over');
+                });
+                g.addEventListener('dragleave', function(e) {
+                    this.classList.remove('group-drag-over');
+                });
+                g.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('group-drag-over');
+                    if (!dragGroupId || dragGroupId === this.dataset.groupId) return;
+                    const srcGroup = el.querySelector(`.char-group[data-group-id="${dragGroupId}"]`);
+                    if (srcGroup) this.parentNode.insertBefore(srcGroup, this.nextSibling || this);
+                    // 发送新排序
+                    const orderedGroupIds = [...el.querySelectorAll('.char-group[draggable="true"]')].map(gr => parseInt(gr.dataset.groupId));
+                    saveGroupOrder(orderedGroupIds);
+                });
+            });
+        }
+
+        // 归一化 groupId：整数或 null
+        function normGroupId(gid) {
+            if (gid === null || gid === undefined || gid === '' || gid === '__all__') return null;
+            const n = parseInt(gid);
+            return isNaN(n) ? null : n;
+        }
+
+        async function updateCharGroup(charId, groupId) {
+            const gid = normGroupId(groupId);
+            // 先更新本地数据和 DOM，再异步通知服务器（体验优先）
+            const c = charListChars.find(c => c.id === charId);
+            if (c) c.group_id = gid;
+            // 移动 DOM 元素到目标分组体（无需等待刷新）
+            const el = document.getElementById('char-list');
+            const item = el.querySelector(`.char-list-item[data-char-id="${charId}"]`);
+            if (item) {
+                const targetBody = el.querySelector(`.char-group[data-group-id="${groupId || ''}"] .group-body`);
+                if (targetBody) targetBody.appendChild(item);
+            }
+            // 异步持久化
+            try {
+                await fetch(`/api/character/${charId}/group`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({group_id: gid})
+                });
+            } catch(e) {}
+            // 刷新以确保数据一致
+            refreshCharListDisplay();
+        }
+
+        function updateCharGroupAfterDrop(charId, targetGroupId) {
+            const gid = normGroupId(targetGroupId);
+            const c = charListChars.find(c => c.id === charId);
+            if (!c) return;
+            if (c.group_id === gid) return;
+            updateCharGroup(charId, gid);
+        }
+
+        function refreshCharListDisplay() {
+            const el = document.getElementById('char-list');
+            if (!charListChars.length) {
+                el.innerHTML = '<div style="color:var(--text-dim)">暂无角色</div>';
+                return;
+            }
+            el.innerHTML = renderCharListHTML();
+            applyCharListEvents();
+        }
+
+        // ━━ 分组操作 ━━
+
+        window.toggleGroup = function(gid) {
+            const group = document.querySelector(`.char-group[data-group-id="${gid}"]`);
+            if (!group) return;
+            const header = group.querySelector('.group-header');
+            const arrow = group.querySelector('.group-arrow');
+            const isCollapsed = header.classList.toggle('collapsed');
+            arrow.textContent = isCollapsed ? '▶' : '▼';
+            // 保存折叠状态
+            const g = charListGroups.find(g => String(g.id) === String(gid));
+            if (g) g._collapsed = isCollapsed;
+        };
+
+        window.startRenameGroup = function(gid) {
+            const nameEl = document.querySelector(`.group-name[data-gid="${gid}"]`);
+            if (!nameEl) return;
+            const currentName = nameEl.textContent;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'group-name-input';
+            input.style.cssText = 'width:120px;padding:0.15rem 0.3rem;background:var(--bg);border:1px solid var(--accent);border-radius:3px;color:var(--text);font-size:0.82rem;';
+            input.addEventListener('blur', () => finishRenameGroup(gid, input.value.trim()));
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') finishRenameGroup(gid, input.value.trim());
+                if (e.key === 'Escape') { input.replaceWith(nameEl); }
+            });
+            input.addEventListener('click', (e) => e.stopPropagation());
+            nameEl.replaceWith(input);
+            input.focus();
+            input.select();
+        };
+
+        async function finishRenameGroup(gid, newName) {
+            if (!newName) { refreshCharListDisplay(); return; }
+            try {
+                await fetch(`/api/character-groups/${gid}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: newName})
+                });
+                const g = charListGroups.find(g => String(g.id) === String(gid));
+                if (g) g.name = newName;
+            } catch(e) {}
+            refreshCharListDisplay();
+        }
+
+        window.deleteGroup = async function(gid) {
+            if (!confirm('删除分组后，组内角色将移出该分组。确定删除？')) return;
+            try {
+                await fetch(`/api/character-groups/${gid}`, { method: 'DELETE' });
+                charListGroups = charListGroups.filter(g => String(g.id) !== String(gid));
+                charListChars.forEach(c => { if (String(c.group_id) === String(gid)) c.group_id = null; });
+                updateQuickGroupSelects();
+            } catch(e) { alert('删除失败: ' + e.message); }
+            refreshCharListDisplay();
+        };
+
+        window.createNewGroup = async function() {
+            const name = prompt('请输入分组名称:', '新分组');
+            if (!name || !name.trim()) return;
+            try {
+                const identity = getIdentity();
+                const resp = await fetch('/api/character-groups', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name.trim(), created_by: identity.role === 'DM' ? '' : identity.name})
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    charListGroups.push({id: data.id, name: data.name});
+                }
+            } catch(e) { alert('创建失败: ' + e.message); }
+            refreshCharListDisplay();
+        };
+
+        async function saveGroupOrder(orderedIds) {
+            try {
+                await fetch('/api/character-groups/reorder', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: orderedIds})
+                });
+            } catch(e) {}
+        }
+
+        // ━━ 快速分组选择器（创建角色时可选择分组）━━
+        function updateQuickGroupSelects() {
+            const sel1 = document.getElementById('new-char-group');
+            if (!sel1) return;
+            const currentVal = sel1.value;
+            sel1.innerHTML = '<option value="">— 无分组 —</option>' +
+                charListGroups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+            sel1.value = currentVal;
+        }
+
         async function loadCharList() {
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
-                const chars = await resp.json();
-                const el = document.getElementById('char-list');
-
-                if (!chars.length) {
-                    el.innerHTML = '<div style="color:var(--text-dim)">暂无角色</div>';
-                    return;
+                const data = await resp.json();
+                // 兼容旧格式（纯数组）和新格式（{characters, groups}）
+                if (Array.isArray(data)) {
+                    charListChars = data;
+                    charListGroups = [];
+                } else {
+                    charListChars = data.characters || [];
+                    charListGroups = (data.groups || []).map(g => ({...g, _collapsed: false}));
                 }
-
-                el.innerHTML = chars.map(c => `
-                    <div class="skill-item" style="margin-bottom:0.25rem;display:flex;align-items:center;gap:0.3rem;">
-                        <img src="/api/character/${c.id}/portrait"
-                             style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);"
-                             onerror="this.style.display='none'"
-                             loading="lazy">
-                        <span style="flex:1;cursor:pointer;" onclick="selectChar(${c.id})">${c.name}</span>
-                        <span style="color:var(--text-dim);font-size:0.75rem;">${c.level}级 ${c.class || '-'}</span>
-                        <button class="btn btn-small" onclick="event.stopPropagation();copyCharFromList(${c.id}, '${c.name.replace(/'/g, "\\'")}')" title="复制角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">📋</button>
-                        <button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCharFromList(${c.id}, '${c.name.replace(/'/g, "\\'")}')" title="删除角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">🗑</button>
-                    </div>
-                `).join('');
+                updateQuickGroupSelects();
+                refreshCharListDisplay();
             } catch(e) {
                 document.getElementById('char-list').innerHTML = '<div style="color:var(--red)">加载失败</div>';
             }
+        }
+
+        async function saveCharOrder(orderedIds) {
+            try {
+                await fetch('/api/characters/reorder', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: orderedIds})
+                });
+            } catch(e) { /* 静默失败，排序已在本地生效 */ }
         }
 
         async function createChar() {
             const name = document.getElementById('char-name').value.trim();
             if (!name) { alert('请输入角色名'); return; }
 
+            const groupId = document.getElementById('new-char-group')?.value || null;
             const identity = getIdentity();
             const resp = await fetch('/api/character', {
                 method: 'POST',
@@ -50,7 +385,8 @@
                     level: parseInt(document.getElementById('char-level').value) || 1,
                     class: document.getElementById('char-class').value,
                     race: document.getElementById('char-race').value,
-                    created_by: identity.name
+                    created_by: identity.name,
+                    group_id: groupId ? parseInt(groupId) : null,
                 })
             });
 

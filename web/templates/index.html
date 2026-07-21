@@ -466,7 +466,8 @@
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
-                const chars = await resp.json();
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
                 const select = document.getElementById('active-char-select');
                 select.innerHTML = '<option value="">⚡ 选择角色</option>';
                 chars.forEach(c => {
