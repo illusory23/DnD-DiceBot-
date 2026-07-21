@@ -410,6 +410,15 @@ def get_active():
 
 # ━━━ 页面路由 ━━━
 
+
+# 临时：为Vite chunk文件提供/assets/路径服务
+@app.route('/assets/<path:filename>')
+def serve_vite_assets(filename):
+    from flask import send_from_directory
+    import os
+    asset_dir = os.path.join(os.path.dirname(__file__), 'static', 'dice-v2', 'assets')
+    return send_from_directory(asset_dir, filename)
+
 @app.route('/')
 def index():
     """首页 — 掷骰面板"""
@@ -456,6 +465,12 @@ def events_page():
 def chat_page():
     """聊天室"""
     return render_template('chat.html')
+
+
+@app.route('/dice3d')
+def dice3d_page():
+    """3D 物理骰子"""
+    return render_template('dice3d.html')
 
 
 # ━━━ API 路由 ━━━
@@ -3159,6 +3174,79 @@ def api_delete_resource(filename):
         return jsonify({'success': True, 'name': filename})
     except Exception as e:
         return jsonify({'error': f'删除失败: {e}'}), 500
+
+
+# ━━━ Mod 系统 ━━━
+from core.mod_loader import ModLoader
+
+_MODS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'mods')
+_mod_loader = ModLoader(_MODS_DIR)
+
+# 应用启动时加载所有Mod
+_manifests = _mod_loader.discover()
+_loaded_count = 0
+for _m in _manifests:
+    if _mod_loader.load_mod(_m, app):
+        _loaded_count += 1
+print(f"[Mod] 发现 {len(_manifests)} 个Mod，成功加载 {_loaded_count} 个")
+
+
+# ━━━ Mod 管理 API ━━━
+@app.route('/api/mods')
+def api_list_mods():
+    """列出所有已加载的Mod"""
+    all_mods = _mod_loader.get_loaded_mods()
+    # 添加未加载的Mod信息
+    loaded_ids = {m['id'] for m in all_mods}
+    for m in _manifests:
+        if m.get('id') not in loaded_ids:
+            backend = m.get('backend', {})
+            all_mods.append({
+                'id': m.get('id', '?'),
+                'name': m.get('name', '?'),
+                'version': m.get('version', '?'),
+                'description': m.get('description', ''),
+                'author': m.get('author', ''),
+                'backend_enabled': backend.get('enabled', False),
+                'frontend_enabled': m.get('frontend', {}).get('enabled', False),
+            })
+    return jsonify({'mods': all_mods, 'loaded_count': _loaded_count})
+
+
+@app.route('/api/mods/<mod_id>')
+def api_get_mod(mod_id):
+    """获取单个Mod的详细信息"""
+    info = _mod_loader.loaded.get(mod_id)
+    if info is None:
+        return jsonify({'error': f'Mod不存在或未加载: {mod_id}'}), 404
+    return jsonify({
+        'id': mod_id,
+        'name': info.get('name', mod_id),
+        'version': info.get('version', '?'),
+        'description': info.get('description', ''),
+        'author': info.get('author', ''),
+        'dependencies': info.get('dependencies', {}),
+        'backend': info.get('backend', {}),
+        'frontend': info.get('frontend', {}),
+    })
+
+
+@app.route('/api/mods/<mod_id>/reload', methods=['POST'])
+def api_reload_mod(mod_id):
+    """重新加载Mod"""
+    if mod_id not in _mod_loader.loaded:
+        return jsonify({'error': f'Mod未加载: {mod_id}'}), 404
+    info = _mod_loader.loaded[mod_id]
+    _mod_loader.unload_mod(mod_id)
+    ok = _mod_loader.load_mod(info, app)
+    return jsonify({'mod_id': mod_id, 'reloaded': ok})
+
+
+# ━━━ Mod 管理页面 ━━━
+@app.route('/mods')
+def mods_page():
+    """Mod 管理界面"""
+    return render_template('mods.html')
 
 
 def run_server():

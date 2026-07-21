@@ -1,0 +1,48 @@
+# 旧骰娘系统 Mod 存放目录和导入功能
+
+## 问题
+骰娘路径下没有 Mod 存放目录，且 Web 界面没有 Mod 管理入口。
+
+## 新增文件
+- mods/example-hello/mod.json — 示例Mod元数据
+- mods/example-hello/backend/__init__.py
+- mods/example-hello/backend/router.py — 示例Mod路由
+- core/mod_loader.py — Flask Mod加载器（发现/加载/卸载）
+- web/templates/mods.html — Mod管理页面
+
+## 修改文件
+- web/app.py — 集成Mod系统，添加Mod管理API和页面路由
+- web/templates/index.html — 导航栏添加 🧩 Mod 链接
+- web/templates/character.html — 导航栏添加 🧩 Mod 链接
+- web/templates/combat.html — 导航栏添加 🧩 Mod 链接
+- web/templates/spells.html — 导航栏添加 🧩 Mod 链接
+- web/templates/events.html — 导航栏添加 🧩 Mod 链接
+- web/templates/map.html — 导航栏添加 🧩 Mod 链接
+- web/templates/reference.html — 导航栏添加 🧩 Mod 链接
+- web/templates/chat.html — 导航栏添加 🧩 Mod 链接
+
+## Mod 存放路径
+骰娘/mods/ 目录。每个Mod一个子文件夹，内含 mod.json + 后端代码。
+
+## Web 界面入口
+所有页面顶部导航栏新增 🧩 Mod 按钮，点击进入 Mod 管理页面。
+
+## Mod 管理页面功能
+- 展示已安装Mod列表（名称/版本/状态/操作）
+- 重新加载Mod按钮
+- Mod格式说明文档
+- 导入Mod存放路径提示
+
+## API 端点
+- GET /api/mods — Mod列表
+- GET /api/mods/<id> — Mod详情
+- POST /api/mods/<id>/reload — 重新加载Mod
+- GET /mods — Mod管理页面
+
+## Mod 开发格式
+参见骰娘/web/templates/mods.html 页面内嵌格式说明，或骰娘/骰娘Mod外置接口系统说明.txt
+
+## 测试结果
+所有9个前端页面 HTTP 200
+Mod发现/加载/API 全部正常
+示例Mod端点 /api/mod/example-hello/hello 正常响应

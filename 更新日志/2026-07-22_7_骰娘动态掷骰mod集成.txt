@@ -1,0 +1,31 @@
+# 骰娘动态掷骰mod 集成到平台 Mod 系统
+
+## 新增文件
+- mods/dicebot-mod/mod.json — Mod 元数据
+- mods/dicebot-mod/backend/__init__.py
+- mods/dicebot-mod/backend/router.py — Flask 代理路由 + FastAPI 生命周期管理
+
+## Mod 功能
+dicebot-mod 将独立 FastAPI 服务（骰娘 V2.1.0）作为平台 Mod 注册，
+提供以下端点：
+
+### 服务管理
+- GET  /api/mod/dicebot-mod/status — FastAPI 运行状态
+- POST /api/mod/dicebot-mod/start  — 启动 FastAPI 服务（端口 8001）
+- POST /api/mod/dicebot-mod/stop   — 停止 FastAPI 服务
+
+### 功能代理（转发到 FastAPI）
+- POST /api/mod/dicebot-mod/roll   — 增强掷骰（支持 adv/dis/爆炸骰等）
+- GET  /api/mod/dicebot-mod/engines — 规则引擎列表
+- GET  /api/mod/dicebot-mod/mods   — FastAPI 内部 Mod 列表
+
+## 验证结果
+| 测试项 | 结果 |
+|--------|------|
+| Mod 发现 | dicebot-mod + example-hello 共 2 个 ✅ |
+| FastAPI 启动 | 成功启动在 8001 端口 ✅ |
+| 状态查询 | fastapi_running=true, version=2.1.0 ✅ |
+| 代理掷骰 | 3d6+2 = 10 (rolls: [4,1,3]) ✅ |
+| 代理引擎 | dnd5e 引擎 active ✅ |
+| 代理内部Mod | 正确返回 FastAPI 内部 example-hello ✅ |
+| example-hello 不受影响 | 独立运行正常 ✅ |

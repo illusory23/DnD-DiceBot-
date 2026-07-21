@@ -2572,6 +2572,45 @@
             return active ? active.dataset.adv : '';
         }
 
+        // ━━ CSS骰子面渲染 ━━
+        // d6及以下用点阵，d6以上显示数值
+        var DICE_DOT_MAP = {
+            1: [0,0,0, 0,1,0, 0,0,0],
+            2: [1,0,0, 0,0,0, 0,0,1],
+            3: [1,0,0, 0,1,0, 0,0,1],
+            4: [1,0,1, 0,0,0, 1,0,1],
+            5: [1,0,1, 0,1,0, 1,0,1],
+            6: [1,0,1, 1,0,1, 1,0,1]
+        };
+        function renderDiceFace(value, rolling, sides) {
+            var cls = rolling ? 'dice-face rolling' : 'dice-face';
+            // 超过6面的骰子显示数值而非点阵
+            if (sides && sides > 6) {
+                return '<div class="' + cls + '" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:bold;color:#2c1810;">' + value + '</div>';
+            }
+            var dots = DICE_DOT_MAP[value] || DICE_DOT_MAP[6];
+            var html = '<div class="' + cls + '">';
+            for (var i = 0; i < 9; i++) {
+                html += '<div class="dice-dot' + (dots[i] ? '' : ' hidden-dot') + '"></div>';
+            }
+            html += '</div>';
+            return html;
+        }
+        function renderDiceAnimation(values, total, expr, charName, hidden, keepInfo, sides) {
+            var html = '<div class="dice-anim-area">';
+            var displaySides = sides || 6;
+            for (var i = 0; i < values.length; i++) {
+                html += '<div style="text-align:center;">';
+                html += renderDiceFace(values[i], false, displaySides);
+                html += '</div>';
+            }
+            html += '</div>';
+            var prefix = charName ? charName + ' 投出了 ' : '';
+            html += '<div class="dice-result-text">' + (hidden ? '🌫 ' : '') + expr + (keepInfo ? ' ' + keepInfo : '') + '</div>';
+            html += '<div class="dice-total-badge">' + prefix + '[' + total + '] 点</div>';
+            return html;
+        }
+
         window.dicePopupRoll = async function() {
             let expr = document.getElementById('dicepop-expr').value.trim();
             if (!expr) return;
@@ -2580,21 +2619,50 @@
             if (adv === 'dis') expr = 'dis ' + expr;
             const hidden = document.getElementById('dicepop-hidden').checked;
             const resultEl = document.getElementById('dicepop-result');
-            resultEl.textContent = '...';
+
+            // 显示滚动动画
+            var shakeValues = [];
+            var shakeCount = 3; // 固定3个摇晃骰子
+            for (var si = 0; si < shakeCount; si++) {
+                shakeValues.push(Math.floor(Math.random() * 6) + 1);
+            }
+            resultEl.innerHTML = '<div class="dice-anim-area">' +
+                shakeValues.map(function(v) { return renderDiceFace(v, true, 6); }).join('') +
+                '</div><div style="text-align:center;color:var(--cyan);font-size:0.85rem;">🎲 投掷中...</div>';
+
             try {
                 const resp = await fetch('/api/roll', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({expression: expr})});
                 const data = await resp.json();
-                if (data.error) { resultEl.textContent = '❌ ' + data.error; return; }
-                let extra = '';
-                if (data.advantage === true) { extra = ' [' + (data.rolls||[]).join(',') + '] 取高'; }
-                else if (data.advantage === false) { extra = ' [' + (data.rolls||[]).join(',') + '] 取低'; }
-                var prefix = data.char_name ? data.char_name + ' 投出了 ' : '';
-                var resultText = prefix + '[' + data.total + '] 点' + extra;
-                resultEl.innerHTML = (hidden ? '🌫 ' : '') + '<b>' + prefix + '[' + data.total + '] 点</b>' + extra;
+                if (data.error) { resultEl.innerHTML = '<span style="color:var(--red);">❌ ' + data.error + '</span>'; return; }
+
+                var rolls = data.rolls || [];
+                var keepInfo = '';
+                if (data.advantage === true) { keepInfo = '[' + rolls.join(',') + '] 取高'; }
+                else if (data.advantage === false) { keepInfo = '[' + rolls.join(',') + '] 取低'; }
+
+                // 解析骰子面数
+                var parsedSides = 6;
+                var m = expr.match(/d(\d+)/i);
+                if (m) parsedSides = parseInt(m[1]) || 6;
+
+                // 模式标签（复用上面的adv变量）
+                var modeLabel = '';
+                if (adv === 'adv') modeLabel = '<span style="display:inline-block;background:#27ae60;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;margin-left:4px;">✨ 优势</span>';
+                else if (adv === 'dis') modeLabel = '<span style="display:inline-block;background:#c0392b;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.7rem;margin-left:4px;">💀 劣势</span>';
+                else modeLabel = '<span style="display:inline-block;background:var(--surface2);color:var(--text-dim);padding:2px 8px;border-radius:4px;font-size:0.7rem;margin-left:4px;">正常</span>';
+
+                // 延迟显示结果
+                setTimeout(function() {
+                    resultEl.innerHTML = renderDiceAnimation(rolls, data.total, data.expression || expr, data.char_name || '', hidden, keepInfo, parsedSides) + modeLabel;
+                }, 400);
+
                 // 非暗骰广播到聊天室
                 if (!hidden) {
                     var unameInput = document.getElementById('chat-username');
                     var broadcaster = (unameInput && unameInput.value.trim()) || '匿名';
+                    var extra = '';
+                    if (data.advantage === true) { extra = ' [' + rolls.join(',') + '] 取高'; }
+                    else if (data.advantage === false) { extra = ' [' + rolls.join(',') + '] 取低'; }
                     var chatText = '🎲 ' + (data.char_name ? data.char_name + ' ' : '') + expr + ' = [' + data.total + ']' + extra;
                     var senderRole = 'PL';
                     try { var s = JSON.parse(sessionStorage.getItem('dnd_joined_room')); if (s && s.role) senderRole = s.role; } catch(e) {}
@@ -2602,7 +2670,7 @@
                         body: JSON.stringify({name: broadcaster, text: chatText, hidden: false, role: senderRole})
                     }).catch(() => {});
                 }
-            } catch(e) { resultEl.textContent = '网络错误: ' + (e.message || '未知'); }
+            } catch(e) { resultEl.innerHTML = '<span style="color:var(--red);">网络错误</span>'; }
         }
 
         window.dicePopupQuick = function(expr) {
@@ -4669,3 +4737,9 @@ applyRoleRestrictions();
                 setTimeout(() => { startHeartbeat(); }, 2000);
             };
         })();
+
+        // ━━ 3D骰子快捷入口 ━━
+        window.open3DDice = function() {
+            var expr = document.getElementById('dicepop-expr').value.trim() || 'd20';
+            window.open('/dice3d?expr=' + encodeURIComponent(expr), '_blank', 'width=900,height=700');
+        };
