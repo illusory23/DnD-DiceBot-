@@ -25,28 +25,64 @@ body.embed .wrap{top:0;}
 .rbtn{padding:8px 20px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.95rem;font-weight:bold;cursor:pointer;margin-left:auto;}
 .rov{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.92);color:#ffd700;padding:10px 24px;border-radius:20px;font-size:1.2rem;font-weight:bold;z-index:100;pointer-events:none;transition:opacity .4s;border:1px solid var(--gold);}
 .rov.hide{opacity:0;}
+.tbl-btn{padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.75rem;}
+.tbl-btn:hover{color:var(--text);border-color:var(--accent);}
+.tbl-sel{padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:0.72rem;}
 .status{position:absolute;top:12px;right:16px;z-index:101;font-size:0.7rem;color:#888;background:rgba(0,0,0,0.6);padding:4px 10px;border-radius:10px;}
 </style>
+
+
 </head>
 <body>
 <nav class="navbar"><a href="/" class="navbar-brand">DND5E 骰娘</a><div class="navbar-links"><a href="/">掷骰</a><a href="/character">角色卡</a><a href="/combat">战斗</a><a href="/spells">法术</a><a href="/events">随机事件</a><a href="/map">地图</a><a href="/reference">参考</a><a href="/dice3d" class="active">3D骰子</a></div></nav>
-<div class="wrap has-nav"><div id="stage"><div id="dice-box-container"></div><div class="rov hide" id="rov"></div><div class="status" id="status"></div></div>
+<div class="wrap has-nav"><div id="stage"><div id="dice-box-container" style="background:url(/static/dice-engine-v3/textures/木桌.png) center/cover"></div><div class="rov hide" id="rov"></div><div class="status" id="status"></div></div>
 <div class="ctrls">
 <span>骰子:</span><div class="dbs" id="dbs"><button data-s="4">d4</button><button data-s="6">d6</button><button data-s="8">d8</button><button data-s="10">d10</button><button data-s="12">d12</button><button data-s="20" class="on">d20</button><button data-s="100">d100</button></div>
 <span>个数:</span><div class="stp"><button onclick="chgC(-1)">-</button><span id="cv">1</span><button onclick="chgC(1)">+</button></div>
 <span>加值:</span><div class="stp"><button onclick="chgM(-1)">-</button><span id="mv">+0</span><button onclick="chgM(1)">+</button></div>
 <span>模式:</span><div class="tog" id="tog"><button data-a="" class="on">正常</button><button data-a="adv">优势</button><button data-a="dis">劣势</button></div>
-<button class="rbtn" id="rb" onclick="doRoll()">投掷!<//button>
+<span>桌布:</span><select class="tbl-sel" id="tbl-select" onchange="changeSurface(this.value)"><option value="wood" selected>木桌</option><option value="wood2">木桌2</option><option value="blue-felt">蓝毡</option><option value="stone">石板</option><option value="white-cloth">白布</option><option value="marble">大理石</option><option value="grass">草地</option><option value="snow">雪地</option><option value="ice">冰面</option><option value="star-light">星空浅</option><option value="star-mid">星空中</option><option value="star-dark">星空深</option></select><button class="tbl-btn" onclick="document.getElementById('tbl-file').click()">自定义</button><input type="file" id="tbl-file" accept="image/*" onchange="uploadBg(this)" style="display:none">
+<button class="rbtn" id="rb" onclick="doRoll()">投掷!</button>
 </div></div>
 <script>if(location.search.includes("embed"))document.body.classList.add("embed");</script>
 <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
 <script type="module">
+import * as THREE from 'three';
 import DiceBox from '/static/dice-engine-v3/index.js';
 var S=20,C=1,M=0,A='',initOk=false,box=null,syncWs=null;
 var rov=document.getElementById('rov'),st=document.getElementById('status');
 function mn(){try{return JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}").name||"anon";}catch(e){return"anon";}}
 var PC=['white','red','blue','green','orange','purple','cyan','gold'],_ci=0,_cm={};
 function pc(n){if(!_cm[n])_cm[n]=PC[_ci++%PC.length];return _cm[n];}
+window.changeSurface=function(v){
+ var c=document.getElementById('dice-box-container');
+ var imgs={
+  'wood':'/static/dice-engine-v3/textures/木桌.png',
+  'wood2':'/static/dice-engine-v3/textures/木桌2.png',
+  'blue-felt':'/static/dice-engine-v3/textures/蓝毡.png',
+  'stone':'/static/dice-engine-v3/textures/石板.png',
+  'white-cloth':'/static/dice-engine-v3/textures/白布.png',
+  'marble':'/static/dice-engine-v3/textures/大理石.png',
+  'grass':'/static/dice-engine-v3/textures/草地.png',
+  'snow':'/static/dice-engine-v3/textures/雪地.png',
+  'ice':'/static/dice-engine-v3/textures/冰面.png',
+  'star-light':'/static/dice-engine-v3/textures/star-light.png',
+  'star-mid':'/static/dice-engine-v3/textures/star-mid.png',
+  'star-dark':'/static/dice-engine-v3/textures/star-dark.png'
+ };
+ c.style.background='url('+imgs[v]+') center/cover';
+ if(box)box.updateConfig({theme_surface:'green-felt'});
+};
+window.uploadBg=function(input){
+ if(!input.files||!input.files[0])return;
+ var reader=new FileReader();
+ reader.onload=function(e){
+  document.getElementById('dice-box-container').style.backgroundImage='url('+e.target.result+')';
+  document.getElementById('dice-box-container').style.backgroundSize='cover';
+  document.getElementById('dice-box-container').style.backgroundPosition='center';
+ };
+ reader.readAsDataURL(input.files[0]);
+};
 
 (async function(){
  try{st.textContent='init...';
@@ -64,13 +100,13 @@ window.chgM=function(d){M=Math.max(-20,Math.min(20,M+d));var s=M>=0?'+':'';docum
 window.doRoll=async function(){
  if(!initOk)return;
  var count,sides,mod=M;
- if(S===100){count=1;sides=100;}else if(A==='adv'||A==='dis'){count=2;sides=20;}else{count=C;sides=S;}
+ if(S===100){count=2;sides=10;}else if(A==='adv'||A==='dis'){count=2;sides=20;}else{count=C;sides=S;}
  var vals=[];for(var i=0;i<count;i++)vals.push(Math.floor(Math.random()*sides)+1);
  var dn=count+'d'+sides+'@'+vals.join(','),color=pc(mn());
- var fv;if(A==='adv')fv=Math.max.apply(null,vals)+mod;else if(A==='dis')fv=Math.min.apply(null,vals)+mod;else fv=vals.reduce(function(a,b){return a+b;},0)+mod;
- var ds=A==='adv'?'d20(优势)':A==='dis'?'d20(劣势)':(count+'d'+sides),ms=mod!==0?(mod>0?'+'+mod:''+mod):'';
+ var fv;
+ var ds;if(S===100){var tens=vals[0]%10,ones=vals[1]%10;fv=(tens===0&&ones===0)?100:(tens*10+ones);ds='d100';}else if(A==='adv'){fv=Math.max.apply(null,vals)+mod;ds='d20(优势)';}else if(A==='dis'){fv=Math.min.apply(null,vals)+mod;ds='d20(劣势)';}else{fv=vals.reduce(function(a,b){return a+b;},0)+mod;ds=count+'d'+sides;}var ms=mod!==0?(mod>0?'+'+mod:''+mod):'';
  console.log("[roll] det:",dn,"color:",color);
- if(syncWs&&syncWs.readyState===1){syncWs.send(JSON.stringify({type:"dice_roll_det",detNotation:dn,notation:ds+ms,roller:mn(),color:color,total:fv,values:vals}));}
+ if(syncWs&&syncWs.readyState===1){syncWs.send(JSON.stringify({type:"dice_roll_det",detNotation:dn,notation:(S===100?'d100':ds+ms),roller:mn(),color:color,total:fv,values:vals}));}
  try{await box.roll(dn,{theme:{theme_colorset:color}});}catch(e){console.log("roll err:",e);}
  rov.innerHTML=mn()+'投掷出了 ： <b>'+fv+'</b> 点';rov.classList.remove('hide');
  setTimeout(function(){rov.classList.add('hide');},5000);
