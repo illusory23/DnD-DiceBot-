@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Dice(Det) - DND5E</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+html,body{height:100%;overflow:hidden;background:#0a0a14;margin:0;}
+.navbar{position:fixed;top:0;left:0;right:0;z-index:100;}
+body.embed .navbar{display:none;}
+.wrap{position:fixed;top:56px;left:0;right:0;bottom:0;display:flex;flex-direction:column;}
+body.embed .wrap{top:0;}
+#stage{flex:1;position:relative;background:radial-gradient(ellipse at center,#1a1a3e 0%,#0a0a14 70%);}
+#dice-box-container{position:absolute;top:0;left:0;right:0;bottom:0;}
+.ctrls{flex-shrink:0;background:var(--surface);border-top:2px solid var(--accent);padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0;font-size:0.82rem;}
+.dbs{display:flex;gap:3px;}
+.dbs button{padding:4px 10px;border:2px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:0.78rem;font-weight:600;}
+.dbs button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.stp{display:flex;align-items:center;gap:3px;}
+.stp button{width:24px;height:24px;border:2px solid var(--border);border-radius:3px;cursor:pointer;}
+.stp span{min-width:20px;text-align:center;}
+.tog{display:flex;}
+.tog button{padding:3px 8px;border:2px solid var(--border);background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.75rem;}
+.tog button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.rbtn{padding:8px 20px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.95rem;font-weight:bold;cursor:pointer;margin-left:auto;}
+.rov{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.92);color:#ffd700;padding:10px 24px;border-radius:20px;font-size:1.2rem;font-weight:bold;z-index:100;pointer-events:none;transition:opacity .4s;border:1px solid var(--gold);}
+.rov.hide{opacity:0;}
+.status{position:absolute;top:12px;right:16px;z-index:101;font-size:0.7rem;color:#888;background:rgba(0,0,0,0.6);padding:4px 10px;border-radius:10px;}
+</style>
+</head>
+<body>
+<nav class="navbar"><a href="/" class="navbar-brand">DND5E 骰娘</a><div class="navbar-links"><a href="/">掷骰</a><a href="/character">角色卡</a><a href="/combat">战斗</a><a href="/spells">法术</a><a href="/events">随机事件</a><a href="/map">地图</a><a href="/reference">参考</a><a href="/dice3d" class="active">3D骰子</a></div></nav>
+<div class="wrap has-nav"><div id="stage"><div id="dice-box-container"></div><div class="rov hide" id="rov"></div><div class="status" id="status"></div></div>
+<div class="ctrls">
+<span>骰子:</span><div class="dbs" id="dbs"><button data-s="4">d4</button><button data-s="6">d6</button><button data-s="8">d8</button><button data-s="10">d10</button><button data-s="12">d12</button><button data-s="20" class="on">d20</button><button data-s="100">d100</button></div>
+<span>个数:</span><div class="stp"><button onclick="chgC(-1)">-</button><span id="cv">1</span><button onclick="chgC(1)">+</button></div>
+<span>加值:</span><div class="stp"><button onclick="chgM(-1)">-</button><span id="mv">+0</span><button onclick="chgM(1)">+</button></div>
+<span>模式:</span><div class="tog" id="tog"><button data-a="" class="on">正常</button><button data-a="adv">优势</button><button data-a="dis">劣势</button></div>
+<button class="rbtn" id="rb" onclick="doRoll()">投掷!<//button>
+</div></div>
+<script>if(location.search.includes("embed"))document.body.classList.add("embed");</script>
+<script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
+<script type="module">
+import DiceBox from '/static/dice-engine-v3/index.js';
+var S=20,C=1,M=0,A='',initOk=false,box=null,syncWs=null;
+var rov=document.getElementById('rov'),st=document.getElementById('status');
+function mn(){try{return JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}").name||"anon";}catch(e){return"anon";}}
+var PC=['white','red','blue','green','orange','purple','cyan','gold'],_ci=0,_cm={};
+function pc(n){if(!_cm[n])_cm[n]=PC[_ci++%PC.length];return _cm[n];}
+
+(async function(){
+ try{st.textContent='init...';
+  box=new DiceBox('#dice-box-container',{assetPath:'/static/dice-engine-v3/',sounds:false,theme_surface:'green-felt',theme_colorset:'white',theme_material:'glass',gravity_multiplier:400,light_intensity:0.7,strength:1});
+  await box.initialize();initOk=true;st.textContent='ready';console.log('DiceBox ready');
+  try{syncWs=new WebSocket((location.protocol==="https:"?"wss:":"ws:")+location.host+"/ws");syncWs.onopen=function(){st.textContent='sync ok';};syncWs.onmessage=function(e){try{var d=JSON.parse(e.data);if(d.type==="dice_roll_det"){console.log("<-",d.detNotation);box.roll(d.detNotation,{theme:{theme_colorset:d.color||'white'}}).catch(function(){});rov.innerHTML=d.roller+"投掷出了 ： <b>"+d.total+"</b> 点";rov.classList.remove("hide");setTimeout(function(){rov.classList.add("hide");},4000);}}catch(ex){}};}catch(e){console.log("ws fail",e);}
+ }catch(e){console.error(e);st.textContent='err: '+e.message;}
+})();
+
+document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);});});
+document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;});});
+window.chgC=function(d){C=Math.max(1,Math.min(20,C+d));document.getElementById('cv').textContent=C;};
+window.chgM=function(d){M=Math.max(-20,Math.min(20,M+d));var s=M>=0?'+':'';document.getElementById('mv').textContent=s+M;};
+
+window.doRoll=async function(){
+ if(!initOk)return;
+ var count,sides,mod=M;
+ if(S===100){count=1;sides=100;}else if(A==='adv'||A==='dis'){count=2;sides=20;}else{count=C;sides=S;}
+ var vals=[];for(var i=0;i<count;i++)vals.push(Math.floor(Math.random()*sides)+1);
+ var dn=count+'d'+sides+'@'+vals.join(','),color=pc(mn());
+ var fv;if(A==='adv')fv=Math.max.apply(null,vals)+mod;else if(A==='dis')fv=Math.min.apply(null,vals)+mod;else fv=vals.reduce(function(a,b){return a+b;},0)+mod;
+ var ds=A==='adv'?'d20(优势)':A==='dis'?'d20(劣势)':(count+'d'+sides),ms=mod!==0?(mod>0?'+'+mod:''+mod):'';
+ console.log("[roll] det:",dn,"color:",color);
+ if(syncWs&&syncWs.readyState===1){syncWs.send(JSON.stringify({type:"dice_roll_det",detNotation:dn,notation:ds+ms,roller:mn(),color:color,total:fv,values:vals}));}
+ try{await box.roll(dn,{theme:{theme_colorset:color}});}catch(e){console.log("roll err:",e);}
+ rov.innerHTML=mn()+'投掷出了 ： <b>'+fv+'</b> 点';rov.classList.remove('hide');
+ setTimeout(function(){rov.classList.add('hide');},5000);
+ try{var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:s.name||"anon",text:"投掷了: "+ds+ms+" = ["+fv+"]",hidden:false,role:s.role||"PL"})}).catch(function(){});}catch(e){}
+};
+</script>
+</body>
+</html>

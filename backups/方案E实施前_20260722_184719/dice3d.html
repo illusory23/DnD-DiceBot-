@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 骰子 - DND5E 骰娘</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+html,body{height:100%;overflow:hidden;background:#0a0a14;margin:0;}
+.navbar{position:fixed;top:0;left:0;right:0;z-index:100;}
+body.embed .navbar{display:none;}
+.wrap{position:fixed;top:56px;left:0;right:0;bottom:0;display:flex;flex-direction:column;}
+body.embed .wrap{top:0;}
+#stage{flex:1;position:relative;background:radial-gradient(ellipse at center,#1a1a3e 0%,#0a0a14 70%);}
+#dice-box-container{position:absolute;top:0;left:0;right:0;bottom:0;}
+.ctrls{flex-shrink:0;}
+.ctrls{background:var(--surface);border-top:2px solid var(--accent);padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0;font-size:0.82rem;}
+.dbs{display:flex;gap:3px;}
+.dbs button{padding:4px 10px;border:2px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:0.78rem;font-weight:600;}
+.dbs button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.stp{display:flex;align-items:center;gap:3px;}
+.stp button{width:24px;height:24px;border:2px solid var(--border);border-radius:3px;cursor:pointer;}
+.stp span{min-width:20px;text-align:center;}
+.tog{display:flex;}
+.tog button{padding:3px 8px;border:2px solid var(--border);background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.75rem;}
+.tog button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.rbtn{padding:8px 20px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.95rem;font-weight:bold;cursor:pointer;margin-left:auto;}
+.rbtn:disabled{opacity:.5;}
+.rov{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.92);color:#ffd700;padding:10px 24px;border-radius:20px;font-size:1.2rem;font-weight:bold;z-index:100;pointer-events:none;transition:opacity .4s;border:1px solid var(--gold);}
+.rov.hide{opacity:0;}
+</style>
+</head>
+<body>
+<nav class="navbar"><a href="/" class="navbar-brand">DND5E 骰娘</a><div class="navbar-links"><a href="/">掷骰</a><a href="/character">角色卡</a><a href="/combat">战斗</a><a href="/spells">法术</a><a href="/events">随机事件</a><a href="/map">地图</a><a href="/reference">参考</a><a href="/dice3d" class="active">3D骰子</a><a href="/mods">Mod</a><a href="/chat">聊天室</a></div></nav>
+<div class="wrap has-nav"><div id="stage"><div id="dice-box-container"></div><div class="rov hide" id="rov"></div></div>
+<div class="ctrls">
+<span>骰子:</span><div class="dbs" id="dbs"><button data-s="4">d4</button><button data-s="6">d6</button><button data-s="8">d8</button><button data-s="10">d10</button><button data-s="12">d12</button><button data-s="20" class="on">d20</button><button data-s="100">d100</button></div>
+<span>个数:</span><div class="stp"><button onclick="chgC(-1)">-</button><span id="cv">1</span><button onclick="chgC(1)">+</button></div>
+<span>加值:</span><div class="stp"><button onclick="chgM(-1)">-</button><span id="mv">+0</span><button onclick="chgM(1)">+</button></div>
+<span>模式:</span><div class="tog" id="tog"><button data-a="" class="on">正常</button><button data-a="adv">优势</button><button data-a="dis">劣势</button></div>
+<button class="rbtn" id="rb" onclick="roll()">投掷!</button>
+</div></div>
+<script>if(location.search.includes('embed'))document.body.classList.add('embed');</script>
+<script type="module">
+// 从Vite构建产物直接加载dice-box
+import DiceBox from '/static/dice-v2/dice-box.es-CRvAmoFI.js';
+
+var S=20,C=1,M=0,A='',rolling=false,initOk=false;
+var diceBox=null;
+var rov=document.getElementById('rov'),rb=document.getElementById('rb');
+
+(async function(){
+ try{
+  diceBox=new DiceBox({
+   container:'#dice-box-container',
+   assetPath:'/static/dice-box/assets/',
+   offscreen:false,
+   theme:'default',
+   themeColor:'#2c1810',
+   scale:9,
+   lightIntensity:1.4,
+   throwForce:9,
+   spinForce:8,
+   gravity:0.7,
+   startingHeight:12,
+   settleTimeout:5000,
+  });
+  await diceBox.init();
+  if(diceBox.canvas){diceBox.canvas.style.width='100%';diceBox.canvas.style.height='100%';diceBox.canvas.style.position='absolute';diceBox.canvas.style.top='0';diceBox.canvas.style.left='0';window.dispatchEvent(new Event('resize'));}
+  initOk=true;console.log('DiceBox ready, canvas w:(diceBox.canvas?diceBox.canvas.width:0)');
+ }catch(e){console.error(e);rov.innerHTML='Error: '+e.message;rov.classList.remove('hide');}
+})();
+
+document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);});});
+document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;});});
+window.chgC=function(d){C=Math.max(1,Math.min(20,C+d));document.getElementById('cv').textContent=C;};
+window.chgM=function(d){M=Math.max(-20,Math.min(20,M+d));var s=M>=0?'+':'';document.getElementById('mv').textContent=s+M;};
+
+window.roll=async function(){
+ if(rolling||!initOk)return;rolling=true;rb.disabled=true;rov.classList.add('hide');
+ diceBox.clear();diceBox.show();
+ var notations=[];
+ if(S===100)notations=['1d10','1d10'];
+ else if(A==='adv'||A==='dis')notations=['1d'+S,'1d'+S];
+ else for(var i=0;i<C;i++)notations.push('1d'+S);
+ try{
+  var results=await diceBox.roll(notations);
+  var values=results.map(function(r){return r.value;});
+  var total,dispVals,es;
+  if(S===100){var tens=(values[0]%10)*10;var ones=values[1]%10;total=tens+ones;if(total===0)total=100;dispVals=[values[0],values[1]];es='d100';}
+  else if(A==='adv'){var mx=Math.max.apply(null,values);dispVals=[mx];total=mx+M;es='d'+S+' (优势)';}
+  else if(A==='dis'){var mn=Math.min.apply(null,values);dispVals=[mn];total=mn+M;es='d'+S+' (劣势)';}
+  else{dispVals=values;total=values.reduce(function(a,b){return a+b;},0)+M;var ms=M!==0?(M>0?'+'+M:''+M):'';es=C+'d'+S+ms;}
+  rov.innerHTML='<b>'+es+' = '+total+'</b> ['+dispVals.join(', ')+']';rov.classList.remove('hide');
+	  try{var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");var name=s.name||"匿名",role=s.role||"PL";fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+es+" = ["+total+"]",hidden:false,role:role})}).catch(function(){});}catch(e){}
+  setTimeout(function(){rov.classList.add('hide');},5000);
+ }catch(e){rov.innerHTML='Error: '+e.message;rov.classList.remove('hide');}
+ rolling=false;rb.disabled=false;
+};
+window.addEventListener('resize',function(){if(diceBox&&diceBox.canvas){diceBox.canvas.style.width='100%';diceBox.canvas.style.height='100%';diceBox.canvas.style.position='absolute';diceBox.canvas.style.top='0';diceBox.canvas.style.left='0';window.dispatchEvent(new Event('resize'));}});
+</script>
+</body>
+</html>

@@ -228,9 +228,79 @@ def _apply_canvas_message(data: dict) -> tuple[int | None, bool]:
     return None, False
 
 
+# ━━━ 确定性骰子帧同步消息处理 ━━━
+def _handle_dice_sync_message(data: dict, ws) -> bool:
+    """处理骰子帧同步消息。返回 True 表示已处理（不应继续走画布逻辑）。"""
+    msg_type = data.get('type', '')
+
+    if msg_type == 'dice_roll_result':
+        print(f'[dice-sync] result: {data.get("roller")} {data.get("notation")}={data.get("total")}')
+        _ws_broadcast(_json.dumps(data), exclude=ws)
+        return True
+
+    if msg_type == 'dice_roll_animate' or msg_type == 'dice_roll_det':
+        _ws_broadcast(_json.dumps(data), exclude=ws)
+        return True
+
+    if msg_type == 'dice_roll':
+        # 投掷者发起掷骰 → 广播同步开始给所有其他客户端
+        seed = data.get('seed')
+        dice = data.get('dice', [])
+        notation = data.get('notation', '')
+        roller = data.get('roller', 'anonymous')
+
+        sync_start = _json.dumps({
+            'type': 'dice_sync_start',
+            'seed': seed,
+            'dice': dice,
+            'notation': notation,
+            'roller': roller,
+            'frameStart': 0,
+            'timestamp': _time.time(),
+        })
+        # 广播给所有客户端（包括投掷者自己，用于确认）
+        _ws_broadcast(sync_start)
+        print(f'[dice-sync] 掷骰开始: {notation} (种子:{seed}, 投掷者:{roller})')
+        return True
+
+    if msg_type == 'dice_result':
+        # 投掷者本地模拟完成 → 广播权威结果
+        results = data.get('results', [])
+        total = data.get('total', 0)
+        seed = data.get('seed')
+        notation = data.get('notation', '')
+        roller = data.get('roller', 'anonymous')
+
+        sync_result = _json.dumps({
+            'type': 'dice_sync_result',
+            'results': results,
+            'total': total,
+            'seed': seed,
+            'notation': notation,
+            'roller': roller,
+            'timestamp': _time.time(),
+        })
+        _ws_broadcast(sync_result)
+        print(f'[dice-sync] 掷骰结果: {notation} = {total} (种子:{seed})')
+        return True
+
+    if msg_type == 'dice_sync_frame':
+        # 周期性帧号广播（可选：用于锁步同步校准）
+        frame = data.get('frame', 0)
+        sync_frame = _json.dumps({
+            'type': 'dice_sync_frame',
+            'frame': frame,
+            'checksum': data.get('checksum', ''),
+        })
+        _ws_broadcast(sync_frame, exclude=ws)
+        return True
+
+    return False
+
+
 @sock.route('/ws')
 def ws_canvas(ws):
-    """WebSocket 画布同步，与 HTTP 共用 5000 端口。frp 单隧道兼容。"""
+    """WebSocket 画布同步 + 骰子帧同步，与 HTTP 共用 5000 端口。frp 单隧道兼容。"""
     with _ws_lock:
         _ws_connected.add(ws)
     try:
@@ -251,6 +321,11 @@ def ws_canvas(ws):
                         _ws_send_init(ws)
                     continue
 
+                # ━━ 骰子帧同步消息 ━━
+                if _handle_dice_sync_message(data, ws):
+                    continue
+
+                # ━━ 画布同步消息 ━━
                 ver, should_broadcast = _apply_canvas_message(data)
                 if should_broadcast:
                     if ver is not None:
@@ -262,7 +337,7 @@ def ws_canvas(ws):
                                 l['dataURL'] = ''
                     _ws_broadcast(_json.dumps(data), exclude=ws)
             except Exception as e:
-                print(f'[ws] 处理画布消息失败: {type(e).__name__}: {e}')
+                print(f'[ws] 处理消息失败: {type(e).__name__}: {e}')
     finally:
         with _ws_lock:
             _ws_connected.discard(ws)
@@ -469,8 +544,14 @@ def chat_page():
 
 @app.route('/dice3d')
 def dice3d_page():
-    """3D 物理骰子"""
-    return render_template('dice3d.html')
+    """3D 确定性多人骰子"""
+    return render_template('dice3d-e.html')
+
+
+@app.route('/dice3d-e')
+def dice3d_e_page():
+    """3D 确定性多人骰子 (别名)"""
+    return render_template('dice3d-e.html')
 
 
 # ━━━ API 路由 ━━━
