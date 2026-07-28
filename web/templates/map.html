@@ -746,7 +746,7 @@
         <!-- 第二行：导航链接（可折叠） -->
         <div class="toolbar-row toolbar-row-2 collapsed" id="toolbar-row-2">
             <div class="toolbar-left">
-                <a href="/" class="tool-btn nav-tab" style="text-decoration:none;">🎲 掷骰</a>
+                <a href="/dice3d" class="tool-btn nav-tab" style="text-decoration:none;">🎲 3D掷骰</a>
                 <a href="/character" class="tool-btn nav-tab" style="text-decoration:none;">👤 角色卡</a>
                 <a href="/combat" class="tool-btn nav-tab" style="text-decoration:none;">⚔️ 战斗</a>
                 <a href="/spells" class="tool-btn nav-tab" style="text-decoration:none;">📖 法术</a>
@@ -940,7 +940,7 @@
                        style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
                        onkeydown="if(event.key==='Enter') dicePopupRoll()">
                 <button onclick="dicePopupRoll()" style="padding:0.35rem 0.75rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.85rem;">投掷</button>
-                <button onclick="var w=document.getElementById('mini3d-wrap');if(!w)return;var showing=w.style.display!=='none';if(showing){w.style.display='none';this.style.background='var(--surface2)';this.textContent='3D';var f=document.getElementById('mini3d-frame');f.src='';}else{w.style.display='';this.style.background='var(--accent)';this.textContent='收起';var f=document.getElementById('mini3d-frame');}" title="在新标签打开3D物理骰子" style="padding:0.35rem 0.5rem;background:var(--surface2);border:1px solid var(--gold);border-radius:4px;color:var(--gold);cursor:pointer;font-size:0.8rem;white-space:nowrap;">✨3D</button>
+                <button onclick="var w=document.getElementById('mini3d-wrap');if(!w)return;var showing=w.style.display!=='none';if(showing){w.style.display='none';this.style.background='var(--surface2)';this.textContent='✨3D';var f=document.getElementById('mini3d-frame');f.src='';}else{w.style.display='';this.style.background='var(--accent)';this.textContent='收起';var f=document.getElementById('mini3d-frame');if(!f.src||f.src===location.href||f.src==='about:blank')f.src='/dice3d?embed=1';setTimeout(function(){w.dispatchEvent(new Event('resize'));},200);}" title="打开3D物理骰子" style="padding:0.35rem 0.5rem;background:var(--surface2);border:1px solid var(--gold);border-radius:4px;color:var(--gold);cursor:pointer;font-size:0.8rem;white-space:nowrap;">✨3D</button>
             </div>
             <div id="mini3d-wrap" style="display:none;width:100%;height:480px;margin-bottom:6px;border-radius:8px;overflow:hidden;background:#1a1a2e;"><iframe id="mini3d-frame" src="/dice3d?embed=1" style="width:100%;height:100%;border:none;" allow="accelerometer;autoplay"></iframe></div>
             <div class="adv-toggle-mini" id="dicepop-adv" style="margin-bottom:6px;">

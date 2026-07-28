@@ -496,8 +496,8 @@ def serve_vite_assets(filename):
 
 @app.route('/')
 def index():
-    """首页 — 掷骰面板"""
-    return render_template('index.html')
+    """首页 — 3D掷骰（合并了掷骰+检定功能）"""
+    return render_template('dice3d-e.html')
 
 
 @app.route('/character')

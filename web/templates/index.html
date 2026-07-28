@@ -86,26 +86,26 @@
     <nav class="navbar">
         <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
         <div class="navbar-links">
-            <a href="/" class="active">掷骰</a>
+            <a href="/dice3d">🎲 3D掷骰</a>
+            <a href="/" class="active">⚡ 快速检定</a>
             <a href="/character">角色卡</a>
             <a href="/combat">战斗</a>
             <a href="/spells">法术</a>
             <a href="/events">随机事件</a>
             <a href="/map">地图</a>
             <a href="/reference">参考</a>
-            <a href="/dice3d">✨ 3D骰子</a>
                 <a href="/mods">🧩 Mod</a>
-                
+
                 <a href="/chat">💬 聊天室</a>
         </div>
     </nav>
 
     <div class="main-container">
         <div class="row">
-            <!-- 掷骰面板 -->
+            <!-- 3D掷骰入口 + 检定结果 -->
             <div class="col" style="flex: 1.6;">
                 <div class="card dice-panel">
-                    <div class="card-header">🎲 掷骰
+                    <div class="card-header">🎲 3D 掷骰
                         <select id="active-char-select" onchange="setActiveChar()"
                                 style="margin-left:1rem;padding:0.25rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--gold);font-size:0.8rem;max-width:180px;">
                             <option value="">⚡ 选择角色</option>
@@ -113,66 +113,26 @@
                         <span id="active-char-badge" style="color:var(--gold);font-size:0.75rem;margin-left:0.5rem;display:none;"></span>
                     </div>
 
-                    <!-- 自定义骰子构建器 _d_+_ -->
-                    <div class="dice-builder">
-                        <div class="dice-builder-inputs">
-                            <input type="number" id="dice-count" value="1" min="1" max="99"
-                                   placeholder="数量" title="骰子数量">
-                            <span class="dice-builder-label">d</span>
-                            <input type="number" id="dice-sides" value="20" min="2" max="1000"
-                                   placeholder="面数" title="骰子面数">
-                            <span class="dice-builder-label">+</span>
-                            <input type="number" id="dice-mod" value="0" min="-99" max="999"
-                                   placeholder="调整值" title="调整值">
-                        </div>
-                        <button class="btn-roll" onclick="doCustomRoll()" title="投掷">🎲<br>投掷</button>
+                    <!-- 3D掷骰引导卡片 -->
+                    <div style="text-align:center;padding:1.5rem 1rem;">
+                        <div style="font-size:3rem;margin-bottom:0.5rem;">🎲✨</div>
+                        <p style="color:var(--text);font-size:1rem;margin:0 0 0.3rem;font-weight:bold;">
+                            全新 3D 物理掷骰已上线
+                        </p>
+                        <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 1rem;line-height:1.5;">
+                            真3D引擎 · 物理碰撞 · 联机同步<br>
+                            支持爆炸骰/保留丢弃/自定义表达式
+                        </p>
+                        <a href="/dice3d" style="display:inline-block;padding:12px 32px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:1.1rem;font-weight:bold;transition:opacity 0.15s;"
+                           onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                            🎲 打开 3D 掷骰
+                        </a>
                     </div>
 
-                    <!-- 优势/劣势切换 -->
-                    <div class="adv-toggle-row">
-                        <label class="ndn-sync-label" title="勾选后骰子数量始终等于面数（NdN 模式）">
-                            <input type="checkbox" id="ndn-sync" onchange="onNdnSyncChange()">
-                            NdN 同步 (骰数=面数)
-                        </label>
-                        <div class="adv-toggle" id="dice-adv-toggle">
-                            <button class="adv-btn active" data-adv="">正常</button>
-                            <button class="adv-btn" data-adv="adv">✨ 优势</button>
-                            <button class="adv-btn" data-adv="dis">💀 劣势</button>
-                        </div>
-                    </div>
-
-                    <!-- 快捷骰子 -->
-                    <div class="quick-dice">
-                        <button onclick="fillCustomDice(1, 20, 0)">d20</button>
-                        <button onclick="fillCustomDice(1, 4, 0)">d4</button>
-                        <button onclick="fillCustomDice(1, 6, 0)">d6</button>
-                        <button onclick="fillCustomDice(1, 8, 0)">d8</button>
-                        <button onclick="fillCustomDice(1, 10, 0)">d10</button>
-                        <button onclick="fillCustomDice(1, 12, 0)">d12</button>
-                        <button onclick="fillCustomDice(1, 100, 0)">d100</button>
-                        <button onclick="fillCustomDice(3, 6, 0)">3d6</button>
-                        <button onclick="fillCustomDice(4, 6, 0)" style="font-size:0.8rem;">4d6k3</button>
-                        <button onclick="fillCustomDice(2, 6, 3)">2d6+3</button>
-                        <button onclick="fillCustomDice(1, 8, 2)">1d8+2</button>
-                        <button onclick="fillCustomDice(8, 6, 0)">🔥 8d6</button>
-                    </div>
-
-                    <!-- 自由表达式（折叠） -->
-                    <details style="margin-bottom: 1rem;">
-                        <summary style="cursor:pointer; color: var(--text-dim); font-size: 0.9rem;">
-                            高级表达式 (k3 / adv / 自定义格式)
-                        </summary>
-                        <div class="dice-input" style="margin-top: 0.5rem;">
-                            <input type="text" id="dice-expr" placeholder="如: 4d6k3 / adv d20 / 2d8+1d6+3"
-                                   onkeydown="if(event.key==='Enter') doFreeRoll()">
-                            <button onclick="doFreeRoll()">投掷</button>
-                        </div>
-                    </details>
-
-                    <!-- 输出区 -->
-                    <div class="output-area" id="output">
-                        <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
-                            设置骰子参数 → 选择优势/劣势 → 点击"投掷"开始...
+                    <!-- 检定结果输出区 -->
+                    <div class="output-area" id="output" style="margin-top:0.5rem;">
+                        <div style="color: var(--text-dim); text-align: center; padding: 1rem;">
+                            💡 掷骰请前往 <a href="/dice3d" style="color:var(--accent);">3D掷骰页面</a>，此面板显示检定结果
                         </div>
                     </div>
                 </div>
@@ -284,38 +244,56 @@
             return null;
         }
 
-        // ━━━ 自定义骰子构建器 ━━━
+        // ━━━ 自定义骰子构建器（元素已移至3D掷骰页，此处做兼容处理）━━━
         function fillCustomDice(count, sides, mod) {
-            document.getElementById('dice-count').value = count;
-            document.getElementById('dice-sides').value = sides;
-            document.getElementById('dice-mod').value = mod;
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            const elM = document.getElementById('dice-mod');
+            if (elC) elC.value = count;
+            if (elS) elS.value = sides;
+            if (elM) elM.value = mod;
+            // 如果元素不存在，重定向到3D掷骰页面
+            if (!elC && !elS) { window.location.href = '/dice3d'; return; }
         }
 
-        // NdN 同步：骰数自动跟随面数
         function onNdnSyncChange() {
-            const synced = document.getElementById('ndn-sync').checked;
+            const ndn = document.getElementById('ndn-sync');
+            if (!ndn) return;
+            const synced = ndn.checked;
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            if (!elC || !elS) return;
             if (synced) {
-                const sides = document.getElementById('dice-sides').value;
-                document.getElementById('dice-count').value = sides;
-                document.getElementById('dice-count').readOnly = true;
-                document.getElementById('dice-count').style.opacity = '0.6';
+                elC.value = elS.value;
+                elC.readOnly = true;
+                elC.style.opacity = '0.6';
             } else {
-                document.getElementById('dice-count').readOnly = false;
-                document.getElementById('dice-count').style.opacity = '1';
+                elC.readOnly = false;
+                elC.style.opacity = '1';
             }
         }
 
-        // 监听面数变化，同步模式下自动更新数量
-        document.getElementById('dice-sides').addEventListener('input', function() {
-            if (document.getElementById('ndn-sync').checked) {
-                document.getElementById('dice-count').value = this.value;
+        // 监听面数变化（仅当元素存在时绑定）
+        (function(){
+            const elS = document.getElementById('dice-sides');
+            if (elS) {
+                elS.addEventListener('input', function() {
+                    const ndn = document.getElementById('ndn-sync');
+                    const elC = document.getElementById('dice-count');
+                    if (ndn && ndn.checked && elC) {
+                        elC.value = this.value;
+                    }
+                });
             }
-        });
+        })();
 
         function buildDiceExpression() {
-            const count = parseInt(document.getElementById('dice-count').value) || 1;
-            const sides = parseInt(document.getElementById('dice-sides').value) || 20;
-            const mod = parseInt(document.getElementById('dice-mod').value) || 0;
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            const elM = document.getElementById('dice-mod');
+            const count = elC ? (parseInt(elC.value) || 1) : 1;
+            const sides = elS ? (parseInt(elS.value) || 20) : 20;
+            const mod = elM ? (parseInt(elM.value) || 0) : 0;
             const modSign = mod >= 0 ? '+' : '';
             const adv = getDiceAdvantage();
 
@@ -329,10 +307,17 @@
         }
 
         async function doCustomRoll() {
+            // 如果骰子构建器元素不存在，跳转到3D掷骰页
+            if (!document.getElementById('dice-count')) {
+                window.location.href = '/dice3d';
+                return;
+            }
             const expr = buildDiceExpression();
-            document.getElementById('dice-expr').value = expr;
+            const exprEl = document.getElementById('dice-expr');
+            if (exprEl) exprEl.value = expr;
 
             const output = document.getElementById('output');
+            if (!output) return;
             output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
 
             try {
@@ -356,10 +341,16 @@
 
         // ━━━ 自由表达式掷骰 ━━━
         async function doFreeRoll() {
-            const expr = document.getElementById('dice-expr').value.trim();
+            const exprEl = document.getElementById('dice-expr');
+            if (!exprEl) {
+                window.location.href = '/dice3d';
+                return;
+            }
+            const expr = exprEl.value.trim();
             if (!expr) return;
 
             const output = document.getElementById('output');
+            if (!output) return;
             output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
 
             try {
