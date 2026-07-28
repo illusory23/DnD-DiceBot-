@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DND5E 骰娘</title>
+    <title>尘封之卷</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         /* ━━ 加入房间覆盖层 ━━ */
@@ -69,7 +69,7 @@
     <!-- 加入房间覆盖层 -->
     <div id="join-overlay">
         <div class="join-card">
-            <h2>🎲 欢迎来到 DND5E 骰娘</h2>
+            <h2>✦ 欢迎来到 尘封之卷</h2>
             <div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div>
             <div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div>
             <input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done">
@@ -84,7 +84,7 @@
     </div>
 
     <nav class="navbar">
-        <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
         <div class="navbar-links">
             <a href="/dice3d">🎲 3D掷骰</a>
             <a href="/" class="active">⚡ 快速检定</a>
@@ -187,7 +187,7 @@
 
                 <div class="card">
                     <div class="card-header">📊 属性生成</div>
-                    <button class="btn btn-primary" onclick="generateAbilities()">🎲 生成属性 (4d6k3)</button>
+                    <button class="btn btn-primary" onclick="generateAbilities()">✦ 生成属性 (4d6k3)</button>
                     <div id="gen-result" style="margin-top: 0.75rem;"></div>
                 </div>
 
@@ -404,7 +404,7 @@
             return `
                 <div class="output-entry">
                     ${charLine}
-                    <div><b>🎲 ${data.expression}</b>${advHtml}${critHtml}</div>
+                    <div><b>✦ ${data.expression}</b>${advHtml}${critHtml}</div>
                     <div class="result-rolls">投掷: ${diceHtml}${data.modifier ? ' + ' + data.modifier : ''}</div>
                     <div class="result-total">${data.total}</div>
                 </div>`;

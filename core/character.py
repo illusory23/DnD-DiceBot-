@@ -1,4 +1,4 @@
-"""DND5E 角色卡管理系统
+"""DND 角色卡管理系统
 
 使用 SQLite 存储角色数据。
 支持从 NekoWorks DND 5E 人物卡 Excel 导入。

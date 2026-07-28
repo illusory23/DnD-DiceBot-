@@ -1,4 +1,4 @@
-"""DND5E 骰娘 — Flask Web UI"""
+"""尘封之卷 — Flask Web UI"""
 
 import sys
 import os
@@ -2044,7 +2044,7 @@ def api_search():
             'snippet': snippet,
         })
 
-    # 5. DND5E物品表（评分排序） + 自定义物品优先
+    # 5. DND物品表（评分排序） + 自定义物品优先
     item_data = _load_items()
     for it in item_data:
         name = it['name']
@@ -2373,14 +2373,14 @@ def api_list_events():
     return jsonify({'groups': groups})
 
 
-# ━━━ DND5E 物品表加载 ━━━
+# ━━━ DND 物品表加载 ━━━
 import openpyxl
 import os as _os
 
 _item_cache: list[dict] | None = None
 
 def _load_items():
-    """加载 DND5E 物品表 Excel"""
+    """加载 DND 物品表 Excel"""
     global _item_cache
     if _item_cache is not None:
         return _item_cache
@@ -2530,7 +2530,7 @@ def api_file_raw():
 
 @app.route('/api/items/search', methods=['GET'])
 def api_search_items():
-    """搜索 DND5E 物品表（武器/装备/物品）"""
+    """搜索 DND 物品表（武器/装备/物品）"""
     query = request.args.get('q', '').strip()
     if len(query) < 1:
         return jsonify({'error': '请输入搜索关键词'}), 400

@@ -1,4 +1,4 @@
-"""DND5E 骰子解析与投掷引擎
+"""DND 骰子解析与投掷引擎
 
 支持的表达式：
   XdY       — 基本骰子 (3d6, 1d20)
@@ -193,7 +193,7 @@ def roll(expression: str) -> DiceResult:
     base_total = sum(kept_rolls_for_total)
     total = base_total + modifier
     if total < 0:
-        total = 0  # DND5E 中伤害不能为负
+        total = 0  # DND 中伤害不能为负
 
     # 暴击判定 (仅d20)
     is_crit_success = False
@@ -233,7 +233,7 @@ def roll(expression: str) -> DiceResult:
 
 def roll_ability_check(ability_mod: int, proficiency_bonus: int = 0,
                        advantage: bool | None = None) -> DiceResult:
-    """DND5E 属性检定: d20 + 属性调整值 + 熟练加值"""
+    """DND 属性检定: d20 + 属性调整值 + 熟练加值"""
     if advantage is True:
         expr = "d20 优势"
     elif advantage is False:

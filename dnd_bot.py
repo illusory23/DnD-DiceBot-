@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DND5E 骰娘 — 命令行交互入口
+"""尘封之卷 — 命令行交互入口
 
 用法:
     python dnd_bot.py              # 交互模式
@@ -3148,7 +3148,7 @@ def cmd_help(args: str) -> tuple[str | None, str | None]:
             return helps[cmd], None
         return f"无详细帮助: {cmd}", None
 
-    return bold("🎲 DND5E 骰娘 v2.0 — 命令列表") + """
+    return bold("✦ 尘封之卷 v2.0 — 命令列表") + """
 │
 ├── 🎲 掷骰
 │   .r <表达式>          通用掷骰 (3d6 / d20+5 / 4d6k3)
@@ -3311,14 +3311,14 @@ def process_command(raw: str) -> str:
 
 def interactive_mode():
     """交互模式"""
-    print(bold("🎲 DND5E 骰娘 v2.0"))
+    print(bold("✦ 尘封之卷 v2.0"))
     print(f"  Powered by 尘封之卷 · D&D 5E SRD")
     print(f"  输入 .help 查看命令，.exit 退出")
     print()
 
     while True:
         try:
-            raw = input(f"{color_cyan('DND5E>')} ").strip()
+            raw = input(f"{color_cyan('尘封之卷>')} ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n再见！")
             break

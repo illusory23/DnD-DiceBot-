@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>战术地图 — DND5E 骰娘</title>
+    <title>战术地图 — 尘封之卷</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         :root {
@@ -31,7 +31,7 @@
         }
         .toolbar-row-2 { border-top: 1px solid var(--border); }
         .toolbar-row-2.collapsed { display: none; }
-        .map-toolbar .brand { font-weight: bold; color: var(--accent); margin-right: 0.25rem; text-decoration: none; }
+        .map-toolbar .brand { font-weight: bold; color: var(--accent); margin-right: 0.15rem; text-decoration: none; font-size:0.75rem; }
         .map-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 0.15rem; }
         .nav-tab {
             font-size: 0.8rem; padding: 0.3rem 0.55rem;
@@ -660,7 +660,8 @@
         .stats-num.green{color:var(--green);}
         .stats-num.red{color:var(--red);}
         .stats-rate{min-width:44px;text-align:right;color:var(--text-dim);font-size:0.7rem;}
-    </style>
+
+</style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
         #join-overlay.hidden{display:none;}
@@ -685,13 +686,13 @@
     </style>
 </head>
 <body>
-<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="DM" id="join-role-dm"> 👑 DM</label><label style="color:var(--text);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="PL" id="join-role-pl" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="DM" id="join-role-dm"> 👑 DM</label><label style="color:var(--text);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="PL" id="join-role-pl" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
     <!-- 工具栏（双行可折叠，左右分区） -->
     <div class="map-toolbar">
         <!-- 第一行：绘图和功能工具（始终可见） -->
         <div class="toolbar-row toolbar-row-1">
             <div class="toolbar-left">
-                <a href="/" class="brand" id="map-brand">🎲 骰娘</a>
+                <a href="/" class="brand" id="map-brand"><svg viewBox="0 0 100 100" width="12" height="12" style="vertical-align:middle;margin-right:1px;" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
                 <span class="sep"></span>
                 <div class="select-dropdown-wrap" id="select-dropdown-wrap">
                     <button class="select-dropdown-btn active" id="select-btn" onclick="toggleSelectDropdown()" title="选择工具">
