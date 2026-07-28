@@ -430,9 +430,11 @@
         }
 
         function saveState() {
+            // 可靠保存：IndexedDB 等待事务确认，localStorage 保留 dataURL 作为兜底
             const state = collectState();
-            // 轻量保存立即执行（localStorage 同步但快）
+            dbSetAndWait(STORAGE_KEY, state).catch(function(e){ console.error('⚠ IndexedDB 保存失败:', e); });
             try {
+                // _light 备份保留 dataURL（限制单层 ≤200KB 避免超出 localStorage 5MB 上限）
                 const light = {
                     ...state,
                     layers: state.layers.map(function(l) {
@@ -441,12 +443,18 @@
                     }),
                 };
                 localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
-            } catch(e) {}
-            // IndexedDB 写入延迟到空闲时执行，不阻塞主线程
-            var scheduleSave = window.requestIdleCallback || function(fn) { setTimeout(fn, 200); };
-            scheduleSave(function() {
-                dbSetSync(STORAGE_KEY, state);
-            });
+                // 紧急兜底：单独保存图层 dataURL（仅含图片数据，用于极端情况恢复）
+                var emergency = { layers: [] };
+                for (var ei = 0; ei < state.layers.length; ei++) {
+                    var el = state.layers[ei];
+                    if (el.dataURL && el.dataURL.length > 0) {
+                        emergency.layers.push({id: el.id, dataURL: el.dataURL});
+                    }
+                }
+                if (emergency.layers.length > 0) {
+                    localStorage.setItem(STORAGE_KEY + '_emergency', JSON.stringify(emergency));
+                }
+            } catch(e) { console.error('⚠ localStorage 保存失败 (可能超出配额):', e); }
         }
 
         // 带 IndexedDB 确认的完整保存（定时自动保存用，确保图层 dataURL 可靠落盘）
@@ -557,7 +565,8 @@
         async function confirmOverwriteSave(slotId, name) {
             if (!confirm(`确定将当前地图保存到 "${name}" 吗？\n\n此操作将覆盖该存档的原有内容。`)) return;
 
-            const state = collectState();
+            var state = collectState();
+            state._slotName = name;
             const ok = await dbSetAndWait(getSlotStorageKey(slotId), state);
             if (!ok) {
                 alert(`❌ 保存失败：无法写入数据库。`);
@@ -639,7 +648,8 @@
             const slotId = 'slot_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
             // 写入 IndexedDB（等待确认，确保保存成功）
-            const state = collectState();
+            var state = collectState();
+            state._slotName = name;
             const ok = await dbSetAndWait(getSlotStorageKey(slotId), state);
             if (!ok) {
                 alert('❌ 保存失败：无法写入数据库。\n请检查浏览器存储空间是否充足，或尝试刷新页面后重试。');
@@ -1094,6 +1104,7 @@
                         renumberFogLayers();
                         renderLayerList();
                         debouncedSave();
+                        window._markDirty('fog');
                     } else if (currentFogPoints === null) {
                         // 开始新多边形 → 自动创建独立图层（一处迷雾一个图层）
                         const newId = ++fogLayerIdCounter;
@@ -2416,7 +2427,7 @@
         }
         function toggleFogLayerVis(id) {
             const layer = fogLayers.find(l => l.id === id);
-            if (layer) { layer.visible = !layer.visible; redrawFogCanvas(); debouncedSave(); renderLayerList(); }
+            if (layer) { layer.visible = !layer.visible; redrawFogCanvas(); debouncedSave(); renderLayerList(); window._markDirty('fog'); }
         }
         function switchFogLayer(id) {
             if (fogLayers.find(l => l.id === id)) {
@@ -2445,6 +2456,7 @@
             redrawFogCanvas();
             debouncedSave();
             renderLayerList();
+            window._markDirty('fog');
         }
 
         function setFogMode(mode) {
@@ -2460,17 +2472,20 @@
                 updateAllFogCoverage();
                 redrawFogCanvas();
                 debouncedSave();
+                window._markDirty('fog');
             } else if (mode === 'hide') {
                 fogVisible = false;
                 fogCanvas.style.display = 'none';
                 updateAllFogCoverage();  // 显示所有被遮的 token
                 redrawFogCanvas();
                 debouncedSave();
+                window._markDirty('fog');
             } else if (mode === 'delete') {
                 if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
                 if (confirm('删除所有战争迷雾图层？此操作不可撤销。')) {
                     clearAllFogLayers();
                     redrawFogCanvas(); debouncedSave();
+                    window._markDirty('fog');
                 }
             } else if (mode === 'newlayer') {
                 if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
@@ -2479,6 +2494,7 @@
                 activeFogLayerId = id;
                 redrawFogCanvas();
                 debouncedSave();
+                window._markDirty('fog');
             } else if (mode === 'nextlayer') {
                 if (window._isDM !== true) return;
                 const idx = fogLayers.findIndex(l => l.id === activeFogLayerId);
@@ -2493,6 +2509,7 @@
                     layer.name = newName.trim();
                     redrawFogCanvas();
                     debouncedSave();
+                    window._markDirty('fog');
                 }
             } else if (mode === 'togglevis') {
                 if (window._isDM !== true) return;
@@ -2500,6 +2517,7 @@
                 layer.visible = !layer.visible;
                 redrawFogCanvas();
                 debouncedSave();
+                window._markDirty('fog');
             } else if (mode === 'deletelayer') {
                 if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
                 if (fogLayers.length <= 1) {
@@ -2514,6 +2532,7 @@
                     renumberFogLayers();
                     redrawFogCanvas();
                     debouncedSave();
+                    window._markDirty('fog');
                 }
             }
         }
@@ -3424,13 +3443,38 @@
                     applyTransform();
                     renderLayerList();
 
-                    // 旧版数据迁移：没有存档槽则自动创建
-                    const reg2 = getSlotRegistry();
+                    // 存档槽恢复：没有注册表时，扫描 IndexedDB 找回已存在的存档
+                    var reg2 = getSlotRegistry();
                     if (reg2.slots.length === 0) {
-                        const slotId = 'slot_' + Date.now() + '_auto';
-                        reg2.slots.push({ id: slotId, name: '自动存档', timestamp: Date.now() });
+                        // 尝试从 IndexedDB 恢复孤儿存档
+                        try {
+                            var allKeys = await new Promise(function(resolve) {
+                                if (!_dbReady || !_db) { resolve([]); return; }
+                                var tx = _db.transaction(DB_STORE, 'readonly');
+                                var req = tx.objectStore(DB_STORE).getAllKeys();
+                                req.onsuccess = function() { resolve(req.result || []); };
+                                req.onerror = function() { resolve([]); };
+                            });
+                            for (var ki = 0; ki < allKeys.length; ki++) {
+                                var key = allKeys[ki];
+                                if (typeof key === 'string' && key.indexOf('slot_') > -1 && key !== STORAGE_KEY) {
+                                    var slotId = key.replace('dnd_map_state_', '');
+                                    if (slotId.indexOf('slot_') === 0) {
+                                        // 尝试读取存档获取名称
+                                        var slotState = await dbGetSync(key);
+                                        var slotName = (slotState && slotState._slotName) || '恢复的存档';
+                                        reg2.slots.push({ id: slotId, name: slotName, timestamp: Date.now() });
+                                    }
+                                }
+                            }
+                        } catch(e) {}
+                        // 如果扫描后仍为空，创建默认自动存档
+                        if (reg2.slots.length === 0) {
+                            var slotId = 'slot_' + Date.now() + '_auto';
+                            reg2.slots.push({ id: slotId, name: '自动存档', timestamp: Date.now() });
+                            dbSetSync(getSlotStorageKey(slotId), state);
+                        }
                         saveSlotRegistry(reg2);
-                        dbSetSync(getSlotStorageKey(slotId), state);
                     }
                     // 同步 IndexedDB，确保最新数据有一份完整备份
                     dbSetSync(STORAGE_KEY, state);
@@ -3852,7 +3896,7 @@ applyRoleRestrictions();
                 wsSend({type: 'layers_update', data: mapLayers.map(layerNetData)});
                 wsSend({type: 'tokens_update', data: s.mapTokens});
                 wsSend({type: 'texts_update', data: s.textBoxes});
-                wsSend({type: 'fog_update', data: s.fogLayers});
+                wsSend({type: 'fog_update', data: {layers: s.fogLayers, visible: s.fogVisible}});
             }
 
             function onWsOpen() {
@@ -3949,7 +3993,7 @@ applyRoleRestrictions();
                         } else if (msg.type === 'texts_update') {
                             mergeRemoteTexts(msg.data || [], [], true);
                         } else if (msg.type === 'fog_update') {
-                            applyRemoteFog(msg.data || []);
+                            applyRemoteFog(msg.data || {});
                         } else if (msg.type === 'clear_all') {
                             brushStrokes = []; fillBaseImage = new Image(); fillBaseDataURL = '';
                             textBoxes.forEach(function(b) { if(b.el) b.el.remove(); });
@@ -4461,7 +4505,7 @@ applyRoleRestrictions();
                     if (_dirtyFlags.layers) { wsSend({type:'layers_update', data: mapLayers.map(layerNetData)}); _dirtyFlags.layers = false; }
                     if (_dirtyFlags.tokens) { wsSend({type:'tokens_update', data: s.mapTokens}); _dirtyFlags.tokens = false; }
                     if (_dirtyFlags.texts)  { wsSend({type:'texts_update', data: s.textBoxes}); _dirtyFlags.texts = false; }
-                    if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: s.fogLayers}); _dirtyFlags.fog = false; }
+                    if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: {layers: s.fogLayers, visible: s.fogVisible}}); _dirtyFlags.fog = false; }
                     // 本地状态已推送至服务器，可以恢复正常的服务端同步
                     window._localStateRestored = false;
                     return;
@@ -4645,11 +4689,20 @@ applyRoleRestrictions();
             }
 
             function applyRemoteFog(fd) {
-                fd = fd || [];
-                if (fd.length > 0 && fd[0].polygons !== undefined) {
-                    fogLayers = fd.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
-                } else if (fd.length > 0) {
-                    fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:fd.map(function(p){return{points:p.points,closed:p.closed};})}];
+                // 兼容新格式 {layers, visible} 和旧格式（纯数组）
+                var layers = fd;
+                if (fd && typeof fd.layers !== 'undefined') {
+                    layers = fd.layers;
+                    if (typeof fd.visible !== 'undefined') {
+                        fogVisible = !!fd.visible;
+                        document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
+                    }
+                }
+                layers = layers || [];
+                if (layers.length > 0 && layers[0].polygons !== undefined) {
+                    fogLayers = layers.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
+                } else if (layers.length > 0) {
+                    fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:layers.map(function(p){return{points:p.points,closed:p.closed};})}];
                 } else {
                     fogLayers = [];
                 }
