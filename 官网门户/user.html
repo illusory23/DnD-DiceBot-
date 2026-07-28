@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户中心 — 尘封之卷</title>
+<style>
+:root {
+  --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
+  --text: #e0e0e0; --text-dim: #888; --text-light: #666;
+  --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
+  --gold: #ffd700; --green: #4caf50; --red: #f44336;
+  --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;}
+a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
+
+/* ━━ 导航栏 ━━ */
+.navbar{background:var(--surface);border-bottom:2px solid var(--accent);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;}
+.nav-brand{font-size:0.9rem;font-weight:bold;color:var(--gold);text-decoration:none;display:flex;align-items:center;gap:6px;}
+.nav-links{display:flex;gap:4px;align-items:center;}
+.nav-links a{color:var(--text-dim);text-decoration:none;padding:6px 12px;border-radius:4px;font-size:0.82rem;}
+.nav-links a:hover,.nav-links a.active{color:var(--text);background:var(--surface2);}
+
+/* ━━ 主体 ━━ */
+.container{max-width:900px;margin:0 auto;padding:24px 16px;}
+.page-title{font-size:1.3rem;font-weight:bold;color:var(--gold);margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid var(--accent);}
+
+/* ━━ 卡片 ━━ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden;}
+.card-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:600;color:var(--gold);font-size:0.9rem;display:flex;align-items:center;gap:8px;}
+.card-body{padding:16px;}
+
+/* ━━ 用户信息行 ━━ */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+.info-item{display:flex;flex-direction:column;gap:4px;}
+.info-label{font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;}
+.info-value{font-size:0.95rem;color:var(--text);word-break:break-all;}
+.info-value.empty{color:var(--text-light);font-style:italic;}
+
+/* ━━ 统计数字 ━━ */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;}
+.stat-item{padding:12px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border);}
+.stat-num{font-size:1.5rem;font-weight:bold;color:var(--gold);}
+.stat-label{font-size:0.72rem;color:var(--text-dim);margin-top:4px;}
+
+/* ━━ 列表 ━━ */
+.item-list{display:flex;flex-direction:column;gap:6px;}
+.item-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:4px;border:1px solid var(--border);font-size:0.82rem;}
+.item-row:hover{border-color:var(--accent);}
+.item-icon{font-size:1.2rem;}
+.item-name{flex:1;}
+.item-meta{font-size:0.72rem;color:var(--text-dim);white-space:nowrap;}
+
+/* ━━ 编辑按钮 ━━ */
+.btn{padding:6px 14px;border-radius:4px;font-size:0.8rem;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:all 0.15s;}
+.btn:hover{border-color:var(--accent);}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover{opacity:0.85;}
+.btn-sm{padding:4px 10px;font-size:0.72rem;}
+
+/* ━━ 模态框 ━━ */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-card{background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:24px;max-width:420px;width:90%;}
+.modal-card h3{color:var(--gold);margin-bottom:14px;}
+.modal-card input,.modal-card textarea{width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;}
+.modal-card input:focus,.modal-card textarea:focus{border-color:var(--accent);outline:none;}
+.modal-card textarea{resize:vertical;min-height:60px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
+
+@media(max-width:600px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="index.html" class="nav-brand">
+    <svg viewBox="0 0 100 100" width="14" height="14" style="vertical-align:middle;" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bsg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#bsg)" stroke-width="3"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#bsg)" stroke-width="3"/><circle cx="50" cy="50" r="5" fill="url(#bsg)"/></svg>
+    尘封之卷
+  </a>
+  <div class="nav-links">
+    <a href="index.html">首页</a>
+    <a href="user.html" class="active">用户中心</a>
+    <a href="#" onclick="doLogout()">退出</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1 class="page-title">👤 用户中心</h1>
+
+  <!-- ━━ 基本信息 ━━ -->
+  <div class="card">
+    <div class="card-header">📋 基本信息 <button class="btn btn-sm" onclick="showEditModal()" style="margin-left:auto;">✏️ 编辑</button></div>
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">用户 ID</span><span class="info-value" id="info-id">—</span></div>
+        <div class="info-item"><span class="info-label">用户名</span><span class="info-value" id="info-username">—</span></div>
+        <div class="info-item"><span class="info-label">绑定邮箱</span><span class="info-value empty" id="info-email">未绑定</span></div>
+        <div class="info-item"><span class="info-label">绑定手机号</span><span class="info-value empty" id="info-phone">未绑定</span></div>
+        <div class="info-item"><span class="info-label">注册时间</span><span class="info-value" id="info-created">—</span></div>
+        <div class="info-item"><span class="info-label">最后登录</span><span class="info-value" id="info-login">—</span></div>
+        <div class="info-item" style="grid-column:1/-1;"><span class="info-label">个人简介</span><span class="info-value empty" id="info-bio">暂无简介</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 数据统计 ━━ -->
+  <div class="card">
+    <div class="card-header">📊 平台数据</div>
+    <div class="card-body">
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-num" id="stat-workshop">0</div><div class="stat-label">工坊投稿</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-posts">0</div><div class="stat-label">社区发帖</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-replies">0</div><div class="stat-label">回复总数</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-downloads">0</div><div class="stat-label">被下载次数</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 发布的资源 ━━ -->
+  <div class="card">
+    <div class="card-header">🔧 创意工坊投稿</div>
+    <div class="card-body">
+      <div class="item-list" id="workshop-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无投稿</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 社区帖子 ━━ -->
+  <div class="card">
+    <div class="card-header">💬 社区发帖</div>
+    <div class="card-body">
+      <div class="item-list" id="posts-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无发帖</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━ 编辑资料弹窗 ━━ -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-card">
+    <h3>✏️ 编辑资料</h3>
+    <label style="font-size:0.78rem;color:var(--text-dim);">邮箱</label>
+    <input type="email" id="edit-email" placeholder="绑定邮箱">
+    <label style="font-size:0.78rem;color:var(--text-dim);">手机号</label>
+    <input type="tel" id="edit-phone" placeholder="绑定手机号">
+    <label style="font-size:0.78rem;color:var(--text-dim);">个人简介</label>
+    <textarea id="edit-bio" placeholder="介绍一下自己..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideEditModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveProfile()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ━━ 加载用户数据 ━━
+function loadUserData(){
+  var user = null;
+  try { user = JSON.parse(localStorage.getItem('portal_user_data')); } catch(e) {}
+  if (!user) {
+    var name = sessionStorage.getItem('portal_user') || localStorage.getItem('portal_user');
+    if (name) {
+      user = { username: name, id: '-', email: '', phone: '', bio: '', created_at: '', last_login: '' };
+    }
+  }
+  if (!user) { return; }
+
+  document.getElementById('info-id').textContent = user.id || '—';
+  document.getElementById('info-username').textContent = user.username || '—';
+  if (user.email) { document.getElementById('info-email').textContent = user.email; document.getElementById('info-email').classList.remove('empty'); }
+  if (user.phone) { document.getElementById('info-phone').textContent = user.phone; document.getElementById('info-phone').classList.remove('empty'); }
+  document.getElementById('info-created').textContent = user.created_at || '—';
+  document.getElementById('info-login').textContent = user.last_login || '—';
+  if (user.bio) { document.getElementById('info-bio').textContent = user.bio; document.getElementById('info-bio').classList.remove('empty'); }
+
+  // 模拟统计数据
+  document.getElementById('stat-workshop').textContent = user.workshop_count || 0;
+  document.getElementById('stat-posts').textContent = user.posts_count || 0;
+  document.getElementById('stat-replies').textContent = user.replies_count || 0;
+  document.getElementById('stat-downloads').textContent = user.downloads_count || 0;
+
+  // 填充编辑框
+  document.getElementById('edit-email').value = user.email || '';
+  document.getElementById('edit-phone').value = user.phone || '';
+  document.getElementById('edit-bio').value = user.bio || '';
+}
+
+// ━━ 编辑弹窗 ━━
+function showEditModal(){ document.getElementById('edit-modal').classList.add('show'); }
+function hideEditModal(){ document.getElementById('edit-modal').classList.remove('show'); }
+document.getElementById('edit-modal').addEventListener('click',function(e){ if(e.target===this)hideEditModal(); });
+
+function saveProfile(){
+  var user = null;
+  try { user = JSON.parse(localStorage.getItem('portal_user_data')); } catch(e) {}
+  if (!user) {
+    var name = sessionStorage.getItem('portal_user') || localStorage.getItem('portal_user');
+    user = { username: name || 'user', id: '-', email: '', phone: '', bio: '', created_at: '', last_login: '' };
+  }
+  user.email = document.getElementById('edit-email').value.trim();
+  user.phone = document.getElementById('edit-phone').value.trim();
+  user.bio = document.getElementById('edit-bio').value.trim();
+  localStorage.setItem('portal_user_data', JSON.stringify(user));
+  hideEditModal();
+  loadUserData();
+}
+
+function doLogout(){
+  sessionStorage.removeItem('portal_user');
+  localStorage.removeItem('portal_user');
+  localStorage.removeItem('portal_remember');
+  window.location.href = 'index.html';
+}
+
+loadUserData();
+</script>
+</body>
+</html>
