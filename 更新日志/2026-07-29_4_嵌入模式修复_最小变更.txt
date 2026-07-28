@@ -1,0 +1,15 @@
+2026-07-29_4 嵌入模式修复（最小变更）
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+回滚了上版过度激进的CSS修改，恢复备份后仅做最小变更：
+
+变更1：嵌入模式隐藏控制栏
+  dice3d-e.html CSS：新增 body.embed .ctrls{display:none;}
+  仅在地图iframe的嵌入模式下隐藏底部的掷骰/检定/豁免面板
+
+变更2：变量显式声明
+  dice3d-e.html JS：添加 var _localActiveChar=null;
+  var _localSaveChar=null;
+  确保角色选择变量有正确的块级作用域
+
+其他所有功能保持备份版本原样不变。

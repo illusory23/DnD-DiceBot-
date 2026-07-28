@@ -194,7 +194,7 @@ body.embed .wrap{top:0;}
   <div class="ctrl-panel hidden-tab" id="panel-check">
     <div class="ctrl-row">
       <div class="char-sel-row">
-        <select id="active-char-select" onchange="setActiveChar()"><option value="">👤 无对象</option></select>
+        <select id="active-char-select" onchange="setActiveChar()"><option value="">⚡ 选择角色</option></select>
         <span id="char-badge"></span>
       </div>
     </div>
@@ -227,7 +227,7 @@ body.embed .wrap{top:0;}
   <div class="ctrl-panel hidden-tab" id="panel-save">
     <div class="ctrl-row">
       <div class="char-sel-row">
-        <select id="save-char-select" onchange="setSaveChar()"><option value="">👤 无对象</option></select>
+        <select id="save-char-select" onchange="setSaveChar()"><option value="">⚡ 选择角色</option></select>
         <span id="save-char-badge" style="color:var(--gold);font-size:0.72rem;display:none;"></span>
       </div>
     </div>
@@ -256,8 +256,6 @@ body.embed .wrap{top:0;}
 <!-- ━━ 加入房间 + 检定逻辑（非模块）━━━ -->
 <script>
 // ━━ 身份工具 ━━━
-var _localActiveChar=null;
-var _localSaveChar=null;
 function getIdentity(){
   try{var s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));return{name:(s&&s.name)||'',role:(s&&s.role)||'PL'};}catch(e){return{name:'',role:'PL'};}
 }
@@ -328,7 +326,6 @@ function broadcastCheckResult(data,charLine,advLabel,modText,critHtml){
     if(!s||!s.name)return;
     var textParts=[];
     if(charLine)textParts.push(charLine.replace(/<\/?b>/g,''));
-    else textParts.push(s.name);
     textParts.push(data.label+' = '+data.total);
     if(advLabel)textParts.push('('+advLabel+')');
     var d20vals=data.d20_rolls||[data.d20_roll];
@@ -351,7 +348,7 @@ async function loadCharSelect(){
     var data=await resp.json();
     var chars=Array.isArray(data)?data:(data.characters||[]);
     var sel=document.getElementById('active-char-select');
-    sel.innerHTML='<option value="">👤 无对象</option>';
+    sel.innerHTML='<option value="">⚡ 选择角色</option>';
     chars.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name+' ('+(c.level||1)+'级 '+(c.class||'')+')';sel.appendChild(o);});
   }catch(e){}
 }
@@ -383,7 +380,7 @@ async function loadSaveChars(){
     var data=await resp.json();
     var chars=Array.isArray(data)?data:(data.characters||[]);
     var sel=document.getElementById('save-char-select');
-    sel.innerHTML='<option value="">👤 无对象</option>';
+    sel.innerHTML='<option value="">⚡ 选择角色</option>';
     chars.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name+' ('+(c.level||1)+'级 '+(c.class||'')+')';sel.appendChild(o);});
   }catch(e){}
 }

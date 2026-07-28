@@ -325,18 +325,6 @@ def ws_canvas(ws):
                 if _handle_dice_sync_message(data, ws):
                     continue
 
-                # ━━ 战斗状态同步 ━━
-                if data.get('type') == 'combat_update':
-                    state = data.get('state', {})
-                    if state and state.get('combatants'):
-                        global _combat_state, _combat_state_ts
-                        _combat_state = state
-                        _combat_state_ts = _time.time()
-                        state['_ts'] = _combat_state_ts
-                        _save_combat_state()
-                        _ws_broadcast(_json.dumps(data), exclude=ws)
-                    continue
-
                 # ━━ 画布同步消息 ━━
                 ver, should_broadcast = _apply_canvas_message(data)
                 if should_broadcast:
@@ -562,10 +550,8 @@ def dice3d_e_page():
 
 @app.route('/dice3d')
 def dice3d_redirect():
-    """重定向到新版3D骰子页面，保留查询参数"""
-    qs = request.query_string.decode('utf-8')
-    target = '/dice3d-e' + ('?' + qs if qs else '')
-    return redirect(target)
+    """重定向到新版3D骰子页面"""
+    return redirect('/dice3d-e')
 
 
 # ━━━ API 路由 ━━━
@@ -623,6 +609,8 @@ def api_check():
             char = get_character(int(char_id))
         except (ValueError, TypeError):
             char = get_character(char_id)
+    if not char:
+        char = get_active()
     ability_mod = 0
     prof_bonus = 0
     label = target

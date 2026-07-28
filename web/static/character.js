@@ -109,12 +109,23 @@
                     this.classList.remove('drag-over');
                 });
                 item.addEventListener('drop', function(e) {
-                    // 总角色组内不接受拖放排序
-                    if (this.closest('.char-group[data-group-id="__all__"]')) return;
                     e.preventDefault();
                     e.stopPropagation();
                     this.classList.remove('drag-over');
                     if (!dragCharId || dragCharId === parseInt(this.dataset.charId)) return;
+                    // 总角色组内不支持跨组拖放
+                    const targetGroup = this.closest('.char-group');
+                    const targetGroupId = targetGroup ? targetGroup.dataset.groupId : null;
+                    if (targetGroupId === '__all__') {
+                        // 全部组内：仅排序，不改变分组归属
+                        this.parentNode.insertBefore(
+                            el.querySelector(`.char-list-item[data-char-id="${dragCharId}"]`),
+                            this.nextSibling
+                        );
+                        const allChars = [...el.querySelectorAll('.char-list-item')];
+                        saveCharOrder(allChars.map(it => parseInt(it.dataset.charId)));
+                        return;
+                    }
                     // 移动 DOM
                     this.parentNode.insertBefore(
                         el.querySelector(`.char-list-item[data-char-id="${dragCharId}"]`),
@@ -129,13 +140,11 @@
                 });
             });
 
-            // 分组体接受角色拖放（总角色组不接受拖放）
+            // 分组体接受角色拖放
             const groupBodies = el.querySelectorAll('.group-body');
             groupBodies.forEach(body => {
                 const groupEl = body.closest('.char-group');
                 const gid = groupEl ? groupEl.dataset.groupId : null;
-                // 总角色组不接受拖放（只读视图）
-                if (gid === '__all__') return;
                 body.addEventListener('dragover', function(e) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
@@ -412,12 +421,20 @@
         }
 
         async function copyCharFromList(id, name) {
-            if (!confirm(`复制角色 "${name}"？`)) return;
+            // 生成序号命名：原名 → 原名2号 → 原名3号...
+            var baseName = name.replace(/(\d+)号$/, '').trim();
+            var maxNum = 1;
+            charListChars.forEach(function(c) {
+                var m = c.name.match(new RegExp('^' + baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)号$'));
+                if (m) { var n = parseInt(m[1]); if (n > maxNum) maxNum = n; }
+            });
+            var newName = baseName + (maxNum + 1) + '号';
+            if (!confirm(`复制角色 "${name}" → "${newName}"？`)) return;
             try {
                 const resp = await fetch(`/api/character/${id}/copy`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: name + ' (副本)'})
+                    body: JSON.stringify({name: newName})
                 });
                 const data = await resp.json();
                 if (data.error) { alert(data.error); return; }

@@ -1,0 +1,46 @@
+2026-07-28_4 角色拖放地图同步修复
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+问题描述：
+  远程连接的玩家通过网页版拖动角色卡放入战术地图时，其他在线玩家
+  无法看到该角色标记（token）。但画笔/绘制功能的实时同步正常工作。
+
+根本原因：
+  在 map.js 中，绘制功能（画笔）的同步代码始终同时走两条路径：
+    1. 主通道：WS 广播笔画消息 (type:stroke)
+    2. 备份通道：markDirty → pushSharedCanvas → tokens_update 全量同步
+  但角色标记 (token) 操作（新增/移动/删除/旋转/缩放）只在
+  WebSocket 未连接时才触发备份通道：
+    if (!window._wsIsOpen()) window._markDirty('tokens');
+
+  当 WebSocket 已连接时，仅发送增量 'op' 消息，未触发 pushSharedCanvas
+  的 tokens_update 全量备份。若 'op' 消息因任何原因未能正确中继，
+  其他客户端就看不到该标记。
+
+修复内容：
+  修改 map.js，将所有 token/text 操作的 condition-markDirty 模式
+  改为始终触发（无条件），与绘制功能的同步模式对齐：
+
+  修改位置（共12处）：
+  - addMapToken (L1882):     标记拖放到地图的新角色
+  - removeMapToken (L1892):  删除地图上的角色标记
+  - mouseup 拖拽 (L1233):    拖动角色标记到新位置
+  - mouseup 文本 (L1234):    拖动文本框到新位置
+  - 群组拖拽 tokens (L1245): 多选群组拖动角色
+  - 群组拖拽 texts (L1246):  多选群组拖动文本
+  - 文本框 mousedown (L1645):文本移动
+  - 文本框 blur (L1663-1664):文本编辑完成
+  - addTextBox (L1682-1683): 新建文本框
+  - removeTextBox (L1788-1789):删除文本框
+  - resize handler (L1865):  调整角色标记大小
+  - rotate handler (L1926):  旋转角色标记
+
+  变更前: window._wsSendOp(...); if (!window._wsIsOpen()) window._markDirty(...);
+  变更后: window._wsSendOp(...); window._markDirty(...);
+
+效果：
+  - 每次角色标记操作后，pushSharedCanvas 始终在 100ms 防抖后发送
+    全量 tokens_update，确保所有在线客户端能可靠接收到更新。
+  - 与绘制功能的同步模式一致，消除了两套同步机制的差异。
+
+影响范围：仅 map.js，无其他文件变更。

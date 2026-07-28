@@ -430,9 +430,12 @@
         }
 
         function saveState() {
+            // 可靠保存：IndexedDB 等待事务确认，localStorage 保留 dataURL 作为兜底
             const state = collectState();
-            // 轻量保存立即执行（localStorage 同步但快）
+            // 异步但等待确认，确保 IndexedDB 写入完整（页面正常操作时调用）
+            dbSetAndWait(STORAGE_KEY, state).catch(function(e){ console.error('⚠ IndexedDB 保存失败:', e); });
             try {
+                // _light 备份保留 dataURL（限制单层 ≤200KB 避免超出 localStorage 5MB 上限）
                 const light = {
                     ...state,
                     layers: state.layers.map(function(l) {
@@ -440,13 +443,20 @@
                         return {...l, dataURL: (dataLen > 0 && dataLen <= 200000) ? l.dataURL : ''};
                     }),
                 };
-                localStorage.setItem(STORAGE_KEY + '_light', JSON.stringify(light));
-            } catch(e) {}
-            // IndexedDB 写入延迟到空闲时执行，不阻塞主线程
-            var scheduleSave = window.requestIdleCallback || function(fn) { setTimeout(fn, 200); };
-            scheduleSave(function() {
-                dbSetSync(STORAGE_KEY, state);
-            });
+                const lightJson = JSON.stringify(light);
+                localStorage.setItem(STORAGE_KEY + '_light', lightJson);
+                // 紧急兜底：单独保存图层 dataURL（仅含图片数据，用于极端情况恢复）
+                var emergency = { layers: [] };
+                for (var ei = 0; ei < state.layers.length; ei++) {
+                    var el = state.layers[ei];
+                    if (el.dataURL && el.dataURL.length > 0) {
+                        emergency.layers.push({id: el.id, dataURL: el.dataURL});
+                    }
+                }
+                if (emergency.layers.length > 0) {
+                    localStorage.setItem(STORAGE_KEY + '_emergency', JSON.stringify(emergency));
+                }
+            } catch(e) { console.error('⚠ localStorage 保存失败 (可能超出配额):', e); }
         }
 
         // 带 IndexedDB 确认的完整保存（定时自动保存用，确保图层 dataURL 可靠落盘）
@@ -1194,12 +1204,6 @@
                     dragTarget.y = pt.y - dragOffset.y;
                     dragTarget.el.style.left = dragTarget.x + 'px';
                     dragTarget.el.style.top = dragTarget.y + 'px';
-                    // 节流：每50ms发送一次位置更新，实现远程实时跟踪
-                    var now = Date.now();
-                    if (!dragTarget._lastSync || now - dragTarget._lastSync >= 50) {
-                        dragTarget._lastSync = now;
-                        try { window._wsSendOp('tokens', [tokenNetData(dragTarget)], []); } catch(e) {}
-                    }
                 }
             }
         });
@@ -1210,7 +1214,7 @@
             if (isPanning) { isPanning = false; mapArea.classList.remove('cursor-grabbing'); if (currentTool==='select') mapArea.classList.add('cursor-grab'); debouncedSave(); }
             if (isDrawing && currentStroke) {
                 isDrawing = false;
-                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); window._wsBroadcastStroke(currentStroke); window._markDirty('strokes'); }
+                if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); window._wsBroadcastStroke(currentStroke); window._markDirty('strokes'); window._onLocalChange(); }
                 currentStroke = null; redrawCanvas();
                 saveState();
             }
@@ -4452,7 +4456,7 @@ applyRoleRestrictions();
                 _pushDebounce = null;
                 if (!window._anyDirty()) return;
 
-                var s = collectSyncState();
+                var s = collectState();
 
                 // WS 连接时走 WS 单通道（P1-2），不再重复发 HTTP POST
                 if (window._wsIsOpen()) {
@@ -4487,18 +4491,6 @@ applyRoleRestrictions();
         }
 
         function onLocalChange() { _dirtyFlags.strokes = _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true; window._pushSharedCanvas(); }
-
-        // ━━━ 轻量状态收集（同步用，图层不含 base64 dataURL）━━
-        function collectSyncState() {
-            var s = collectState();
-            // 图层只保留 url，去除 dataURL（减少 WS 消息体积）
-            if (s.layers) {
-                s.layers = s.layers.map(function(l) {
-                    return {id:l.id, name:l.name, url:l.url||'', dataURL:'', visible:l.visible, offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1};
-                });
-            }
-            return s;
-        }
 
         // ━━━ 暴露关键函数到全局 window（事件处理器在 IIFE 外部，通过 window._xxx 访问）━━
         window._wsBroadcastStroke = wsBroadcastStroke;

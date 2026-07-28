@@ -100,14 +100,14 @@
     <nav class="navbar">
         <a href="/" class="navbar-brand">🎲 DND5E 骰娘</a>
         <div class="navbar-links">
-            <a href="/dice3d">🎲 3D掷骰</a>
+            
             <a href="/character">角色卡</a>
             <a href="/combat">战斗</a>
             <a href="/spells">法术</a>
             <a href="/events">随机事件</a>
             <a href="/map">地图</a>
             <a href="/reference" class="active">参考</a>
-            <a href="/dice3d">✨ 3D骰子</a>
+            
                 <a href="/mods">🧩 Mod</a>
                 
                 <a href="/chat">💬 聊天室</a>
@@ -132,7 +132,7 @@
         <!-- 服务器资源库 -->
         <div class="card" style="margin-bottom:1rem;">
             <div class="card-header">📦 服务器资源库 <span style="font-weight:normal;font-size:0.75rem;color:var(--text-dim);">— 将文件放入 骰娘/resources/ 目录即可共享</span></div>
-            <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap;align-items:center;">
                 <button class="cf-field-btn" onclick="loadResources('')" id="res-btn-all">📦 全部</button>
                 <button class="cf-field-btn" onclick="loadResources('pdf')" id="res-btn-pdf">📄 PDF</button>
                 <button class="cf-field-btn" onclick="loadResources('img')" id="res-btn-img">🖼 图片</button>
@@ -140,6 +140,9 @@
                 <button class="cf-field-btn" onclick="loadResources('doc')" id="res-btn-doc">📋 文档</button>
                 <button class="cf-field-btn" onclick="loadResources('sheet')" id="res-btn-sheet">📊 表格</button>
                 <button class="cf-field-btn" onclick="loadResources('audio')" id="res-btn-audio">🎵 音频</button>
+                <span style="color:var(--border);margin:0 0.2rem;">|</span>
+                <button class="cf-field-btn" onclick="document.getElementById('resource-upload-input').click()" title="上传文件到资源库" style="border-color:var(--green);color:var(--green);">📤 导入资源</button>
+                <input type="file" id="resource-upload-input" style="display:none;" onchange="uploadResource(this)" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.json,.mp3,.wav,.ogg">
             </div>
             <div id="resources-list" style="max-height:300px;overflow-y:auto;">
                 <div style="color:var(--text-dim);text-align:center;padding:1rem;font-size:0.85rem;">点击上方按钮加载资源列表</div>
@@ -760,6 +763,30 @@
         switchCustomTab('spells');
 
         // ━━━ 服务器资源库 ━━━
+        function uploadResource(input) {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            var maxSize = 50 * 1024 * 1024;
+            if (file.size > maxSize) { alert('文件过大 (' + (file.size/1024/1024).toFixed(1) + 'MB)，最大50MB'); input.value = ''; return; }
+            var formData = new FormData();
+            formData.append('file', file);
+            var listEl = document.getElementById('resources-list');
+            listEl.innerHTML = '<div style="color:var(--gold);text-align:center;padding:1rem;">⏳ 上传中...</div>';
+            fetch('/api/resources/upload', {method:'POST', body:formData})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.success) {
+                    loadResources('');  // 刷新全部列表
+                    input.value = '';
+                } else {
+                    listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">上传失败: ' + (d.error || '未知错误') + '</div>';
+                }
+            }).catch(function(e) {
+                listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">上传失败: ' + e.message + '</div>';
+                input.value = '';
+            });
+        }
+
         function loadResources(cat) {
             cat = cat || '';
             const listEl = document.getElementById('resources-list');
