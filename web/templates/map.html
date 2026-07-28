@@ -642,6 +642,24 @@
         }
         .map-group-name { flex: 1; }
         .map-group-body { padding: 0.15rem 0.2rem; }
+
+        /* ━━ 骰子统计排行榜面板 ━━ */
+        .stats-panel{position:fixed;right:0;top:56px;bottom:0;width:260px;background:var(--surface);border-left:2px solid var(--accent);z-index:198;transform:translateX(260px);transition:transform 0.3s ease;display:flex;flex-direction:column;overflow-y:auto;}
+        .stats-panel.open{transform:translateX(0);}
+        .stats-toggle{position:fixed;right:0;top:66px;width:28px;height:80px;background:var(--gold);border:none;border-radius:8px 0 0 8px;color:#000;cursor:pointer;z-index:199;font-size:12px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:right 0.3s ease;padding:4px 2px;line-height:1.2;}
+        .stats-panel.open~.stats-toggle{right:260px;}
+        .stats-header{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:bold;color:var(--gold);font-size:0.85rem;position:sticky;top:0;background:var(--surface);z-index:1;}
+        .stats-row{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:0.75rem;transition:background 0.15s;}
+        .stats-row:hover{background:var(--surface2);}
+        .stats-rank{width:22px;text-align:center;font-weight:bold;color:var(--text-dim);}
+        .stats-rank.gold{color:#ffd700;}
+        .stats-rank.silver{color:#c0c0c0;}
+        .stats-rank.bronze{color:#cd7f32;}
+        .stats-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .stats-num{min-width:36px;text-align:right;font-weight:bold;}
+        .stats-num.green{color:var(--green);}
+        .stats-num.red{color:var(--red);}
+        .stats-rate{min-width:44px;text-align:right;color:var(--text-dim);font-size:0.7rem;}
     </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -1050,7 +1068,81 @@ document.addEventListener('click',function(e){if(!e.target.closest('.color-row')
             brand.style.color = '#ffd700';
         }
     }
+
+// ━━ 骰子统计排行榜 ━━
+window.toggleStats=function(){
+  var p=document.getElementById("stats-panel");
+  var b=document.getElementById("stats-toggle-btn");
+  var isOpen=p.classList.toggle("open");
+  if(isOpen)loadStats();
+  b.style.right=isOpen?"260px":"0";
+};
+window._statsMode=20;
+window.switchStatsTab=function(mode){
+  window._statsMode=mode;
+  document.getElementById("stats-tab-20").classList.toggle("selected",mode===20);
+  document.getElementById("stats-tab-1").classList.toggle("selected",mode===1);
+  loadStats();
+};
+window.clearStats=function(){
+  if(!confirm("确定清空所有骰子统计数据？此操作不可撤销。"))return;
+  fetch("/api/dice-stats",{method:"DELETE"}).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){loadStats();}
+  }).catch(function(){});
+};
+window.loadStats=function(){
+  var list=document.getElementById("stats-list");
+  list.innerHTML='<div style="color:var(--text-dim);text-align:center;padding:20px;">加载中...</div>';
+  fetch("/api/dice-stats").then(function(r){return r.json();}).then(function(d){
+    if(!d.ok||!d.leaderboard||!d.leaderboard.length){
+      list.innerHTML='<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.8rem;">暂无数据</div>';
+      return;
+    }
+    var mode=window._statsMode||20;
+    var sorted=d.leaderboard.slice().sort(function(a,b){
+      return mode===20 ? b.crit20-a.crit20 : b.crit1-a.crit1;
+    });
+    var icon=mode===20?'🎯':'💀';
+    var label=mode===20?'大成功(d20=20)':'大失败(d20=1)';
+    var title='<div style="padding:4px 10px;font-size:0.62rem;color:var(--text-dim);border-bottom:1px solid var(--border);">'+icon+' '+label+' 次数 | 概率（暴击数/总投掷数）</div>';
+    list.innerHTML=title+sorted.map(function(s,i){
+      var rank=i+1;
+      var rc=rank===1?'gold':(rank===2?'silver':(rank===3?'bronze':''));
+      var medals={1:'🥇',2:'🥈',3:'🥉'};
+      var cnt=mode===20?s.crit20:s.crit1;
+      var rate=mode===20?s.rate20:s.rate1;
+      if(cnt===0)return '';
+      return '<div class="stats-row">'+
+        '<span class="stats-rank '+rc+'">'+(medals[rank]||rank)+'</span>'+
+        '<span class="stats-name">'+s.name+'</span>'+
+        '<span class="stats-num '+(mode===20?'green':'red')+'">'+cnt+'</span>'+
+        '<span class="stats-rate">'+rate+'%</span>'+
+        '</div>';
+    }).filter(Boolean).join('');
+  }).catch(function(){
+    list.innerHTML='<div style="color:var(--red);text-align:center;padding:20px;">加载失败</div>';
+  });
+};
 })();
 </script>
+
+<!-- ━━ 骰子统计排行榜 ━━ -->
+<div class="stats-panel" id="stats-panel">
+  <div class="stats-header">骰子统计排行榜
+    <button onclick="clearStats()" style="float:right;background:var(--red);border:none;color:#fff;cursor:pointer;border-radius:3px;font-size:0.7rem;padding:2px 6px;margin-left:4px;">清空</button>
+    <button onclick="loadStats()" style="float:right;background:var(--accent);border:none;color:#fff;cursor:pointer;border-radius:3px;font-size:0.7rem;padding:2px 6px;">刷新</button>
+  </div>
+  <div style="display:flex;padding:4px 8px;gap:4px;border-bottom:1px solid var(--border);">
+    <button id="stats-tab-20" class="cf-field-btn selected" onclick="switchStatsTab(20)" style="flex:1;font-size:0.7rem;padding:3px 0;">🎯 大成功</button>
+    <button id="stats-tab-1" class="cf-field-btn" onclick="switchStatsTab(1)" style="flex:1;font-size:0.7rem;padding:3px 0;">💀 大失败</button>
+  </div>
+  <div id="stats-list" style="flex:1;overflow-y:auto;">
+    <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.8rem;">加载中...</div>
+  </div>
+</div>
+</div>
+  </div>
+</div>
+<button class="stats-toggle" id="stats-toggle-btn" onclick="toggleStats()" title="骰子统计">📊<br>统<br>计</button>
 </body>
 </html>

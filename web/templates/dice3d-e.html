@@ -319,6 +319,8 @@ window.doCheck=async function(){
     document.getElementById('rov').classList.remove('hide');
     setTimeout(function(){document.getElementById('rov').classList.add('hide');},6000);
     broadcastCheckResult(data,charLine,advLabel,modText,critHtml);
+    var s2=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
+    if(s2&&s2.name)recordDiceStats(s2.name,d20vals);
   }catch(e){}
 };
 // ━━ 检定/豁免广播 ━━━
@@ -634,7 +636,17 @@ function broadcastRoll(apiResult,expr,detNotation){
     }
     var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
     fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+expr+" = ["+apiResult.total+"]",hidden:false,role:s.role||"PL"})}).catch(function(){});
+    recordDiceStats(name,apiResult.rolls||[]);
   }catch(e){}
+}
+
+// ━━ 骰子统计上报 ━━━
+function recordDiceStats(name,d20vals){
+  if(!name||!d20vals||!d20vals.length)return;
+  // 上报每一次d20结果（不仅仅是暴击），服务端统计概率
+  d20vals.forEach(function(v){
+    fetch('/api/dice-stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,roll:v})}).catch(function(){});
+  });
 }
 
 window.doRoll=async function(){

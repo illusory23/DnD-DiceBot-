@@ -3351,6 +3351,82 @@ def mods_page():
     return render_template('mods.html')
 
 
+# ━━━ 骰子数据统计 API ━━━
+import os as _os
+_STATS_FILE = _Path(__file__).parent / 'dice_stats.json'
+_stats_lock = _threading.Lock()
+
+def _load_stats():
+    try:
+        if _STATS_FILE.exists():
+            with open(_STATS_FILE, 'r', encoding='utf-8') as f:
+                return _json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_stats(stats):
+    try:
+        with open(_STATS_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(stats, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+@app.route('/api/dice-stats', methods=['GET'])
+def api_get_dice_stats():
+    """获取所有玩家的骰子统计数据（排行榜）"""
+    with _stats_lock:
+        stats = _load_stats()
+    # 计算每个玩家的概率并排序
+    leaderboard = []
+    for name, data in stats.items():
+        total = data.get('total', 0)
+        crit20 = data.get('crit20', 0)
+        crit1 = data.get('crit1', 0)
+        leaderboard.append({
+            'name': name,
+            'total': total,
+            'crit20': crit20,
+            'crit1': crit1,
+            'rate20': round(crit20 / total * 100, 1) if total > 0 else 0,
+            'rate1': round(crit1 / total * 100, 1) if total > 0 else 0,
+        })
+    leaderboard.sort(key=lambda x: x['crit20'], reverse=True)
+    return jsonify({'ok': True, 'leaderboard': leaderboard[:50]})
+
+@app.route('/api/dice-stats', methods=['POST'])
+def api_record_dice_stats():
+    """记录一次d20掷骰结果"""
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    roll_val = data.get('roll')  # d20结果值
+    if not name or roll_val is None:
+        return jsonify({'ok': False, 'error': '缺少参数'}), 400
+    try:
+        roll_val = int(roll_val)
+    except (ValueError, TypeError):
+        return jsonify({'ok': False}), 400
+
+    with _stats_lock:
+        stats = _load_stats()
+        if name not in stats:
+            stats[name] = {'total': 0, 'crit20': 0, 'crit1': 0}
+        stats[name]['total'] += 1
+        if roll_val == 20:
+            stats[name]['crit20'] += 1
+        elif roll_val == 1:
+            stats[name]['crit1'] += 1
+        _save_stats(stats)
+    return jsonify({'ok': True})
+
+@app.route('/api/dice-stats', methods=['DELETE'])
+def api_clear_dice_stats():
+    """清空所有骰子统计数据"""
+    with _stats_lock:
+        _save_stats({})
+    return jsonify({'ok': True})
+
+
 def run_server():
     """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
     # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
