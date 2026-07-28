@@ -659,6 +659,7 @@ window.changeSurface=function(v){
   var imgs={'wood':'/static/dice-engine-v3/textures/木桌.png','wood2':'/static/dice-engine-v3/textures/木桌2.png','blue-felt':'/static/dice-engine-v3/textures/蓝毡.png','stone':'/static/dice-engine-v3/textures/石板.png','white-cloth':'/static/dice-engine-v3/textures/白布.png','marble':'/static/dice-engine-v3/textures/大理石.png','grass':'/static/dice-engine-v3/textures/草地.png','snow':'/static/dice-engine-v3/textures/雪地.png','ice':'/static/dice-engine-v3/textures/冰面.png','star-light':'/static/dice-engine-v3/textures/star-light.png','star-mid':'/static/dice-engine-v3/textures/star-mid.png','star-dark':'/static/dice-engine-v3/textures/star-dark.png'};
   c.style.background='url('+imgs[v]+') center/cover';
   if(box)box.updateConfig({theme_surface:'green-felt'});
+  try{sessionStorage.setItem('dice_surface',v);}catch(e){}
 };
 window.uploadBg=function(input){
   if(!input.files||!input.files[0])return;
@@ -667,6 +668,20 @@ window.uploadBg=function(input){
   reader.readAsDataURL(input.files[0]);
 };
 
+
+// ━━ 桌面背景同步（主页面 ↔ 地图iframe）━━━
+(function(){
+  var sel=document.getElementById("tbl-select");
+  var saved=null;
+  try{saved=sessionStorage.getItem("dice_surface");}catch(e){}
+  if(saved&&sel){sel.value=saved;if(typeof changeSurface==="function")changeSurface(saved);}
+  window.addEventListener("storage",function(e){
+    if(e.key==="dice_surface"&&e.newValue){
+      if(sel)sel.value=e.newValue;
+      if(typeof changeSurface==="function")changeSurface(e.newValue);
+    }
+  });
+})();
 document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);if(S===100){C=1;document.getElementById('cv').textContent='1';}});});
 document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;});});
 
