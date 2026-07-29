@@ -115,14 +115,6 @@
             border-radius: 6px;
             overflow: hidden;
         }
-        .stats-group-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.4rem 0.6rem;
-            background: var(--surface2);
-            font-size: 0.8rem;
-        }
         .stats-group-title {
             color: var(--gold);
             font-weight: bold;
@@ -626,7 +618,6 @@
             noBtn.onmouseleave = function(){this.style.background='rgba(244,67,54,0.1)';};
             yesBtn.onclick = async function(){
                 btnRow.innerHTML = '<span style="color:#4caf50;font-size:0.78rem;">✅ 已获得，材料已尝试存入背包</span>';
-                btnRow.querySelectorAll('button').forEach(b=>b.disabled=true);
                 if (activeCharId) {
                     try {
                         // 尝试将材料作为物品添加到角色背包
@@ -643,7 +634,6 @@
             };
             noBtn.onclick = function(){
                 btnRow.innerHTML = '<span style="color:var(--text-dim);font-size:0.78rem;">❌ 未获得材料</span>';
-                btnRow.querySelectorAll('button').forEach(b=>b.disabled=true);
                 _eventLoading = false;
             };
             btnRow.appendChild(yesBtn);
@@ -652,7 +642,7 @@
         }
         function extractMaterialName(text) {
             // 从输出文本提取材料名称：取第一行括号前的内容
-            const clean = (text||'').replace(/\x1b\[[0-9;]*m/g, '');
+            const clean = stripAnsi(text||'');
             const lines = clean.split('\n');
             for (const line of lines) {
                 const t = line.trim();

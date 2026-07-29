@@ -227,7 +227,7 @@
                     <button class="color-btn" id="chat-color-btn" style="background:#00bcd4;" onclick="toggleColorPalette()" title="选择ID颜色"></button>
                     <div class="color-palette" id="color-palette"></div>
                 </div>
-                <button id="join-btn" onclick="joinChat()">加入聊天</button>
+                <button id="chat-join-btn" onclick="joinChat()">加入聊天</button>
             </div>
 
             <!-- 在线用户 -->
@@ -581,10 +581,8 @@
                         if (isDM) userRole = 'DM';
                         renderOnlineUsers();
                         if (isDM) {
-                            if (!btnBg || btnBg === 'rgb(0, 188, 212)' || btnBg === '#00bcd4') {
-                                document.getElementById('chat-color-btn').style.background = '#ffd700';
-                            }
-                        }
+                        document.getElementById('chat-color-btn').style.background = '#ffd700';
+                    }
                     });
                     addSystemMsg('✅ 已恢复会话「' + saved.name + '」');
                 }
