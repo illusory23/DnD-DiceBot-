@@ -1,0 +1,6 @@
+lines=4, events=1
+L0: len=14, has_dice=True
+L1: len=31, has_dice=False
+L2: len=39, has_dice=False
+L3: len=17, has_dice=False
+EVENT: table=随机环境, content=冻雨（需要过体质豁免DC15，失败则受到1d4寒冷伤害）

@@ -1,0 +1,5 @@
+cmd=rl100, lines=3, events_parsed=1, output_len=66
+OUTPUT:
+🎲 [1m随机人类[0m [d100: [36m67[0m]
+   猎人（向导，当地人）
+   ⏱ 单次随机事件时间：1小时

@@ -508,8 +508,20 @@ def serve_vite_assets(filename):
 
 @app.route('/')
 def index():
-    """首页 — 3D掷骰（合并了掷骰+检定功能）"""
-    return render_template('dice3d-e.html')
+    """官网门户首页"""
+    return render_template('portal/index.html')
+
+
+@app.route('/test4')
+def test4_page():
+    """北境雪原"""
+    return render_template('test4.html')
+
+
+@app.route('/user')
+def user_page():
+    """用户中心"""
+    return render_template('portal/user.html')
 
 
 @app.route('/character')
@@ -717,6 +729,7 @@ def api_reorder_characters():
     if not ordered_ids or not isinstance(ordered_ids, list):
         return jsonify({'error': '请提供角色ID列表'}), 400
 
+    from core.character import get_db
     conn = get_db()
     cursor = conn.cursor()
     for i, char_id in enumerate(ordered_ids):
@@ -1138,78 +1151,6 @@ def api_remove_learned_spell(name_or_id, spell_id):
     if not ok:
         return jsonify({'error': '法术不存在'}), 404
     return jsonify({'success': True})
-
-
-# ━━━ 法术搜索 API ━━━
-
-@app.route('/api/spells/search', methods=['GET'])
-def api_search_spells():
-    """综合法术搜索（返回多条结果，优先查法术索引获取完整数据）"""
-    query = request.args.get('q', '').strip()
-    if len(query) < 1:
-        return jsonify({'error': '请输入搜索关键词'}), 400
-
-    spells = []
-    seen = set()
-
-    # 优先用 search_spell（直接查法术索引，数据完整）
-    from core.chm_search import search_spell as _search_spell
-    chm_spells = _search_spell(query)
-    for s in chm_spells:
-        name = s.get('name_cn', s.get('name', ''))
-        if name in seen:
-            continue
-        seen.add(name)
-        spells.append({
-            'name': name,
-            'name_en': s.get('name_en', ''),
-            'level': s.get('level', ''),
-            'school': s.get('school', ''),
-            'casting_time': s.get('casting_time', ''),
-            'components': ' '.join(filter(None, [
-                'V' if s.get('verbal') in ('V', '✓') else '',
-                'S' if s.get('somatic') in ('S', '✓') else '',
-                'M' if s.get('material') in ('M', '✓') else '',
-            ])) or '—',
-            'ritual': '是' if s.get('ritual') in ('✓', '是', 'R') else '否',
-            'concentration': '是' if s.get('concentration') in ('✓', '是', 'C') else '否',
-            'classes': s.get('classes', ''),
-            'source': s.get('source', ''),
-            'detail_link': s.get('detail_link', ''),
-        })
-        if len(spells) >= 30:
-            break
-
-    # 补充 chm_search_all 的结果（可能包含倒排索引中的额外法术）
-    if len(spells) < 15:
-        all_results = chm_search_all(query)
-        for r in all_results:
-            if r.get('type') in ('spell',):
-                name = r.get('name_cn', r.get('name', ''))
-                if name in seen:
-                    continue
-                seen.add(name)
-                spells.append({
-                    'name': name,
-                    'name_en': r.get('name_en', ''),
-                    'level': r.get('level', ''),
-                    'school': r.get('school', ''),
-                    'casting_time': r.get('casting_time', ''),
-                    'components': ' '.join(filter(None, [
-                        'V' if r.get('verbal') in ('V', '✓') else '',
-                        'S' if r.get('somatic') in ('S', '✓') else '',
-                        'M' if r.get('material') in ('M', '✓') else '',
-                    ])) or '—',
-                    'ritual': '是' if r.get('ritual') in ('✓', '是', 'R') else '否',
-                    'concentration': '是' if r.get('concentration') in ('✓', '是', 'C') else '否',
-                    'classes': r.get('classes', ''),
-                    'source': r.get('source', ''),
-                    'detail_link': r.get('detail_link', ''),
-                })
-            if len(spells) >= 30:
-                break
-
-    return jsonify({'query': query, 'results': spells, 'total': len(spells)})
 
 
 @app.route('/api/spell-detail/<path:name>', methods=['GET'])
@@ -1757,8 +1698,17 @@ def api_search_spells_list():
             'name_en': s.get('name_en', ''),
             'level': s.get('level', ''),
             'school': s.get('school', ''),
+            'casting_time': s.get('casting_time', ''),
+            'components': ' '.join(filter(None, [
+                'V' if s.get('verbal') in ('V', '✓') else '',
+                'S' if s.get('somatic') in ('S', '✓') else '',
+                'M' if s.get('material') in ('M', '✓') else '',
+            ])) or '—',
+            'ritual': '是' if s.get('ritual') in ('✓', '是', 'R') else '否',
+            'concentration': '是' if s.get('concentration') in ('✓', '是', 'C') else '否',
             'classes': s.get('classes', ''),
             'source': s.get('source', ''),
+            'detail_link': s.get('detail_link', ''),
             'detail': f"{s.get('level','?')}环 {s.get('school','?')} | {s.get('classes','?')}",
         }))
 
@@ -2208,18 +2158,22 @@ def api_import_character():
         return jsonify({'error': '请上传文件（字段名: file）'}), 400
 
     file = request.files['file']
-    if file.filename == '':
+    if not file or not file.filename or file.filename.strip() == '':
         return jsonify({'error': '未选择文件'}), 400
 
     # 检查文件扩展名
-    ext = _os.path.splitext(file.filename)[1].lower()
+    try:
+        ext = _os.path.splitext(file.filename)[1].lower()
+    except Exception:
+        return jsonify({'error': '无法解析文件名'}), 400
     if ext not in ('.xlsx', '.xls'):
         return jsonify({'error': f'不支持的文件类型: {ext}，请上传 .xlsx 或 .xls 文件'}), 400
 
     # 保存临时文件
     import tempfile
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    tmp = None
     try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
         file.save(tmp.name)
         tmp.close()
 
@@ -2250,10 +2204,11 @@ def api_import_character():
     except Exception as e:
         return jsonify({'error': f'导入失败: {type(e).__name__}: {e}'}), 500
     finally:
-        try:
-            _os.unlink(tmp.name)
-        except Exception:
-            pass
+        if tmp is not None:
+            try:
+                _os.unlink(tmp.name)
+            except Exception:
+                pass
 
 
 # ━━━ 随机事件 API ━━━
@@ -2371,6 +2326,170 @@ def api_list_events():
             })
         groups.append({'label': group_label, 'items': group_items})
     return jsonify({'groups': groups})
+
+
+# ━━━ 事件统计数据 ━━━
+# 数据模型: {用户名: {表名: {事件内容: 次数}}}
+# 例如: {"张三": {"随机环境": {"雪坑（需要过被动察觉...）": 3, "暴风雪...": 2}}}
+_EVENT_STATS_FILE = _Path(__file__).parent / 'event_stats.json'
+
+
+def _load_event_stats() -> dict:
+    """加载所有用户的事件统计数据"""
+    try:
+        if _EVENT_STATS_FILE.exists():
+            with open(_EVENT_STATS_FILE, 'r', encoding='utf-8') as f:
+                return _json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_event_stats(stats: dict):
+    """保存事件统计数据到文件"""
+    try:
+        with open(_EVENT_STATS_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _extract_event_name(text: str) -> str:
+    """从事件描述文本中提取简短的事件名称。
+
+    例如 "商队（可交易）" → "商队"
+         "雪坑（需要过被动察觉...）" → "雪坑"
+         "冰原狼（1d2只）" → "冰原狼"
+    """
+    if not text:
+        return text
+    # 取括号前的内容作为事件名称
+    idx = text.find('（')
+    if idx > 0:
+        return text[:idx].strip()
+    idx = text.find('(')
+    if idx > 0:
+        return text[:idx].strip()
+    return text.strip()
+
+
+@app.route('/api/events/stats', methods=['POST'])
+def api_record_event():
+    """记录事件触发（含具体事件内容）。
+
+    请求体: { name, command, events: [{table, content}] }
+       table   — 表名（如"随机环境"）
+       content — 事件内容描述（将提取短名称存储）
+    同一次掷表可能产生多个事件（含链式子表），一次性全部记录。
+    """
+    data = request.get_json(silent=True) or {}
+    username = data.get('name', '').strip()
+
+    # 清空统计
+    if data.get('clear'):
+        if not username:
+            return jsonify({'error': '需要 name 参数'}), 400
+        stats = _load_event_stats()
+        if username in stats:
+            del stats[username]
+            _save_event_stats(stats)
+            return jsonify({'ok': True})
+        return jsonify({'ok': True, 'message': '用户无统计数据'})
+
+    command = data.get('command', '')
+    event_list = data.get('events', [])
+
+    if not username:
+        return jsonify({'error': '需要 name 参数'}), 400
+    if not event_list:
+        return jsonify({'error': '需要 events 参数'}), 400
+
+    stats = _load_event_stats()
+    user_stats = stats.setdefault(username, {})
+
+    # 每次点击事件按钮计数一次（不含链式子事件）
+    user_stats['_clicks'] = user_stats.get('_clicks', 0) + 1
+
+    for evt in event_list:
+        table = evt.get('table', '').strip()
+        content = evt.get('content', '').strip()
+        if not table or not content:
+            continue
+        short_name = _extract_event_name(content)
+        table_events = user_stats.setdefault(table, {})
+        table_events[short_name] = table_events.get(short_name, 0) + 1
+
+    _save_event_stats(stats)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/events/stats', methods=['GET'])
+def api_get_event_stats():
+    """获取指定用户的事件内容统计数据。
+
+    URL 参数: name — 用户名
+    返回:
+      { name, total, groups: [{table, dice, total_in_table, events: [{content, count, probability}]}] }
+      probability = 该事件次数 / 全局总事件次数 × 100
+    """
+    username = request.args.get('name', '').strip()
+    if not username:
+        return jsonify({'error': '需要 name 参数'}), 400
+
+    stats = _load_event_stats()
+    user_stats = stats.get(username, {})
+
+    # 总点击次数（不含链式子事件）
+    total_clicks = user_stats.get('_clicks', 0)
+    # 兼容旧数据：没有 _clicks 时用事件总和
+    if total_clicks == 0:
+        for table_events in user_stats.values():
+            if isinstance(table_events, dict):
+                total_clicks += sum(table_events.values())
+    global_total = total_clicks
+
+    # 构建分组数据
+    groups = []
+    # 按表的事件总数降序排列（排除 _clicks 等非字典字段）
+    table_order = sorted(
+        [(k, v) for k, v in user_stats.items() if isinstance(v, dict)],
+        key=lambda x: -sum(x[1].values())
+    )
+
+    for table_name, table_events in table_order:
+        if not isinstance(table_events, dict):
+            continue
+        table_total = sum(table_events.values())
+        # 获取该表的骰子信息
+        dice = ''
+        for cmd, (label, d, _) in _EVENT_COMMANDS.items():
+            if label == table_name:
+                dice = d
+                break
+
+        events = []
+        for content, count in sorted(table_events.items(), key=lambda x: -x[1]):
+            table_prob = (count / table_total * 100) if table_total > 0 else 0
+            global_prob = (count / global_total * 100) if global_total > 0 else 0
+            events.append({
+                'content': content,
+                'count': count,
+                'probability': round(table_prob, 1),
+                'global_probability': round(global_prob, 1),
+            })
+
+        groups.append({
+            'table': table_name,
+            'dice': dice,
+            'total_in_table': table_total,
+            'events': events,
+        })
+
+    return jsonify({
+        'name': username,
+        'total': global_total,
+        'groups': groups,
+    })
 
 
 # ━━━ DND 物品表加载 ━━━
@@ -3431,6 +3550,7 @@ def run_server():
     """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
     # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
     # debug=False：生产使用；避免 Werkzeug 调试器暴露远程执行入口
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
 
 

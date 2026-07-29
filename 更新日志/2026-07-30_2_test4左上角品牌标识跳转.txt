@@ -1,0 +1,13 @@
+2026-07-30 — test4 北境雪原页左上角添加品牌标识跳转回官网
+
+修改文件: 骰娘\官网门户\test4.html
+
+修改内容:
+1. 新增 .brand-link CSS 样式：
+   - 绝对定位左上角 (top:16px, left:20px, z-index:20)
+   - 半透明深色背景 + 金色边框 + backdrop-filter 模糊
+   - hover 时边框变亮 + 金色光晕阴影
+2. 新增品牌链接 HTML 元素（.container 内最顶部）：
+   - 魔法阵 SVG 图标（与 index.html 一致的品牌图案）
+   - "尘封之卷" 金色文字（Georgia 衬线字体）
+   - href="index.html"，点击跳转回官网首页

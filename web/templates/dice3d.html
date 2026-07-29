@@ -91,7 +91,7 @@ window.roll=async function(){
   else if(A==='dis'){var mn=Math.min.apply(null,values);dispVals=[mn];total=mn+M;es='d'+S+' (劣势)';}
   else{dispVals=values;total=values.reduce(function(a,b){return a+b;},0)+M;var ms=M!==0?(M>0?'+'+M:''+M):'';es=C+'d'+S+ms;}
   rov.innerHTML='<b>'+es+' = '+total+'</b> ['+dispVals.join(', ')+']';rov.classList.remove('hide');
-	  try{var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");var name=s.name||"匿名",role=s.role||"PL";fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+es+" = ["+total+"]",hidden:false,role:role})}).catch(function(){});}catch(e){}
+	  try{var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");var name=s.name||"匿名",role=s.role||"PL";fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+es+" = ["+total+"]",hidden:false,role:role,color:s.color||""})}).catch(function(){});}catch(e){}
   setTimeout(function(){rov.classList.add('hide');},5000);
  }catch(e){rov.innerHTML='Error: '+e.message;rov.classList.remove('hide');}
  rolling=false;rb.disabled=false;

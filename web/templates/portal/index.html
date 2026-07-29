@@ -91,9 +91,6 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .thread-info .thread-title{font-size:0.88rem;color:var(--gold);}
 .thread-info .thread-title:hover{text-decoration:underline;}
 .thread-info .thread-meta{font-size:0.72rem;color:var(--text-dim);margin-top:2px;}
-.thread-tag{display:inline-block;padding:1px 7px;border-radius:2px;font-size:0.7rem;color:#fff;background:var(--accent);margin-right:4px;}
-.thread-tag.hot{background:var(--red);}
-.thread-tag.new{background:var(--green);}
 .thread-counts{text-align:center;flex-shrink:0;font-size:0.78rem;min-width:50px;}
 .thread-counts .count{font-weight:600;}
 .thread-counts .label{font-size:0.68rem;color:var(--text-dim);}
@@ -109,7 +106,6 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 /* ━━ 首页分区面板 ━━ */
 .home-section{padding:40px 0;border-bottom:1px solid var(--border);}
 .home-section:first-child{padding-top:0;}
-.home-section.section-alt{background:var(--surface2);margin:0 -16px;padding:40px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
 .section-icon{font-size:1.2rem;}
 .section-badge{font-size:0.72rem;font-weight:normal;color:var(--text-dim);background:var(--bg);padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;}
 .section-desc{font-size:0.82rem;color:var(--text-dim);margin-bottom:18px;}
@@ -124,6 +120,10 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .feat-icon{font-size:2.2rem;margin-bottom:8px;}
 .feat-name{font-size:0.85rem;font-weight:600;color:var(--gold);margin-bottom:4px;}
 .feat-desc{font-size:0.73rem;color:var(--text-dim);line-height:1.5;}
+.platform-entry .entry-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:linear-gradient(135deg,var(--accent),#c0392b);color:#fff;text-decoration:none;border-radius:4px;font-size:0.85rem;font-weight:600;letter-spacing:1px;transition:all 0.3s;text-align:center;}
+.platform-entry .entry-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(233,68,96,0.35);color:#fff;}
+.platform-entry .entry-arrow{transition:transform 0.3s;}
+.platform-entry .entry-btn:hover .entry-arrow{transform:translateX(3px);}
 .about-bar{display:flex;gap:16px;flex-wrap:wrap;font-size:0.8rem;color:var(--text-dim);padding:8px 0;}
 .about-bar span{background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:3px;color:var(--text);}
 /* ━━ 北境雪原召唤卡 ━━ */
@@ -142,6 +142,8 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .north-call-btn:hover{background:linear-gradient(135deg,#3a72b8,#2a5090);border-color:#6aa0d8;color:#e8f0ff;box-shadow:0 0 30px rgba(80,150,220,0.45);transform:translateY(-1px);}
 .detail-back-btn{display:inline-block;margin-top:20px;padding:8px 20px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;font-size:0.82rem;cursor:pointer;letter-spacing:1px;transition:all 0.25s;font-family:inherit;}
 .detail-back-btn:hover{color:var(--gold);border-color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.04);box-shadow:0 0 12px rgba(255,215,0,0.08);}
+.ws-submit-btn{display:inline-block;padding:5px 14px;background:rgba(255,215,0,0.08);color:var(--gold);border:1px solid rgba(255,215,0,0.3);border-radius:4px;font-size:0.78rem;cursor:pointer;letter-spacing:1px;transition:all 0.2s;font-family:inherit;text-decoration:none;}
+.ws-submit-btn:hover{background:var(--gold);color:#1a1a2e;border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,0.3);}
 .section-badge-orig{display:none;}
 .home-section.section-alt{background:var(--surface);margin:0 -16px;padding:20px 16px;border:1px solid var(--accent);border-radius:4px;}
 .thread-tag{display:inline-block;padding:1px 7px;border-radius:2px;font-size:0.7rem;color:#fff;background:var(--accent);margin-right:4px;}
@@ -236,7 +238,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
     <a href="#" data-nav="features">🎯 功能介绍</a>
     <a href="#" data-nav="community">💬 冒险者酒馆</a>
     <a href="#" data-nav="workshop">🔧 创意工坊</a>
-    <a href="#" data-nav="about">ℹ️ 关于平台</a><a href="user.html" style="color:var(--gold)!important;">👤 用户中心</a>
+    <a href="#" data-nav="about">ℹ️ 关于平台</a><a href="/user" style="color:var(--gold)!important;">👤 用户中心</a>
   </div>
 </nav>
 <!-- 左侧功能栏 -->
@@ -251,7 +253,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
   <a class="nav-item" data-nav="community" onclick="navTo('community',this)"><span class="nav-icon">💬</span><span class="nav-label">冒险者酒馆</span></a>
   <a class="nav-item" data-nav="workshop" onclick="navTo('workshop',this)"><span class="nav-icon">🔧</span><span class="nav-label">创意工坊</span></a>
   <a class="nav-item nav-bottom-first" data-nav="about" onclick="navTo('about',this)"><span class="nav-icon">ℹ️</span><span class="nav-label">关于平台</span></a>
-  <a class="nav-item nav-bottom-last" href="user.html"><span class="nav-icon">👤</span><span class="nav-label">用户中心</span></a>
+  <a class="nav-item nav-bottom-last" href="/user"><span class="nav-icon">👤</span><span class="nav-label">用户中心</span></a>
 </div></div>
 
 <!-- ━━ 面包屑 ━━ -->
@@ -303,6 +305,13 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
           当前在线: <b style="color:var(--accent);">47</b> 人<br>
           最高在线: <b>128</b> 人 (2026-07-28)
         </div>
+      </div>
+    </div>
+
+    <!-- 跑团平台入口 -->
+    <div class="side-card platform-entry">
+      <div class="side-body">
+        <a href="/dice3d" class="entry-btn">🎲 进入跑团平台 <span class="entry-arrow">→</span></a>
       </div>
     </div>
   </aside>
@@ -370,9 +379,10 @@ document.querySelectorAll(".modal-overlay").forEach(function(m){m.addEventListen
 function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;if(!u||!p){S("login-error").textContent="请填写用户名和密码";return;}var users={};try{users=JSON.parse(localStorage.getItem("portal_users")||"{}");}catch(e){}var ud=users[u];if(ud)localStorage.setItem("portal_user_data",JSON.stringify(ud));var r=S("login-remember").checked;if(r){localStorage.setItem("portal_user",u);localStorage.setItem("portal_remember","1");}else{sessionStorage.setItem("portal_user",u);localStorage.removeItem("portal_user");localStorage.removeItem("portal_remember");}hideModal("login");updateUserUI(u);}
 function doRegister(){var u=S("reg-user").value.trim();var e=S("reg-email").value.trim();var p=S("reg-pass").value;var p2=S("reg-pass2").value;var err=S("reg-error");if(!u||!e||!p){err.textContent="请填写所有字段";return;}if(p.length<6){err.textContent="密码至少6位";return;}if(p!==p2){err.textContent="两次密码不一致";return;}var users={};try{users=JSON.parse(localStorage.getItem("portal_users")||"{}");}catch(e){}if(users[u]){err.textContent="用户名已存在";return;}var uid=parseInt(localStorage.getItem("portal_user_counter")||"0")+1;localStorage.setItem("portal_user_counter",uid);var ud={id:uid,username:u,email:e,phone:"",bio:"",created_at:new Date().toISOString().slice(0,10)};users[u]=ud;localStorage.setItem("portal_users",JSON.stringify(users));localStorage.setItem("portal_user_data",JSON.stringify(ud));sessionStorage.setItem("portal_user",u);hideModal("register");updateUserUI(u);}
 function updateUserUI(name){S("side-username").textContent="👤 "+name;S("side-user").querySelector(".side-body").innerHTML="<div style='font-size:0.85rem;color:var(--accent);'><b>"+name+"</b></div><div style='font-size:0.72rem;color:var(--text-dim);'>已登录</div><button class='btn' onclick='doLogout()' style='font-size:0.72rem;margin-top:8px;width:100%;'>退出</button>";document.getElementById("header-actions").innerHTML="<a href='#' style='color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:8px;'>帮助</a><span class='user-info'>"+name+"</span><button class='btn' onclick='doLogout()'>退出</button>";}
-function doLogout(){sessionStorage.removeItem("portal_user");localStorage.removeItem("portal_user");localStorage.removeItem("portal_remember");location.reload();}
+function doLogout(){sessionStorage.removeItem("portal_user");localStorage.removeItem("portal_user");localStorage.removeItem("portal_user_data");localStorage.removeItem("portal_remember");location.reload();}
 (function(){var u=sessionStorage.getItem("portal_user")||localStorage.getItem("portal_user");if(u)updateUserUI(u);})();
 function toggleSidebar(){S("nav-sidebar").classList.toggle("open");}
+document.addEventListener("click",function(e){var sb=S("nav-sidebar");if(sb.classList.contains("open")&&!sb.contains(e.target)&&!e.target.closest(".nav-brand")){sb.classList.remove("open");}});
 var currentNav="home";function navTo(nav,el){document.querySelectorAll(".nav-item").forEach(function(x){x.classList.remove("active");});el.classList.add("active");currentNav=nav;if(nav==="home")renderHome();else if(nav==="features")renderFeatures();else if(nav==="community")renderCommunity();else if(nav==="workshop")renderWorkshop();else if(nav==="about")renderAbout();window.scrollTo(0,0);}
 
 function buildFeatCards(){var feats=[{id:"dice",icon:"🎲",t:"3D 物理骰子",d:"真实的 3D 物理引擎掷骰，多人在线同步"},{id:"map",icon:"🗺️",t:"战术地图",d:"无限画布+图层管理+战争迷雾+角色标记拖放"},{id:"char",icon:"👤",t:"角色卡管理",d:"完整 5E 角色卡系统，Excel 导入/分组管理"},{id:"combat",icon:"⚔️",t:"战斗追踪",d:"先攻追踪+HP管理+怪物搜索"},{id:"library",icon:"📚",t:"资料库",d:"900+法术 500+怪物 全规则参考"},{id:"events",icon:"🎭",t:"随机事件",d:"随机遭遇/探索/调查表，自动链式掷骰"}];var h="";feats.forEach(function(f){h+="<div class='feat-card' data-feat='"+f.id+"' onclick='showFeatureDetail(this.dataset.feat)'><div class='feat-icon'>"+f.icon+"</div><div class='feat-name'>"+f.t+"</div><div class='feat-desc'>"+f.d+"</div></div>";});return h;}
@@ -389,7 +399,7 @@ function showFeatureDetail(id){
   var h="<div class='section-title'>"+d.title+"</div>";
   if(id!=="events") h+="<div class='feature-demo-card'><div class='demo-label'>📸 功能演示</div><div class='demo-content'>"+d.demo+"</div></div>";
   h+="<div class='feature-detail-card'><div class='detail-label'>📋 详细说明</div><div class='detail-content'>"+d.desc+"</div></div>";
-  if(id==="events") h+="<div class='north-call'><div class='north-call-inner'><div class='north-mist'></div><div class='north-call-decor'>❄️ ⬩ <img src='鹿头骨.png' style='border:0;display:inline-block;'> ⬩ ❄️</div><div class='north-call-title'>🗺️ 冒险者，这片大地埋葬了许多过去</div><div class='north-call-sub'>穿越苍白大地，揭开极北之地的古老面纱</div><button class='north-call-btn' onclick=\"window.location.href='test4.html'\">❄️ 进入北境雪原</button></div></div>";h+="<button class='detail-back-btn' onclick='renderFeatures()'>← 返回功能介绍</button>";
+  if(id==="events") h+="<div class='north-call'><div class='north-call-inner'><div class='north-mist'></div><div class='north-call-decor'>❄️ ⬩ <img src='/static/portal/skull.png' style='border:0;display:inline-block;'> ⬩ ❄️</div><div class='north-call-title'>🗺️ 冒险者，这片大地埋葬了许多过去</div><div class='north-call-sub'>穿越苍白大地，揭开极北之地的古老面纱</div><button class='north-call-btn' onclick=\"window.location.href='/test4'\">❄️ 进入北境雪原</button></div></div>";h+="<button class='detail-back-btn' onclick='renderFeatures()'>← 返回功能介绍</button>";
   S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderFeatures()'>功能介绍</a> &raquo; "+d.title;
 }
 
@@ -397,23 +407,28 @@ function buildBoardRows(){var h="",total=0;boards.forEach(function(b,i){total+=b
 
 function buildWsCards(items){var h="";items.forEach(function(i){var title=hEscape(i.title),author=hEscape(i.author),stars=i.stars==="新"?"🆕 新":("⭐ "+i.stars),dl=i.dl?(i.dl+"KB"):"0 下载";h+="<div class='ws-card' data-title='"+title+"' data-author='"+author+"' data-dl='"+i.dl+"' data-stars='"+(i.stars||"")+"' onclick='wsDetailCard(this)'><div class='ws-img'>"+i.icon+"</div><div class='ws-body'><h4>"+i.title+"</h4><div class='ws-meta'><span>👤 "+i.author+"</span><span class='ws-stars'>"+stars+"</span></div><div class='ws-meta' style='margin-top:3px;'><span>📥 "+dl+"</span></div></div></div>";});return h;}
 
-function renderHome(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 板块列表";var br=buildBoardRows();var h="<div class='home-section'><div class='section-title'><span class='section-icon'>🎯</span> 核心功能 <span class='section-badge'>6项</span></div><p class='section-desc'>为 DM 和玩家打造的完整跑团工具箱</p><div class='feature-grid'>"+buildFeatCards()+"</div></div>";h+="<div class='home-section section-alt'><div class='section-title'><span class='section-icon'>💬</span> 冒险者酒馆 <span class='section-badge'>"+br.total+" 主题</span></div><p class='section-desc'>与全世界的 DM 和玩家交流跑团心得</p><div class='board-list'>"+br.html+"</div></div>";h+="<div class='home-section'><div class='section-title'><span class='section-icon'>🔧</span> 创意工坊精选 <span class='section-badge'>"+wsItems.length+" 项</span><button class='btn btn-primary' onclick='showSubmitModal()' style='margin-left:auto;font-size:0.78rem;padding:4px 12px;'>📤 投稿</button></div><p class='section-desc'>社区投稿的自定义扩展、地图包、角色模版等创意内容</p><div class='workshop-grid'>"+buildWsCards(wsItems)+"</div></div>";h+="<div class='home-section section-alt'><div class='section-title'><span class='section-icon'>ℹ️</span> 关于平台</div><p class='section-desc'>尘封之卷是一个为龙与地下城第五版规则打造的综合性跑团辅助平台。</p><div class='about-bar'><span>📦 版本 v2.0</span><span>🐍 Python 3.11 + Flask</span><span>🗄️ SQLite</span><span>📜 MIT License</span><span>📖 D&D 5E SRD</span></div></div>";S("content-area").innerHTML=h;}
+function renderHome(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 板块列表";var br=buildBoardRows();var h="<div class='home-section'><div class='section-title'><span class='section-icon'>🎯</span> 核心功能 <span class='section-badge'>6项</span></div><p class='section-desc'>为 DM 和玩家打造的完整跑团工具箱</p><div class='feature-grid'>"+buildFeatCards()+"</div></div>";h+="<div class='home-section section-alt'><div class='section-title'><span class='section-icon'>💬</span> 冒险者酒馆 <span class='section-badge'>"+br.total+" 主题</span></div><p class='section-desc'>与全世界的 DM 和玩家交流跑团心得</p><div class='board-list'>"+br.html+"</div></div>";h+="<div class='home-section'><div class='section-title'><span class='section-icon'>🔧</span> 创意工坊精选 <span class='section-badge'>"+wsItems.length+" 项</span></div><p class='section-desc'>社区投稿的自定义扩展、地图包、角色模版等创意内容</p><div class='workshop-grid'>"+buildWsCards(wsItems)+"</div></div>";h+="<div class='home-section section-alt'><div class='section-title'><span class='section-icon'>ℹ️</span> 关于平台</div><p class='section-desc'>尘封之卷是一个为龙与地下城第五版规则打造的综合性跑团辅助平台。</p><div class='about-bar'><span>📦 版本 v2.0</span><span>🐍 Python 3.11 + Flask</span><span>🗄️ SQLite</span><span>📜 MIT License</span><span>📖 D&D 5E SRD</span></div></div>";S("content-area").innerHTML=h;}
 
-function renderCommunity(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 冒险者酒馆";var br=buildBoardRows();var h="<div class='home-section'><div class='section-title'><span class='section-icon'>💬</span> 冒险者酒馆 <span class='section-badge'>"+br.total+" 主题</span></div><p class='section-desc'>与全世界的 DM 和玩家交流跑团心得</p><div class='board-list'>"+br.html+"</div></div>";S("content-area").innerHTML=h;}
+function renderCommunity(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 冒险者酒馆";var br=buildBoardRows();var h="<div class='home-section'><div class='section-title'><span class='section-icon'>💬</span> 冒险者酒馆 <span class='section-badge'>"+br.total+" 主题</span><button class='ws-submit-btn' onclick='showCommunityPostModal()' style='margin-left:auto;'>📝 发帖</button></div><p class='section-desc'>与全世界的 DM 和玩家交流跑团心得</p><div class='board-list'>"+br.html+"</div></div>";S("content-area").innerHTML=h;}
 function renderBoard(id){var b=boards.find(function(x){return x.id===id;});if(!b)return;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderCommunity()'>冒险者酒馆</a> &raquo; "+b.name;var threads={discuss:[{icon:"📌",tag:"置顶",c:"",title:"【版规】综合讨论区发帖须知",author:"管理员",replies:56,views:12580,last:"2026-07-20",lastBy:"管理员"},{icon:"🔥",tag:"热门",c:"hot",title:"关于战士子职冠军的强度讨论",author:"剑湾老兵",replies:23,views:845,last:"14:32",lastBy:"数学法师"},{icon:"💬",tag:"",c:"",title:"自制了一组哥特风骰子皮肤",author:"美术苦力",replies:12,views:423,last:"1天前",lastBy:"暗夜行者"}],rules:[{icon:"📌",tag:"置顶",c:"",title:"【索引】5E规则常见争议FAQ",author:"管理员",replies:34,views:9876,last:"2026-07-15",lastBy:"管理员"},{icon:"🔥",tag:"热门",c:"hot",title:"火球术覆盖范围精确计算",author:"规则律师",replies:15,views:567,last:"2小时前",lastBy:"数学法师"}],recruit:[{icon:"📌",tag:"置顶",c:"",title:"【模板】跑团招募帖标准格式",author:"管理员",replies:0,views:4520,last:"2026-06-01",lastBy:"管理员"},{icon:"🔥",tag:"新",c:"new",title:"[招募] 深水城阴谋缺2人",author:"DM老猫",replies:8,views:234,last:"5小时前",lastBy:"新手冒险者"}],battle:[{icon:"🔥",tag:"热门",c:"hot",title:"全队3级硬刚青年红龙（全灭但精彩）",author:"吟游诗人",replies:31,views:1234,last:"昨天 22:15",lastBy:"围观群众"}],creation:[{icon:"📌",tag:"置顶",c:"",title:"【教程】如何投稿创意工坊",author:"管理员",replies:12,views:3456,last:"2026-07-10",lastBy:"管理员"},{icon:"🔥",tag:"热门",c:"hot",title:"哥特暗黑骰子皮肤组",author:"美术苦力",replies:22,views:890,last:"昨天 18:40",lastBy:"哥特迷"}],tech:[{icon:"📌",tag:"置顶",c:"",title:"骰娘常见问题解答（FAQ）",author:"码农法师",replies:45,views:5678,last:"2026-07-25",lastBy:"码农法师"}]};var list=threads[id]||[];var h="<div class='section-title'>"+b.icon+" "+b.name+"</div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>"+b.desc+"</div><div class='thread-list'><div class='thread-header'><span style='flex:1;'>主题</span><span style='width:60px;text-align:center;'>回复/查看</span><span style='width:130px;text-align:right;'>最后发表</span></div>";list.forEach(function(t){h+="<div class='thread-row'><span class='thread-icon'>"+t.icon+"</span><span class='thread-info'>"+(t.tag?"<span class='thread-tag "+t.c+"'>"+t.tag+"</span>":"")+"<span class='thread-title'>"+t.title+"</span><span class='thread-meta'>"+t.author+" · "+t.last+"</span></span><span class='thread-counts'><span class='count'>"+t.replies+"</span><br><span class='label'>回复</span></span><span class='thread-counts'><span class='count'>"+t.views+"</span><br><span class='label'>查看</span></span><span class='thread-last'>"+t.lastBy+"<br>"+t.last+"</span></div>";});h+="</div>";S("content-area").innerHTML=h;}
 
 function renderFeatures(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 功能介绍";var feats=[{id:"dice",icon:"🎲",t:"3D 物理骰子",d:"真实的 3D 物理引擎掷骰，多人在线同步"},{id:"map",icon:"🗺️",t:"战术地图",d:"无限画布+图层管理+战争迷雾+角色标记拖放"},{id:"char",icon:"👤",t:"角色卡管理",d:"完整 5E 角色卡系统，Excel 导入/分组管理"},{id:"combat",icon:"⚔️",t:"战斗追踪",d:"先攻追踪+HP管理+怪物搜索"},{id:"library",icon:"📚",t:"资料库",d:"900+法术 500+怪物 全规则参考"},{id:"events",icon:"🎭",t:"随机事件",d:"随机遭遇/探索/调查表，自动链式掷骰"}];var h="<div class='section-title'>🎯 核心功能</div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>为 DM 和玩家打造的完整跑团工具箱 · 点击卡片查看详细演示说明</div><div class='feature-grid'>";feats.forEach(function(f){h+="<div class='feat-card' data-feat='"+f.id+"' onclick='showFeatureDetail(this.dataset.feat)'><div class='feat-icon'>"+f.icon+"</div><div class='feat-name'>"+f.t+"</div><div class='feat-desc'>"+f.d+"</div></div>";});h+="</div>";S("content-area").innerHTML=h;}
 
-function renderWorkshop(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 创意工坊";var h="<div class='section-title'>🔧 创意工坊 <button class='btn btn-primary' onclick='showSubmitModal()' style='margin-left:auto;font-size:0.78rem;padding:4px 12px;'>📤 投稿</button></div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>投稿和分享你的自定义扩展、地图包、角色模版和更多创意内容</div><div class='tabs' id='ws-tabs'><button class='tab-btn active' data-cat='all' onclick='filterWS(this.dataset.cat,this)'>📦 全部</button><button class='tab-btn' data-cat='extension' onclick='filterWS(this.dataset.cat,this)'>🧩 扩展</button><button class='tab-btn' data-cat='map_pack' onclick='filterWS(this.dataset.cat,this)'>🗺️ 地图</button><button class='tab-btn' data-cat='template' onclick='filterWS(this.dataset.cat,this)'>👤 模版</button><button class='tab-btn' data-cat='monster' onclick='filterWS(this.dataset.cat,this)'>👹 怪物</button><button class='tab-btn' data-cat='dice_skin' onclick='filterWS(this.dataset.cat,this)'>🎲 骰皮</button></div><div class='workshop-grid' id='ws-grid'></div>";S("content-area").innerHTML=h;renderWSGrid("all");}
+function renderWorkshop(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 创意工坊";var h="<div class='section-title'>🔧 创意工坊 <button class='ws-submit-btn' onclick='showSubmitModal()' style='margin-left:auto;'>📤 投稿</button></div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>投稿和分享你的自定义扩展、地图包、角色模版和更多创意内容</div><div class='tabs' id='ws-tabs'><button class='tab-btn active' data-cat='all' onclick='filterWS(this.dataset.cat,this)'>📦 全部</button><button class='tab-btn' data-cat='extension' onclick='filterWS(this.dataset.cat,this)'>🧩 扩展</button><button class='tab-btn' data-cat='map_pack' onclick='filterWS(this.dataset.cat,this)'>🗺️ 地图</button><button class='tab-btn' data-cat='template' onclick='filterWS(this.dataset.cat,this)'>👤 模版</button><button class='tab-btn' data-cat='monster' onclick='filterWS(this.dataset.cat,this)'>👹 怪物</button><button class='tab-btn' data-cat='dice_skin' onclick='filterWS(this.dataset.cat,this)'>🎲 骰皮</button></div><div class='workshop-grid' id='ws-grid'></div>";S("content-area").innerHTML=h;renderWSGrid("all");}
 function filterWS(cat,btn){document.querySelectorAll("#ws-tabs .tab-btn").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");renderWSGrid(cat);}
 function renderWSGrid(cat){_wsSubs=[];try{_wsSubs=JSON.parse(localStorage.getItem("workshop_subs")||"[]");}catch(e){}var all=wsItems.concat(_wsSubs.map(function(s){return {cat:"user",icon:"📦",title:s.title,author:s.author,stars:"新",dl:s.fileSize||0,desc:s.desc};}));var items=cat==="all"?all:all.filter(function(i){return i.cat===cat;});var grid=S("ws-grid");if(grid)grid.innerHTML=buildWsCards(items);}
-function wsDetailCard(el){var t=el.dataset.title,a=el.dataset.author,d=parseInt(el.dataset.dl)||0,s=el.dataset.stars;var h="<div class='section-title'>📦 "+t+"</div>";h+="<div style='margin-bottom:16px;font-size:0.82rem;color:var(--text-dim);'>👤 "+a+" | ⭐ "+s+" | 📥 "+d+" 下载</div>";h+="<div style='background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;line-height:1.8;font-size:0.88rem;'>工坊项目详细内容</div>";h+="<button class='btn' onclick='renderWorkshop()' style='margin-top:16px;'>← 返回工坊</button>";S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderWorkshop()'>创意工坊</a> &raquo; "+t;}
+function wsDetailCard(el){var t=el.dataset.title,a=el.dataset.author,d=parseInt(el.dataset.dl)||0,s=el.dataset.stars;var h="<div class='section-title'>📦 "+t+"</div>";h+="<div style='margin-bottom:16px;font-size:0.82rem;color:var(--text-dim);'>👤 "+a+" | ⭐ "+s+" | 📥 "+d+" 下载</div>";h+="<div style='background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;line-height:1.8;font-size:0.88rem;'>工坊项目详细内容</div>";h+="<button class='detail-back-btn' onclick='renderWorkshop()'>← 返回工坊</button>";S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderWorkshop()'>创意工坊</a> &raquo; "+t;}
 function renderAbout(){S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 关于平台";S("content-area").innerHTML="<div class='section-title'>ℹ️ 关于 尘封之卷</div><div class='board-list'><div class='board-row' style='flex-direction:column;align-items:flex-start;gap:12px;cursor:default;'><p style='line-height:1.8;'>尘封之卷是一个为龙与地下城第五版规则打造的综合性跑团辅助平台。</p><p style='line-height:1.8;'>无论你是经验丰富的 DM 还是新手冒险者，尘封之卷都会成为你最可靠的伙伴。</p><div style='border-top:1px solid var(--border);width:100%;padding-top:12px;font-size:0.85rem;'><b>版本:</b> v2.0 | <b>运行环境:</b> Python 3.11 + Flask | <b>数据库:</b> SQLite<br><b>开源协议:</b> MIT License | <b>规则依据:</b> D&D 5E SRD 5.1</div></div></div>";}
 
 function showSubmitModal(){S("submit-modal").classList.add("show");}
 function hideSubmitModal(){S("submit-modal").classList.remove("show");S("submit-error").textContent="";}
 function onFileSelected(input){var n=input.files&&input.files[0]?input.files[0].name:"未选择文件";S("submit-file-name").textContent=n;}
 function doSubmit(){var title=S("submit-title").value.trim();var desc=S("submit-desc").value.trim();var file=S("submit-file").files[0];var err=S("submit-error");if(!title){err.textContent="请填写主题名称";return;}if(!desc){err.textContent="请填写内容介绍";return;}var sub={title:title,desc:desc,fileName:file?file.name:"",fileSize:file?Math.round(file.size/1024):0,author:sessionStorage.getItem("portal_user")||localStorage.getItem("portal_user")||"匿名",date:new Date().toISOString().slice(0,10),icon:"📦"};_wsSubs.unshift(sub);localStorage.setItem("workshop_subs",JSON.stringify(_wsSubs));hideSubmitModal();S("submit-title").value="";S("submit-desc").value="";S("submit-file").value="";S("submit-file-name").textContent="未选择文件";renderHome();}
+var _communityPosts=[];try{_communityPosts=JSON.parse(localStorage.getItem("community_posts")||"[]");}catch(e){}
+function showCommunityPostModal(){S("community-post-modal").classList.add("show");}
+function hideCommunityPostModal(){S("community-post-modal").classList.remove("show");S("post-error").textContent="";}
+function onPostImagesSelected(input){var files=input.files;var preview=S("post-images-preview");preview.innerHTML="";if(!files||files.length===0){S("post-images-name").textContent="未选择";return;}if(files.length>9){S("post-error").textContent="最多上传9张图片";S("post-images-name").textContent="未选择";input.value="";return;}S("post-error").textContent="";S("post-images-name").textContent=files.length+" 张图片";for(var i=0;i<Math.min(files.length,9);i++){(function(f){var reader=new FileReader();reader.onload=function(e){var img=document.createElement("img");img.src=e.target.result;img.style.cssText="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid var(--border);";preview.appendChild(img);};reader.readAsDataURL(f);})(files[i]);}}
+function doCommunityPost(){var title=S("post-title").value.trim();var content=S("post-content").value.trim();var err=S("post-error");if(!title){err.textContent="请填写帖子标题";return;}if(!content){err.textContent="请填写帖子内容";return;}var images=[];var previewImgs=S("post-images-preview").querySelectorAll("img");previewImgs.forEach(function(img){images.push(img.src);});var post={title:title,content:content,images:images,author:sessionStorage.getItem("portal_user")||localStorage.getItem("portal_user")||"匿名",date:new Date().toISOString().slice(0,10),time:new Date().toLocaleTimeString()};_communityPosts.unshift(post);if(_communityPosts.length>50)_communityPosts.pop();localStorage.setItem("community_posts",JSON.stringify(_communityPosts));hideCommunityPostModal();S("post-title").value="";S("post-content").value="";S("post-images").value="";S("post-images-preview").innerHTML="";S("post-images-name").textContent="未选择";renderCommunity();}
 
 (function(){document.body.style.marginLeft="108px";document.body.style.paddingTop="56px";document.body.style.marginRight="0";var n=document.querySelector(".navbar");if(n)n.style.display="none";})();
 renderHome();
@@ -433,11 +448,32 @@ renderHome();
     <label style="font-size:0.78rem;color:var(--text-dim);">附件（上传资源文件）</label>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
       <input type="file" id="submit-file" style="display:none;" onchange="onFileSelected(this)">
-      <button class="btn" onclick="document.getElementById('submit-file').click()" style="font-size:0.8rem;">📁 选择文件</button>
+      <button class="detail-back-btn" onclick="document.getElementById('submit-file').click()" style="font-size:0.8rem;margin-top:0;">📁 选择文件</button>
       <span id="submit-file-name" style="font-size:0.75rem;color:var(--text-dim);">未选择文件</span>
     </div>
     <button class="modal-btn btn-primary" onclick="doSubmit()">提交投稿</button>
     <div class="modal-error" id="submit-error"></div>
+  </div>
+</div>
+
+<!-- ━━ 社区发帖弹窗 ━━ -->
+<div class="modal-overlay" id="community-post-modal">
+  <div class="modal-card" style="max-width:560px;">
+    <button class="modal-close" onclick="hideCommunityPostModal()">✕</button>
+    <h2>📝 冒险者酒馆 · 发帖</h2>
+    <label style="font-size:0.78rem;color:var(--text-dim);">帖子标题</label>
+    <input type="text" id="post-title" placeholder="给你的帖子起个标题">
+    <label style="font-size:0.78rem;color:var(--text-dim);">帖子内容</label>
+    <textarea id="post-content" placeholder="分享你的跑团故事、规则讨论、招募信息..." style="width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;resize:vertical;min-height:120px;"></textarea>
+    <label style="font-size:0.78rem;color:var(--text-dim);">图片（可选，最多9张）</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <input type="file" id="post-images" style="display:none;" accept="image/*" multiple onchange="onPostImagesSelected(this)">
+      <button class="detail-back-btn" onclick="document.getElementById('post-images').click()" style="font-size:0.8rem;margin-top:0;">🖼️ 选择图片</button>
+      <span id="post-images-name" style="font-size:0.75rem;color:var(--text-dim);">未选择</span>
+    </div>
+    <div id="post-images-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <button class="modal-btn btn-primary" onclick="doCommunityPost()">发布帖子</button>
+    <div class="modal-error" id="post-error"></div>
   </div>
 </div>
 </body>

@@ -1,98 +1,6 @@
 [
   {
     "name": "yrr3k",
-    "text": "🎲 1d20 = [16]",
-    "time": "16:33:22",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227602.1730535
-  },
-  {
-    "name": "天冥",
-    "text": "🎲 1d20 = [6]",
-    "time": "16:33:31",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "DM",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227611.0097127
-  },
-  {
-    "name": "天冥",
-    "text": "进入了骰娘",
-    "time": "16:35:48",
-    "is_dm": true,
-    "color": "#ffd700",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1785227748.296438
-  },
-  {
-    "name": "天冥",
-    "text": "🎲 1d20 = [10]",
-    "time": "16:35:52",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "DM",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227752.9097314
-  },
-  {
-    "name": "天冥",
-    "text": "🎲 1d20 = [18]",
-    "time": "16:35:56",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "DM",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227756.876959
-  },
-  {
-    "name": "yrr3k",
-    "text": "🎲 1d20 = [11]",
-    "time": "16:36:15",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227775.6888092
-  },
-  {
-    "name": "yrr3k",
-    "text": "🎲 1d20 = [15]",
-    "time": "16:36:29",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785227789.2837956
-  },
-  {
-    "name": "天冥",
-    "text": "进入了骰娘",
-    "time": "16:37:27",
-    "is_dm": true,
-    "color": "#ffd700",
-    "role": "DM",
-    "ip": "127.0.0.1",
-    "_ts": 1785227847.4110062
-  },
-  {
-    "name": "yrr3k",
     "text": "进入了骰娘",
     "time": "16:37:31",
     "is_dm": false,
@@ -5456,5 +5364,95 @@
     "hidden": false,
     "ip": "system",
     "_ts": 1785269608.0766232
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 4d6k3 = [10]",
+    "time": "01:11:25",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785345085.2756948
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [9]",
+    "time": "06:13:10",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785363190.1767786
+  },
+  {
+    "name": "天冥",
+    "text": "天冥 宗教(智力) = 16 | d20:16",
+    "time": "06:13:17",
+    "is_dm": true,
+    "color": "#00bcd4",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785363197.3507223
+  },
+  {
+    "name": "天冥",
+    "text": "天冥 体质 = 8 | d20:8",
+    "time": "06:13:19",
+    "is_dm": true,
+    "color": "#00bcd4",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785363199.3854308
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [18]",
+    "time": "06:13:23",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785363203.3025894
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [3]",
+    "time": "06:15:36",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785363336.1020942
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [11]",
+    "time": "07:04:38",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785366278.2890186
+  },
+  {
+    "name": "天冥",
+    "text": "2",
+    "time": "07:05:03",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785366303.9293442
   }
 ]

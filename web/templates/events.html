@@ -12,7 +12,209 @@
             text-align: left;
             font-weight: bold;
         }
-    
+
+        /* ━━━ 双栏布局 ━━━ */
+        .events-layout {
+            display: flex;
+            gap: 1rem;
+            max-width: 100%;
+        }
+        .events-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* ━━━ 统计侧边栏 ━━━ */
+        .stats-sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 70px);
+            overflow-y: auto;
+            transition: width 0.3s ease, opacity 0.3s ease;
+        }
+        .stats-sidebar.collapsed {
+            width: 42px;
+            overflow-y: hidden;
+        }
+        .stats-sidebar.collapsed .stats-body {
+            display: none;
+        }
+        .stats-sidebar.collapsed .stats-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .stats-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.7rem 1rem;
+            background: var(--surface2);
+            cursor: pointer;
+            user-select: none;
+            gap: 0.5rem;
+        }
+        .stats-header:hover {
+            background: #1a4a7a;
+        }
+        .stats-title {
+            font-weight: bold;
+            color: var(--gold);
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+        .stats-toggle-icon {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+        .stats-body {
+            padding: 0.5rem;
+        }
+        .stats-summary {
+            display: flex;
+            justify-content: space-around;
+            padding: 0.5rem 0;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+        .stats-summary-item {
+            flex: 1;
+        }
+        .stats-summary-num {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--cyan);
+        }
+        .stats-summary-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 0.15rem;
+        }
+
+        .stats-empty {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        /* 统计分组 */
+        .stats-group {
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .stats-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0.6rem;
+            background: var(--surface2);
+            font-size: 0.8rem;
+        }
+        .stats-group-title {
+            color: var(--gold);
+            font-weight: bold;
+        }
+        .stats-group-dice {
+            color: var(--text-dim);
+            font-size: 0.7rem;
+        }
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+        .stats-table th {
+            color: var(--text-dim);
+            font-size: 0.68rem;
+            font-weight: normal;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.3rem 0.4rem;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+        .stats-table th.num {
+            text-align: right;
+        }
+        .stats-table td {
+            padding: 0.3rem 0.4rem;
+            border-bottom: 1px solid rgba(42,42,74,0.4);
+            vertical-align: middle;
+        }
+        .stats-table td.label {
+            color: var(--text);
+        }
+        .stats-table td.num {
+            text-align: right;
+            font-weight: bold;
+            color: var(--gold);
+            width: 30px;
+        }
+        .stats-table td.prob {
+            text-align: right;
+            color: var(--text-dim);
+            width: 45px;
+        }
+        .stats-table tr:hover td {
+            background: rgba(233,68,96,0.06);
+        }
+        .stats-clear-btn {
+            display: inline-block; margin-top: 0.5rem; padding: 2px 10px;
+            background: transparent; border: 1px solid rgba(244,67,54,0.3); border-radius: 3px;
+            color: rgba(244,67,54,0.5); font-size: 0.65rem; cursor: pointer;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .stats-clear-btn:hover {
+            background: rgba(244,67,54,0.15); border-color: rgba(244,67,54,0.6); color: #f44336;
+        }
+        #events-output:not(:has(.output-entry)) { display: flex; align-items: center; justify-content: center; min-height: 200px; }
+        #events-output { text-align: center !important; white-space: normal; font-family: inherit; }
+        #events-output .output-entry { text-align: left; white-space: normal; font-family: inherit; }
+
+        /* ━━ 可折叠分组 ━━ */
+        .stats-group-header {
+            cursor: pointer; user-select: none;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.4rem 0.55rem; background: rgba(255,255,255,0.03);
+            border-radius: 4px; margin-bottom: 2px; transition: background 0.15s;
+        }
+        .stats-group-header:hover { background: rgba(255,215,0,0.08); }
+        .stats-group-header .collapse-arrow {
+            font-size: 0.65rem; color: var(--text-dim); transition: transform 0.2s;
+            margin-right: 0.3rem;
+        }
+        .stats-group.collapsed .stats-table { display: none; }
+        .stats-group.collapsed .collapse-arrow { transform: rotate(-90deg); }
+        .stats-group.collapsed .stats-group-dice { display: none; }
+
+        /* 响应式：窄屏时侧栏移到下方 */
+        @media (max-width: 900px) {
+            .events-layout {
+                flex-direction: column;
+            }
+            .stats-sidebar {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+            .stats-sidebar.collapsed {
+                width: 100%;
+            }
+        }
+
 </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -43,7 +245,8 @@
     <nav class="navbar" style="position:relative;">
         <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
         <div class="navbar-links">
-            
+
+            <a href="/dice3d">🎲 掷骰</a>
             <a href="/character">角色卡</a>
             <a href="/combat">战斗</a>
             <a href="/spells">法术</a>
@@ -58,6 +261,9 @@
     </nav>
 
     <div class="main-container">
+        <div class="events-layout">
+            <!-- ━━━ 左侧：主内容区 ━━━ -->
+            <div class="events-main">
         <!-- 页面标题 + 角色选择器 -->
         <div style="text-align:center; margin-bottom: 1.5rem;">
             <h1 style="color: var(--gold); font-size: 1.6rem;">🗺️ 随机事件表</h1>
@@ -87,8 +293,8 @@
                         <button class="btn btn-small btn-primary" onclick="clearOutput()">清空</button>
                     </span>
                 </div>
-                <div class="output-area events-output" id="events-output">
-                    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                <div class="output-area events-output" id="events-output" style="text-align:center;">
+                    <div style="color:var(--text-dim);padding:1rem 0;">
                         点击下方任意事件按钮开始掷表...
                     </div>
                 </div>
@@ -120,7 +326,7 @@
             {% endfor %}
         </div>
 
-        <!-- WP 物品表查询（特殊：带输入框） -->
+        <!-- WP 物品表查询 -->
         <div class="card" style="margin-top: 1rem; text-align: center;">
             <div class="card-header">📦 物品表查询</div>
             <div style="display: flex; gap: 0.5rem; align-items: center; max-width: 500px; margin: 0 auto;">
@@ -132,14 +338,44 @@
                 <button class="btn" style="background:var(--surface2);color:var(--text);" onclick="rollEvent('wp')">列出全部</button>
             </div>
         </div>
+            </div><!-- /events-main -->
+
+            <!-- ━━━ 右侧：统计面板 ━━━ -->
+            <aside class="stats-sidebar collapsed" id="stats-sidebar">
+                <div class="stats-card">
+                    <div class="stats-header" onclick="toggleStats()" title="展开/收起统计面板">
+                        <span class="stats-title">📊 事件统计</span>
+                        <span class="stats-toggle-icon" id="stats-toggle-icon">◀</span>
+                    </div>
+                    <div class="stats-body">
+                        <div id="stats-summary" class="stats-summary" style="display:none;">
+                            <div class="stats-summary-item">
+                                <div class="stats-summary-num" id="stats-total">0</div>
+                                <div class="stats-summary-label">总掷表次数</div>
+                            </div>
+                            <button class="stats-clear-btn" onclick="clearStats()" title="清空统计数据">🗑️ 清空</button>
+                        </div>
+                        <div id="stats-content">
+                            <div class="stats-empty">
+                                🎲 掷事件表后<br>这里会显示统计数据
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div><!-- /events-layout -->
     </div>
 
     <script>
         function getIdentity() {
             try {
                 const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
-                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
-            } catch(e) { return { name: '', role: 'PL' }; }
+                if (saved && saved.name) return { name: saved.name, role: saved.role || 'PL' };
+            } catch(e) {}
+            // 兜底：生成匿名会话ID，统计功能不依赖加入房间
+            var sid = sessionStorage.getItem('_anon_sid');
+            if (!sid) { sid = '冒险者' + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('_anon_sid', sid); }
+            return { name: sid, role: 'PL' };
         }
 
         // ━━━ 会话日志 ━━━
@@ -166,6 +402,145 @@
 
         function stripAnsi(text) {
             return text.replace(/\x1b\[[0-9;]*m/g, '');
+        }
+
+        // ━━━ 统计面板 ━━━
+        function toggleStats() {
+            const sidebar = document.getElementById('stats-sidebar');
+            sidebar.classList.toggle('collapsed');
+            if (!sidebar.classList.contains('collapsed')) {
+                loadStats();
+            }
+        }
+
+        /**
+         * 从掷表输出文本中解析所有事件（含链式子事件）。
+         * 返回 [{table, content}, ...]
+         *
+         * 输出格式示例:
+         *   🎲 随机环境 [d6: 3]\n   极光（被认为是水星的指引...）
+         *   ↳ 🎲 随机人类 [d100: 50]\n      士兵（军队，地方卫队）
+         */
+        function parseEventsFromOutput(outputText) {
+            const events = [];
+            if (!outputText) return events;
+
+            const clean = stripAnsi(outputText);
+            const lines = clean.split('\n');
+
+            // 匹配主事件行: 🎲 标签 [骰子: 值]
+            const mainRe = /^🎲\s+(.+?)\s+\[([^\]]+)\]$/;
+            // 匹配子事件行: ↳ 🎲 标签 [骰子: 值]
+            const subRe = /↳\s*🎲\s+(.+?)\s+\[([^\]]+)\]/;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                let tableName = null;
+
+                // 尝试匹配主事件行
+                let m = line.match(mainRe);
+                if (m) {
+                    tableName = m[1].trim();
+                } else {
+                    // 尝试匹配子事件行
+                    m = line.match(subRe);
+                    if (m) {
+                        tableName = m[1].trim();
+                    }
+                }
+
+                if (tableName && i + 1 < lines.length) {
+                    // 下一行是事件内容（去除前导空格）
+                    let content = lines[i + 1].replace(/^\s+/, '').trim();
+                    // 去除可能残留的 ANSI 或格式字符
+                    content = content.replace(/^\s*/, '');
+                    if (content && !content.startsWith('⏱') && !content.startsWith('📦') && !content.startsWith('💰')) {
+                        events.push({ table: tableName, content: content });
+                    }
+                }
+            }
+
+            return events;
+        }
+
+        async function recordEventStat(command, outputText) {
+            const identity = getIdentity();
+            if (!identity.name) return;
+
+            const events = parseEventsFromOutput(outputText);
+            if (events.length === 0) return;
+
+            try {
+                await fetch('/api/events/stats', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: identity.name,
+                        command: command,
+                        events: events,
+                    })
+                });
+            } catch(e) {}
+        }
+
+        async function loadStats() {
+            const identity = getIdentity();
+            if (!identity.name) return;
+
+            try {
+                const resp = await fetch('/api/events/stats?name=' + encodeURIComponent(identity.name));
+                const data = await resp.json();
+                if (data.error) return;
+
+                // 更新摘要
+                document.getElementById('stats-total').textContent = data.total || 0;
+                document.getElementById('stats-summary').style.display = (data.total > 0) ? '' : 'none';
+
+                // 更新表格
+                const content = document.getElementById('stats-content');
+                if (!data.groups || data.groups.length === 0) {
+                    content.innerHTML = '<div class="stats-empty">🎲 掷事件表后<br>这里会显示统计数据</div>';
+                    return;
+                }
+
+                let html = '';
+                for (const group of data.groups) {
+                    const diceTag = group.dice ? ' [' + group.dice + ']' : '';
+                    html += '<div class="stats-group">';
+                    html += '<div class="stats-group-header" onclick="this.parentElement.classList.toggle(\'collapsed\')">';
+                    html += '<span class="collapse-arrow">▼</span>';
+                    html += '<span class="stats-group-title">' + group.table + '</span>';
+                    html += '<span class="stats-group-dice">' + group.total_in_table + '次' + diceTag + '</span>';
+                    html += '</div>';
+                    html += '<table class="stats-table"><tbody>';
+                    for (const evt of group.events) {
+                        html += '<tr>';
+                        html += '<td class="label">' + evt.content + '</td>';
+                        html += '<td class="num">' + evt.count + '</td>';
+                        html += '<td class="prob">' + evt.probability + '%</td>';
+                        html += '<td class="prob" style="color:var(--text-dim)">' + (evt.global_probability||0) + '%</td>';
+                        html += '</tr>';
+                    }
+                    html += '</tbody></table>';
+                    html += '</div>';
+                }
+                content.innerHTML = html;
+            } catch(e) {}
+        }
+
+        async function clearStats() {
+            const identity = getIdentity();
+            if (!identity.name) return;
+            if (!confirm('确定要清空所有统计数据吗？此操作不可恢复。')) return;
+            try {
+                const resp = await fetch('/api/events/stats', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: identity.name, clear: true}) });
+                const data = await resp.json();
+                if (data.ok) {
+                    document.getElementById('stats-total').textContent = '0';
+                    document.getElementById('stats-content').innerHTML = '<div class="stats-empty">🎲 掷事件表后<br>这里会显示统计数据</div>';
+                    document.getElementById('stats-summary').style.display = 'none';
+                }
+            } catch(e) {}
         }
 
         // ━━━ 掷事件表 ━━━
@@ -218,8 +593,83 @@
             return div;
         }
 
+        const MATERIAL_COMMANDS = ['cl50','cl100','kw100','wp','fx100','yj8'];
+        function hasMaterialOutcome(command, outputText) {
+            if (MATERIAL_COMMANDS.includes(command)) return true;
+            // 检查链式子事件是否有材料类
+            const lines = (outputText||'').split('\n');
+            for (const line of lines) {
+                if (line.includes('↳') && MATERIAL_COMMANDS.some(c => line.includes(c))) return true;
+            }
+            // 检查子事件标签
+            const subRe = /↳\s*🎲\s*(.+?)\s*\[/g;
+            let m;
+            while ((m = subRe.exec(outputText||'')) !== null) {
+                const label = m[1].trim();
+                if (label.includes('材料') || label.includes('矿物') || label.includes('发现') || label.includes('遗迹') || label.includes('物品')) return true;
+            }
+            return false;
+        }
+        function addMaterialConfirmUI(entry, command, outputText) {
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border);';
+            btnRow.innerHTML = '<span style="color:var(--text-dim);font-size:0.78rem;">获取材料？</span>';
+            const yesBtn = document.createElement('button');
+            yesBtn.textContent = '✅ 获得';
+            yesBtn.style.cssText = 'padding:3px 14px;background:rgba(76,175,80,0.15);color:#4caf50;border:1px solid rgba(76,175,80,0.3);border-radius:3px;cursor:pointer;font-size:0.78rem;font-family:inherit;';
+            const noBtn = document.createElement('button');
+            noBtn.textContent = '❌ 未获得';
+            noBtn.style.cssText = 'padding:3px 14px;background:rgba(244,67,54,0.1);color:#f44336;border:1px solid rgba(244,67,54,0.2);border-radius:3px;cursor:pointer;font-size:0.78rem;font-family:inherit;';
+            yesBtn.onmouseenter = function(){this.style.background='rgba(76,175,80,0.3)';};
+            yesBtn.onmouseleave = function(){this.style.background='rgba(76,175,80,0.15)';};
+            noBtn.onmouseenter = function(){this.style.background='rgba(244,67,54,0.25)';};
+            noBtn.onmouseleave = function(){this.style.background='rgba(244,67,54,0.1)';};
+            yesBtn.onclick = async function(){
+                btnRow.innerHTML = '<span style="color:#4caf50;font-size:0.78rem;">✅ 已获得，材料已尝试存入背包</span>';
+                btnRow.querySelectorAll('button').forEach(b=>b.disabled=true);
+                if (activeCharId) {
+                    try {
+                        // 尝试将材料作为物品添加到角色背包
+                        const name = extractMaterialName(outputText);
+                        if (name) {
+                            await fetch('/api/character/'+activeCharId+'/item', {
+                                method:'POST', headers:{'Content-Type':'application/json'},
+                                body:JSON.stringify({name:name,quantity:1,weight:'',cost:'',description:'随机事件获得'})
+                            });
+                        }
+                    } catch(e){}
+                }
+                _eventLoading = false;
+            };
+            noBtn.onclick = function(){
+                btnRow.innerHTML = '<span style="color:var(--text-dim);font-size:0.78rem;">❌ 未获得材料</span>';
+                btnRow.querySelectorAll('button').forEach(b=>b.disabled=true);
+                _eventLoading = false;
+            };
+            btnRow.appendChild(yesBtn);
+            btnRow.appendChild(noBtn);
+            entry.appendChild(btnRow);
+        }
+        function extractMaterialName(text) {
+            // 从输出文本提取材料名称：取第一行括号前的内容
+            const clean = (text||'').replace(/\x1b\[[0-9;]*m/g, '');
+            const lines = clean.split('\n');
+            for (const line of lines) {
+                const t = line.trim();
+                if (t && !t.startsWith('🎲') && !t.startsWith('↳') && !t.startsWith('⏱') && !t.startsWith('📦') && !t.startsWith('💰') && !t.startsWith('🔍')) {
+                    const idx = t.indexOf('（');
+                    return idx > 0 ? t.substring(0, idx).trim() : t.substring(0, 30).trim();
+                }
+            }
+            return '';
+        }
+        let _eventLoading = false;
         async function rollEvent(command, args) {
+            if (_eventLoading) return;
+            _eventLoading = true;
+            let isMaterial = false;
             const output = document.getElementById('events-output');
+            try {
 
             // 获取简短的加载文本（如"遭遇中"而非"随机遭遇事件中"）
             const shortLabels = {
@@ -254,10 +704,25 @@
 
             addToLog(command, data.label, data.dice, data.output || '');
 
+            // 记录统计数据（需等待写入完成再刷新面板）
+            await recordEventStat(command, data.output || '');
+
             const entry = document.createElement('div');
             entry.className = 'output-entry event-result';
             entry.innerHTML = formatEventResult(data);
             output.prepend(entry);
+
+            // 材料事件：添加确认按钮，不自动解锁
+            isMaterial = hasMaterialOutcome(command, data.output || '');
+            if (isMaterial) {
+                addMaterialConfirmUI(entry, command, data.output || '');
+            }
+
+            // 如果统计面板已展开，自动刷新
+            const sidebar = document.getElementById('stats-sidebar');
+            if (!sidebar.classList.contains('collapsed')) {
+                loadStats();
+            }
 
             const entries = output.querySelectorAll('.output-entry');
             if (entries.length > 50) {
@@ -265,6 +730,7 @@
                     entries[i].remove();
                 }
             }
+            } finally { if (!isMaterial) _eventLoading = false; }
         }
 
         function formatEventResult(data) {
@@ -281,7 +747,8 @@
 
         function clearOutput() {
             const output = document.getElementById('events-output');
-            output.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">已清空。点击事件按钮开始掷表...</div>';
+            output.style.cssText = 'color:var(--text-dim);text-align:center;padding:2rem;';
+output.textContent = '已清空。点击事件按钮开始掷表...';
             sessionLog = [];
         }
 
