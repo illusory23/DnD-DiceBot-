@@ -1350,7 +1350,7 @@
                 },
 
                 dc100: {
-                    label: '随机调查事件',
+                    label: '探索雪原',
                     dice: 'd100',
                     desc: '仔细探查周围的痕迹',
                     items: {
@@ -1502,8 +1502,8 @@
                         25: ['荧光苔（照明半径15尺，易燃，可在暴风雪中点燃）', null],
                         26: ['松茸（可出售5-8银币，陷阱诱饵，食用后下次力量/体质优势）', null],
                         45: ['松茸（可出售5-8银币，陷阱诱饵，食用后下次力量/体质优势）', null],
-                        46: ['铁松松脂（易燃，可在暴风雪中使用）', null],
-                        65: ['铁松松脂（易燃，可在暴风雪中使用）', null],
+                        46: ['铁松松脂（易燃，耐烧，可在暴风雪中点燃；附赠动作涂抹武器，1d6火焰伤害）', null],
+                        65: ['铁松松脂（易燃，耐烧，可在暴风雪中点燃；附赠动作涂抹武器，1d6火焰伤害）', null],
                         66: ['绒蜂蜜（可出售2-4金币，陷阱诱饵，处理后食用1d4生命+寒冷抗性；直接食用1d3，2-3腹泻）', null],
                         72: ['绒蜂蜜（可出售2-4金币，陷阱诱饵，处理后食用1d4生命+寒冷抗性；直接食用1d3，2-3腹泻）', null],
                         73: ['银蛛蛛网（可出售6-10银币）', null],
@@ -1623,7 +1623,7 @@
                         5: '荧光苔（照明半径15尺，易燃，可在暴风雪中点燃）',
                         6: '松茸（可出售5-8银币，食用后下次力量/体质优势）',
                         7: '松脂（可点燃）',
-                        8: '铁松松脂（易燃，可在暴风雪中使用）',
+                        8: '铁松松脂（易燃，耐烧，可在暴风雪中点燃；附赠动作涂抹武器，1d6火焰伤害）',
                         9: '普通兽骨（可打磨工具，可出售1d3银币）',
                         10: '霜羽雉的蛋（可孵化，可出售3-5银币）',
                         11: '霜羽雉的银羽（装饰品，可出售1-3金币）',
@@ -1790,6 +1790,7 @@
             let activeCharId = null;
             let statsData = { total: 0, groups: {} };
             let rollCount = 0;
+            let deepCount = 0; // 调查附近连续次数
             let fullLog = [];
             let displayLog = [];
             const MAX_DISPLAY = 16;
@@ -2195,28 +2196,20 @@
             }, {
                 trigger: { table: 'fx100', keyword: '猎人小屋' },
                 action: () => {
-                    survival.isInShelter = true;
-                    // 猎人小屋口粮通过 ITEM_ACTIONS 加入背包
-                    survival.shelterType = 'hunter_hut';
-                    addSystemLog(`🏠 猎人小屋：获得 ${rations} 份口粮，进入庇护所`, 'success');
+                    addSystemLog('🏠 发现猎人小屋，可在此休整', 'success');
                 }
             }, {
                 trigger: { table: 'fx100', keyword: '天然温泉' },
                 action: () => {
                     if (survival.coldLevel > 0) {
                         survival.coldLevel = Math.max(0, survival.coldLevel - 1);
-                        addSystemLog('♨️ 天然温泉：解除1级严寒', 'success');
+                        addSystemLog('♨️ 发现天然温泉，解除1级严寒', 'success');
                     }
-                    survival.isInShelter = true;
-                    survival.shelterType = 'hot_spring';
-                    addSystemLog('♨️ 天然温泉：进入庇护所', 'system');
                 }
             }, {
                 trigger: { table: 'fx100', keyword: '岩洞' },
                 action: () => {
-                    survival.isInShelter = true;
-                    survival.shelterType = 'cave';
-                    addSystemLog('🏔️ 岩洞：进入庇护所', 'system');
+                    addSystemLog('🏔️ 发现岩洞，可在此躲避恶劣天气', 'system');
                 }
             }, {
                 trigger: { table: 'cl50', keyword: '浆果' },
@@ -2515,9 +2508,10 @@
                 // 掷出描述中的骰子表达式（有gain时用预掷值替换）
                 if (myGain && myGain.action._rolledQty) {
                     desc = desc.replace(/\d+d\d+/, myGain.action._rolledQty);
-                } else {
+                } else if (!chainCmd) {
                     desc = rollDiceInText(desc);
                 }
+                if (!chainCmd) finalDesc = desc; // 仅叶子节点同步最终描述
 
                 // 顶层输出：只显示最终链结果，隐藏中间过程
                 let output;
@@ -2675,7 +2669,9 @@
                 if (survival.fuel.glow_moss > 0) fuelNames.push(`荧光苔×${survival.fuel.glow_moss}`);
                 if (survival.fuel.coal > 0) fuelNames.push(`煤矿×${survival.fuel.coal}`);
                 if (survival.fuel.firewood > 0) fuelNames.push(`柴火×${survival.fuel.firewood}`);
-                document.getElementById('fuelDisplay').textContent = fuelTotal > 0 ? fuelNames.join(' ') : '无';
+                var ironVal = (survival.fuel.iron_resin || 0) * 2;
+                var fuelCount = (survival.fuel.pine_branch||0) + (survival.fuel.resin||0) + (survival.fuel.glow_moss||0) + ironVal + (survival.fuel.coal||0) + (survival.fuel.firewood||0);
+                document.getElementById('fuelDisplay').textContent = (fuelTotal > 0 ? fuelNames.join(' ') : '无') + ' ｜共 ' + fuelCount + ' 份';
                 document.getElementById('fuelStatus').textContent =
                     survival.lightActive ? `🔥 燃烧中 (剩余${survival.lightRemaining}次事件)` : '未点燃';
 
@@ -2701,7 +2697,7 @@
 
                 // 生火按钮状态
                 const hasFuel = fuelTotal > 0;
-                document.getElementById('lightBtn').disabled = !hasFuel || survival.lightActive;
+                document.getElementById('lightBtn').disabled = !hasFuel;
                 document.getElementById('orientBtn').disabled = !survival.isLost;
                 document.getElementById('consumeRationBtn').disabled = survival.rations <= 0;
             }
@@ -2932,25 +2928,22 @@
                                 if (existing) { existing.totalQty += g.qty;
                                     existing.times++; }
                                 else { discoveredItems.push({name:g.item, totalQty:g.qty, wpNum:wpNum, times:1}); }
-                                // 同步生存状态：口粮
+                                } // end g.item !== '口粮'
+                                // 同步生存状态：口粮（独立于 discoveredItems 追踪）
                                 if (g.item === '口粮') {
                                     survival.rations += g.qty;
                                     if (survival.rations > 0) { survival.isStarving = false;
                                         survival.starvationCount = 0; }
-                                    addSystemLog(`🍖 口粮 +${g.qty}，当前 ${survival.rations} 份`, 'system');
                                 }
                                 // 同步生存状态：燃料
                                 const fuelMap = { '松枝': 'pine_branch', '松脂': 'resin', '铁松松脂': 'iron_resin', '荧光苔': 'glow_moss', '煤矿': 'coal', '柴火': 'firewood' };
                                 if (fuelMap[g.item]) {
                                     const fk = fuelMap[g.item];
                                     survival.fuel[fk] = (survival.fuel[fk] || 0) + g.qty;
-                                    addSystemLog(`🔥 ${g.item} +${g.qty}（燃料库存已更新）`, 'system');
-                                }
                                 } // end if g.item !== '口粮'
                             } else if (g.type === 'coin') {
                                 activeChar.coins = activeChar.coins || {cp:0,sp:0,gp:0};
                                 activeChar.coins[g.coin] = (activeChar.coins[g.coin]||0) + g.qty;
-                                addSystemLog(`💰 +${g.qty} ${g.cname||g.coin}（已添加至角色）`, 'success');
                             }
                         });
                         updateSurvivalUI();
@@ -3011,6 +3004,7 @@
                         const label = this.dataset.label;
 
                         if (cmd === 'ts100') {
+                            deepCount = 0;
                             const shortLabels = {ts100:'探索'};
                             const shortLabel = shortLabels[cmd] || label;
                             const loadingDiv = await showLoadingAnimation(shortLabel);
@@ -3024,52 +3018,83 @@
                                 if (!hasGains && !result.isHostile) unlockEvents();
                             }
                         } else if (cmd === 'deep') {
-                            const loadingDiv = await showLoadingAnimation('调查');
-                            loadingDiv.remove();
-                            addSystemLog('🔍 队伍仔细调查周围环境……', 'system');
-                            rollCount++;
-                            document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
-                            checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
-                            survival.totalEvents++;
-                            updateSurvivalUI();
-                            unlockEvents();
-                        } else if (cmd === 'rest') {
-                            // 原地休整需要燃料
-                            const fuelTotal = Object.values(survival.fuel).reduce(function(a,b) { return a+b; }, 0);
-                            if (fuelTotal <= 0) {
-                                addSystemLog('⛺ 无法进行原地休整：缺少燃料，无法生火取暖', 'warning');
+                            deepCount++;
+                            if (deepCount > 5) {
+                                addSystemLog('🔍 附近没有什么能调查的了', 'warning');
                                 unlockEvents(); return;
                             }
+                            const loadingDiv = await showLoadingAnimation('调查');
+                            loadingDiv.remove();
+                            const result = executeEvent('dc100', '', 0);
+                            if (!_knockedDownDuringEvent) {
+                                const hasGains = displayResult(result, '🔍 调查附近');
+                                updateSurvivalUI();
+                                if (activeChar && activeCharId) charData[activeCharId] = activeChar;
+                                if (!hasGains && !result.isHostile) unlockEvents();
+                            }
+                        } else if (cmd === 'rest') {
+                            deepCount = 0;
                             const loadingDiv2 = await showLoadingAnimation('休整');
                             loadingDiv2.remove();
-                            for (const fk of ['firewood','pine_branch','coal','resin','glow_moss','iron_resin']) {
-                                if (survival.fuel[fk] > 0) { survival.fuel[fk]--; break; }
+                            var fuelPriority = ['pine_branch','resin','glow_moss','iron_resin'];
+                            function countFuel() {
+                                var t = 0;
+                                for (var fk of fuelPriority) t += (survival.fuel[fk]||0) * (fk === 'iron_resin' ? 2 : 1);
+                                return t;
                             }
-                            rollCount++;
-                            document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
-                            survival.totalEvents++;
+                            function consumeFuel(need) {
+                                for (var fk of fuelPriority) {
+                                    var val = (survival.fuel[fk]||0) * (fk === 'iron_resin' ? 2 : 1);
+                                    if (val <= 0) continue;
+                                    if (val >= need) {
+                                        if (fk === 'iron_resin') survival.fuel[fk] -= Math.ceil(need / 2);
+                                        else survival.fuel[fk] -= need;
+                                        return true;
+                                    } else { need -= val;
+                                        survival.fuel[fk] = 0; }
+                                }
+                                return false;
+                            }
+                            var totalFuel = countFuel();
+                            // 至少需要1份燃料才能休整
+                            if (totalFuel < 1) {
+                                addSystemLog('⛺ 无法原地休整：燃料不足（至少需1份，长休需4份）', 'warning');
+                                unlockEvents(); return;
+                            }
                             if (!survival.isInShelter) {
                                 survival.isInShelter = true;
                                 survival.shelterType = 'camp';
                             }
-                            const restId = 'rest_' + Date.now();
-                            const entry = {
+                            var restId = 'rest_' + Date.now();
+                            var entry = {
                                 time: new Date().toLocaleTimeString(),
                                 label: '⛺ 原地休整',
                                 output: '选择休整方式',
-                                html: '<div class="log-entry"><span class="log-time">' + new Date().toLocaleTimeString() + '</span><span class="log-label">⛺ 原地休整</span><div class="log-content"><div style="color:#b0d4f0;margin-bottom:0.4rem;">已搭建临时营地，请选择休整方式：</div><div id="' + restId + '" style="display:flex;gap:8px;"><button style="padding:4px 16px;background:rgba(60,140,220,0.15);color:#88ccff;border:1px solid rgba(74,128,184,0.3);border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:inherit;" data-resttype="long">🛌 长休（满HP，解除严寒）</button><button style="padding:4px 16px;background:rgba(60,140,220,0.15);color:#88ccff;border:1px solid rgba(74,128,184,0.3);border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:inherit;" data-resttype="short">☕ 短休（1d8+体调HP）</button></div></div></div>'
+                                html: '<div class="log-entry"><span class="log-time">' + new Date().toLocaleTimeString() + '</span><span class="log-label">⛺ 原地休整</span><div class="log-content"><div style="color:#b0d4f0;margin-bottom:0.4rem;">已搭建临时营地，可用燃料: ' + totalFuel + '（长休需4，短休需1）</div><div id="' + restId + '" style="display:flex;gap:8px;"><button style="padding:4px 16px;background:rgba(60,140,220,0.15);color:#88ccff;border:1px solid rgba(74,128,184,0.3);border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:inherit;" data-resttype="long">🛌 长休（满HP，解除严寒）</button><button style="padding:4px 16px;background:rgba(60,140,220,0.15);color:#88ccff;border:1px solid rgba(74,128,184,0.3);border-radius:4px;cursor:pointer;font-size:0.75rem;font-family:inherit;" data-resttype="short">☕ 短休（1d8+体调HP）</button></div></div></div>'
                             };
                             fullLog.push({ time: entry.time, label: entry.label, output: entry.output });
                             displayLog.push(entry);
                             if (displayLog.length > MAX_DISPLAY) displayLog.shift();
                             renderDisplayLog();
                             setTimeout(function() {
-                                const btns = document.getElementById(restId);
+                                var btns = document.getElementById(restId);
                                 if (!btns) { unlockEvents(); return; }
                                 btns.querySelectorAll('button').forEach(function(b) {
                                     b.addEventListener('click', function() {
-                                        const type = this.dataset.resttype;
-                                        var doneMsg = '<span style="color:#6abf8a;font-size:0.75rem;">' + (type==='long'?'🛌 长休完成':'☕ 短休完成') + '</span>';
+                                        var type = this.dataset.resttype;
+                                        var need = type === 'long' ? 4 : 1;
+                                        if (countFuel() < need) {
+                                            btns.innerHTML = '<span style="color:#e0556a;font-size:0.75rem;">⛔ 燃料不足（需' + need + '，可用' + countFuel() + '）</span>';
+                                            updateSurvivalUI();
+                                            unlockEvents();
+                                            return;
+                                        }
+                                        consumeFuel(need);
+                                        // 计数事件
+                                        rollCount++;
+                                        document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
+                                        survival.totalEvents++;
+                                        var doneMsg = '<span style="color:#6abf8a;font-size:0.75rem;">' + (type==='long'?'🛌 长休完成':'☕ 短休完成') + '（消耗燃料' + need + '）</span>';
                                         btns.innerHTML = doneMsg;
                                         _patchDisplayLogDiv(restId, doneMsg);
                                         if (type === 'long') {
@@ -3080,10 +3105,10 @@
                                                 addSystemLog('❄️ 庇护所长休，严寒全部解除', 'success'); }
                                             addSystemLog('🛌 长休完成，HP已恢复', 'success');
                                         } else {
-                                            if (activeChar) { const heal = rollDiceExpr('1d8') + abilityMod(activeChar.con);
-                                                activeChar.hp = Math.min(activeChar.hp + heal, activeChar.hpMax);
+                                            if (activeChar) { var healVal = rollDiceExpr('1d8') + abilityMod(activeChar.con);
+                                                activeChar.hp = Math.min(activeChar.hp + healVal, activeChar.hpMax);
                                                 renderCharDetail(activeCharId);
-                                                addSystemLog('☕ 短休恢复 ' + heal + ' HP', 'success'); }
+                                                addSystemLog('☕ 短休恢复 ' + healVal + ' HP', 'success'); }
                                             if (survival.coldLevel > 0) { survival.coldLevel = Math.max(0, survival.coldLevel - 1);
                                                 addSystemLog('❄️ 庇护所短休，解除1级严寒', 'success'); }
                                         }
@@ -3094,9 +3119,33 @@
                                 });
                             }, 50);
                         } else if (cmd === 'back') {
+                            deepCount = 0;
                             const loadingDiv3 = await showLoadingAnimation('返回');
                             loadingDiv3.remove();
                             addSystemLog('↩ 队伍沿原路返回……', 'system');
+                            // 生存检定DC12
+                            var survBonus = 0, survProf = '';
+                            if (activeChar) {
+                                survBonus = abilityMod(activeChar.wis);
+                                if ((activeChar.skillProfs||{})['生存'] || (activeChar.saveProfs||{})['感知']) {
+                                    survBonus += activeChar.profBonus || 0;
+                                    survProf = '(熟练+' + (activeChar.profBonus||0) + ')';
+                                }
+                            }
+                            var survD20 = rand(20);
+                            var survTotal = survD20 + survBonus;
+                            if (survTotal < 12) {
+                                addSystemLog('🧭 返回时迷失方向（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' < DC12），自动深入雪原', 'warning');
+                                // 自动执行深入雪原
+                                const autoResult = executeEvent('ts100', '', 0);
+                                if (!_knockedDownDuringEvent) {
+                                    displayResult(autoResult, '⬇ 深入雪原');
+                                    updateSurvivalUI();
+                                    if (activeChar && activeCharId) charData[activeCharId] = activeChar;
+                                }
+                                unlockEvents(); return;
+                            }
+                            addSystemLog('🧭 返回成功（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' ≥ DC12）', 'success');
                             rollCount++;
                             document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                             survival.totalEvents++;
@@ -3297,7 +3346,7 @@
             function doOrient() {
                 if (checkKnockdown()) return;
                 if (!survival.isLost) { addSystemLog('🧭 当前未迷失，无需方向判断', 'system'); return; }
-                let dc = 15 + survival.lostDcPenalty;
+                let dc = 15; // 方向判断固定DC15
                 let bonus = 0;
                 if (activeChar) {
                     const wisMod = abilityMod(activeChar.wis);
@@ -3332,7 +3381,6 @@
                 if (survival.fuel.firewood > 0) fuelTypes.push({ key: 'firewood', label: '柴火' });
 
                 if (fuelTypes.length === 0) { addSystemLog('🔥 没有可用燃料', 'warning'); return; }
-                if (survival.lightActive) { addSystemLog('🔥 已有火源', 'system'); return; }
 
                 // 简单选择第一个可用燃料
                 const choice = fuelTypes[0];
