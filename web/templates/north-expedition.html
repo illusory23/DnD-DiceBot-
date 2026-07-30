@@ -398,6 +398,11 @@
             transition: 0.2s;
             text-align: center;
             backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
         }
         .event-card:hover {
             background: rgba(40, 100, 180, 0.25);
@@ -1021,7 +1026,8 @@
             .event-cards {
                 grid-template-columns: repeat(2, 1fr);
             }
-            .event-card { padding: 0.7rem 0.5rem; }
+            .event-card { padding: 0.7rem 0.5rem;
+                min-height: 60px; }
             .event-card .cmd { font-size: 0.85rem; }
             .hero-title h1 {
                 font-size: 1.5rem;
@@ -1144,7 +1150,6 @@
                         <select id="charSelect">
                             <option value="">— 选择角色 —</option>
                         </select>
-                        <button id="createCharBtn">+ 新建</button>
                     </div>
                     <div id="charDetailContainer">
                         <div style="color:#5a7a9a; font-size:0.8rem; text-align:center; padding:0.8rem 0;">请选择或创建角色</div>
@@ -1173,7 +1178,6 @@
                                 <span class="cold-dot" data-i="0"></span>
                                 <span class="cold-dot" data-i="1"></span>
                                 <span class="cold-dot" data-i="2"></span>
-                                <span class="cold-dot" data-i="3"></span>
                             </div>
                             <span class="value" id="coldDisplay">0/3</span>
                             <span class="sub-text" id="coldEffect">无效果</span>
@@ -1186,6 +1190,7 @@
                         <div class="survival-info">
                             <span class="label">口粮</span>
                             <span class="value" id="rationDisplay">3 份</span>
+                            <span class="value" id="bpFoodDisplay" style="font-size:0.72rem;color:#9cc8f0;">食物 0 份</span>
                             <span class="sub-text" id="rationCountdown">下次消耗: 4次事件后</span>
                         </div>
                     </div>
@@ -1214,7 +1219,6 @@
                     <div class="survival-actions">
                         <button data-action="orient" id="orientBtn">🧭 方向判断</button>
                         <button data-action="light" id="lightBtn">🔥 生火</button>
-                        <button data-action="extinguish" id="extinguishBtn">🚫 灭火</button>
                         <button data-action="consume_ration" id="consumeRationBtn">🍖 进食</button>
                         <button data-action="camp" id="campBtn">⛺ 扎营</button>
                     </div>
@@ -1239,10 +1243,11 @@
                         <div class="book-back"></div>
                         <div class="book-left-page">
                             <div class="book-page-header">
-                                <span class="book-tab" data-booktab="notes">📖 冒险者笔记</span>
                                 <span class="book-tab active" data-booktab="rules">📜 生存法则</span>
+                                <span class="book-tab" data-booktab="notes">📖 冒险者笔记</span>
                                 <span class="book-tab" data-booktab="journal">📝 冒险笔记</span>
                                 <span class="book-tab" data-booktab="gifts">🎁 雪原馈赠</span>
+                                <span class="book-tab" data-booktab="creatures">🐺 冰原生物</span>
                             </div>
                             <div class="book-page-content" id="bookPageContent">
                                 <!-- 动态填充 -->
@@ -1301,7 +1306,7 @@
             const TABLES = {
 
                 ts100: {
-                    label: '随机探索事件',
+                    label: '探索雪原',
                     dice: 'd100',
                     desc: '探索苍白大地的未知领域',
                     items: {
@@ -1309,8 +1314,8 @@
                         20: ['继续深入', null],
                         21: ['进入随机遭遇', 'zy100'],
                         40: ['进入随机遭遇', 'zy100'],
-                        41: ['采集资源（调查DC12，成功则骰1d100，1-45→cl50，46-100→柴火与石块）', null],
-                        60: ['采集资源（调查DC12，成功则骰1d100，1-45→cl50，46-100→柴火与石块）', null],
+                        41: ['采集资源（调查DC12）', null],
+                        60: ['采集资源（调查DC12）', null],
                         61: ['调查附近', 'dc100'],
                         85: ['调查附近', 'dc100'],
                         86: ['原地修整（长休/短休）', null],
@@ -1353,8 +1358,8 @@
                         10: ['特殊发现', 'fx100'],
                         11: ['发现踪迹（下次调查检定优势）', null],
                         35: ['发现踪迹（下次调查检定优势）', null],
-                        36: ['发现异常（感知DC12，失败→zy100）', null],
-                        60: ['发现异常（感知DC12，失败→zy100）', null],
+                        36: ['发现异常（感知DC12）', null],
+                        60: ['发现异常（感知DC12）', null],
                         61: ['发现材料', 'cl50'],
                         85: ['发现材料', 'cl50'],
                         86: ['一无所获', null],
@@ -1429,18 +1434,18 @@
                     dice: 'd12',
                     desc: '雪原上的生灵',
                     items: {
-                        1: ['1d2只 雪蹄兔（跟踪→浆果丛，1d2份口粮，生存DC12）', null],
-                        2: ['1d5只 野鹿（跟踪→野菜/荧光苔，自然DC15，1d100:1-20荧光苔2份，21-100野菜1d2份口粮）', null],
-                        3: ['1d2只 雪鸮（夜间跟随→岩洞，生存DC15）', null],
-                        4: ['1只 都灵寒鸦（喂食1份口粮→示警，驯养DC10）', null],
-                        5: ['1只 雪狐（喂食1份口粮→引路至特殊发现，驯养DC15）', null],
-                        6: ['2d3只 霜鼠（跟踪→温暖地脉，2次事件体质优势，自然DC15）', null],
-                        7: ['1只 雪貂（驯兽DC10→避风角落，1次短休）', null],
-                        8: ['1d3只 野鹿（跟踪→野菜/荧光苔，自然DC15，1d100:1-20荧光苔2份，21-100野菜1d2份口粮）', null],
-                        9: ['1d4只 麝牛（驯养DC15，失败敌对）', null],
-                        10: ['1d4只 银蛛（采集蛛网但敌对）', null],
-                        11: ['1d3只 霜羽雉（跟随→巢穴，1d3蛋+1d2银羽，自然DC15）', null],
-                        12: ['1d4只绒蜂 绒蜂巢（采集绒蜂蜜，驯养DC15，失败敌对）', null],
+                        1: ['1d2只 雪蹄兔（可跟踪，生存DC12）', null],
+                        2: ['1d5只 野鹿（可跟踪，自然DC15）', null],
+                        3: ['1d2只 雪鸮（可跟随，生存DC15）', null],
+                        4: ['1只 都灵寒鸦（可喂食，驯养DC10）', null],
+                        5: ['1只 雪狐（可喂食，驯养DC15）', null],
+                        6: ['2d3只 霜鼠（可跟踪，自然DC15）', null],
+                        7: ['1只 雪貂（可驯兽DC10）', null],
+                        8: ['1d3只 野鹿（可跟踪，自然DC15）', null],
+                        9: ['1d4只 麝牛（驯养DC15）', null],
+                        10: ['1d4只 银蛛（可采集）', null],
+                        11: ['1d3只 霜羽雉（可跟随，自然DC15）', null],
+                        12: ['1d4只绒蜂 绒蜂巢（可采集，驯养DC15）', null],
                     }
                 },
 
@@ -1469,18 +1474,18 @@
                     dice: 'd50',
                     desc: '雪原上可收集的资源',
                     items: {
-                        1: ['药草（与魔法泉水调配→2d4+2生命，独立使用→1d2生命或止血）', null],
-                        6: ['药草（与魔法泉水调配→2d4+2生命，独立使用→1d2生命或止血）', null],
+                        1: ['药草（可止血恢复，1d2生命）', null],
+                        6: ['药草（可止血恢复，1d2生命）', null],
                         7: ['浆果/野菜（获得1d2份口粮）', null],
                         15: ['浆果/野菜（获得1d2份口粮）', null],
-                        16: ['松枝（可制作火把，可作为柴火）', null],
-                        23: ['松枝（可制作火把，可作为柴火）', null],
-                        24: ['松脂（可点燃，可制作火把）', null],
-                        30: ['松脂（可点燃，可制作火把）', null],
+                        16: ['松枝（可作为柴火）', null],
+                        23: ['松枝（可作为柴火）', null],
+                        24: ['松脂（可点燃）', null],
+                        30: ['松脂（可点燃）', null],
                         31: ['普通兽骨（可打磨工具，可出售，1d3银币）', null],
                         35: ['普通兽骨（可打磨工具，可出售，1d3银币）', null],
-                        36: ['矿粒（可熔炼提取，可出售，1d10银币）', null],
-                        42: ['矿粒（可熔炼提取，可出售，1d10银币）', null],
+                        36: ['矿粒（可出售，1d10银币）', null],
+                        42: ['矿粒（可出售，1d10银币）', null],
                         43: ['钱袋（获得1d3金币）', null],
                         46: ['钱袋（获得1d3金币）', null],
                         47: ['特殊材料', 'cl100'],
@@ -1497,16 +1502,16 @@
                         25: ['荧光苔（照明半径15尺，易燃，可在暴风雪中点燃）', null],
                         26: ['松茸（可出售5-8银币，陷阱诱饵，食用后下次力量/体质优势）', null],
                         45: ['松茸（可出售5-8银币，陷阱诱饵，食用后下次力量/体质优势）', null],
-                        46: ['铁松松脂（附赠动作涂抹武器，1d6火焰伤害）', null],
-                        65: ['铁松松脂（附赠动作涂抹武器，1d6火焰伤害）', null],
+                        46: ['铁松松脂（易燃，可在暴风雪中使用）', null],
+                        65: ['铁松松脂（易燃，可在暴风雪中使用）', null],
                         66: ['绒蜂蜜（可出售2-4金币，陷阱诱饵，处理后食用1d4生命+寒冷抗性；直接食用1d3，2-3腹泻）', null],
                         72: ['绒蜂蜜（可出售2-4金币，陷阱诱饵，处理后食用1d4生命+寒冷抗性；直接食用1d3，2-3腹泻）', null],
-                        73: ['银蛛蛛网（制作网兜/陷阱，可出售6-10银币）', null],
-                        85: ['银蛛蛛网（制作网兜/陷阱，可出售6-10银币）', null],
-                        86: ['霜晶核（制作魔法物品/附魔武器，可出售5-10金币）', null],
-                        95: ['霜晶核（制作魔法物品/附魔武器，可出售5-10金币）', null],
-                        96: ['寒铁髓（制作魔法物品，可出售10-20金币）', null],
-                        100: ['寒铁髓（制作魔法物品，可出售10-20金币）', null],
+                        73: ['银蛛蛛网（可出售6-10银币）', null],
+                        85: ['银蛛蛛网（可出售6-10银币）', null],
+                        86: ['霜晶核（蕴含冰冷能量，可出售5-10金币）', null],
+                        95: ['霜晶核（蕴含冰冷能量，可出售5-10金币）', null],
+                        96: ['寒铁髓（寒铁中最为坚硬，魔力相性最好的部分的精华，可出售10-20金币）', null],
+                        100: ['寒铁髓（寒铁中最为坚硬，魔力相性最好的部分的精华，可出售10-20金币）', null],
                     }
                 },
 
@@ -1519,24 +1524,24 @@
                         10: ['岩盐（腌制/调味，可出售2-4银币）', null],
                         11: ['煤矿（火炉生火，可出售3-5银币）', null],
                         25: ['煤矿（火炉生火，可出售3-5银币）', null],
-                        26: ['铜矿（熔炼制作工具，可出售2-4银币）', null],
-                        35: ['铜矿（熔炼制作工具，可出售2-4银币）', null],
-                        36: ['铁矿（熔炼制作工具，可出售5-10银币）', null],
-                        50: ['铁矿（熔炼制作工具，可出售5-10银币）', null],
-                        51: ['寒铁矿（熔炼制作工具，可出售1-2金币；1d6=6产出寒铁髓）', null],
-                        60: ['寒铁矿（熔炼制作工具，可出售1-2金币；1d6=6产出寒铁髓）', null],
+                        26: ['铜矿（可熔炼制作工具，可出售2-4银币）', null],
+                        35: ['铜矿（可熔炼制作工具，可出售2-4银币）', null],
+                        36: ['铁矿（可熔炼制作工具，可出售5-10银币）', null],
+                        50: ['铁矿（可熔炼制作工具，可出售5-10银币）', null],
+                        51: ['寒铁矿（北境特产，可熔炼制作工具，可出售1-2金币）', null],
+                        60: ['寒铁矿（北境特产，可熔炼制作工具，可出售1-2金币）', null],
                         61: ['银矿（可出售2-4金币）', null],
                         70: ['银矿（可出售2-4金币）', null],
-                        71: ['金矿（制作饰品/魔法物品，可出售10-20金币）', null],
-                        75: ['金矿（制作饰品/魔法物品，可出售10-20金币）', null],
-                        76: ['冰水晶（制作魔法物品，可出售3-5金币）', null],
-                        85: ['冰水晶（制作魔法物品，可出售3-5金币）', null],
-                        86: ['霜晶核（制作魔法物品/附魔武器，可出售5-10金币）', null],
-                        92: ['霜晶核（制作魔法物品/附魔武器，可出售5-10金币）', null],
+                        71: ['金矿（可出售10-20金币）', null],
+                        75: ['金矿（可出售10-20金币）', null],
+                        76: ['冰水晶（浅蓝色的小块魔法水晶，可出售3-5金币）', null],
+                        85: ['冰水晶（浅蓝色的小块魔法水晶，可出售3-5金币）', null],
+                        86: ['霜晶核（蕴含冰冷能量，可出售5-10金币）', null],
+                        92: ['霜晶核（蕴含冰冷能量，可出售5-10金币）', null],
                         93: ['化石（可出售1-30金）', null],
                         96: ['化石（可出售1-30金）', null],
-                        97: ['宝石（制作饰品/魔法物品，可出售20-50金币）', null],
-                        100: ['宝石（制作饰品/魔法物品，可出售20-50金币）', null],
+                        97: ['宝石（可出售20-50金币）', null],
+                        100: ['宝石（可出售20-50金币）', null],
                     }
                 },
 
@@ -1555,8 +1560,8 @@
                         55: ['发现天然温泉（可短休，回复1d4生命，下次体质优势）', null],
                         56: ['发现岩洞（可长休/短休，躲避恶劣天气）', null],
                         85: ['发现岩洞（可长休/短休，躲避恶劣天气）', null],
-                        86: ['发现矿坑（可调查，若携带矿镐可采掘2次→kw100）', null],
-                        100: ['发现矿坑（可调查，若携带矿镐可采掘2次→kw100）', null],
+                        86: ['发现矿坑（可调查，需携带矿镐）', null],
+                        100: ['发现矿坑（可调查，需携带矿镐）', null],
                     }
                 },
 
@@ -1565,13 +1570,13 @@
                     dice: 'd8',
                     desc: '被遗忘的古老遗存',
                     items: {
-                        1: ['远古战场（奥秘/调查DC20，成功获得魔法物品）', null],
-                        2: ['巨兽骨骸（奥秘DC18→巨兽秘骨，力量DC18采集）', null],
+                        1: ['远古战场（满地断裂的武器和破损的甲胄，奥秘/调查DC20）', null],
+                        2: ['巨兽骨骸（远古巨兽的坚硬骨架，奥秘DC18，力量DC18采集）', null],
                         3: ['古老墓穴（也许沉睡着古老的存在）', null],
-                        4: ['符文法阵（奥秘DC18识别，DC15激活）', null],
-                        5: ['废弃神殿（神像上覆盖着白雪）', null],
-                        6: ['残破石碑（历史/宗教DC15，获得线索，下次相关检定优势）', null],
-                        7: ['倒塌建筑（力量DC15搬开碎石，成功获得1件完好旧物）', null],
+                        4: ['符文法阵（也许还能激活，奥秘DC18识别，DC15激活）', null],
+                        5: ['废弃神殿（神像上覆盖着厚厚一层白雪）', null],
+                        6: ['残破石碑（记载着不为人知的故事，历史/宗教DC15）', null],
+                        7: ['倒塌建筑（埋没了一段历史，力量DC15搬开碎石）', null],
                         8: ['神秘祭坛（献祭的对象你也许承受不起）', null],
                     }
                 },
@@ -1611,35 +1616,35 @@
                     dice: '',
                     desc: '查询32项物品',
                     items: {
-                        1: '药草（与魔法泉水调配→2d4+2生命，独立使用→1d2生命或止血）',
-                        2: '魔法泉水（与药草调配→2d4+2生命，单独饮用→下次智力优势）',
+                        1: '药草（直接使用恢复1d2生命或止血）',
+                        2: '魔法泉水（饮用后下次智力检定优势）',
                         3: '浆果/野菜（获得1d2份口粮）',
-                        4: '松枝（可制作火把，可作为柴火）',
+                        4: '松枝（可作为柴火）',
                         5: '荧光苔（照明半径15尺，易燃，可在暴风雪中点燃）',
-                        6: '松茸（可出售5-8银币，陷阱诱饵，食用后下次力量/体质优势）',
-                        7: '松脂（可点燃，可制作火把）',
-                        8: '铁松松脂（附赠动作涂抹武器，1d6火焰伤害）',
+                        6: '松茸（可出售5-8银币，食用后下次力量/体质优势）',
+                        7: '松脂（可点燃）',
+                        8: '铁松松脂（易燃，可在暴风雪中使用）',
                         9: '普通兽骨（可打磨工具，可出售1d3银币）',
                         10: '霜羽雉的蛋（可孵化，可出售3-5银币）',
                         11: '霜羽雉的银羽（装饰品，可出售1-3金币）',
-                        12: '绒蜂蜜（可出售2-4金币，陷阱诱饵，处理后食用1d4生命+寒冷抗性）',
-                        13: '银蛛蛛网（制作网兜/陷阱，可出售6-10银币）',
+                        12: '绒蜂蜜（可出售2-4金币，食用后1d4生命+寒冷抗性）',
+                        13: '银蛛蛛网（可出售6-10银币）',
                         14: '矿粒（可出售1d10银币）',
                         15: '岩盐（腌制/调味，可出售2-4银币）',
                         16: '煤矿（火炉生火，可出售3-5银币）',
-                        17: '铜矿（熔炼制作工具，可出售1-2银币）',
-                        18: '铁矿（熔炼制作工具，可出售5-10银币）',
+                        17: '铜矿（可熔炼制作工具，可出售1-2银币）',
+                        18: '铁矿（可熔炼制作工具，可出售5-10银币）',
                         19: '银矿（可出售2-4金币）',
-                        20: '金矿（制作饰品/魔法物品，可出售10-20金币）',
-                        21: '寒铁矿（熔炼制作工具，可出售1-2金币；1d6=6产出寒铁髓）',
-                        22: '寒铁髓（制作魔法物品，可出售10-20金币）',
-                        23: '霜晶核（制作魔法物品/附魔武器，可出售5-10金币）',
-                        24: '冰水晶（制作魔法物品，可出售3-5金币）',
+                        20: '金矿（可出售10-20金币）',
+                        21: '寒铁矿（北境特产，可熔炼制作工具，可出售1-2金币）',
+                        22: '寒铁髓（寒铁中最为坚硬，魔力相性最好的部分的精华，可出售10-20金币）',
+                        23: '霜晶核（蕴含冰冷能量，可出售5-10金币）',
+                        24: '冰水晶（浅蓝色的小块魔法水晶，可出售3-5金币）',
                         25: '化石（可出售1-30金）',
-                        26: '宝石（制作饰品/魔法物品，可出售20-50金币）',
+                        26: '宝石（可出售20-50金币）',
                         27: '钱袋（获得1d3金币）',
-                        28: '巨兽之骨（制作魔法物品，可出售5-10金币）',
-                        29: '巨兽秘骨（制作魔法物品，可出售30-50金币）',
+                        28: '巨兽之骨（埋骨于北境的远古巨兽的骨头，可出售5-10金币）',
+                        29: '巨兽秘骨（埋骨于北境的远古巨兽的骨头，其中精华在寒冷的淬炼下拥有了优良的魔力相性，可出售30-50金币）',
                         30: '兽肉（烹煮后2d2份口粮，陷阱诱饵，可出售1-5银币）',
                         31: '白花藤（磨粉撒伤口，1d4生命，可出售2-5金币）',
                         32: '魔纹卷轴（奥秘DC18-20鉴定，可出售视内容而定）',
@@ -1797,6 +1802,22 @@
             ];
             let currentPageIdx = 0;
             let discoveredItems = []; // 所有探索获得过的物品
+            let craftedItems = {}; // 已合成过的物品 { 物品名: true }
+            // 物品合成隐藏描述（合成后解锁显示）
+            const ITEM_SYNTHESIS = {
+                '药草': '合成：药草×4 + 魔法泉水×2 → 恢复药水（2d4+2生命）',
+                '魔法泉水': '合成：魔法泉水×2 + 药草×4 → 恢复药水（2d4+2生命）',
+                '松枝': '合成：松枝×1 + 可燃物×2 → 火把（照明2次事件）',
+                '银蛛蛛网': '合成：银蛛蛛网×2 → 网兜（可制作陷阱）[可选追加松枝×1+银蛛蛛网×1 → 长柄网兜（距离+5尺）]',
+                '松脂': '合成：松脂×1 + 药草×1 → 驱寒药膏（2次事件内抵抗一次寒冷环境体质豁免）',
+            };
+            let discoveredCreatures = []; // 所有遭遇过的生物
+            // 生物分类：敌对/中立
+            const CREATURE_CATEGORY = {
+                '冰原狼':'hostile','野猪':'hostile','柯莫得白熊':'hostile','卡佐巨熊':'hostile','冈达尔巨鹰':'hostile','寒脊蛇':'hostile',
+                '雪蹄兔':'neutral','野鹿':'neutral','雪鸮':'neutral','都灵寒鸦':'neutral','雪狐':'neutral','霜鼠':'neutral','雪貂':'neutral','麝牛':'neutral','银蛛':'neutral','霜羽雉':'neutral','绒蜂巢':'neutral',
+                '霜巨魔':'hostile','恶尸':'hostile','瘦鹿':'hostile','冬之氏族精灵':'neutral','霜灵':'neutral','水星守卫':'neutral'
+            };
 
             // 掷骰加载动画（六点弹跳，约3秒）
             function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
@@ -2007,13 +2028,11 @@
                     const total = d20 + bonus;
                     const success = total >= dc;
 
-                    let msg = `❄️ 严寒考验 (DC${dc})：d20=${d20} + ${bonus}${profText} = ${total} → `;
+                    let msg = `❄️ 严寒考验 (DC${dc})：d20=${d20} + ${bonus}${profText} = ${total}`;
                     if (success) {
-                        msg += '✅ 通过';
                         addSystemLog(msg, 'success');
                     } else {
                         survival.coldLevel = Math.min(survival.coldLevel + 1, 3);
-                        msg += `❌ 失败！严寒等级升至 ${survival.coldLevel}/3`;
                         addSystemLog(msg, 'danger');
                         if (survival.coldLevel >= 3) {
                             addSystemLog('⚠️ 严寒3级，陷入力竭1级！', 'danger');
@@ -2042,7 +2061,25 @@
                             addSystemLog('⚠️ 口粮耗尽！进入断粮状态！', 'danger');
                         }
                     } else {
+                        // 口粮归零，自动消耗背包食物作为本事件的口粮
+                        if (activeChar && activeChar.inventory) {
+                            var foodItems = ['浆果/野菜','兽肉'];
+                            for (var fi = 0; fi < foodItems.length; fi++) {
+                                for (var si = 0; si < activeChar.inventory.length; si++) {
+                                    if (activeChar.inventory[si].name === foodItems[fi] && activeChar.inventory[si].qty > 0) {
+                                        activeChar.inventory[si].qty--;
+                                        survival.isStarving = false;
+                                        survival.starvationCount = 0;
+                                        addSystemLog('🍖 消耗背包中的' + foodItems[fi] + '（剩余口粮: ' + survival.rations + '）', 'system');
+                                        if (activeChar.inventory[si].qty <= 0) activeChar.inventory.splice(si, 1);
+                                        updateSurvivalUI();
+                                        return true; // 食物替代了口粮消耗，不进入断粮
+                                    }
+                                }
+                            }
+                        }
                         survival.isStarving = true;
+                        survival.starvationCount = 0;
                         addSystemLog('⚠️ 口粮耗尽！进入断粮状态！体质豁免劣势，移动速度-10尺', 'danger');
                     }
                     updateSurvivalUI();
@@ -2054,14 +2091,31 @@
             // 断粮后每3次事件检查，无口粮则损失1d4生命
             function checkStarvation() {
                 if (!survival.isStarving) return;
+                // 每次事件先尝试从背包自动消耗食物
+                if (survival.rations <= 0 && activeChar && activeChar.inventory) {
+                    var foodItems = ['浆果/野菜','兽肉'];
+                    for (var fi = 0; fi < foodItems.length; fi++) {
+                        for (var si = 0; si < activeChar.inventory.length; si++) {
+                            if (activeChar.inventory[si].name === foodItems[fi] && activeChar.inventory[si].qty > 0) {
+                                activeChar.inventory[si].qty--;
+                                survival.isStarving = false;
+                                survival.starvationCount = 0;
+                                addSystemLog('🍖 消耗背包中的' + foodItems[fi] + '，断粮状态解除', 'success');
+                                if (activeChar.inventory[si].qty <= 0) activeChar.inventory.splice(si, 1);
+                                updateSurvivalUI();
+                                return;
+                            }
+                        }
+                    }
+                }
                 survival.starvationCount++;
                 if (survival.starvationCount >= 3) {
                     survival.starvationCount = 0;
                     if (survival.rations <= 0 && activeChar) {
                         const dmg = rollDiceExpr('1d4');
                         activeChar.hp = Math.max(0, activeChar.hp - dmg);
-                        addSystemLog(`💔 断粮导致 ${dmg} 点生命流失！`, 'danger');
                         renderCharDetail(activeCharId);
+                        addSystemLog(`💔 断粮导致 ${dmg} 点生命流失！`, 'danger');
                         if (activeChar.hp <= 0) { checkHpZero(); }
                     }
                 }
@@ -2091,15 +2145,13 @@
                     const totalO = d20o + bonus;
                     const success = totalO >= dc;
 
-                    let msg = `🧭 方向感检定 (DC${dc})：d20=${d20o} + ${bonus}${profText} = ${totalO} → `;
+                    let msg = `🧭 方向感检定 (DC${dc})：d20=${d20o} + ${bonus}${profText} = ${totalO}`;
                     if (success) {
-                        msg += '✅ 保持方向';
                         addSystemLog(msg, 'success');
                     } else {
                         survival.isLost = true;
                         survival.lostEventsRemaining = 2;
                         survival.lostDcPenalty = Math.min(3, survival.lostDcPenalty + 1);
-                        msg += `❌ 迷失方向！剩余 ${survival.lostEventsRemaining} 次事件受影响，下次DC+${survival.lostDcPenalty}`;
                         addSystemLog(msg, 'danger');
                     }
                     updateSurvivalUI();
@@ -2143,9 +2195,8 @@
             }, {
                 trigger: { table: 'fx100', keyword: '猎人小屋' },
                 action: () => {
-                    const rations = rollDiceExpr('1d4');
-                    survival.rations += rations;
                     survival.isInShelter = true;
+                    // 猎人小屋口粮通过 ITEM_ACTIONS 加入背包
                     survival.shelterType = 'hunter_hut';
                     addSystemLog(`🏠 猎人小屋：获得 ${rations} 份口粮，进入庇护所`, 'success');
                 }
@@ -2170,9 +2221,8 @@
             }, {
                 trigger: { table: 'cl50', keyword: '浆果' },
                 action: () => {
-                    const rations = rollDiceExpr('1d2');
-                    survival.rations += rations;
-                    addSystemLog(`🍇 获得浆果/野菜 ${rations} 份口粮`, 'success');
+                    addSystemLog('🍇 发现浆果/野菜（已存入背包）', 'success');
+                    // 浆果/野菜通过 ITEM_ACTIONS 加入背包
                 }
             }, {
                 trigger: { table: 'cl50', keyword: '松枝' },
@@ -2197,8 +2247,8 @@
                 action: () => {
                     if (rand(6) === 6) {
                         const meat = rollDiceExpr('1d2');
-                        survival.rations += meat;
-                        addSystemLog(`🍖 陷阱中捕获兽肉 ${meat} 份口粮`, 'success');
+                        addSystemLog(`🍖 陷阱中捕获兽肉（已存入背包）`, 'success');
+                        // 兽肉通过 ITEM_ACTIONS 加入背包
                     }
                 }
             }, {
@@ -2247,7 +2297,7 @@
                 'cl50': {
                     ranges: [
                         [1,6,{item:'药草',qty:1,unit:'份'}],
-                        [7,15,{item:'浆果/野菜',qty_roll:'1d2',unit:'份口粮'}],
+                        [7,15,{item:'浆果/野菜',qty_roll:'1d2',unit:'份食物'}],
                         [16,23,{item:'松枝',qty:1,unit:'份'}],
                         [24,30,{item:'松脂',qty:1,unit:'份'}],
                         [31,35,{item:'普通兽骨',qty:1,unit:'份'}],
@@ -2270,7 +2320,7 @@
                 'fx100': {
                     ranges: [
                         [6,15,{item:'魔法泉水',qty:2,unit:'份'}],
-                        [16,40,{item:'口粮',qty_roll:'1d4',unit:'天'}],
+                        [16,40,{item:'口粮',qty_roll:'1d4',unit:'份'}],
                     ]
                 },
                 'kw100': {
@@ -2378,13 +2428,28 @@
                     desc = entry;
                     chainCmd = null;
                 }
-                // 掷出描述中的骰子表达式
-                desc = rollDiceInText(desc);
+
+                // 追踪生物遭遇
+                const creatureTables = ['ys10','zl12','sw100'];
+                if (creatureTables.includes(cmd)) {
+                    const cm = desc.match(/^(\d+)只?\s*(.+?)(?:[（(]|$)/);
+                    if (cm) {
+                        const count = parseInt(cm[1]) || 1;
+                        const name = cm[2].trim();
+                        const existing = discoveredCreatures.find(function(c) { return c.name === name; });
+                        if (existing) { existing.totalCount += count;
+                            existing.times++; }
+                        else { discoveredCreatures.push({name:name, totalCount:count, times:1, cat:CREATURE_CATEGORY[name]||'neutral'}); }
+                    }
+                }
 
                 const indent = '   '.repeat(depth);
-                const arrow = depth === 0 ? '🎲' : '↳';
-                let outputLines = [`${arrow} ${table.label} [${dice}: ${val}]`];
-                outputLines.push(`${indent}${desc}`);
+                let outputLines = [];
+                // 仅顶层显示事件标题，链式内容不对外展示（保持神秘感）
+                if (depth === 0) {
+                    outputLines.push(`🎲 ${table.label}`);
+                    outputLines.push(`${desc}`);
+                }
 
                 // 记录统计（顶层才记录）
                 if (depth === 0) {
@@ -2429,33 +2494,50 @@
                     }
                 }
 
-                // 链式调用（附带回溯物品/钱币收益）
-                let chainOutput = '';
+                // 链式调用：仍然执行完整链，但只传递最终层的描述
                 let chainGains = [];
+                let finalDesc = desc;
+                let isHostile = false;
                 if (chainCmd && TABLE_NAMES.includes(chainCmd)) {
                     const subResult = executeEvent(chainCmd, '', depth + 1);
-                    if (subResult.output) {
-                        const lines = subResult.output.split('\n');
-                        const indented = lines.map(line => {
-                            if (line.startsWith('   ') || line.startsWith('↳')) return line;
-                            return indent + '   ' + line;
-                        });
-                        chainOutput = '\n' + indented.join('\n');
-                    }
                     if (subResult.gains) chainGains = subResult.gains;
+                    if (subResult.finalDesc) finalDesc = subResult.finalDesc;
+                    if (subResult.isHostile) isHostile = true;
                 }
 
-                // 检查本表是否有物品/钱币产出
+                // 检查本表是否有物品/钱币产出（仅最终层）
                 let myGain = null;
                 if (cmd !== 'wp' && !chainCmd) {
                     const action = findItemAction(cmd, val);
-                    if (action) myGain = { cmd, val, action };
+                    if (action) { if (action.qty_roll) action._rolledQty = rollDiceExpr(action.qty_roll); if (action.coin_roll) action._rolledCoin = rollDiceExpr(action.coin_roll);
+                        myGain = { cmd, val, action }; }
+                }
+                // 掷出描述中的骰子表达式（有gain时用预掷值替换）
+                if (myGain && myGain.action._rolledQty) {
+                    desc = desc.replace(/\d+d\d+/, myGain.action._rolledQty);
+                } else {
+                    desc = rollDiceInText(desc);
                 }
 
-                const output = outputLines.join('\n') + chainOutput;
-                // 聚合收益：链式收益优先，否则本表收益
+                // 顶层输出：只显示最终链结果，隐藏中间过程
+                let output;
+                if (depth === 0) {
+                    // 生物遭遇加上"遭遇"前缀
+                    const displayDesc = (isHostile || (!chainCmd && creatureTables.includes(cmd))) ? `遭遇${finalDesc}` : finalDesc;
+                    output = `🎲 ${table.label}\n${displayDesc}`;
+                } else {
+                    output = ''; // 中间层不产生输出
+                }
+
+                // 检测是否为敌对生物遭遇（仅在叶子节点判断）
+                if (!chainCmd && creatureTables.includes(cmd)) {
+                    const cname = desc.replace(/^\d+只?\s*/, '').split('（')[0].trim();
+                    if (CREATURE_CATEGORY[cname] === 'hostile') isHostile = true;
+                }
+
+                // 聚合收益：链式收益优先
                 const allGains = chainGains.length > 0 ? chainGains : (myGain ? [myGain] : []);
-                return { output, gains: allGains };
+                return { output: (depth===0 ? output : ''), gains: allGains, finalDesc: finalDesc, isHostile: isHostile };
             }
 
             // =========================================================================
@@ -2575,6 +2657,12 @@
                 // 口粮
                 document.getElementById('rationDisplay').textContent = `${survival.rations} 份`;
                 const rationNext = 4 - survival.eventsSinceRation;
+                var bpFood = 0;
+                if (activeChar && activeChar.inventory) {
+                    var foodNames = ['浆果/野菜','兽肉'];
+                    activeChar.inventory.forEach(function(it) { if (foodNames.includes(it.name)) bpFood += it.qty; });
+                }
+                document.getElementById('bpFoodDisplay').textContent = `食物 ${bpFood} 份`;
                 document.getElementById('rationCountdown').textContent =
                     survival.isStarving ? '⚠️ 断粮中！' : `下次消耗: ${rationNext}次事件后`;
 
@@ -2614,7 +2702,6 @@
                 // 生火按钮状态
                 const hasFuel = fuelTotal > 0;
                 document.getElementById('lightBtn').disabled = !hasFuel || survival.lightActive;
-                document.getElementById('extinguishBtn').disabled = !survival.lightActive;
                 document.getElementById('orientBtn').disabled = !survival.isLost;
                 document.getElementById('consumeRationBtn').disabled = survival.rations <= 0;
             }
@@ -2669,6 +2756,17 @@
                     }
                 }
 
+                // 敌对生物遭遇：显示战斗/逃离选项
+                let combatHtml = '';
+                if (result.isHostile) {
+                    const combatId = 'combat_' + Date.now();
+                    combatHtml = `<div id="${combatId}" style="margin-top:0.5rem;padding:0.5rem 0.7rem;background:rgba(200,60,80,0.08);border:1px solid rgba(200,60,80,0.25);border-radius:6px;font-size:0.75rem;">
+                        <div style="color:#e0556a;margin-bottom:0.3rem;">⚔️ 遭遇敌对生物！</div>
+                        <button style="padding:3px 14px;background:rgba(200,60,80,0.15);color:#e0556a;border:1px solid rgba(200,60,80,0.3);border-radius:3px;cursor:pointer;font-size:0.72rem;margin-right:8px;font-family:inherit;" onclick="campCombat('${combatId}')">⚔️ 战斗</button>
+                        <button style="padding:3px 14px;background:rgba(60,140,220,0.15);color:#88ccff;border:1px solid rgba(74,128,184,0.3);border-radius:3px;cursor:pointer;font-size:0.72rem;font-family:inherit;" onclick="campFlee('${combatId}')">🏃 逃离（隐匿DC15）</button>
+                    </div>`;
+                }
+
                 // 如果有物品/钱币收益且满足条件，生成收益提示
                 let gainInfoHtml = '';
                 if (gains.length > 0) {
@@ -2678,10 +2776,10 @@
                         if (!a) return;
                         if (a.coin) {
                             const cn = {gp:'金币',sp:'银币',cp:'铜币'};
-                            const qty = a.coin_roll ? rollDiceExpr(a.coin_roll) : 1;
+                            const qty = a._rolledCoin || (a.coin_roll ? rollDiceExpr(a.coin_roll) : 1);
                             gainDescs.push({type:'coin', coin:a.coin, qty:qty, cname:cn[a.coin]||a.coin, text:`💰 +${qty} ${cn[a.coin]||a.coin}`});
                         } else if (a.item) {
-                            const qty = a.qty_roll ? rollDiceExpr(a.qty_roll) : (a.qty||1);
+                            const qty = a._rolledQty || (a.qty_roll ? rollDiceExpr(a.qty_roll) : (a.qty||1));
                             const unit = a.unit||'份';
                             var wpNum = findWpNum(a.item);
                             gainDescs.push({type:'item', item:a.item, qty:qty, unit:unit, wpNum:wpNum, text:`📦 +${qty}${unit} ${a.item}`});
@@ -2716,7 +2814,7 @@
                     html: `<div class="log-entry">
                         <span class="log-time">${timeStr}</span>
                         <span class="log-label">${label}</span>
-                        <div class="log-content">${contentHtml}${gainInfoHtml}</div>
+                        <div class="log-content">${contentHtml}${combatHtml}${gainInfoHtml}</div>
                     </div>`
                 };
 
@@ -2733,33 +2831,112 @@
                 return gains.length > 0 && gainInfoHtml !== '';
             }
 
+            // 战斗/逃离处理
+            window.campCombat = function(combatId) {
+                const el = document.getElementById(combatId);
+                if (!el || el.dataset.done) return;
+                el.dataset.done = '1';
+                el.querySelectorAll('button').forEach(function(b) { b.disabled = true;
+                    b.style.opacity = '0.5'; });
+                var resultHtml = '<div style="color:#e0556a;font-size:0.75rem;margin-top:0.3rem;">⚔️ 进入战斗...</div>';
+                if (activeChar) {
+                    const dmg = rollDiceExpr('1d6') + 2;
+                    activeChar.hp = Math.max(0, activeChar.hp - dmg);
+                    renderCharDetail(activeCharId);
+                    resultHtml = '<div style="color:#e0556a;font-size:0.7rem;margin-top:0.3rem;">⚔️ 战斗中受到 ' + dmg + ' 点伤害</div>';
+                }
+                el.innerHTML += resultHtml;
+                _patchDisplayLogDiv(combatId, resultHtml);
+                if (activeChar && activeChar.hp <= 0) checkHpZero();
+                updateSurvivalUI();
+                unlockEvents();
+            };
+            window.campFlee = function(combatId) {
+                const el = document.getElementById(combatId);
+                if (!el || el.dataset.done) return;
+                el.dataset.done = '1';
+                el.querySelectorAll('button').forEach(function(b) { b.disabled = true;
+                    b.style.opacity = '0.5'; });
+                let bonus = 0, profText = '';
+                if (activeChar) { bonus = abilityMod(activeChar.dex);
+                    const skills = activeChar.skillProfs || {};
+                    if (skills['隐匿']) { bonus += activeChar.profBonus || 0;
+                        profText = '(熟练+' + (activeChar.profBonus||0) + ')'; } }
+                const d20 = rand(20);
+                const total = d20 + bonus;
+                var resultHtml = '';
+                if (total >= 15) {
+                    resultHtml = '<div style="color:#6abf8a;font-size:0.7rem;margin-top:0.3rem;">🏃 隐匿检定 d20=' + d20 + ' + ' + bonus + profText + ' = ' + total + ' ≥ DC15 → 逃离成功！</div>';
+                } else {
+                    resultHtml = '<div style="color:#e0556a;font-size:0.7rem;margin-top:0.3rem;">🏃 隐匿检定 d20=' + d20 + ' + ' + bonus + profText + ' = ' + total + ' < DC15 → 逃离失败！</div>';
+                    if (activeChar) {
+                        const dmg = rollDiceExpr('1d6') + 2;
+                        activeChar.hp = Math.max(0, activeChar.hp - dmg);
+                        renderCharDetail(activeCharId);
+                        resultHtml += '<div style="color:#e0556a;font-size:0.7rem;">⚔️ 战斗中受到 ' + dmg + ' 点伤害</div>';
+                    }
+                }
+                el.innerHTML += resultHtml;
+                _patchDisplayLogDiv(combatId, resultHtml);
+                if (activeChar && activeChar.hp <= 0) checkHpZero();
+                updateSurvivalUI();
+                unlockEvents();
+            };
+            function _patchDisplayLogDiv(divId, resultHtml) {
+                for (var di = displayLog.length - 1; di >= 0; di--) {
+                    var idx = displayLog[di].html.indexOf('id="' + divId + '"');
+                    if (idx === -1) continue;
+                    var divStart = displayLog[di].html.lastIndexOf('<div', idx);
+                    var depth = 0, pos = divStart;
+                    while (pos < displayLog[di].html.length) {
+                        var nextOpen = displayLog[di].html.indexOf('<div', pos + 1);
+                        var nextClose = displayLog[di].html.indexOf('</div>', pos + 1);
+                        if (nextClose === -1) break;
+                        if (nextOpen !== -1 && nextOpen < nextClose) { depth++;
+                            pos = nextOpen; }
+                        else { if (depth === 0) { pos = nextClose; break; }
+                            depth--;
+                            pos = nextClose; }
+                    }
+                    displayLog[di].html = displayLog[di].html.substring(0, divStart) + resultHtml + displayLog[di].html.substring(pos + 6);
+                    break;
+                }
+            }
+
             // 确认收益：✅获得 → 存入角色背包；❌未获得 → 仅标记
             window.confirmGains = function(gainId, accepted) {
                 const el = document.getElementById(gainId);
                 if (!el) return;
-                // 先更新UI，再操作数据（避免 renderDisplayLog 重建DOM后 el 失效）
-                if (accepted) {
-                    el.innerHTML = '<span style="color:#4caf50;font-size:0.75rem;">✅ 已获得，材料已存入背包</span>';
-                } else {
-                    el.innerHTML = '<span style="color:var(--text-dim);font-size:0.75rem;">❌ 未获得材料</span>';
-                }
+                var newInner = accepted ? '<span style="color:#4caf50;font-size:0.75rem;">✅ 已获得，材料已存入背包</span>' : '<span style="color:var(--text-dim);font-size:0.75rem;">❌ 未获得材料</span>';
+                _patchDisplayLogDiv(gainId, newInner);
+                el.innerHTML = newInner;
                 if (accepted) {
                     const pg = pendingGains.find(function(p) { return p.key === gainId; });
                     if (pg && activeChar) {
                         pg.gains.forEach(function(g) {
                             if (g.type === 'item') {
                                 activeChar.inventory = activeChar.inventory || [];
-                                activeChar.inventory.push({name:g.item, qty:g.qty, location:'背包'});
-                                addSystemLog(`📦 +${g.qty}${g.unit||'份'} ${g.item}（已添加至背包）`, 'success');
-                                // 记录到雪原馈赠
+                                // 堆叠：同名同位置物品合并数量
+                                var stacked = false;
+                                for (var si = 0; si < activeChar.inventory.length; si++) {
+                                    if (activeChar.inventory[si].name === g.item && activeChar.inventory[si].location === '背包') {
+                                        activeChar.inventory[si].qty += g.qty;
+                                        stacked = true; break;
+                                    }
+                                }
+                                if (!stacked) activeChar.inventory.push({name:g.item, qty:g.qty, location:'背包'});
+                                // 记录到雪原馈赠（口粮本身不记，只记录来源材料）
+                                if (g.item !== '口粮') {
                                 var wpNum = g.wpNum || findWpNum(g.item);
                                 var existing = discoveredItems.find(function(d) { return d.name === g.item; });
                                 if (existing) { existing.totalQty += g.qty;
                                     existing.times++; }
                                 else { discoveredItems.push({name:g.item, totalQty:g.qty, wpNum:wpNum, times:1}); }
                                 // 同步生存状态：口粮
-                                if (g.unit === '份口粮' || g.unit === '天' || g.item === '口粮' || g.item.includes('浆果') || g.item.includes('野菜') || g.item.includes('兽肉')) {
+                                if (g.item === '口粮') {
                                     survival.rations += g.qty;
+                                    if (survival.rations > 0) { survival.isStarving = false;
+                                        survival.starvationCount = 0; }
                                     addSystemLog(`🍖 口粮 +${g.qty}，当前 ${survival.rations} 份`, 'system');
                                 }
                                 // 同步生存状态：燃料
@@ -2769,6 +2946,7 @@
                                     survival.fuel[fk] = (survival.fuel[fk] || 0) + g.qty;
                                     addSystemLog(`🔥 ${g.item} +${g.qty}（燃料库存已更新）`, 'system');
                                 }
+                                } // end if g.item !== '口粮'
                             } else if (g.type === 'coin') {
                                 activeChar.coins = activeChar.coins || {cp:0,sp:0,gp:0};
                                 activeChar.coins[g.coin] = (activeChar.coins[g.coin]||0) + g.qty;
@@ -2809,7 +2987,7 @@
                 tabContainer.style.display = 'none';
 
                 const buttons = [
-                    { cmd: 'ts100', label: '⬇ 深入雪原', dice: 'd100', desc: '探索苍白大地的未知领域' },
+                    { cmd: 'ts100', label: '⬇ 深入雪原', dice: '', desc: '探索苍白大地的未知领域' },
                     { cmd: 'deep', label: '🔍 调查附近', dice: '', desc: '仔细观察周围环境' },
                     { cmd: 'rest', label: '⛺ 原地休整', dice: '', desc: '在此处扎营休整' },
                     { cmd: 'back', label: '↩ 返回', dice: '', desc: '沿原路返回' },
@@ -2842,7 +3020,8 @@
                                 const hasGains = displayResult(result, label);
                                 updateSurvivalUI();
                                 if (activeChar && activeCharId) charData[activeCharId] = activeChar;
-                                if (!hasGains) unlockEvents();
+                                // 敌对生物遭遇或材料确认时不解锁，等用户交互后解锁
+                                if (!hasGains && !result.isHostile) unlockEvents();
                             }
                         } else if (cmd === 'deep') {
                             const loadingDiv = await showLoadingAnimation('调查');
@@ -2890,7 +3069,9 @@
                                 btns.querySelectorAll('button').forEach(function(b) {
                                     b.addEventListener('click', function() {
                                         const type = this.dataset.resttype;
-                                        btns.innerHTML = '<span style="color:#6abf8a;font-size:0.75rem;">' + (type==='long'?'🛌 长休完成':'☕ 短休完成') + '</span>';
+                                        var doneMsg = '<span style="color:#6abf8a;font-size:0.75rem;">' + (type==='long'?'🛌 长休完成':'☕ 短休完成') + '</span>';
+                                        btns.innerHTML = doneMsg;
+                                        _patchDisplayLogDiv(restId, doneMsg);
                                         if (type === 'long') {
                                             if (activeChar) { activeChar.hp = activeChar.hpMax;
                                                 activeChar.tempHp = 0;
@@ -3132,6 +3313,11 @@
                 } else {
                     addSystemLog(`🧭 方向判断失败 (DC${dc}, 骰出 ${roll})，迷失持续`, 'danger');
                 }
+                // 视为一次事件，触发生存检定
+                rollCount++;
+                document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
+                survival.totalEvents++;
+                checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
                 updateSurvivalUI();
             }
 
@@ -3155,16 +3341,10 @@
                 survival.lightType = choice.label;
                 survival.lightRemaining = 2;
                 addSystemLog(`🔥 点燃 ${choice.label}，持续2次事件`, 'success');
-                updateSurvivalUI();
-            }
-
-            function doExtinguish() {
-                if (checkKnockdown()) return;
-                if (!survival.lightActive) { addSystemLog('🚫 没有点燃的火源', 'system'); return; }
-                survival.lightActive = false;
-                survival.lightType = null;
-                survival.lightRemaining = 0;
-                addSystemLog('🚫 火源已熄灭', 'system');
+                if (survival.coldLevel > 0) {
+                    survival.coldLevel = Math.max(0, survival.coldLevel - 1);
+                    addSystemLog('❄️ 生火取暖，解除1级严寒', 'success');
+                }
                 updateSurvivalUI();
             }
 
@@ -3295,21 +3475,6 @@
                     if (this.value) renderCharDetail(this.value);
                 });
 
-                document.getElementById('createCharBtn').addEventListener('click', function() {
-                    const name = prompt('输入新角色名:', '北境旅人');
-                    if (name && name.trim()) {
-                        const id = 'new_' + Date.now();
-                        charData[id] = defaultCharTemplate(name.trim());
-                        const opt = document.createElement('option');
-                        opt.value = id;
-                        opt.textContent = name.trim();
-                        charSelect.appendChild(opt);
-                        charSelect.value = id;
-                        renderCharDetail(id);
-                        alert(`角色 "${name.trim()}" 创建成功！`);
-                    }
-                });
-
                 document.getElementById('longRestBtn').addEventListener('click', longRest);
                 document.getElementById('shortRestBtn').addEventListener('click', shortRest);
                 document.getElementById('healBtn').addEventListener('click', function() {
@@ -3324,7 +3489,6 @@
                 // 生存操作
                 document.getElementById('orientBtn').addEventListener('click', doOrient);
                 document.getElementById('lightBtn').addEventListener('click', doLight);
-                document.getElementById('extinguishBtn').addEventListener('click', doExtinguish);
                 document.getElementById('consumeRationBtn').addEventListener('click', doConsumeRation);
                 document.getElementById('campBtn').addEventListener('click', doCamp);
 
@@ -3405,7 +3569,8 @@
                             h += `<div style="margin-top:0.4rem;font-weight:600;">总计: ${total} 次事件</div>`;
                             h += '</div>';
                             leftEl.innerHTML = h;
-                            document.getElementById('statTotal').textContent = total + ' 次';
+                            const stEl = document.getElementById('statTotal');
+                            if (stEl) stEl.textContent = total + ' 次';
                         }
                         rightEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">—— 冒险仍在继续 ——</div>';
                     } else if (activeBookTab === 'rules') {
@@ -3538,9 +3703,16 @@
                                 const item = discoveredItems[idx];
                                 if (!item) return;
                                 const wpDesc = wpItems[item.wpNum] || '';
+                                var synthesisHtml = '';
+                                if (craftedItems[item.name]) {
+                                    var syn = ITEM_SYNTHESIS[item.name];
+                                    if (syn) synthesisHtml = '<div style="color:#3d6e16;font-size:0.68rem;line-height:1.5;margin-top:0.3rem;padding-top:0.3rem;border-top:1px dashed rgba(0,0,0,0.1);">🔓 ' + syn + '</div>';
+                                } else if (ITEM_SYNTHESIS[item.name]) {
+                                    synthesisHtml = '<div style="color:#8a7a5e;font-size:0.65rem;margin-top:0.3rem;padding-top:0.3rem;border-top:1px dashed rgba(0,0,0,0.08);"><span style="color:#c83040;">🔒</span> 达成条件解锁</div>';
+                                }
                                 rightEl.innerHTML = '<div style="color:#3d2e16;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;">' + item.name + '</div>' +
                                     '<div style="color:#5a4a30;font-size:0.7rem;margin-bottom:0.2rem;">累计获得: ' + item.totalQty + ' 份（共' + item.times + '次）</div>' +
-                                    '<div style="color:#6b5a3e;font-size:0.72rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">' + (wpDesc || '暂无详细描述') + '</div>';
+                                    '<div style="color:#6b5a3e;font-size:0.72rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">' + (wpDesc || '暂无详细描述') + '</div>' + synthesisHtml;
                             }
                             showGiftDetail(0);
                             // 绑定点击
@@ -3550,6 +3722,53 @@
                                         var idx = parseInt(this.dataset.idx, 10);
                                         showGiftDetail(idx);
                                         // 高亮当前选中
+                                        leftEl.querySelectorAll('.gift-item').forEach(function(e) { e.style.background = ''; });
+                                        this.style.background = 'rgba(0,0,0,0.06)';
+                                    });
+                                });
+                            }, 50);
+                        }
+                    } else if (activeBookTab === 'creatures') {
+                        // 冰原生物图鉴
+                        pageNum.textContent = '';
+                        leftEl.innerHTML = '';
+                        rightEl.innerHTML = '';
+                        const hostiles = discoveredCreatures.filter(function(c) { return c.cat === 'hostile'; });
+                        const neutrals = discoveredCreatures.filter(function(c) { return c.cat === 'neutral'; });
+                        if (discoveredCreatures.length === 0) {
+                            leftEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">尚未遭遇任何生物<br><small>深入雪原，发现北境的生灵</small></div>';
+                            rightEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">🐺<br>点击左侧生物<br>查看详细信息</div>';
+                        } else {
+                            let listHtml = '<div style="font-size:0.7rem;color:#6b5a3e;margin-bottom:0.3rem;">共遭遇 ' + discoveredCreatures.length + ' 种生物</div>';
+                            // 敌对生物
+                            if (hostiles.length > 0) {
+                                listHtml += '<div style="font-size:0.68rem;color:#8a3a3a;font-weight:600;margin-top:0.3rem;">⚔️ 敌对生物</div>';
+                                hostiles.forEach(function(c, i) {
+                                    listHtml += '<div class="gift-item" data-creature="' + c.name + '" style="display:flex;justify-content:space-between;padding:0.2rem 0.3rem;cursor:pointer;border-bottom:1px dotted rgba(0,0,0,0.06);font-size:0.72rem;color:#4a3a22;" onmouseover="this.style.background=\'rgba(0,0,0,0.04)\'" onmouseout="this.style.background=\'\'"><span>' + c.name + '</span><span style="color:#8a7a5e;font-size:0.62rem;">×' + c.totalCount + '只</span></div>';
+                                });
+                            }
+                            // 中立生物
+                            if (neutrals.length > 0) {
+                                listHtml += '<div style="font-size:0.68rem;color:#5a7a3a;font-weight:600;margin-top:0.3rem;">🌿 中立生物</div>';
+                                neutrals.forEach(function(c, i) {
+                                    listHtml += '<div class="gift-item" data-creature="' + c.name + '" style="display:flex;justify-content:space-between;padding:0.2rem 0.3rem;cursor:pointer;border-bottom:1px dotted rgba(0,0,0,0.06);font-size:0.72rem;color:#4a3a22;" onmouseover="this.style.background=\'rgba(0,0,0,0.04)\'" onmouseout="this.style.background=\'\'"><span>' + c.name + '</span><span style="color:#8a7a5e;font-size:0.62rem;">×' + c.totalCount + '只</span></div>';
+                                });
+                            }
+                            leftEl.innerHTML = listHtml;
+                            // 右侧默认显示第一个生物详情
+                            function showCreatureDetail(name) {
+                                const c = discoveredCreatures.find(function(x) { return x.name === name; });
+                                if (!c) return;
+                                const catLabel = c.cat === 'hostile' ? '⚔️ 敌对' : '🌿 中立';
+                                rightEl.innerHTML = '<div style="color:#3d2e16;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;">' + c.name + '</div>' +
+                                    '<div style="color:#5a4a30;font-size:0.7rem;margin-bottom:0.2rem;">' + catLabel + ' | 遭遇 ' + c.times + ' 次 | 共 ' + c.totalCount + ' 只</div>' +
+                                    '<div style="color:#6b5a3e;font-size:0.72rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">北境雪原的生物，在探索中被冒险者遇见。</div>';
+                            }
+                            if (discoveredCreatures.length > 0) showCreatureDetail(discoveredCreatures[0].name);
+                            setTimeout(function() {
+                                leftEl.querySelectorAll('.gift-item[data-creature]').forEach(function(el) {
+                                    el.addEventListener('click', function() {
+                                        showCreatureDetail(this.dataset.creature);
                                         leftEl.querySelectorAll('.gift-item').forEach(function(e) { e.style.background = ''; });
                                         this.style.background = 'rgba(0,0,0,0.06)';
                                     });
@@ -3609,7 +3828,8 @@
                         ['阵营','alignment',esc(data.alignment||'—')],['信仰','faith',esc(data.faith||'—')],['性别','gender',esc(data.gender||'—')],
                         ['熟练加值','profBonus','+'+data.profBonus],['AC','ac',data.ac],['速度','speed',data.speed+'尺'],
                         ['被动察觉','passivePerception',data.passivePerception],['法术DC','spellSaveDc',data.spellSaveDc||10],['法术命中','spellAttackBonus','+'+(data.spellAttackBonus||0)],
-                        ['身高','height',esc(data.height||'—')],['体重','weight',esc(data.weight||'—')],['负重上限','_carry',carry+'磅'],
+                        ['身高','height',esc(data.height||'—')],['体重','weight',esc(data.weight||'—')],
+                        ['负重','_carry',(function(){ var tw=0; (data.inventory||[]).forEach(function(it){ tw+=(it.weight||0)*it.qty; }); (data.weapons||[]).forEach(function(w){ tw+=(w.weight||2); }); return tw+' / '+carry+' 磅'; })()],
                         ['语言','languages',esc(data.languages||'—')],['关键属性','keyAbilities',esc(data.keyAbilities||'—')],['抗性','resistances',esc(data.resistances||'—')],
                     ];
                     infoFields.forEach(function(f) {

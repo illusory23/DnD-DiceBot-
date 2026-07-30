@@ -2120,7 +2120,7 @@ TABLE_ITEM_ACTIONS = {
     },
     'fx100': {
         **{i: {"item": "魔法泉水", "qty": 2, "unit": "份"} for i in range(6, 16)},
-        **{i: {"item": "口粮", "qty_roll": "1d4", "unit": "天"} for i in range(16, 41)},
+        **{i: {"item": "口粮", "qty_roll": "1d4", "unit": "份"} for i in range(16, 41)},
     },
     'kw100': {
         **{i: {"item": "岩盐", "qty": 1, "unit": "份"} for i in range(1, 11)},
