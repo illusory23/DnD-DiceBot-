@@ -11,7 +11,14 @@
       "Bash(pip install *)",
       "Bash(hh.exe -decompress \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\其他参考资料\\\\DND五版不全书v2026.02.12之费伦降临，通通闪开……什么叫拳斗士打过来了？.chm\" \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\骰娘\\\\data\\\\chm_extracted\")",
       "Bash(7z x *)",
-      "Bash(\"/c/Program Files/NVIDIA Corporation/NVIDIA App/7z.exe\" x \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\其他参考资料\\\\DND五版不全书v2026.02.12之费伦降临，通通闪开……什么叫拳斗士打过来了？.chm\" -o\"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\骰娘\\\\data\\\\chm_extracted\" -y)"
+      "Bash(\"/c/Program Files/NVIDIA Corporation/NVIDIA App/7z.exe\" x \"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\其他参考资料\\\\DND五版不全书v2026.02.12之费伦降临，通通闪开……什么叫拳斗士打过来了？.chm\" -o\"D:\\\\游戏\\\\尘封之卷-九子的注视\\\\骰娘\\\\data\\\\chm_extracted\" -y)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/north-expedition)",
+      "Bash(curl -s http://localhost:5000/north-expedition)",
+      "Bash(node --check _temp_check.js)",
+      "Bash(rm _temp_check.js)",
+      "Bash(node --check web/templates/north-expedition.html)",
+      "Bash(node --check _check.js)",
+      "Bash(rm _check.js)"
     ]
   }
 }

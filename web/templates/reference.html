@@ -71,7 +71,36 @@
             transition: all 0.15s;
         }
         .search-toggle-btn:hover { color: var(--text); border-color: var(--accent); }
-    
+        /* 资源库操作按钮 */
+        .res-action-btn {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text-dim); cursor: pointer; font-size: 0.7rem; padding: 0.2rem 0.45rem;
+            white-space: nowrap; transition: all 0.15s; line-height: 1.3;
+        }
+        .res-action-btn:hover { border-color: var(--accent); color: var(--text); }
+        .res-action-btn.preview-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+        .res-action-btn.download-btn:hover { border-color: var(--green); color: var(--green); }
+        /* 图片预览浮层 */
+        #image-preview-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.88); z-index: 10000; align-items: center; justify-content: center;
+            backdrop-filter: blur(6px); cursor: pointer;
+        }
+        #image-preview-overlay.show { display: flex; }
+        #image-preview-overlay img {
+            max-width: 92vw; max-height: 90vh; object-fit: contain;
+            border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); cursor: default;
+        }
+        #image-preview-close {
+            position: fixed; top: 16px; right: 20px; width: 42px; height: 42px;
+            background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 50%; color: #fff; font-size: 1.4rem; cursor: pointer;
+            z-index: 10001; display: none; align-items: center; justify-content: center;
+            transition: all 0.2s; line-height: 1;
+        }
+        #image-preview-close.show { display: flex; }
+        #image-preview-close:hover { background: var(--red); border-color: var(--red); transform: scale(1.1); }
+
 </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -107,7 +136,7 @@
             <a href="/character">角色卡</a>
             <a href="/combat">战斗</a>
             <a href="/spells">法术</a>
-            <a href="/events">随机事件</a>
+            <a href="/north-expedition">探索北境</a>
             <a href="/map">地图</a>
             <a href="/reference" class="active">参考</a>
             
@@ -230,6 +259,12 @@
             <div id="custom-list" class="custom-list"></div>
         </div>
     </div>
+
+    <!-- 图片预览浮层 -->
+    <div id="image-preview-overlay" onclick="closeImagePreview()">
+        <img id="image-preview-img" src="" alt="预览" onclick="event.stopPropagation()">
+    </div>
+    <button id="image-preview-close" onclick="closeImagePreview()" title="关闭预览">✕</button>
 
     <script>
         // ━━━ HTML 转义 ━━━
@@ -807,18 +842,59 @@
                 }
                 listEl.innerHTML = data.resources.map(r => {
                     const sizeColor = r.size_kb > 5000 ? 'var(--red)' : 'var(--text-dim)';
-                    return '<div onclick="window.open(\'' + r.url + '\',\'_blank\')" ' +
-                        'style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.6rem;background:var(--bg);border-radius:6px;margin-bottom:0.25rem;cursor:pointer;border:1px solid var(--border);font-size:0.85rem;transition:all 0.15s;" ' +
+                    const isImage = r.category === 'img';
+                    const encUrl = encodeURI(r.url);
+                    return '<div ' +
+                        'style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.6rem;background:var(--bg);border-radius:6px;margin-bottom:0.25rem;border:1px solid var(--border);font-size:0.85rem;transition:all 0.15s;" ' +
                         'onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
                         '<span style="font-size:1.3rem;">' + r.icon + '</span>' +
                         '<span style="flex:1;font-weight:bold;">' + r.name + '</span>' +
                         '<span style="color:' + sizeColor + ';font-size:0.7rem;">' + r.size_display + '</span>' +
-                        '<span style="color:var(--text-dim);font-size:0.7rem;">.' + r.ext + '</span>' +
+                        '<span style="color:var(--text-dim);font-size:0.7rem;margin-right:0.3rem;">.' + r.ext + '</span>' +
+                        (isImage ? '<button class="res-action-btn preview-btn" onclick="previewResource(\'' + encUrl + '\',\'' + escHtml(r.name).replace(/'/g,"\\'") + '\')" title="预览图片">👁 预览</button>' : '') +
+                        '<button class="res-action-btn download-btn" onclick="downloadResource(\'' + encUrl + '\',\'' + escHtml(r.name).replace(/'/g,"\\'") + '\')" title="下载文件">⬇ 下载</button>' +
                         '</div>';
                 }).join('');
             }).catch(() => {
                 listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">加载失败</div>';
             });
+        }
+
+        // ━━━ 图片预览 ━━━
+        function previewResource(url, name) {
+            const overlay = document.getElementById('image-preview-overlay');
+            const img = document.getElementById('image-preview-img');
+            const closeBtn = document.getElementById('image-preview-close');
+            img.src = url;
+            img.alt = name;
+            overlay.classList.add('show');
+            closeBtn.classList.add('show');
+            // 按 ESC 关闭
+            document.addEventListener('keydown', _onPreviewKeydown);
+        }
+
+        function closeImagePreview() {
+            const overlay = document.getElementById('image-preview-overlay');
+            const closeBtn = document.getElementById('image-preview-close');
+            overlay.classList.remove('show');
+            closeBtn.classList.remove('show');
+            document.getElementById('image-preview-img').src = '';
+            document.removeEventListener('keydown', _onPreviewKeydown);
+        }
+
+        function _onPreviewKeydown(e) {
+            if (e.key === 'Escape') { closeImagePreview(); }
+        }
+
+        // ━━━ 资源下载 ━━━
+        function downloadResource(url, name) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
     </script>
 <script>

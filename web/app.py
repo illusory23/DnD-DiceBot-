@@ -518,6 +518,12 @@ def test4_page():
     return render_template('test4.html')
 
 
+@app.route('/north-expedition')
+def north_expedition_page():
+    """北境探索 — 独立生存冒险页面"""
+    return render_template('north-expedition.html')
+
+
 @app.route('/user')
 def user_page():
     """用户中心"""
