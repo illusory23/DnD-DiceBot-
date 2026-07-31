@@ -1,0 +1,109 @@
+# 2026-08-01 会话完整更新总结
+
+## 一、BUG 修复
+
+### 3D 掷骰一致性
+- dice-bridge.js：移除 4s 外部竞速超时和 Math.random() 随机回退
+- DiceBox 添加 settleTimeout: 5000，硬安全超时 20s
+- 骰子物理结果失败时返回 null 而非不匹配的随机数
+
+### 检定结果延迟显示
+- finishChecks 中 _patchDisplayLogDiv 后补充 renderDisplayLog()
+- 解决 runCheckChain→executeEvent→survival checks→addSystemLog→renderDisplayLog 导致的 stale DOM
+
+### failExtra 失败额外步骤
+- handleStepCheck 失败分支新增 failExtra 处理
+- 雪坑/雪崩失败后"运动DC爬出"步骤现在正常触发
+
+### LINK_RULES 燃料重复
+- 删除 6 条与 fuelMap 重复的燃料规则（松枝/松脂/煤矿/荧光苔/铁松松脂/柴火石块）
+- runCheckChain 中 processLinks 限制为仅 fx100/dc100 触发
+
+### 工作间修复
+- 按钮 ID 冲突：wsCraft → wsDoCraft（浏览器 DOM ID 覆盖全局函数）
+- 旧存档 craftedItems 布尔值迁移为数组格式
+- 燃料优先级：松脂 > 荧光苔 > 铁松松脂
+- 配方匹配燃料逻辑修正（具名燃料计入 fuelNeeded）
+- wsPlaceItem 改为按名称搜索，避免索引失效
+- 营地角色切换同步 activeChar
+- importSave 安全调用（typeof 检查 + try-catch）
+- 熔炼 wsSmeltOre 提前保存名称再清空
+
+### 导出修复
+- wsUnlockedRecipes 等变量声明前置（TDZ 问题）
+
+## 二、物品/配方系统
+
+### 火把合成文本恢复
+- wp 表 #4 松枝：可制作火把，可作为柴火
+- wp 表 #7 松脂：可点燃，可制作火把
+- cl50 表同步更新
+
+### 柴火/石块
+- cl50:40-44 新增柴火/石块（燃料×1）
+- 背包 + survival.fuel.firewood 自动同步
+- 柴火/石块不参与火把合成
+- 燃料消耗最高优先级
+
+### 煤矿移除燃料
+- 从 survival.fuel / fuelMap / fuelPriority 全部移除
+- 仅作可出售物品
+
+### 配方系统重构
+- craftedItems 从布尔 {name:true} 改为数组 {name:[recipe1,recipe2,…]}
+- ITEM_SYNTHESIS 每个材料支持多个独立配方
+- 雪原馈赠：只显示已解锁配方，部分解锁提示剩余数量
+- wp 表扩展 33-37（火把/治疗药水/网兜/长柄网兜/驱寒药膏）
+- wsTakeResult 标记产物到 discoveredItems + craftedItems
+
+### 合成表更新
+- 火把：1松枝 + 2燃料（松脂/荧光苔/铁松松脂）
+- 网兜：1松枝 + 2银蛛蛛网
+- 长柄网兜：2松枝 + 3银蛛蛛网
+- 驱寒药膏：2药草 + 1松脂
+- 治疗药水：4药草 + 2魔法泉水
+
+## 三、工作间系统
+
+### 四个子界面
+- 制作台（六芒星6角）、铁砧（空）、熔炼炉（倒三角）、炼药锅（六芒星6角）
+- 右侧背包6×6网格，点选物品→点击槽位放置
+- 配方列表左侧，仅显示已解锁，点击快速填充
+
+### 四个营地面板
+- 冒险补给站 / 工作间 / 铁匠工房 / 炼金工坊
+- 底部标签切换，各独立配色
+
+## 四、事件表系统
+
+### CHECK_ACTIONS 补齐
+- hj6:3/6（极光/暖风）→ 已回退
+- sj6:5 特殊标记 DC15
+- zl12:8 野鹿跟踪 DC15
+- sw100:46 冬之氏族 DC15、sw100:61 霜灵 DC15
+- zy100:81 恶霜持续效果系统
+- rl100/yj8 已回退为原始纯文字描述
+
+### 表标签优化
+- 所有表标签去掉"随机"前缀（"随机材料"→"材料"等）
+- 全随机事件保留
+
+### 恶霜持续效果
+- evilFrostActive 状态追踪
+- 每事件自动生存 DC15 辨别
+- 失败 1d4 伤害，成功消散
+- 状态 UI 显示 + 长休解除
+
+## 五、存档系统
+
+### 版本升级 v1→v2
+- 新增导出：evilFrostActive, wsUnlockedRecipes, wsCraftSlots, wsBrewSlots, wsCraftResult, wsBrewResult
+- 导入兼容：v1 旧存档缺失字段自动默认
+- craftedItems 自动迁移（boolean→array）
+- 导入安全调用：所有函数 typeof 检查
+
+## 六、文档
+
+- 项目总 README.txt（跑团平台+官网+北境）
+- 事件表空条目分析_2026-07-31.txt（标注实现状态）
+- 随机事件表_2026-08-01.txt（当前代码对齐版）

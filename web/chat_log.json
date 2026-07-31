@@ -1,39 +1,5 @@
 [
   {
-    "name": "系统",
-    "text": "🔴 凌羽 退出房间",
-    "time": "16:48:58",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785228538.6248732,
-    "system": true
-  },
-  {
-    "name": "凌羽",
-    "text": "🎲 4d20 = [49]",
-    "time": "16:49:08",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785228548.0917997
-  },
-  {
-    "name": "凌羽",
-    "text": "🎲 40d20 = [443]",
-    "time": "16:49:37",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785228577.5359402
-  },
-  {
     "name": "天冥",
     "text": "🎲 d100 = [53]",
     "time": "16:50:16",
@@ -5460,5 +5426,41 @@
     "hidden": false,
     "ip": "system",
     "_ts": 1785434421.350838
+  },
+  {
+    "name": "白芸",
+    "text": "🎲 1d20 = [2]",
+    "time": "21:14:53",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503693.1643908
+  },
+  {
+    "name": "白芸",
+    "text": "🎲 1d20! = [12]",
+    "time": "21:15:03",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503703.4450939
+  },
+  {
+    "name": "白芸",
+    "text": "🎲 2d20 = [34]",
+    "time": "21:15:21",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503721.324107
   }
 ]

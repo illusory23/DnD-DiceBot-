@@ -102,12 +102,15 @@ app = Flask(__name__)
 # 请求体大小上限（资源上传最大 50MB，留余量；防止恶意超大 JSON 耗尽内存）
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
 
-# ━━━ 静态文件缓存（浏览器缓存1小时，减少重复加载）━━━
+# ━━━ 静态文件缓存 ━━━
+# 本地工具场景优先保证代码改动立即可见：JS/CSS 不做长缓存，避免浏览器沿用旧版脚本
+# 导致功能（如3D掷骰）异常；如后续需要性能可改为带版本号的资源引用。
 @app.after_request
 def add_cache_header(response):
     if response.content_type and ('text/css' in response.content_type or 'application/javascript' in response.content_type):
-        response.cache_control.max_age = 3600
-        response.cache_control.public = True
+        response.cache_control.max_age = 0
+        response.cache_control.no_cache = True
+        response.cache_control.must_revalidate = True
     return response
 
 # ━━━ WebSocket 实时协作（flask-sock，与 HTTP 共用 5000 端口）━━━
