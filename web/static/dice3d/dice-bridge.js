@@ -108,8 +108,10 @@ export async function initDiceOverlay() {
         rollBtnEl.addEventListener('click', onRollClicked);
         closeBtnEl.addEventListener('click', onCloseClicked);
 
-        // 必须在 DOM 可见时 init
+        // 必须在 DOM 布局可见时 init，但用 opacity:0 防止闪烁
         overlayEl.style.display = 'flex';
+        overlayEl.style.opacity = '0';
+        overlayEl.style.pointerEvents = 'none';
         await new Promise(function(r) { setTimeout(r, 120); });
 
         var DiceBox = (await import('/static/dice-box/dice-box.es.min.js')).default;
@@ -119,12 +121,7 @@ export async function initDiceOverlay() {
             theme: 'default',
             themeColor: '#ffffff',
             offscreen: false,
-            // 物理骰子放大：scale 同时作用于渲染网格与碰撞体。
-            // 桌面为 19×19×aspect 世界单位（stage 约 628×440px，aspect≈1.43，面积≈515）。
-            // scale=28：最小骰 d6 外接球直径≈0.272×28≈7.6（面积≈45.7≈桌面1/11），
-            // d20 直径≈9.8（面积≈75.7≈桌面1/7），视觉上显著放大且物理碰撞体同步缩放。
             scale: 28,
-            // 骰子稳定超时：5秒后强制结算，防止物理模拟无限滚动
             settleTimeout: 5000
         });
 
@@ -141,6 +138,8 @@ export async function initDiceOverlay() {
         }
 
         overlayEl.style.display = 'none';
+        overlayEl.style.opacity = '';
+        overlayEl.style.pointerEvents = '';
         ready = true;
         _initPromise = null;
     })();
@@ -172,6 +171,8 @@ function onCloseClicked() {
 function showOverlay() {
     if (!overlayEl) return;
     overlayEl.style.display = 'flex';
+    overlayEl.style.opacity = '';
+    overlayEl.style.pointerEvents = '';
     overlayEl.classList.remove('dice3d-overlay-anim');
     if (panelEl) { panelEl.classList.remove('dice3d-panel-anim'); }
     void overlayEl.offsetWidth; // 强制 reflow 重启动画

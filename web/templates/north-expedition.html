@@ -64,9 +64,9 @@
         .app-container {
             position: relative;
             z-index: 2;
-            max-width: 1440px;
+            max-width: 1800px;
             margin: 0 auto;
-            padding: 1.2rem 1.8rem 2rem;
+            padding: 1.2rem 0.4rem 2rem;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -325,47 +325,21 @@
             transition: 0.2s;
         }
 
-        .drawer-toggle {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.8rem 1.2rem;
-            cursor: pointer;
-            user-select: none;
-            color: #b0d4f0;
-            font-weight: 300;
-            letter-spacing: 1px;
-            background: rgba(0, 20, 40, 0.2);
-            transition: 0.2s;
-        }
-        .drawer-toggle:hover {
-            background: rgba(60, 120, 200, 0.08);
-        }
-        .drawer-toggle .icon {
-            transition: 0.25s;
-        }
-        .drawer-toggle.open .icon {
-            transform: rotate(180deg);
-        }
-
         .drawer-content {
-            padding: 0.6rem 1rem 1.2rem;
-            display: none;
-        }
-        .drawer-content.open {
-            display: block;
+            padding: 0.8rem 1.2rem 1.6rem;
         }
 
         .event-tabs {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.4rem;
-            margin-bottom: 0.8rem;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
         }
         .event-tab {
             background: rgba(30, 60, 100, 0.2);
-            padding: 0.25rem 1rem;
+            padding: 0.4rem 1.3rem;
             border-radius: 30px;
-            font-size: 0.75rem;
+            font-size: 0.88rem;
             color: #8ab4d8;
             border: 1px solid transparent;
             cursor: pointer;
@@ -385,14 +359,14 @@
         .event-cards {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 0.8rem;
-            margin-top: 0.3rem;
+            gap: 1rem;
+            margin-top: 0.4rem;
         }
 
         .event-card {
             background: rgba(20, 50, 90, 0.25);
-            border-radius: 16px;
-            padding: 1rem 0.8rem;
+            border-radius: 18px;
+            padding: 1.3rem 1rem;
             border: 1px solid rgba(74, 128, 184, 0.15);
             cursor: pointer;
             transition: 0.2s;
@@ -402,7 +376,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 80px;
+            min-height: 110px;
         }
         .event-card:hover {
             background: rgba(40, 100, 180, 0.25);
@@ -413,25 +387,25 @@
         .event-card .cmd {
             font-weight: 600;
             color: #88ccff;
-            font-size: 1rem;
+            font-size: 1.2rem;
             letter-spacing: 1px;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.3rem;
         }
         .event-card .dice-label {
-            font-size: 0.7rem;
+            font-size: 0.8rem;
             color: #6a9ac8;
             background: rgba(0, 0, 0, 0.2);
-            padding: 0.1rem 0.7rem;
+            padding: 0.15rem 0.9rem;
             border-radius: 30px;
             display: inline-block;
-            margin-top: 0.15rem;
+            margin-top: 0.2rem;
         }
         .event-card .desc {
-            font-size: 0.68rem;
+            font-size: 0.78rem;
             color: #7aacd8;
             opacity: 0.75;
-            margin-top: 0.2rem;
-            line-height: 1.3;
+            margin-top: 0.3rem;
+            line-height: 1.35;
         }
         .event-card.exhausted {
             opacity: 0.35;
@@ -811,13 +785,13 @@
         /* ===== 营地布局 ===== */
         .camp-layout {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.2rem;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 1rem;
             flex: 1;
             min-height: 0;
         }
 
-        /* ===== 皮革旧书 ===== */
+        /* ===== 中世纪羊皮手札 ===== */
         .book-wrapper {
             perspective: 1600px;
             min-height: 520px;
@@ -826,55 +800,35 @@
         /* 封面 */
         .book-cover {
             position: absolute; inset: 0;
-            background: linear-gradient(155deg, #3d2614 0%, #5c3a1e 18%, #4a2c16 35%, #6b4226 50%, #4a2c16 65%, #3d2010 82%, #2e1808 100%);
-            border-radius: 6px 14px 14px 6px;
+            background-image: url('/static/images/journal-cover.png');
+            background-size: 65%;
+            background-position: center 40%;
+            background-repeat: no-repeat;
+            background-color: transparent;
             cursor: pointer;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            box-shadow: 8px 8px 24px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.04), inset 0 -2px 0 rgba(0,0,0,0.3);
-            border: 2px solid #2e1808;
-            border-right: 5px solid #1a0c04;
             transition: transform 0.6s ease, opacity 0.4s;
             z-index: 2;
-            overflow: hidden;
         }
-        .book-cover-texture {
-            position: absolute; inset: 0;
-            background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px),
-                        radial-gradient(ellipse at 30% 70%, rgba(180,120,60,0.13) 0%, transparent 60%),
-                        radial-gradient(ellipse at 70% 20%, rgba(200,140,80,0.08) 0%, transparent 50%);
-            border-radius: 4px 12px 12px 4px;
-            pointer-events: none;
-        }
-        .book-cover-spine {
-            position: absolute; right: 0; top: 0; bottom: 0; width: 10px;
-            background: linear-gradient(90deg, #2a1408, #1a0c04 40%, #0d0602 100%);
-            border-radius: 0 10px 10px 0;
-            border-left: 1px solid rgba(255,255,255,0.03);
-        }
-        .book-cover-title {
-            position: relative; z-index: 1;
-            color: #c8a870; font-size: 1.4rem; font-weight: 300; text-align: center;
-            letter-spacing: 6px; line-height: 1.6;
-            text-shadow: 0 2px 3px rgba(0,0,0,0.6), 0 0 20px rgba(180,140,80,0.15);
+        .book-cover::after {
+            content: '冒险者手札';
+            position: relative; left: 4.5rem; top: 1.8rem;
             font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 2rem; font-weight: 700; letter-spacing: 5px;
+            color: #f0d8a0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8), 0 0 20px rgba(200,160,80,0.3);
         }
-        .book-cover-hint {
-            position: relative; z-index: 1; margin-top: 18px;
-            color: rgba(180,140,100,0.5); font-size: 0.75rem; letter-spacing: 2px;
-            animation: hintPulse 2.5s ease-in-out infinite;
-        }
-        @keyframes hintPulse {
-            0%,100% { opacity: 0.4; } 50% { opacity: 0.9; }
-        }
-        .book-cover:hover { box-shadow: 10px 10px 30px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.05); }
+        .book-cover:hover { opacity: 0.9; }
         .book-cover.opened { opacity: 0; pointer-events: none; transform: rotateY(-95deg); transform-origin: left center; }
 
-        /* 打开的书 */
+        /* 打开的书 — 羊皮纸内页 */
         .book-open {
             display: none; position: absolute; inset: 0;
-            background: linear-gradient(180deg, #e8d5b0 0%, #dcc8a0 3%, #f0e0c0 8%, #e8d5b0 50%, #dcc8a0 92%, #c8b080 97%, #b89a6a 100%);
+            background-image: url('/static/images/journal-open.png');
+            background-size: cover;
+            background-position: center 30%;
+            background-repeat: no-repeat;
             border-radius: 4px 12px 12px 4px;
-            box-shadow: 6px 6px 20px rgba(0,0,0,0.45), inset 0 0 40px rgba(0,0,0,0.06);
             overflow: hidden;
             z-index: 3;
             animation: bookReveal 0.6s ease-out;
@@ -886,80 +840,100 @@
             100% { opacity: 1; transform: scale(1); }
         }
         .book-back {
-            position: absolute; inset: 0;
-            background: linear-gradient(155deg, #3d2614, #5c3a1e, #4a2c16);
-            border-radius: 4px 12px 12px 4px;
-            z-index: -1;
-            transform: scale(1.02);
+            display: none;
         }
         .book-left-page, .book-right-page {
             position: relative;
-            padding: 1rem 1.2rem;
+            padding: 10% 15% 12%;
             display: flex; flex-direction: column;
             min-height: 0;
         }
         .book-left-page {
-            border-right: 1px solid rgba(0,0,0,0.12);
-            background: linear-gradient(90deg, rgba(0,0,0,0.03) 0%, transparent 8%),
-                        linear-gradient(180deg, #f2e4cc 0%, #e8d5b0 20%, #f0e0c0 50%, #e8d5b0 80%, #dcc59a 100%);
+            border-right: none;
+            background: transparent;
             border-radius: 4px 0 0 4px;
+            padding-left: 30%;
+            padding-right: 6%;
         }
         .book-right-page {
-            background: linear-gradient(180deg, #f2e4cc 0%, #e8d5b0 20%, #f0e0c0 50%, #e8d5b0 80%, #dcc59a 100%);
+            background: transparent;
             border-radius: 0 12px 4px 0;
+            padding-right: 16%;
+            padding-left: 6%;
+        }
+        /* 羊皮纸边缘老旧效果 */
+        .book-left-page::before {
+            content:''; position:absolute; top:0; left:0; bottom:0; width:3px;
+            background:linear-gradient(180deg,
+                rgba(160,120,60,0.3), rgba(140,100,40,0.45) 20%,
+                rgba(160,120,60,0.3) 50%, rgba(140,100,40,0.4) 80%,
+                rgba(160,120,60,0.25));
+            border-radius:2px 0 0 2px; pointer-events:none; z-index:0;
         }
         .book-page-header {
-            display: flex; gap: 0.3rem; flex-wrap: wrap;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
             margin-bottom: 0.6rem; padding-bottom: 0.4rem;
             border-bottom: 1px dashed rgba(0,0,0,0.15);
         }
         .book-tab {
-            font-size: 0.68rem; padding: 0.2rem 0.5rem; border-radius: 3px;
-            cursor: pointer; color: #6b5a3e; background: rgba(0,0,0,0.04);
+            font-size: 0.8rem; padding: 0.35rem 0.7rem; border-radius: 4px;
+            cursor: pointer; color: #1a0a02; background: rgba(240,225,195,0.55);
             transition: 0.2s; letter-spacing: 0.3px; white-space: nowrap;
+            font-weight: 700;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+            border: 1px solid rgba(180,150,110,0.3);
         }
-        .book-tab:hover { background: rgba(0,0,0,0.08); color: #3d2e16; }
-        .book-tab.active { background: rgba(0,0,0,0.12); color: #2a1e0c; font-weight: 600; }
+        .book-tab:hover { background: rgba(240,225,195,0.7); color: #0a0400; border-color: rgba(180,150,110,0.5); }
+        .book-tab.active { background: rgba(220,200,160,0.75); color: #0a0400; font-weight: 700; border-color: rgba(160,130,80,0.5); }
         .book-page-content {
-            flex: 1; overflow-y: auto; font-size: 0.75rem; color: #4a3a22;
-            line-height: 1.6; min-height: 0;
+            flex: 1; overflow-y: auto; font-size: 0.8rem; color: #1a0c02;
+            line-height: 1.6; min-height: 0; font-weight: 600;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.2);
             scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent;
         }
         .book-page-content::-webkit-scrollbar { width: 3px; }
         .book-page-content::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
         .book-close-btn {
-            position: absolute; top: 6px; right: 12px; z-index: 5;
-            font-size: 0.65rem; color: #8a7a5e; cursor: pointer;
+            position: absolute; top: 8px; right: 16px; z-index: 10;
+            font-size: 0.75rem; color: #6b3a18; cursor: pointer; font-weight: 700;
             letter-spacing: 1px; transition: 0.2s;
+            background: rgba(220,200,160,0.7); padding: 3px 10px; border-radius: 4px;
+            border: 1px solid rgba(140,100,60,0.4);
         }
-        .book-close-btn:hover { color: #4a3a22; }
+        .book-close-btn:hover { color: #3d1a08; background: rgba(220,200,160,0.9); }
+        .book-left-page .book-page-content, .book-right-page .book-page-content { color: #1a0c02; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,0.2); }
+        #bookPageNum { color: #1a0a02 !important; font-weight: 700; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
 
         /* 书页内 stats */
-        .book-stats { font-size: 0.73rem; }
-        .book-stats .bs-item { display: flex; justify-content: space-between; padding: 0.12rem 0; border-bottom: 1px dotted rgba(0,0,0,0.06); }
-        .book-stats .bs-group { font-weight: 600; color: #3d2e16; margin-top: 0.3rem; }
-        .book-stats .bs-empty { text-align: center; color: #8a7a5e; padding: 0.6rem 0; font-style: italic; }
+        .book-stats { font-size: 0.76rem; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,0.2); }
+        .book-stats .bs-item { display: flex; justify-content: space-between; padding: 0.12rem 0; border-bottom: 1px dotted rgba(0,0,0,0.1); color: #1a0c02; font-weight: 600; }
+        .book-stats .bs-group { font-weight: 700; color: #0a0400; margin-top: 0.3rem; }
+        .book-stats .bs-empty { text-align: center; color: #4a2e10; padding: 0.6rem 0; font-style: italic; }
 
-        .book-rules { font-size: 0.72rem; }
-        .book-rules .br-item { padding: 0.3rem 0; border-bottom: 1px dotted rgba(0,0,0,0.06); }
-        .book-rules .br-item b { color: #3d2e16; font-size: 0.75rem; }
-        .book-rules .br-item p { color: #5a4a30; font-size: 0.68rem; margin-top: 0.1rem; line-height: 1.45; }
+        .book-rules { font-size: 0.76rem; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,0.2); }
+        .book-rules .br-item { padding: 0.3rem 0; border-bottom: 1px dotted rgba(0,0,0,0.1); }
+        .book-rules .br-item b { color: #0a0400; font-size: 0.8rem; font-weight: 700; }
+        .book-rules .br-item p { color: #1a0c02; font-size: 0.72rem; margin-top: 0.1rem; line-height: 1.45; font-weight: 600; }
 
         /* 书页内笔记编辑区 */
         .book-journal-title {
-            width: 100%; background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.1);
-            color: #3d2e16; padding: 0.3rem 0.5rem; border-radius: 3px;
-            font-size: 0.85rem; font-weight: 600; font-family: 'Georgia', serif;
+            width: 100%; background: rgba(255,250,240,0.6); border: 1px solid rgba(0,0,0,0.2);
+            color: #0a0400; padding: 0.3rem 0.5rem; border-radius: 3px;
+            font-size: 0.88rem; font-weight: 700; font-family: 'Georgia', serif;
             outline: none; margin-bottom: 0.4rem;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.3);
         }
-        .book-journal-title:focus { border-color: rgba(0,0,0,0.25); }
+        .book-journal-title:focus { border-color: rgba(0,0,0,0.4); }
         .book-journal-text {
-            flex: 1; width: 100%; background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.1);
-            color: #4a3a22; padding: 0.4rem 0.5rem; border-radius: 3px;
-            font-size: 0.78rem; line-height: 1.6; resize: none; outline: none;
+            flex: 1; width: 100%; background: rgba(255,250,240,0.55); border: 1px solid rgba(0,0,0,0.18);
+            color: #0a0400; padding: 0.4rem 0.5rem; border-radius: 3px;
+            font-size: 0.8rem; line-height: 1.6; resize: none; outline: none; font-weight: 600;
             font-family: 'Georgia', serif; min-height: 180px;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.2);
         }
-        .book-journal-text:focus { border-color: rgba(0,0,0,0.25); }
+        .book-journal-text:focus { border-color: rgba(0,0,0,0.4); }
 
         /* ===== 角色卡面板（右侧） ===== */
         .camp-char-detail {
@@ -1005,10 +979,14 @@
         #supplyShop {
             margin-top: 1rem;
             padding: 0.8rem 1rem;
-            background: rgba(30, 40, 60, 0.6);
+            position:relative; z-index:0;
+            background:url('/static/images/supply.png') center 28%/cover;
             border: 1px solid rgba(212, 168, 96, 0.25);
             border-radius: 10px;
+            min-height:750px;
         }
+        #supplyShop::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
+        #supplyShop > * { position:relative; z-index:1; }
         #supplyShop h3 {
             color: #d4a860;
             font-size: 0.95rem;
@@ -1046,55 +1024,98 @@
             border-bottom: 1px solid rgba(100, 180, 220, 0.15);
             padding-bottom: 0.4rem;
         }
-        .workshop-subtabs { display:flex; gap:0; margin-bottom:0.6rem; border-bottom:1px solid rgba(255,255,255,0.06); }
+        .workshop-subtabs { display:flex; gap:0; margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.06); }
         .workshop-subtabs .ws-tab {
-            padding:0.4rem 0.9rem; border:none; background:transparent; color:#5a7a9a;
-            cursor:pointer; font-size:0.75rem; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-1px;
+            padding:0.5rem 1.2rem; border:none; background:transparent; color:#5a7a9a;
+            cursor:pointer; font-size:0.85rem; font-family:inherit; border-bottom:2px solid transparent; margin-bottom:-1px;
         }
         .workshop-subtabs .ws-tab:hover { color:#8aacce; }
         .workshop-subtabs .ws-tab.active { color:#88bbee; border-bottom-color:#88bbee; }
-        .workshop-body { display:flex; gap:0.8rem; min-height:400px; }
+        .workshop-body { display:flex; gap:0.8rem; min-height:500px; }
         .ws-left { flex:1; min-width:0; }
-        .ws-right { width:340px; flex-shrink:0; }
-        .ws-recipe-title { color:#88bbee; font-size:0.78rem; margin-bottom:0.3rem; }
-        .ws-recipe-list { max-height:120px; overflow-y:auto; margin-bottom:0.5rem; font-size:0.68rem; color:#7a9ab8; width:65%; }
+        .ws-right { width:440px; flex-shrink:0; padding:0.8rem 0.9rem;
+            position:relative;
+            /* 牛皮内衬多层纹理 */
+            background:
+                radial-gradient(ellipse at 25% 15%, rgba(210,160,110,0.12) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 85%, rgba(180,130,80,0.08) 0%, transparent 55%),
+                radial-gradient(circle at 50% 50%, rgba(140,90,50,0.06) 0%, transparent 70%),
+                linear-gradient(175deg, #7a4a2a 0%, #5c361a 18%, #4d2c14 38%, #5e3820 55%, #4a2812 78%, #3d1e0c 100%);
+            border: 4px solid #2a1408;
+            border-radius: 14px;
+            box-shadow:
+                inset 0 3px 12px rgba(0,0,0,0.5),
+                inset 0 -3px 10px rgba(0,0,0,0.35),
+                0 0 0 1.5px #5c361a,
+                0 0 0 5px #2a1408,
+                0 0 0 7px #1a0c04,
+                0 4px 20px rgba(0,0,0,0.5);
+        }
+        /* 皮革缝线 */
+        .ws-right::before {
+            content:''; position:absolute; inset:8px;
+            border: 1.5px dashed rgba(200,165,120,0.25);
+            border-radius: 5px; pointer-events:none; z-index:0;
+        }
+        /* 四角皮扣 + 小口袋装饰 */
+        .ws-right::after {
+            content:''; position:absolute;
+            top:8px; left:18px; right:18px; height:5px;
+            background:linear-gradient(90deg,
+                rgba(180,140,100,0.25) 0%, transparent 8%,
+                transparent 30%, rgba(180,140,100,0.18) 35%, transparent 40%,
+                transparent 60%, rgba(180,140,100,0.18) 65%, transparent 70%,
+                transparent 92%, rgba(180,140,100,0.25) 100%);
+            border-radius:3px; pointer-events:none; z-index:0;
+        }
+        .ws-right > * { position:relative; z-index:1; }
+        /* 工作间子面板 — 背景图 + 暗色叠加层 */
+        .ws-panel { position:relative; background-size:cover; background-position:center 30%; border-radius:10px; padding:0.8rem; z-index:0; }
+        .ws-panel::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.72); border-radius:10px; z-index:0; pointer-events:none; }
+        .ws-panel > * { position:relative; z-index:1; }
+        #wsCraft  { background-image:url('/static/images/craft.png'); }
+        #wsAnvil  { background-image:url('/static/images/anvil.png'); }
+        #wsSmelt  { background-image:url('/static/images/smelt.png'); }
+        #wsBrew   { background-image:url('/static/images/brew.png');  }
+        .ws-recipe-title { color:#88bbee; font-size:0.85rem; margin-bottom:0.4rem; }
+        .ws-recipe-list { max-height:150px; overflow-y:auto; margin-bottom:0.6rem; font-size:0.75rem; color:#7a9ab8; width:65%; }
         .ws-empty-hint { color:#4a6a8a; font-style:italic; text-align:center; padding:0.5rem; }
-        .ws-recipe-item { padding:0.15rem 0.3rem; cursor:pointer; border-radius:3px; display:inline-block; }
+        .ws-recipe-item { padding:0.2rem 0.4rem; cursor:pointer; border-radius:3px; display:inline-block; }
         .ws-recipe-item:hover { background:rgba(100,180,220,0.1); }
-        .ws-recipe-item .rcp-name { color:#aaccee; }
-        .ws-recipe-item .rcp-cost { color:#6a8aaa; font-size:0.62rem; }
+        .ws-recipe-item .rcp-name { color:#aaccee; font-size:0.78rem; }
+        .ws-recipe-item .rcp-cost { color:#6a8aaa; font-size:0.68rem; }
         .ws-craft-area { text-align:center; }
         .slot-label { pointer-events:none; }
-        .slot-remove-btn { display:none; position:absolute; top:-8px; right:-8px; width:16px; height:16px; border-radius:50%; background:rgba(220,60,60,0.8); color:#fff; border:none; cursor:pointer; font-size:0.5rem; line-height:1; padding:0; text-align:center; z-index:2; }
+        .slot-remove-btn { display:none; position:absolute; top:-11px; right:-11px; width:22px; height:22px; border-radius:50%; background:rgba(220,60,60,0.8); color:#fff; border:none; cursor:pointer; font-size:0.65rem; line-height:1; padding:0; text-align:center; z-index:2; }
         .slot-remove-btn:hover { background:rgba(240,40,40,1); }
         .smelt-slot.filled .slot-remove-btn, .brew-slot.filled .slot-remove-btn { display:block; }
-        .brew-result-slot, .craft-result-slot { width:56px; height:56px; border:2px solid rgba(212,168,96,0.4); border-radius:8px; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:#d4a860; margin:0 auto; }
-        .craft-take-btn { margin-top:4px; padding:2px 12px; background:rgba(76,175,80,0.2); color:#4caf50; border:1px solid rgba(76,175,80,0.4); border-radius:3px; cursor:pointer; font-size:0.62rem; font-family:inherit; }
+        .brew-result-slot, .craft-result-slot { width:88px; height:88px; border:2px solid rgba(220,180,100,0.6); border-radius:10px; background:rgba(30,20,10,0.7); display:flex; align-items:center; justify-content:center; font-size:0.82rem; color:#e8c878; margin:0 auto; }
+        .craft-take-btn { margin-top:8px; padding:5px 22px; background:rgba(76,175,80,0.2); color:#4caf50; border:1px solid rgba(76,175,80,0.4); border-radius:4px; cursor:pointer; font-size:0.78rem; font-family:inherit; }
         .craft-take-btn:hover { background:rgba(76,175,80,0.3); }
-        .craft-do-btn { margin-top:0.6rem; padding:5px 28px; background:rgba(100,180,220,0.2); color:#88bbee; border:1px solid rgba(100,180,220,0.35); border-radius:5px; cursor:pointer; font-size:0.78rem; font-family:inherit; }
+        .craft-do-btn { margin-top:1rem; padding:9px 44px; background:rgba(100,180,220,0.2); color:#88bbee; border:1px solid rgba(100,180,220,0.35); border-radius:6px; cursor:pointer; font-size:0.95rem; font-family:inherit; }
         .craft-do-btn:hover { background:rgba(100,180,220,0.3); }
-        .craft-msg { font-size:0.68rem; margin-top:0.3rem; min-height:1rem; }
+        .craft-msg { font-size:0.78rem; margin-top:0.5rem; min-height:1.4rem; }
         /* 熔炼炉 — 倒三角（正三角倒置） */
-        .smelt-triangle { position:relative; width:260px; height:240px; margin:0.5rem auto; }
-        .smelt-slot { position:absolute; width:56px; height:56px; background:rgba(0,0,0,0.35); border:2px dashed rgba(255,255,255,0.15); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.55rem; color:#5a7a9a; text-align:center; line-height:1.1; }
-        .smelt-slot:hover { border-color:rgba(220,140,60,0.4); background:rgba(220,140,60,0.08); }
-        .smelt-slot.filled { border-style:solid; border-color:rgba(220,140,60,0.3); background:rgba(220,140,60,0.1); color:#d49460; }
-        .ore-slot { top:10px; left:20px; }
-        .ingot-slot { top:10px; right:20px; }
-        .coal-slot { bottom:20px; left:50%; transform:translateX(-50%); }
-        .smelt-fire-bars { position:absolute; right:5px; top:80px; display:flex; flex-direction:column; gap:3px; }
-        .fire-bar { width:8px; height:18px; background:rgba(255,255,255,0.06); border-radius:2px; }
+        .smelt-triangle { position:relative; width:380px; height:330px; margin:0.5rem auto; }
+        .smelt-slot { position:absolute; width:88px; height:88px; background:rgba(20,15,10,0.65); border:2px dashed rgba(200,160,120,0.45); border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.72rem; color:#8a7a6a; text-align:center; line-height:1.1; }
+        .smelt-slot:hover { border-color:rgba(240,160,80,0.7); background:rgba(220,140,60,0.12); }
+        .smelt-slot.filled { border-style:solid; border-color:rgba(240,160,80,0.6); background:rgba(220,140,60,0.18); color:#e8b878; }
+        .ore-slot { top:14px; left:28px; }
+        .ingot-slot { top:14px; right:28px; }
+        .coal-slot { bottom:28px; left:50%; transform:translateX(-50%); }
+        .smelt-fire-bars { position:absolute; right:8px; top:114px; display:flex; flex-direction:column; gap:4px; }
+        .fire-bar { width:12px; height:24px; background:rgba(255,255,255,0.06); border-radius:3px; }
         .fire-bar.lit { background:rgba(255,120,30,0.8); box-shadow:0 0 6px rgba(255,100,20,0.5); }
-        .smelt-progress { position:absolute; top:72px; left:50%; transform:translateX(-50%); width:180px; height:5px; background:rgba(0,0,0,0.4); border-radius:3px; }
-        .smelt-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#ff6020,#ff3010); border-radius:3px; transition:width 0.1s; }
-        .smelt-take-btn { margin-top:4px; padding:2px 12px; background:rgba(76,175,80,0.2); color:#4caf50; border:1px solid rgba(76,175,80,0.4); border-radius:3px; cursor:pointer; font-size:0.62rem; font-family:inherit; }
+        .smelt-progress { position:absolute; top:104px; left:50%; transform:translateX(-50%); width:270px; height:7px; background:rgba(0,0,0,0.4); border-radius:4px; }
+        .smelt-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#ff6020,#ff3010); border-radius:4px; transition:width 0.1s; }
+        .smelt-take-btn { margin-top:8px; padding:5px 22px; background:rgba(76,175,80,0.2); color:#4caf50; border:1px solid rgba(76,175,80,0.4); border-radius:4px; cursor:pointer; font-size:0.78rem; font-family:inherit; }
         .smelt-take-btn:hover { background:rgba(76,175,80,0.3); }
         .smelt-btn { border-color:rgba(220,140,60,0.35); color:#d49460; }
         /* 炼药锅 — 六芒星 */
-        .brew-hexagram { position:relative; width:240px; height:240px; margin:0.5rem auto; }
-        .brew-slot { position:absolute; width:48px; height:48px; background:rgba(0,0,0,0.35); border:2px dashed rgba(255,255,255,0.15); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:#7a9aba; text-align:center; line-height:1.1; }
-        .brew-slot:hover { border-color:rgba(140,100,220,0.4); background:rgba(140,100,220,0.08); }
-        .brew-slot.filled { border-style:solid; border-color:rgba(140,100,220,0.5); background:rgba(140,100,220,0.15); color:#d4b8f0; font-weight:bold; }
+        .brew-hexagram { position:relative; width:360px; height:360px; margin:0.5rem auto; }
+        .brew-slot { position:absolute; width:76px; height:76px; background:rgba(20,15,25,0.65); border:2px dashed rgba(180,160,210,0.45); border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#8a80a0; text-align:center; line-height:1.1; }
+        .brew-slot:hover { border-color:rgba(160,120,240,0.7); background:rgba(140,100,220,0.12); }
+        .brew-slot.filled { border-style:solid; border-color:rgba(160,120,240,0.6); background:rgba(140,100,220,0.2); color:#e0c8ff; font-weight:bold; }
         .brew-slot[data-slot="0"] { top:0; left:50%; transform:translateX(-50%); }
         .brew-slot[data-slot="1"] { top:18%; right:5%; }
         .brew-slot[data-slot="2"] { bottom:18%; right:5%; }
@@ -1103,23 +1124,30 @@
         .brew-slot[data-slot="5"] { top:18%; left:5%; }
         .brew-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
         .brew-btn { border-color:rgba(140,100,220,0.35); color:#b494e0; }
+        /* 铁砧区域 — 与其他面板等高 */
+        .anvil-area { position:relative; width:380px; height:330px; margin:0.5rem auto; display:flex; align-items:center; justify-content:center; border:2px dashed rgba(200,150,100,0.45); border-radius:10px; background:rgba(20,15,10,0.4); }
+        .anvil-area .anvil-placeholder { color:#8a6a5a; font-size:1rem; text-align:center; }
         /* 背包 */
-        .ws-backpack-title { color:#88bbee; font-size:0.78rem; margin-bottom:0.4rem; }
-        .ws-backpack-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:3px; max-height:420px; overflow-y:auto; }
-        .ws-bp-item { aspect-ratio:1; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:0.55rem; color:#7a9ab8; text-align:center; padding:2px; }
-        .ws-bp-item:hover { background:rgba(100,180,220,0.1); border-color:rgba(100,180,220,0.2); }
-        .ws-bp-item.selected { border-color:rgba(212,168,96,0.5); background:rgba(212,168,96,0.1); }
+        .ws-backpack-title { color:#d4b896; font-size:0.95rem; margin-bottom:0.5rem; }
+        .ws-backpack-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:3px; max-height:450px; overflow-y:auto; }
+        .ws-bp-item { aspect-ratio:1; background:rgba(30,18,8,0.7); border:1.5px solid rgba(160,120,80,0.35); border-radius:5px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:0.68rem; color:#c4a882; text-align:center; padding:3px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 1px 0 rgba(120,100,70,0.15); }
+        .ws-bp-item:hover { background:rgba(50,30,15,0.75); border-color:rgba(210,160,100,0.55); box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 0 8px rgba(180,140,90,0.15); }
+        .ws-bp-item.selected { border-color:rgba(240,180,100,0.75); background:rgba(60,35,15,0.75); box-shadow:inset 0 0 6px rgba(200,150,80,0.2); }
         .ws-bp-item .bp-name { line-height:1.1; word-break:break-all; }
-        .ws-bp-item .bp-qty { color:#5a7a9a; margin-top:1px; }
+        .ws-bp-item .bp-qty { color:#8a7a5a; margin-top:2px; font-size:0.62rem; }
 
         /* ===== 铁匠工房 ===== */
         #smithForge {
             margin-top: 1rem;
             padding: 0.8rem 1rem;
-            background: rgba(30, 40, 60, 0.6);
+            position:relative; z-index:0;
+            background:url('/static/images/smith.png') center 28%/cover;
             border: 1px solid rgba(220, 140, 60, 0.25);
             border-radius: 10px;
+            min-height:750px;
         }
+        #smithForge::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
+        #smithForge > * { position:relative; z-index:1; }
         #smithForge h3 {
             color: #d49460;
             font-size: 0.95rem;
@@ -1132,10 +1160,14 @@
         #alchemyLab {
             margin-top: 1rem;
             padding: 0.8rem 1rem;
-            background: rgba(30, 40, 60, 0.6);
+            position:relative; z-index:0;
+            background:url('/static/images/alchemy.png') center 28%/cover;
             border: 1px solid rgba(140, 100, 220, 0.25);
             border-radius: 10px;
+            min-height:750px;
         }
+        #alchemyLab::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
+        #alchemyLab > * { position:relative; z-index:1; }
         #alchemyLab h3 {
             color: #b494e0;
             font-size: 0.95rem;
@@ -1143,6 +1175,84 @@
             border-bottom: 1px solid rgba(140, 100, 220, 0.15);
             padding-bottom: 0.4rem;
         }
+
+        /* ===== 营地仓库 ===== */
+        #campStorage {
+            margin-top: 1rem;
+            padding: 0.8rem 1rem;
+            position:relative; z-index:0;
+            background:url('/static/images/storage.png') center 28%/cover;
+            border: 1px solid rgba(180,160,140,0.25);
+            border-radius: 10px;
+            min-height:750px;
+        }
+        #campStorage::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
+        #campStorage > * { position:relative; z-index:1; }
+        #campStorage h3 {
+            color: #c8b898;
+            font-size: 0.95rem;
+            margin: 0 0 0.6rem 0;
+            border-bottom: 1px solid rgba(180,160,140,0.15);
+            padding-bottom: 0.4rem;
+        }
+        .storage-body { display:flex; gap:0.8rem; min-height:650px; }
+        .storage-left { flex:1; min-width:0; }
+        .storage-right { width:440px; flex-shrink:0; padding:0.8rem 0.9rem;
+            position:relative;
+            background:
+                radial-gradient(ellipse at 25% 15%, rgba(210,160,110,0.12) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 85%, rgba(180,130,80,0.08) 0%, transparent 55%),
+                radial-gradient(circle at 50% 50%, rgba(140,90,50,0.06) 0%, transparent 70%),
+                linear-gradient(175deg, #7a4a2a 0%, #5c361a 18%, #4d2c14 38%, #5e3820 55%, #4a2812 78%, #3d1e0c 100%);
+            border: 4px solid #2a1408;
+            border-radius: 14px;
+            box-shadow:
+                inset 0 3px 12px rgba(0,0,0,0.5),
+                inset 0 -3px 10px rgba(0,0,0,0.35),
+                0 0 0 1.5px #5c361a,
+                0 0 0 5px #2a1408,
+                0 0 0 7px #1a0c04,
+                0 4px 20px rgba(0,0,0,0.5);
+        }
+        .storage-right::before {
+            content:''; position:absolute; inset:8px;
+            border: 1.5px dashed rgba(200,165,120,0.25);
+            border-radius: 5px; pointer-events:none; z-index:0;
+        }
+        .storage-right::after {
+            content:''; position:absolute;
+            top:10px; left:18px; right:18px; height:5px;
+            background:linear-gradient(90deg,
+                rgba(180,140,100,0.25) 0%, transparent 8%,
+                transparent 30%, rgba(180,140,100,0.18) 35%, transparent 40%,
+                transparent 60%, rgba(180,140,100,0.18) 65%, transparent 70%,
+                transparent 92%, rgba(180,140,100,0.25) 100%);
+            border-radius:3px; pointer-events:none; z-index:0;
+        }
+        .storage-right > * { position:relative; z-index:1; }
+        .storage-title { color:#c8b898; font-size:0.9rem; margin-bottom:0.5rem; }
+        .storage-backpack-title { color:#d4b896; font-size:0.95rem; margin-bottom:0.5rem; }
+        .storage-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; max-height:600px; overflow-y:auto; }
+        .storage-backpack-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:3px; max-height:600px; overflow-y:auto; }
+        .st-item { aspect-ratio:1; background:rgba(25,16,8,0.7); border:1.5px solid rgba(150,120,90,0.3); border-radius:5px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:0.62rem; color:#c8b898; text-align:center; padding:3px; transition:0.15s; box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 1px 0 rgba(120,100,70,0.12); }
+        .st-item:hover { background:rgba(45,28,14,0.75); border-color:rgba(200,170,130,0.55); box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 0 8px rgba(180,140,90,0.12); }
+        .st-bp-item { aspect-ratio:1; background:rgba(30,18,8,0.7); border:1.5px solid rgba(160,120,80,0.35); border-radius:5px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:0.68rem; color:#c4a882; text-align:center; padding:3px; transition:0.15s; box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 1px 0 rgba(120,100,70,0.15); }
+        .st-bp-item:hover { background:rgba(50,30,15,0.75); border-color:rgba(210,160,100,0.55); box-shadow:inset 0 1px 3px rgba(0,0,0,0.4), 0 0 8px rgba(180,140,90,0.15); }
+        .st-item .st-name, .st-bp-item .st-name { line-height:1.1; word-break:break-all; }
+        .st-item .st-qty, .st-bp-item .st-qty { color:#7a6a5a; margin-top:2px; font-size:0.58rem; }
+        /* 仓储数量弹窗 */
+        .st-qty-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; display:flex; align-items:center; justify-content:center; }
+        .st-qty-modal { background:linear-gradient(160deg,#2a2218,#3d3025); border:2px solid rgba(200,170,130,0.5); border-radius:12px; padding:1.2rem 1.5rem; min-width:280px; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,0.6); }
+        .st-qty-modal .st-qty-title { color:#d4b896; font-size:0.9rem; margin-bottom:0.3rem; }
+        .st-qty-modal .st-qty-subtitle { color:#8a7a6a; font-size:0.7rem; margin-bottom:0.8rem; }
+        .st-qty-modal input[type=range] { width:100%; margin:0.3rem 0 0.6rem; accent-color:#d4a860; }
+        .st-qty-modal .st-qty-val { color:#f0d080; font-size:1.2rem; font-weight:bold; }
+        .st-qty-modal .st-qty-btns { display:flex; gap:0.6rem; justify-content:center; margin-top:0.8rem; }
+        .st-qty-modal .st-qty-btns button { padding:0.4rem 1.5rem; border-radius:5px; cursor:pointer; font-family:inherit; font-size:0.78rem; border:1px solid; }
+        .st-qty-modal .st-qty-ok { background:rgba(76,175,80,0.2); color:#6abf8a; border-color:rgba(76,175,80,0.4); }
+        .st-qty-modal .st-qty-ok:hover { background:rgba(76,175,80,0.3); }
+        .st-qty-modal .st-qty-cancel { background:rgba(200,200,200,0.1); color:#999; border-color:rgba(200,200,200,0.2); }
+        .st-qty-modal .st-qty-cancel:hover { background:rgba(200,200,200,0.2); }
 
         /* 营地底部标签切换栏 */
         .camp-bottom-tabs {
@@ -1154,17 +1264,19 @@
         .camp-bottom-tab {
             padding: 0.5rem 1.2rem;
             border: none;
-            background: transparent;
-            color: #5a7a9a;
+            background: rgba(255,255,255,0.06);
+            color: #b0c8e0;
             cursor: pointer;
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             font-family: inherit;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
+            border-radius: 6px 6px 0 0;
             transition: all 0.15s;
+            letter-spacing: 0.5px;
         }
-        .camp-bottom-tab:hover { color: #8aacce; }
-        .camp-bottom-tab.active { color: #d4a860; border-bottom-color: #d4a860; }
+        .camp-bottom-tab:hover { color: #d8e8f8; background: rgba(255,255,255,0.1); }
+        .camp-bottom-tab.active { color: #f0d080; border-bottom-color: #d4a860; background: rgba(212,168,96,0.1); font-weight: 600; }
 
         /* ===== 响应式 ===== */
         @media (max-width: 980px) {
@@ -1199,9 +1311,9 @@
             .event-cards {
                 grid-template-columns: repeat(2, 1fr);
             }
-            .event-card { padding: 0.7rem 0.5rem;
-                min-height: 60px; }
-            .event-card .cmd { font-size: 0.85rem; }
+            .event-card { padding: 0.9rem 0.7rem;
+                min-height: 90px; }
+            .event-card .cmd { font-size: 1rem; }
             .hero-title h1 {
                 font-size: 1.5rem;
                 letter-spacing: 4px;
@@ -1270,6 +1382,7 @@
                 <a id="campTab">⛺ 营地</a>
                 <a id="mapPlaceholder" title="地图功能即将开放" style="opacity:0.5;cursor:not-allowed;">🗺️ 地图</a>
                 <a id="soundToggleBtn" onclick="toggleNorthSound()" title="声音开关" style="cursor:pointer;">🔇</a>
+                <a id="videoToggleBtn" onclick="toggleBgVideo()" title="暂停/播放背景" style="cursor:pointer;">⏯️</a>
             </div>
         </header>
 
@@ -1298,11 +1411,7 @@
                 </div>
 
                 <div class="event-drawer">
-                    <div class="drawer-toggle" id="drawerToggle">
-                        <span>🎲 探索雪原</span>
-                        <span class="icon">▼</span>
-                    </div>
-                    <div class="drawer-content open" id="drawerContent">
+                    <div class="drawer-content" id="drawerContent">
                         <div id="eventTabContainer" class="event-tabs"></div>
                         <div id="eventCardContainer" class="event-cards"></div>
                     </div>
@@ -1415,18 +1524,13 @@
             <div class="camp-layout">
                 <!-- 左侧：皮革旧书 -->
                 <div class="book-wrapper">
-                    <div class="book-cover" id="bookCover" onclick="openBook()">
-                        <div class="book-cover-texture"></div>
-                        <div class="book-cover-spine"></div>
-                        <div class="book-cover-title">📖<br>冒险者<br>手札</div>
-                        <div class="book-cover-hint">点击翻开</div>
-                    </div>
+                    <div class="book-cover" id="bookCover" onclick="openBook()"></div>
                     <div class="book-open" id="bookOpen">
                         <div class="book-back"></div>
                         <div class="book-left-page">
                             <div class="book-page-header">
                                 <span class="book-tab active" data-booktab="rules">📜 生存法则</span>
-                                <span class="book-tab" data-booktab="notes">📖 冒险者笔记</span>
+                                <span class="book-tab" data-booktab="notes">📖 冒险记录</span>
                                 <span class="book-tab" data-booktab="journal">📝 冒险笔记</span>
                                 <span class="book-tab" data-booktab="gifts">🎁 雪原馈赠</span>
                                 <span class="book-tab" data-booktab="creatures">🐺 冰原生物</span>
@@ -1434,7 +1538,7 @@
                             <div class="book-page-content" id="bookPageContent">
                                 <!-- 动态填充 -->
                             </div>
-                            <div style="position:absolute;bottom:8px;right:14px;font-size:0.6rem;color:#5a7a9a;" id="bookPageNum">第 1 页</div>
+                            <div style="position:absolute;bottom:12px;right:14px;font-size:0.62rem;" id="bookPageNum">第 1 页</div>
                         </div>
                         <div class="book-right-page">
                             <div class="book-page-content" id="bookRightContent">
@@ -1479,6 +1583,7 @@
                 <button class="camp-bottom-tab" data-bottomtab="craft">🔧 工作间</button>
                 <button class="camp-bottom-tab" data-bottomtab="smith">⚒️ 铁匠工房</button>
                 <button class="camp-bottom-tab" data-bottomtab="alchemy">🧪 炼金工坊</button>
+                <button class="camp-bottom-tab" data-bottomtab="storage">📦 营地仓库</button>
             </div>
 
             <!-- 冒险补给站（商店） -->
@@ -1518,7 +1623,7 @@
                                     <div class="brew-slot" data-slot="5" onclick="wsPlaceItem('craft','5')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','5')">✕</button></div>
                                     <div class="brew-center">
                                         <div class="brew-result-slot" id="craftResult">?</div>
-                                        <button class="craft-take-btn" id="craftTakeBtn" onclick="wsTakeResult('craft')">拿取</button>
+                                        <button class="craft-take-btn" id="craftTakeBtn" onclick="wsTakeResult('craft')" style="display:none;">拿取</button>
                                     </div>
                                 </div>
                                 <button class="craft-do-btn" onclick="wsDoCraft()">🔨 制作</button>
@@ -1531,7 +1636,13 @@
                             <div class="ws-recipe-list" id="anvilRecipeList">
                                 <div class="ws-empty-hint">你的灵感等待激发…</div>
                             </div>
-                            <div class="ws-craft-area" style="text-align:center;color:#5a7a9a;padding:2rem;">— 铁砧功能待开放 —</div>
+                            <div class="ws-craft-area">
+                                <div class="anvil-area">
+                                    <div class="anvil-placeholder">⚒️ 铁砧功能待开放</div>
+                                </div>
+                                <button class="craft-do-btn" disabled style="opacity:0.4;cursor:not-allowed;">⚒️ 锻造</button>
+                                <div class="craft-msg" id="anvilMsg"></div>
+                            </div>
                         </div>
                         <!-- 熔炼炉 -->
                         <div class="ws-panel" id="wsSmelt" style="display:none;">
@@ -1546,7 +1657,7 @@
                                         <div class="fire-bar"></div><div class="fire-bar"></div><div class="fire-bar"></div>
                                     </div>
                                     <div class="smelt-slot ingot-slot" id="smeltResult" title="熔炼产物">锭</div>
-                                    <button class="smelt-take-btn" id="smeltTakeBtn" onclick="wsTakeResult('smelt')" style="position:absolute;top:70px;right:10px;">拿取</button>
+                                    <button class="smelt-take-btn" id="smeltTakeBtn" onclick="wsTakeResult('smelt')" style="display:none;position:absolute;top:108px;right:18px;">拿取</button>
                                     <div class="smelt-slot coal-slot" data-slot="coal" onclick="wsPlaceItem('smelt','coal')" title="放入煤矿"><span class="slot-label">煤矿</span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('smelt','coal')">✕</button></div>
                                     <div class="smelt-progress"><div class="smelt-progress-fill" id="smeltProgressFill"></div></div>
                                 </div>
@@ -1570,7 +1681,7 @@
                                     <div class="brew-slot" data-slot="5" onclick="wsPlaceItem('brew','5')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','5')">✕</button></div>
                                     <div class="brew-center">
                                         <div class="brew-result-slot" id="brewResult">?</div>
-                                        <button class="craft-take-btn" id="brewTakeBtn" onclick="wsTakeResult('brew')">拿取</button>
+                                        <button class="craft-take-btn" id="brewTakeBtn" onclick="wsTakeResult('brew')" style="display:none;">拿取</button>
                                     </div>
                                 </div>
                                 <button class="craft-do-btn brew-btn" onclick="wsDoBrew()">🧪 调配</button>
@@ -1601,6 +1712,27 @@
                 <h3>🧪 炼金工坊</h3>
                 <div class="shop-grid" id="alchemyGrid">
                     <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 炼金服务待开放 —</div>
+                </div>
+            </div>
+
+            <!-- 营地仓库 -->
+            <div id="campStorage" style="display:none;">
+                <h3>📦 营地仓库</h3>
+                <div class="storage-body">
+                    <!-- 左侧：仓库物品（10列） -->
+                    <div class="storage-left">
+                        <div class="storage-title">🏕️ 仓库存储</div>
+                        <div class="storage-grid" id="storageGrid">
+                            <div style="color:#6a5a4a;text-align:center;padding:1rem;grid-column:1/-1;">仓库空空如也…</div>
+                        </div>
+                    </div>
+                    <!-- 右侧：冒险者背包（6列） -->
+                    <div class="storage-right">
+                        <div class="storage-backpack-title">🎒 冒险者背包</div>
+                        <div class="storage-backpack-grid" id="storageBackpackGrid">
+                            <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div><!-- /campView -->
@@ -1850,10 +1982,10 @@
                         50: ['铁矿（可熔炼制作工具，可出售）', null],
                         51: ['寒铁矿（北境特产，可熔炼制作工具，可出售）', null],
                         60: ['寒铁矿（北境特产，可熔炼制作工具，可出售）', null],
-                        61: ['银矿（可出售）', null],
-                        70: ['银矿（可出售）', null],
-                        71: ['金矿（可出售）', null],
-                        75: ['金矿（可出售）', null],
+                        61: ['银矿（可熔炼，可出售）', null],
+                        70: ['银矿（可熔炼，可出售）', null],
+                        71: ['金矿（可熔炼，可出售）', null],
+                        75: ['金矿（可熔炼，可出售）', null],
                         76: ['冰水晶（浅蓝色的小块魔法水晶，可出售）', null],
                         85: ['冰水晶（浅蓝色的小块魔法水晶，可出售）', null],
                         86: ['霜晶核（蕴含冰冷能量，可出售）', null],
@@ -1954,8 +2086,8 @@
                         16: '煤矿（火炉生火，可出售）',
                         17: '铜矿（可熔炼制作工具，可出售）',
                         18: '铁矿（可熔炼制作工具，可出售）',
-                        19: '银矿（可出售）',
-                        20: '金矿（可出售）',
+                        19: '银矿（可熔炼，可出售）',
+                        20: '金矿（可熔炼，可出售）',
                         21: '寒铁矿（北境特产，可熔炼制作工具，可出售）',
                         22: '寒铁髓（寒铁中最为坚硬，魔力相性最好的部分的精华，可出售）',
                         23: '霜晶核（蕴含冰冷能量，可出售）',
@@ -4514,11 +4646,6 @@
                     });
                 });
 
-                document.getElementById('drawerToggle').addEventListener('click', function() {
-                    const content = document.getElementById('drawerContent');
-                    content.classList.toggle('open');
-                    this.classList.toggle('open');
-                });
             }
 
             // =========================================================================
@@ -4560,7 +4687,8 @@
                     wsCraftSlots: wsCraftSlots,
                     wsBrewSlots: wsBrewSlots,
                     wsCraftResult: wsCraftResult,
-                    wsBrewResult: wsBrewResult
+                    wsBrewResult: wsBrewResult,
+                    campStorage: campStorage
                 };
                 const json = JSON.stringify(saveData, null, 2);
                 const blob = new Blob([json], {type: 'application/json'});
@@ -4598,6 +4726,7 @@
                         if (saveData.wsBrewSlots) wsBrewSlots = saveData.wsBrewSlots;
                         if (saveData.wsCraftResult) wsCraftResult = saveData.wsCraftResult;
                         if (saveData.wsBrewResult) wsBrewResult = saveData.wsBrewResult;
+                        if (saveData.campStorage) campStorage = saveData.campStorage;
                         if (saveData.fullLog) {
                             fullLog = saveData.fullLog;
                             // 重建displayLog（从fullLog尾部截取，重新生成html）
@@ -5133,6 +5262,11 @@
 
             // ━━ 声音开关 ━━
             let _soundOn = false;
+            // 5秒后自动隐藏声音提示
+            setTimeout(function() {
+                const sp = document.getElementById('soundPrompt');
+                if (sp && !_soundOn) sp.classList.add('hidden');
+            }, 5000);
             window.toggleNorthSound = function() {
                 const prompt = document.getElementById('soundPrompt');
                 const soundBtn = document.getElementById('soundToggleBtn');
@@ -5144,6 +5278,19 @@
                     if (soundBtn) soundBtn.textContent = '🔊';
                 } else {
                     if (soundBtn) soundBtn.textContent = '🔇';
+                }
+            };
+
+            // ━━ 背景视频暂停/播放 ━━
+            window.toggleBgVideo = function() {
+                const btn = document.getElementById('videoToggleBtn');
+                if (!bgVideo) return;
+                if (bgVideo.paused) {
+                    bgVideo.play().catch(function(){});
+                    if (btn) btn.textContent = '⏯️';
+                } else {
+                    bgVideo.pause();
+                    if (btn) btn.textContent = '▶️';
                 }
             };
 
@@ -5219,7 +5366,8 @@
                     }
                 });
 
-                // ━━ 营地底部标签（补给站 / 工作间）━━
+                // ━━ 营地底部标签（补给站 / 工作间 / 仓库）━━
+                let campStorage = []; // 营地仓库独立存储
                 var bottomTabs = document.getElementById('campBottomTabs');
                 if (bottomTabs) bottomTabs.addEventListener('click', function(e) {
                     var tab = e.target.closest('.camp-bottom-tab');
@@ -5231,8 +5379,8 @@
                     document.getElementById('craftingWorkshop').style.display = tabName === 'craft' ? '' : 'none';
                     document.getElementById('smithForge').style.display = tabName === 'smith' ? '' : 'none';
                     document.getElementById('alchemyLab').style.display = tabName === 'alchemy' ? '' : 'none';
+                    document.getElementById('campStorage').style.display = tabName === 'storage' ? '' : 'none';
                     if (tabName === 'craft') {
-                        // 确保 activeChar 同步自营地选择
                         var campSel2 = document.getElementById('campCharSelect');
                         if (campSel2 && campSel2.value && charData[campSel2.value]) {
                             activeCharId = campSel2.value;
@@ -5241,7 +5389,135 @@
                         wsRenderBackpack();
                         wsRenderRecipes();
                     }
+                    if (tabName === 'storage') {
+                        var campSel3 = document.getElementById('campCharSelect');
+                        if (campSel3 && campSel3.value && charData[campSel3.value]) {
+                            activeCharId = campSel3.value;
+                            activeChar = charData[activeCharId];
+                        }
+                        storageRender();
+                    }
                 });
+
+                // ━━ 营地仓库系统 ━━
+                function storageRender() {
+                    storageRenderStorage();
+                    storageRenderBackpack();
+                }
+                function storageRenderStorage() {
+                    var grid = document.getElementById('storageGrid');
+                    if (!grid) return;
+                    if (!campStorage || campStorage.length === 0) {
+                        grid.innerHTML = '<div style="color:#6a5a4a;text-align:center;padding:1rem;grid-column:1/-1;">仓库空空如也…</div>';
+                        return;
+                    }
+                    var html = '';
+                    for (var i = 0; i < campStorage.length; i++) {
+                        var it = campStorage[i];
+                        html += '<div class="st-item" onclick="storageToBackpack('+i+')" title="点击取出到背包">';
+                        html += '<span class="st-name">'+it.name+'</span>';
+                        html += '<span class="st-qty">×'+it.qty+'</span>';
+                        html += '</div>';
+                    }
+                    grid.innerHTML = html;
+                }
+                function storageRenderBackpack() {
+                    var grid = document.getElementById('storageBackpackGrid');
+                    if (!grid) return;
+                    if (!activeChar || !activeChar.inventory || activeChar.inventory.length === 0) {
+                        grid.innerHTML = '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
+                        return;
+                    }
+                    var html = '';
+                    for (var i = 0; i < activeChar.inventory.length; i++) {
+                        var it = activeChar.inventory[i];
+                        if (it.qty <= 0) continue;
+                        html += '<div class="st-bp-item" onclick="backpackToStorage('+i+')" title="点击存入仓库">';
+                        html += '<span class="st-name">'+it.name+'</span>';
+                        html += '<span class="st-qty">×'+it.qty+'</span>';
+                        html += '</div>';
+                    }
+                    grid.innerHTML = html || '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
+                }
+                let stPending = null; // {dir:'toStorage'|'toBackpack', idx:N, name:'', max:0}
+                window.backpackToStorage = function(idx) {
+                    if (!activeChar || !activeChar.inventory || idx >= activeChar.inventory.length) return;
+                    var it = activeChar.inventory[idx];
+                    if (!it || it.qty <= 0) return;
+                    stPending = {dir:'toStorage', idx:idx, name:it.name, max:it.qty};
+                    stShowModal();
+                };
+                window.storageToBackpack = function(idx) {
+                    if (!campStorage || idx >= campStorage.length) return;
+                    if (!activeChar) return;
+                    var it = campStorage[idx];
+                    if (!it || it.qty <= 0) return;
+                    stPending = {dir:'toBackpack', idx:idx, name:it.name, max:it.qty};
+                    stShowModal();
+                };
+                function stShowModal() {
+                    if (!stPending) return;
+                    var old = document.getElementById('stQtyModal');
+                    if (old) old.remove();
+                    var overlay = document.createElement('div');
+                    overlay.id = 'stQtyModal';
+                    overlay.className = 'st-qty-modal-overlay';
+                    overlay.onclick = function(e) { if (e.target === overlay) { overlay.remove(); stPending = null; } };
+                    var max = stPending.max;
+                    var val = max; // 默认全部
+                    overlay.innerHTML = '<div class="st-qty-modal">' +
+                        '<div class="st-qty-title">'+stPending.name+'</div>' +
+                        '<div class="st-qty-subtitle">'+(stPending.dir==='toStorage'?'存入仓库':'取出到背包')+' · 可用 '+max+'</div>' +
+                        '<input type="range" min="1" max="'+max+'" value="'+max+'" oninput="document.getElementById(\'stQtyVal\').textContent=this.value" style="width:100%;">' +
+                        '<div class="st-qty-val" id="stQtyVal">'+max+'</div>' +
+                        '<div class="st-qty-btns">' +
+                            '<button class="st-qty-cancel" onclick="document.getElementById(\'stQtyModal\').remove();stPending=null;">取消</button>' +
+                            '<button class="st-qty-ok" id="stQtyOk">确认</button>' +
+                        '</div>' +
+                    '</div>';
+                    document.body.appendChild(overlay);
+                    document.getElementById('stQtyOk').addEventListener('click', function() {
+                        var qty = parseInt(document.getElementById('stQtyVal').textContent) || 1;
+                        stDoTransfer(qty);
+                        overlay.remove();
+                        stPending = null;
+                    });
+                }
+                function stDoTransfer(qty) {
+                    if (!stPending || qty <= 0) return;
+                    var dir = stPending.dir, idx = stPending.idx, name = stPending.name;
+                    if (dir === 'toStorage') {
+                        if (!activeChar || !activeChar.inventory || idx >= activeChar.inventory.length) return;
+                        var it = activeChar.inventory[idx];
+                        if (!it || it.qty <= 0) return;
+                        qty = Math.min(qty, it.qty);
+                        it.qty -= qty;
+                        if (it.qty <= 0) activeChar.inventory.splice(idx, 1);
+                        var found = false;
+                        for (var s = 0; s < campStorage.length; s++) {
+                            if (campStorage[s].name === name) { campStorage[s].qty += qty; found = true; break; }
+                        }
+                        if (!found) campStorage.push({name:name, qty:qty});
+                    } else {
+                        if (!campStorage || idx >= campStorage.length) return;
+                        var sit = campStorage[idx];
+                        if (!sit || sit.qty <= 0) return;
+                        qty = Math.min(qty, sit.qty);
+                        sit.qty -= qty;
+                        if (sit.qty <= 0) campStorage.splice(idx, 1);
+                        if (!activeChar) return;
+                        if (!activeChar.inventory) activeChar.inventory = [];
+                        var bfound = false;
+                        for (var bi = 0; bi < activeChar.inventory.length; bi++) {
+                            if (activeChar.inventory[bi].name === name) { activeChar.inventory[bi].qty += qty; bfound = true; break; }
+                        }
+                        if (!bfound) activeChar.inventory.push({name:name, qty:qty, location:'背包', weight:1});
+                    }
+                    if (document.getElementById('craftingWorkshop').style.display !== 'none') {
+                        wsRenderBackpack(); wsRenderRecipes();
+                    }
+                    storageRender();
+                };
 
                 // ━━ 工作间系统 ━━
                 let wsActiveTab = 'craft';
@@ -5485,7 +5761,12 @@
                     if (tab === 'craft') recipes = WS_RECIPES.craft;
                     else if (tab === 'brew') recipes = WS_RECIPES.brew;
                     else if (tab === 'smelt') {
-                        // 熔炼配方：显示已解锁的可熔炼矿物
+                        // 熔炼配方：自动解锁背包中已有的可熔炼矿物
+                        if (activeChar && activeChar.inventory) {
+                            activeChar.inventory.forEach(function(it) {
+                                if (WS_SMELT_MAP[it.name] && !wsUnlockedRecipes[it.name]) wsUnlockedRecipes[it.name] = true;
+                            });
+                        }
                         var smeltRecipes = [];
                         Object.keys(WS_SMELT_MAP).forEach(function(ore) {
                             if (wsUnlockedRecipes[ore]) smeltRecipes.push({name:ore, cost:{'煤矿':1}, result:WS_SMELT_MAP[ore], desc:'熔炼', tab:'smelt'});
@@ -5914,7 +6195,7 @@
                         rightEl.innerHTML = '';
                         const wpItems = TABLES['wp'] ? TABLES['wp'].items : {};
                         if (discoveredItems.length === 0) {
-                            leftEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">尚未获得任何物品<br><small>探索雪原，收集馈赠</small></div>';
+                            leftEl.innerHTML = '<div style="color:#1a0c02;text-align:center;padding:2rem;font-weight:600;">尚未获得任何物品<br><small style="color:#2a1808;">探索雪原，收集馈赠</small></div>';
                             rightEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">❄️<br>点击左侧物品<br>查看详细信息</div>';
                         } else {
                             // 左侧：物品列表
@@ -5972,7 +6253,7 @@
                         const hostiles = discoveredCreatures.filter(function(c) { return c.cat === 'hostile'; });
                         const neutrals = discoveredCreatures.filter(function(c) { return c.cat === 'neutral'; });
                         if (discoveredCreatures.length === 0) {
-                            leftEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">尚未遭遇任何生物<br><small>深入雪原，发现北境的生灵</small></div>';
+                            leftEl.innerHTML = '<div style="color:#1a0c02;text-align:center;padding:2rem;font-weight:600;">尚未遭遇任何生物<br><small style="color:#2a1808;">深入雪原，发现北境的生灵</small></div>';
                             rightEl.innerHTML = '<div style="color:#6b5a3e;text-align:center;padding:2rem;font-style:italic;">🐺<br>点击左侧生物<br>查看详细信息</div>';
                         } else {
                             let listHtml = '<div style="font-size:0.7rem;color:#6b5a3e;margin-bottom:0.3rem;">共遭遇 ' + discoveredCreatures.length + ' 种生物</div>';
@@ -6048,7 +6329,7 @@
                     activeCharId = id;
                     activeChar = data;
                     document.getElementById('campCharStatus').textContent = data.rank || '青羽';
-                    document.getElementById('campCharNameInHeader').textContent = '· ' + data.name;
+                    document.getElementById('campCharNameInHeader').textContent = '· ' + id;
                     const mods = {};
                     ['str','dex','con','int','wis','cha'].forEach(k => { mods[k] = Math.floor((data[k]-10)/2); });
                     const hpPct = Math.round(data.hp / Math.max(1, data.hpMax) * 100);
