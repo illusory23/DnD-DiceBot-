@@ -121,7 +121,7 @@ export async function initDiceOverlay() {
             theme: 'default',
             themeColor: '#ffffff',
             offscreen: false,
-            scale: 28,
+            scale: 38,
             settleTimeout: 5000
         });
 

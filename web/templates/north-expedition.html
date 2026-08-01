@@ -1450,6 +1450,16 @@
                         <span class="badge" id="survivalBadge">正常</span>
                     </div>
 
+                    <!-- 时间 -->
+                    <div class="survival-row">
+                        <span class="survival-icon" id="timeIcon">☀️</span>
+                        <div class="survival-info">
+                            <span class="label">时间</span>
+                            <span class="value" id="timeDisplay">上午 5:00</span>
+                            <span class="sub-text" id="timeDetail">白天</span>
+                        </div>
+                    </div>
+
                     <!-- 严寒等级 -->
                     <div class="survival-row">
                         <span class="survival-icon">❄️</span>
@@ -2158,6 +2168,7 @@
 
             // 生存状态
             let survival = {
+                gameHour: 5, // 游戏内时间（小时），默认上午5:00
                 coldLevel: 0, // 0-3
                 rations: 3,
                 fuel: { pine_branch: 0, resin: 0, iron_resin: 0, glow_moss: 0, firewood: 0 },
@@ -3270,6 +3281,7 @@
                             checkOrient();
                             checkFuel();
                             survival.totalEvents++;
+                            advanceTime(1);
                             // 更新UI
                             updateSurvivalUI();
                         }
@@ -3452,6 +3464,7 @@
                     checkOrient();
                     checkFuel();
                     survival.totalEvents++;
+                    advanceTime(1);
                     updateSurvivalUI();
                 }
 
@@ -3581,6 +3594,58 @@
                 updateSurvivalUI();
             }
 
+            // ━━ 时间系统 ━━
+            let _lastDayNight = null;
+            function advanceTime(hours) {
+                var oldDN = isNightTime();
+                survival.gameHour = (survival.gameHour + hours) % 24;
+                var newDN = isNightTime();
+                if (_lastDayNight !== null && oldDN !== newDN) {
+                    if (newDN) {
+                        showDayNightAlert('🌙 入夜了', '黑暗与寂静统治了这片大地，千万要小心，愿水星护佑你！', '🌙');
+                    } else {
+                        showDayNightAlert('☀️ 黎明', '大日重新升起，邪恶之物逐渐退避...', '☀️');
+                    }
+                }
+                _lastDayNight = newDN;
+            }
+            function showDayNightAlert(title, msg, icon) {
+                var old = document.getElementById('daynightAlert');
+                if (old) old.remove();
+                var overlay = document.createElement('div');
+                overlay.id = 'daynightAlert';
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(5,8,18,0.6);animation:dnFadeIn .4s ease-out;';
+                overlay.innerHTML = '<div style="background:linear-gradient(160deg,#1a2238,#252d42);border:1px solid rgba(212,168,96,0.45);border-radius:16px;padding:2rem 2.5rem;text-align:center;box-shadow:0 12px 60px rgba(0,0,0,0.7);max-width:420px;animation:dnPopIn .5s cubic-bezier(.2,.8,.3,1.1);">' +
+                    '<div style="font-size:2.5rem;margin-bottom:0.6rem;">'+icon+'</div>' +
+                    '<div style="color:#e8d9b8;font-size:1.2rem;font-weight:700;letter-spacing:2px;margin-bottom:0.5rem;">'+title+'</div>' +
+                    '<div style="color:#8fa3ba;font-size:0.85rem;line-height:1.6;">'+msg+'</div>' +
+                '</div>';
+                document.body.appendChild(overlay);
+                setTimeout(function() {
+                    overlay.style.opacity = '0';
+                    overlay.style.transition = 'opacity 0.6s ease-out';
+                    setTimeout(function() { if (overlay.parentNode) overlay.remove(); }, 600);
+                }, 2500);
+            }
+            // 注入昼夜提示动画
+            (function() {
+                var st = document.createElement('style');
+                st.textContent = '@keyframes dnFadeIn{from{opacity:0}to{opacity:1}}@keyframes dnPopIn{from{opacity:0;transform:scale(0.9)translateY(-10px)}to{opacity:1;transform:scale(1)translateY(0)}}';
+                document.head.appendChild(st);
+            })();
+            function isNightTime() {
+                return survival.gameHour >= 21 || survival.gameHour < 5;
+            }
+            function formatGameTime() {
+                var h = survival.gameHour;
+                var period = h >= 5 && h < 12 ? '上午' : (h >= 12 && h < 18 ? '下午' : (h >= 18 && h < 21 ? '傍晚' : '夜晚'));
+                var displayH = h % 12;
+                if (displayH === 0) displayH = 12;
+                var timeStr = period + ' ' + displayH + ':00';
+                var dayNight = isNightTime() ? '夜晚' : '白天';
+                return { timeStr: timeStr, dayNight: dayNight, icon: isNightTime() ? '🌙' : '☀️' };
+            }
+
             function updateSurvivalUI() {
                 // 严寒
                 const coldDots = document.querySelectorAll('#coldMeter .cold-dot');
@@ -3673,6 +3738,12 @@
                     }
                 }
                 document.getElementById('consumeRationBtn').disabled = !hasFood;
+
+                // 时间显示
+                var ti = formatGameTime();
+                document.getElementById('timeDisplay').textContent = ti.timeStr;
+                document.getElementById('timeDetail').textContent = ti.dayNight;
+                document.getElementById('timeIcon').textContent = ti.icon;
             }
 
             // =========================================================================
@@ -4595,6 +4666,7 @@
                                         rollCount++;
                                         document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                                         survival.totalEvents++;
+                                        advanceTime(1);
                                         checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
                                         updateSurvivalUI();
                                         unlockEvents();
@@ -4632,6 +4704,7 @@
                             rollCount++;
                             document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                             survival.totalEvents++;
+                            advanceTime(1);
                             if (survival.isInShelter) {
                                 survival.isInShelter = false;
                                 survival.shelterType = null;
@@ -5086,6 +5159,7 @@
                 rollCount++;
                 document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                 survival.totalEvents++;
+                advanceTime(1);
                 checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
                 updateSurvivalUI();
             }
@@ -6662,22 +6736,28 @@
                 document.getElementById('campLongRestBtn').addEventListener('click', function() {
                     const id = document.getElementById('campCharSelect').value;
                     if (!id || !charData[id]) { alert('请先选择角色'); return; }
+                    if (!confirm('确定要进行长休吗？将恢复全部HP并推进8小时。')) return;
                     const data = charData[id];
                     data.hp = data.hpMax;
                     data.tempHp = 0;
+                    advanceTime(8);
                     renderCampCharDetail(id);
                     if (activeCharId === id) renderCharDetail(id);
+                    updateSurvivalUI();
                     addSystemLog(`🛌 ${data.name} 在营地完成长休，HP 已恢复至 ${data.hpMax}`, 'success');
                 });
                 document.getElementById('campShortRestBtn').addEventListener('click', function() {
                     const id = document.getElementById('campCharSelect').value;
                     if (!id || !charData[id]) { alert('请先选择角色'); return; }
+                    if (!confirm('确定要进行短休吗？将恢复1d8+体质调整值HP并推进1小时。')) return;
                     const data = charData[id];
                     const heal = rollDiceExpr('1d8') + abilityMod(data.con);
                     const actual = Math.min(heal, data.hpMax - data.hp);
                     data.hp += actual;
+                    advanceTime(1);
                     renderCampCharDetail(id);
                     if (activeCharId === id) renderCharDetail(id);
+                    updateSurvivalUI();
                     addSystemLog(`☕ ${data.name} 在营地短休，恢复 ${actual} HP`, 'success');
                 });
                 document.getElementById('campHealBtn').addEventListener('click', function() {
