@@ -1436,8 +1436,6 @@
                         <div style="color:#5a7a9a; font-size:0.8rem; text-align:center; padding:0.8rem 0;">请选择或创建角色</div>
                     </div>
                     <div class="char-toolbar">
-                        <button id="longRestBtn">🛌 长休</button>
-                        <button id="shortRestBtn">☕ 短休</button>
                         <button id="healBtn" class="primary">❤️ 治疗</button>
                         <button id="damageBtn" class="danger">⚔️ 伤害</button>
                     </div>
@@ -1521,7 +1519,6 @@
                         <button data-action="orient" id="orientBtn">🧭 方向判断</button>
                         <button data-action="light" id="lightBtn">🔥 生火</button>
                         <button data-action="consume_ration" id="consumeRationBtn">🍖 进食</button>
-                        <button data-action="camp" id="campBtn">⛺ 扎营</button>
                     </div>
                 </div>
 
@@ -4247,7 +4244,7 @@
                 updateSurvivalUI();
                 unlockEvents();
             };
-            window.campFlee = function(combatId) {
+            window.campFlee = async function(combatId) {
                 const el = document.getElementById(combatId);
                 if (!el || el.dataset.done) return;
                 el.dataset.done = '1';
@@ -4258,7 +4255,15 @@
                     const skills = activeChar.skillProfs || {};
                     if (skills['隐匿']) { bonus += activeChar.profBonus || 0;
                         profText = '(熟练+' + (activeChar.profBonus||0) + ')'; } }
-                const d20 = rand(20);
+                var d20;
+                if (window._diceReady) {
+                    try {
+                        var roll3DResult = await window.roll3DDice('1d20');
+                        d20 = (roll3DResult && roll3DResult.total >= 1) ? roll3DResult.total : rand(20);
+                    } catch(e) { d20 = rand(20); }
+                } else {
+                    d20 = rand(20);
+                }
                 const total = d20 + bonus;
                 var resultHtml = '';
                 if (total >= 15) {
@@ -5390,8 +5395,6 @@
                     if (this.value) renderCharDetail(this.value);
                 });
 
-                document.getElementById('longRestBtn').addEventListener('click', longRest);
-                document.getElementById('shortRestBtn').addEventListener('click', shortRest);
                 document.getElementById('healBtn').addEventListener('click', function() {
                     const amount = prompt('输入治疗量（正数）:', '5');
                     if (amount !== null) adjustHp(parseInt(amount) || 0);
@@ -5405,8 +5408,6 @@
                 document.getElementById('orientBtn').addEventListener('click', doOrient);
                 document.getElementById('lightBtn').addEventListener('click', doLight);
                 document.getElementById('consumeRationBtn').addEventListener('click', doConsumeRation);
-                document.getElementById('campBtn').addEventListener('click', doCamp);
-
                 // 顶部标签切换
                 const exploreView = document.getElementById('exploreView');
                 const campView = document.getElementById('campView');

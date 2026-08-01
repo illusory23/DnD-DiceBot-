@@ -78,7 +78,7 @@ export async function initDiceOverlay() {
         // 骰子舞台
         stageEl = document.createElement('div');
         stageEl.id = 'dice-stage';
-        stageEl.style.cssText = 'margin:14px 16px 0;height:min(62vh,440px);border-radius:12px;position:relative;background:radial-gradient(ellipse at 50% 38%,#2e3a58 0%,#181f34 68%,#111527 100%);border:1px solid rgba(255,255,255,0.09);box-shadow:0 0 38px rgba(0,0,0,0.5) inset;';
+        stageEl.style.cssText = 'margin:10px 12px 0;height:min(64vh,480px);border-radius:12px;position:relative;background:radial-gradient(ellipse at 50% 38%,#2e3a58 0%,#181f34 68%,#111527 100%);border:1px solid rgba(255,255,255,0.09);box-shadow:0 0 38px rgba(0,0,0,0.5) inset;';
         panelEl.appendChild(stageEl);
 
         // 底部操作区
@@ -108,10 +108,9 @@ export async function initDiceOverlay() {
         rollBtnEl.addEventListener('click', onRollClicked);
         closeBtnEl.addEventListener('click', onCloseClicked);
 
-        // 必须在 DOM 布局可见时 init，但用 opacity:0 防止闪烁
+        // 必须在 DOM 可见时 init
         overlayEl.style.display = 'flex';
-        overlayEl.style.opacity = '0';
-        overlayEl.style.pointerEvents = 'none';
+        overlayEl.style.opacity = '0.01'; // 几乎不可见，但DOM认为可见
         await new Promise(function(r) { setTimeout(r, 120); });
 
         var DiceBox = (await import('/static/dice-box/dice-box.es.min.js')).default;
@@ -121,7 +120,7 @@ export async function initDiceOverlay() {
             theme: 'default',
             themeColor: '#ffffff',
             offscreen: false,
-            scale: 38,
+            scale: 34,
             settleTimeout: 5000
         });
 
@@ -139,7 +138,6 @@ export async function initDiceOverlay() {
 
         overlayEl.style.display = 'none';
         overlayEl.style.opacity = '';
-        overlayEl.style.pointerEvents = '';
         ready = true;
         _initPromise = null;
     })();
@@ -213,7 +211,7 @@ function rollWithTimeout(notation) {
         var cancelPoll = setInterval(function() {
             if (cancelRequested || abortRequested) done(null);
         }, 150);
-        diceBox.roll([notation]).then(function(results) {
+        diceBox.roll(notation).then(function(results) {
             var total = 0;
             if (Array.isArray(results)) {
                 results.forEach(function(r) { total += (r.value || 0); });
@@ -261,10 +259,9 @@ export async function roll3D(notation) {
 
         if (abortRequested || cancelRequested) {
             hideDiceOverlay();
+            if (total && total >= 1) return { total: total };
             return null;
         }
-        // 物理模拟失败时返回 null，由调用方决定回退策略
-        // 不再用 Math.random() 生成与画面不一致的随机数
         if (!total) {
             console.warn('[dice-bridge] 骰子物理结果无效，返回 null');
         }
