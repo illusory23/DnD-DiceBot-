@@ -153,7 +153,7 @@ function onRollClicked() {
     r({ type: 'roll' });
 }
 
-// 玩家点击关闭（右上角 ✕）：等待阶段直接取消；滚动/结果阶段立即中断并关闭
+// 玩家点击关闭（右上角 ✕）：等待阶段直接取消；滚动阶段隐藏界面但让骰子自然停稳
 function onCloseClicked() {
     abortRequested = true;
     if (phase === 'waiting' && pendingResolve) {
@@ -163,7 +163,12 @@ function onCloseClicked() {
         r({ type: 'cancel' });
         return;
     }
-    hideDiceOverlay(); // 滚动中或结果展示阶段：立即关闭，后续 await 恢复时按中断处理
+    // 滚动中或结果阶段：只隐藏视觉界面，不重置状态
+    // 让 roll3D 等待骰子自然停稳后自行清理，避免 fallback 到随机数
+    if (overlayEl) {
+        overlayEl.style.display = 'none';
+        overlayEl.dataset.done = '1';
+    }
 }
 
 function showOverlay() {
@@ -190,8 +195,8 @@ export function hideDiceOverlay() {
     if (rollBtnEl) { rollBtnEl.disabled = false; rollBtnEl.style.display = ''; rollBtnEl.textContent = '🎲 掷骰'; }
 }
 
-// 物理掷骰：等待 diceBox 自然完成，支持玩家中断
-// 不再使用外部超时与 diceBox 竞速，避免超时后用随机数回退导致画面与消息不一致
+// 物理掷骰：等待 diceBox 自然完成。
+// 提前关闭时不做任何干预 — 让骰子自然停稳，获取真实点数
 function rollWithTimeout(notation) {
     return new Promise(function(resolveOuter) {
         var settled = false;
@@ -199,18 +204,12 @@ function rollWithTimeout(notation) {
             if (settled) return;
             settled = true;
             clearTimeout(hardTimer);
-            clearInterval(cancelPoll);
             resolveOuter(val);
         }
-        // 硬安全超时 20s：防止 diceBox 彻底卡死（其内部 settleTimeout 5s 应已触发）
         var hardTimer = setTimeout(function() {
             console.warn('[dice-bridge] 骰子物理引擎硬超时(20s)');
             done(null);
         }, 20000);
-        // 轮询玩家中断请求
-        var cancelPoll = setInterval(function() {
-            if (cancelRequested || abortRequested) done(null);
-        }, 150);
         diceBox.roll(notation).then(function(results) {
             var total = 0;
             if (Array.isArray(results)) {
@@ -255,30 +254,31 @@ export async function roll3D(notation) {
         diceBox.clear();
         // 直接等待 diceBox 物理结果，不再用外部超时竞速
         // diceBox 内部 settleTimeout(5s) 保证不会无限等待
+        // rollWithTimeout 等骰子自然停稳，拿到的是真实物理结果
+        // 无论界面是否已被关闭（abortRequested），结果都来自同一批骰子
         var total = await rollWithTimeout(notation);
 
-        if (abortRequested || cancelRequested) {
-            hideDiceOverlay();
-            if (total && total >= 1) return { total: total };
+        // 清理状态
+        hideDiceOverlay();
+
+        if (!total || total < 1) {
+            console.warn('[dice-bridge] 骰子物理结果无效');
             return null;
         }
-        if (!total) {
-            console.warn('[dice-bridge] 骰子物理结果无效，返回 null');
+
+        // 如果界面还在（正常流程），短暂显示结果
+        if (!abortRequested && !cancelRequested && resultEl) {
+            resultEl.textContent = notation + ' = ' + total;
+            resultEl.style.display = 'block';
+            if (rollBtnEl) { rollBtnEl.disabled = false; rollBtnEl.textContent = '🎲 掷骰'; }
+            // 正常展示后自动关闭
+            overlayEl.dataset.done = '1';
+            setTimeout(function() {
+                if (overlayEl) overlayEl.style.display = 'none';
+            }, 2500);
         }
 
-        // 显示结果，随后自动关闭界面
-        if (resultEl) {
-            if (total != null) {
-                resultEl.textContent = notation + ' = ' + total;
-            } else {
-                resultEl.textContent = '⚠️ 骰子物理模拟异常，请重试';
-            }
-            resultEl.style.display = 'block';
-        }
-        // 立即刷新按钮状态（不等窗口关闭）
-        if (rollBtnEl) { rollBtnEl.disabled = false; rollBtnEl.textContent = '🎲 掷骰'; }
-        setTimeout(function() { hideDiceOverlay(); }, total != null ? 2500 : 1500);
-        return total != null ? { total: total } : null;
+        return { total: total };
     } catch(e) {
         hideDiceOverlay();
         throw e;

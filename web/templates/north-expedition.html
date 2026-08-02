@@ -978,7 +978,6 @@
         /* ===== 冒险补给站（商店）===== */
         #supplyShop {
             margin-top: 1rem;
-            padding: 0.8rem 1rem;
             position:relative; z-index:0;
             background:url('/static/images/supply.png') center 28%/cover;
             border: 1px solid rgba(212, 168, 96, 0.25);
@@ -986,7 +985,7 @@
             min-height:750px;
         }
         #supplyShop::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
-        #supplyShop > * { position:relative; z-index:1; }
+        #supplyShop > :not(.ws-cover) { position:relative; z-index:1; }
         #supplyShop h3 {
             color: #d4a860;
             font-size: 0.95rem;
@@ -1008,15 +1007,86 @@
             font-size: 0.72rem;
             color: #b0c8d8;
         }
+        /* 商店卡片 */
+        #supplyShop .shop-grid {
+            display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:0.5rem;
+        }
+        #supplyShop .shop-card {
+            background:rgba(20,18,30,0.55); border:1px solid rgba(212,168,96,0.1);
+            border-radius:8px; padding:0.5rem 0.6rem; display:flex; flex-direction:column;
+            gap:0.25rem; transition:all 0.15s;
+        }
+        #supplyShop .shop-card:hover { border-color:rgba(212,168,96,0.3); background:rgba(25,22,35,0.65); }
+        #supplyShop .shop-card .sc-name { font-weight:bold; font-size:0.78rem; color:#d4b896; }
+        #supplyShop .shop-card .sc-desc { font-size:0.62rem; color:#6a7a8a; line-height:1.2; }
+        #supplyShop .shop-card .sc-price { font-size:0.75rem; color:#f0d080; font-weight:bold; }
+        #supplyShop .shop-card .sc-buy-btn {
+            padding:0.2rem 0.8rem; border:1px solid rgba(76,175,80,0.4);
+            background:rgba(76,175,80,0.12); color:#6abf8a;
+            border-radius:4px; cursor:pointer; font-size:0.68rem; font-family:inherit;
+            transition:all 0.15s; align-self:flex-end;
+        }
+        #supplyShop .shop-card .sc-buy-btn:hover { background:rgba(76,175,80,0.25); border-color:rgba(76,175,80,0.6); }
+        #supplyShop .shop-card .sc-buy-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+        /* ===== 工坊封面系统 ===== */
+        .ws-cover {
+            position:absolute; inset:0; z-index:999;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            border-radius:10px; overflow:hidden;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        .ws-content { padding:0.8rem 1rem; }
+        .ws-cover.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+        .ws-cover-bg {
+            position:absolute; inset:0; background-size:cover; background-position:center;
+            filter:brightness(0.55);
+        }
+        .ws-cover::after {
+            content:''; position:absolute; inset:0;
+            background:radial-gradient(ellipse at center, transparent 30%, rgba(10,16,30,0.65) 100%);
+            pointer-events:none;
+        }
+        .ws-cover-enter {
+            position:relative; z-index:2;
+            padding:14px 48px; font-size:1.1rem; font-family:inherit;
+            color:#f0d8b0; letter-spacing:3px;
+            background:rgba(20,15,10,0.75);
+            border:2px solid rgba(212,168,96,0.5);
+            border-radius:8px; cursor:pointer;
+            transition:all 0.25s;
+            text-shadow:0 1px 4px rgba(0,0,0,0.6);
+            box-shadow:0 0 30px rgba(180,140,80,0.15);
+        }
+        .ws-cover-enter:hover {
+            background:rgba(30,20,12,0.85);
+            border-color:rgba(240,190,120,0.75);
+            color:#ffe8c0;
+            box-shadow:0 0 45px rgba(200,150,80,0.3);
+            transform:scale(1.03);
+        }
+        .ws-back-btn {
+            display:none; position:relative; z-index:2;
+            padding:5px 16px; margin-bottom:0.6rem; font-size:0.78rem; font-family:inherit;
+            color:#b0a090; letter-spacing:1px;
+            background:rgba(20,15,10,0.5);
+            border:1px solid rgba(212,168,96,0.2);
+            border-radius:5px; cursor:pointer;
+            transition:all 0.2s;
+        }
+        .ws-back-btn:hover { color:#f0d8b0; border-color:rgba(212,168,96,0.5); background:rgba(30,20,12,0.65); }
+        .ws-back-btn.visible { display:inline-block; }
 
         /* ===== 工作间 ===== */
         #craftingWorkshop {
             margin-top: 1rem;
-            padding: 0.8rem 1rem;
+            position:relative; z-index:0;
             background: rgba(30, 40, 60, 0.6);
             border: 1px solid rgba(100, 180, 220, 0.25);
             border-radius: 10px;
+            min-height:750px;
         }
+        #craftingWorkshop > :not(.ws-cover) { position:relative; z-index:1; }
         #craftingWorkshop h3 {
             color: #88bbee;
             font-size: 0.95rem;
@@ -1103,10 +1173,10 @@
         .ore-slot { top:14px; left:28px; }
         .ingot-slot { top:14px; right:28px; }
         .coal-slot { bottom:28px; left:50%; transform:translateX(-50%); }
-        .smelt-fire-bars { position:absolute; right:8px; top:114px; display:flex; flex-direction:column; gap:4px; }
+        .smelt-fire-bars { position:absolute; right:8px; top:130px; display:flex; flex-direction:column; gap:4px; }
         .fire-bar { width:12px; height:24px; background:rgba(255,255,255,0.06); border-radius:3px; }
         .fire-bar.lit { background:rgba(255,120,30,0.8); box-shadow:0 0 6px rgba(255,100,20,0.5); }
-        .smelt-progress { position:absolute; top:104px; left:50%; transform:translateX(-50%); width:270px; height:7px; background:rgba(0,0,0,0.4); border-radius:4px; }
+        .smelt-progress { position:absolute; top:120px; left:50%; transform:translateX(-50%); width:270px; height:7px; background:rgba(0,0,0,0.4); border-radius:4px; }
         .smelt-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#ff6020,#ff3010); border-radius:4px; transition:width 0.1s; }
         .smelt-take-btn { margin-top:8px; padding:5px 22px; background:rgba(76,175,80,0.2); color:#4caf50; border:1px solid rgba(76,175,80,0.4); border-radius:4px; cursor:pointer; font-size:0.78rem; font-family:inherit; }
         .smelt-take-btn:hover { background:rgba(76,175,80,0.3); }
@@ -1139,7 +1209,6 @@
         /* ===== 铁匠工房 ===== */
         #smithForge {
             margin-top: 1rem;
-            padding: 0.8rem 1rem;
             position:relative; z-index:0;
             background:url('/static/images/smith.png') center 28%/cover;
             border: 1px solid rgba(220, 140, 60, 0.25);
@@ -1147,7 +1216,7 @@
             min-height:750px;
         }
         #smithForge::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
-        #smithForge > * { position:relative; z-index:1; }
+        #smithForge > :not(.ws-cover) { position:relative; z-index:1; }
         #smithForge h3 {
             color: #d49460;
             font-size: 0.95rem;
@@ -1159,7 +1228,6 @@
         /* ===== 炼金工坊 ===== */
         #alchemyLab {
             margin-top: 1rem;
-            padding: 0.8rem 1rem;
             position:relative; z-index:0;
             background:url('/static/images/alchemy.png') center 28%/cover;
             border: 1px solid rgba(140, 100, 220, 0.25);
@@ -1167,7 +1235,7 @@
             min-height:750px;
         }
         #alchemyLab::before { content:''; position:absolute; inset:0; background:rgba(18,22,35,0.65); border-radius:10px; z-index:0; pointer-events:none; }
-        #alchemyLab > * { position:relative; z-index:1; }
+        #alchemyLab > :not(.ws-cover) { position:relative; z-index:1; }
         #alchemyLab h3 {
             color: #b494e0;
             font-size: 0.95rem;
@@ -1175,6 +1243,134 @@
             border-bottom: 1px solid rgba(140, 100, 220, 0.15);
             padding-bottom: 0.4rem;
         }
+
+        /* ===== 补给站/铁匠/炼金 共享布局：左侧内容 + 右侧可折叠背包 ===== */
+        .shop-layout { display:flex; gap:1rem; min-height:650px; position:relative; }
+        .shop-left { flex:1; min-width:0; }
+        .shop-backpack {
+            width:350px; flex-shrink:0;
+            transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position:relative;
+            background:
+                radial-gradient(ellipse at 25% 15%, rgba(210,160,110,0.12) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 85%, rgba(180,130,80,0.08) 0%, transparent 55%),
+                radial-gradient(circle at 50% 50%, rgba(140,90,50,0.06) 0%, transparent 70%),
+                linear-gradient(175deg, #7a4a2a 0%, #5c361a 18%, #4d2c14 38%, #5e3820 55%, #4a2812 78%, #3d1e0c 100%);
+            border: 4px solid #2a1408;
+            border-radius: 14px;
+            box-shadow:
+                inset 0 3px 12px rgba(0,0,0,0.5),
+                inset 0 -3px 10px rgba(0,0,0,0.35),
+                0 0 0 1.5px #5c361a,
+                0 0 0 5px #2a1408,
+                0 0 0 7px #1a0c04,
+                0 4px 20px rgba(0,0,0,0.5);
+            overflow:hidden;
+            z-index:1;
+        }
+        .shop-backpack::before {
+            content:''; position:absolute; inset:8px;
+            border: 1.5px dashed rgba(200,165,120,0.25);
+            border-radius: 5px; pointer-events:none; z-index:0;
+        }
+        .shop-backpack::after {
+            content:''; position:absolute;
+            top:8px; left:18px; right:18px; height:5px;
+            background:linear-gradient(90deg,
+                rgba(180,140,100,0.25) 0%, transparent 8%,
+                transparent 30%, rgba(180,140,100,0.18) 35%, transparent 40%,
+                transparent 60%, rgba(180,140,100,0.18) 65%, transparent 70%,
+                transparent 92%, rgba(180,140,100,0.25) 100%);
+            border-radius:3px; pointer-events:none; z-index:0;
+        }
+        /* 折叠态：仅显示右上角精致小按钮 */
+        .shop-backpack.collapsed {
+            width:46px; height:115px; align-self:flex-start;
+            cursor:pointer;
+            border-width:3px; border-radius:12px;
+            box-shadow:
+                inset 0 2px 8px rgba(0,0,0,0.5),
+                0 0 0 1px #5c361a,
+                0 0 0 3px #2a1408,
+                0 0 0 4px #1a0c04,
+                0 4px 16px rgba(0,0,0,0.5);
+        }
+        .shop-backpack.collapsed::before { display:none; }
+        .shop-backpack.collapsed::after { display:none; }
+        .shop-backpack.collapsed .shop-backpack-inner { display:none; }
+        .shop-backpack.collapsed .shop-bp-grid-wrap { display:none; }
+        /* 折叠态竖排标签 */
+        .shop-bp-label {
+            display:none;
+            position:absolute; top:44px; left:50%; transform:translateX(-50%);
+            writing-mode:vertical-rl; text-orientation:upright;
+            color:#8a6a4a; font-size:0.7rem; letter-spacing:2px;
+            white-space:nowrap; z-index:1; pointer-events:none;
+            line-height:1.6;
+        }
+        .shop-backpack.collapsed .shop-bp-label { display:block; }
+        /* 打开按钮 — 折叠态更精致 */
+        .shop-bp-toggle {
+            position:absolute; top:6px; right:6px; z-index:5;
+            width:30px; height:30px; border-radius:8px;
+            background:
+                radial-gradient(circle at 40% 35%, rgba(220,180,130,0.18) 0%, transparent 60%),
+                linear-gradient(160deg, #6a3a1a 0%, #4d2810 45%, #3a1a08 100%);
+            border:1.5px solid rgba(200,150,90,0.5);
+            color:#d4b896; cursor:pointer; font-size:0.9rem;
+            display:flex; align-items:center; justify-content:center;
+            transition: all 0.25s; line-height:1; padding:0;
+            font-family:inherit;
+            box-shadow:inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .shop-bp-toggle:hover {
+            background:linear-gradient(160deg, #8a4a20 0%, #5a3012 45%, #4a220a 100%);
+            border-color:rgba(240,200,140,0.8);
+            color:#f0d8b0;
+            box-shadow:inset 0 1px 2px rgba(0,0,0,0.4), 0 0 12px rgba(180,140,90,0.25);
+        }
+        /* 展开态按钮位置微调 */
+        .shop-backpack:not(.collapsed) .shop-bp-toggle {
+            top:10px; right:10px; width:28px; height:28px;
+            border-radius:50%;
+            background:rgba(30,18,8,0.85);
+            border:2px solid rgba(200,160,120,0.6);
+            font-size:0.85rem;
+        }
+        /* 内部容器 */
+        .shop-backpack-inner {
+            position:relative; z-index:1;
+            padding:0.8rem 0.9rem 0.4rem;
+        }
+        /* 标题 */
+        .shop-backpack-title {
+            color:#d4b896; font-size:0.95rem;
+            margin-bottom:0.5rem; padding-right:32px;
+        }
+        /* 网格包裹器 — 第二段向下展开 */
+        .shop-bp-grid-wrap {
+            max-height:0; overflow:hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position:relative; z-index:1;
+            padding:0 0.9rem;
+        }
+        .shop-backpack.expanded .shop-bp-grid-wrap {
+            max-height:550px;
+        }
+        .shop-backpack-grid {
+            display:grid; grid-template-columns:repeat(5,1fr); gap:3px;
+            padding-bottom:0.8rem;
+        }
+        /* 小屏适配 */
+        @media (max-width: 900px) {
+            .shop-layout { flex-direction:column; }
+            .shop-backpack { width:100%; }
+            .shop-backpack.collapsed { width:100%; height:46px; }
+            .shop-bp-grid-wrap { max-height:300px; }
+            .shop-backpack-grid { max-height:300px; overflow-y:auto; }
+        }
+        /* 背包格子复用工作间样式 */
+        .shop-backpack-grid .ws-bp-item { font-size:0.65rem; }
 
         /* ===== 营地仓库 ===== */
         #campStorage {
@@ -1277,6 +1473,51 @@
         }
         .camp-bottom-tab:hover { color: #d8e8f8; background: rgba(255,255,255,0.1); }
         .camp-bottom-tab.active { color: #f0d080; border-bottom-color: #d4a860; background: rgba(212,168,96,0.1); font-weight: 600; }
+
+        /* ===== 探索深度弹窗 ===== */
+        .depth-popup {
+            position:fixed; top:24px; left:50%; transform:translateX(-50%) translateY(-20px);
+            z-index:9999; display:flex; align-items:center; gap:12px;
+            padding:12px 20px; border-radius:10px; font-family:inherit;
+            opacity:0; transition:opacity 0.3s ease, transform 0.3s ease;
+            pointer-events:auto; box-shadow:0 8px 32px rgba(0,0,0,0.5);
+        }
+        .depth-popup.show { opacity:1; transform:translateX(-50%) translateY(0); }
+        .depth-popup-start { background:linear-gradient(135deg,#2a4a2a,#1a3a1a); border:1px solid rgba(106,191,138,0.5); }
+        .depth-popup-back { background:linear-gradient(135deg,#3a3a1a,#2a2a0a); border:1px solid rgba(212,168,96,0.5); }
+        .depth-popup-warn { background:linear-gradient(135deg,#3a2a1a,#2a1a0a); border:1px solid rgba(220,160,60,0.5); }
+        .depth-popup-text { color:#f0d8b0; font-size:0.9rem; letter-spacing:1px; }
+        .depth-popup-close {
+            width:22px; height:22px; border:none; border-radius:50%;
+            background:rgba(255,255,255,0.1); color:#aaa; cursor:pointer;
+            font-size:0.7rem; line-height:1; padding:0; font-family:inherit;
+        }
+        .depth-popup-close:hover { background:rgba(255,255,255,0.2); color:#fff; }
+
+        /* ===== 出售弹窗 ===== */
+        .sell-modal-overlay {
+            position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center;
+            background:rgba(5,8,18,0.7); backdrop-filter:blur(4px);
+        }
+        .sell-modal {
+            background:linear-gradient(165deg,#2a2218,#3d3025,#2a1e12);
+            border:2px solid rgba(212,168,96,0.45); border-radius:14px;
+            padding:1.2rem 1.5rem; min-width:320px; max-width:400px; text-align:center;
+            box-shadow:0 12px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(120,100,60,0.3);
+            font-family:inherit; animation:dicePanelIn .2s cubic-bezier(.2,.8,.3,1.1);
+        }
+        .sell-modal-title { color:#d4a860; font-size:0.95rem; margin-bottom:0.6rem; letter-spacing:1px; }
+        .sell-modal-item { color:#f0d8b0; font-size:0.9rem; font-weight:bold; margin-bottom:0.3rem; }
+        .sell-modal-price { color:#8a7a6a; font-size:0.7rem; margin-bottom:0.6rem; }
+        .sell-modal-qty { display:flex; align-items:center; gap:0.5rem; color:#b0a090; font-size:0.75rem; margin-bottom:0.4rem; }
+        .sell-modal-qty input[type=range] { accent-color:#d4a860; }
+        .sell-modal-total { font-size:0.85rem; color:#b0a090; margin-bottom:0.8rem; }
+        .sell-modal-btns { display:flex; gap:0.8rem; justify-content:center; }
+        .sell-modal-btns button { padding:0.4rem 1.5rem; border-radius:6px; cursor:pointer; font-family:inherit; font-size:0.78rem; border:1px solid; transition:all 0.15s; }
+        .sell-modal-ok { background:rgba(76,175,80,0.15); color:#6abf8a; border-color:rgba(76,175,80,0.4); }
+        .sell-modal-ok:hover { background:rgba(76,175,80,0.25); }
+        .sell-modal-cancel { background:rgba(200,200,200,0.08); color:#999; border-color:rgba(200,200,200,0.2); }
+        .sell-modal-cancel:hover { background:rgba(200,200,200,0.15); }
 
         /* ===== 响应式 ===== */
         @media (max-width: 980px) {
@@ -1448,11 +1689,11 @@
                         <span class="badge" id="survivalBadge">正常</span>
                     </div>
 
-                    <!-- 时间 -->
+                    <!-- 时间 + 探索深度 -->
                     <div class="survival-row">
                         <span class="survival-icon" id="timeIcon">☀️</span>
                         <div class="survival-info">
-                            <span class="label">时间</span>
+                            <span class="label">时间 · 深度 <b id="depthDisplay" style="color:#f0d080;">0</b></span>
                             <span class="value" id="timeDisplay">上午 5:00</span>
                             <span class="sub-text" id="timeDetail">白天</span>
                         </div>
@@ -1519,6 +1760,7 @@
                         <button data-action="orient" id="orientBtn">🧭 方向判断</button>
                         <button data-action="light" id="lightBtn">🔥 生火</button>
                         <button data-action="consume_ration" id="consumeRationBtn">🍖 进食</button>
+                        <button data-action="use_ointment" id="useOintmentBtn" title="使用驱寒药膏">🧴 涂药膏</button>
                     </div>
                 </div>
 
@@ -1595,15 +1837,44 @@
 
             <!-- 冒险补给站（商店） -->
             <div id="supplyShop">
-                <h3>🧑‍🤝‍🧑 冒险补给站</h3>
-                <div class="shop-grid" id="shopGrid">
-                    <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 补给品待上架 —</div>
+                <div class="ws-cover" id="supplyCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/supply_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('supply')">💰 进入冒险补给站</button>
+                </div>
+                <div class="ws-content" id="supplyContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('supply')">↩ 返回封面</button>
+                    <h3>🧑‍🤝‍🧑 冒险补给站</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="shopGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 补给品待上架 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="supplyBackpack">
+                            <button class="shop-bp-toggle" id="supplyBpToggle" onclick="toggleShopBackpack('supply')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="supplyBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- 工作间 -->
             <div id="craftingWorkshop" style="display:none;">
-                <h3>🔧 工作间</h3>
+                <div class="ws-cover" id="craftCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/craft_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('craft')">⚒ 进入工作间</button>
+                </div>
+                <div class="ws-content" id="craftContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('craft')">↩ 返回封面</button>
+                    <h3>🔧 工作间</h3>
                 <!-- 工作间子标签 -->
                 <div class="workshop-subtabs">
                     <button class="ws-tab active" data-wstab="craft">🛠️ 制作台</button>
@@ -1704,21 +1975,68 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- /ws-content -->
             </div>
 
             <!-- 铁匠工房 -->
             <div id="smithForge" style="display:none;">
-                <h3>⚒️ 铁匠工房</h3>
-                <div class="shop-grid" id="smithGrid">
-                    <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 锻造服务待开放 —</div>
+                <div class="ws-cover" id="smithCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/smith_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('smith')">🔨 进入铁匠工房</button>
+                </div>
+                <div class="ws-content" id="smithContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('smith')">↩ 返回封面</button>
+                    <h3>⚒️ 铁匠工房</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="smithGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 锻造服务待开放 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="smithBackpack">
+                            <button class="shop-bp-toggle" id="smithBpToggle" onclick="toggleShopBackpack('smith')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="smithBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- 炼金工坊 -->
             <div id="alchemyLab" style="display:none;">
-                <h3>🧪 炼金工坊</h3>
-                <div class="shop-grid" id="alchemyGrid">
-                    <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 炼金服务待开放 —</div>
+                <div class="ws-cover" id="alchemyCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/alchemy_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('alchemy')">🧪 进入炼金工坊</button>
+                </div>
+                <div class="ws-content" id="alchemyContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('alchemy')">↩ 返回封面</button>
+                    <h3>🧪 炼金工坊</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="alchemyGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 炼金服务待开放 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="alchemyBackpack">
+                            <button class="shop-bp-toggle" id="alchemyBpToggle" onclick="toggleShopBackpack('alchemy')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="alchemyBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1767,18 +2085,14 @@
                     dice: 'd100',
                     desc: '探索苍白大地的未知领域',
                     items: {
-                        1: ['继续深入', null],
-                        20: ['继续深入', null],
+                        1: ['深入雪原（你又一步深入了雪原，也许危险离你又近了一步...）', null],
+                        20: ['深入雪原（你又一步深入了雪原，也许危险离你又近了一步...）', null],
                         21: ['进入随机遭遇', 'zy100'],
-                        40: ['进入随机遭遇', 'zy100'],
-                        41: ['采集资源（调查DC12）', null],
-                        60: ['采集资源（调查DC12）', null],
-                        61: ['调查附近', 'dc100'],
-                        85: ['调查附近', 'dc100'],
-                        86: ['原地修整（长休/短休）', null],
-                        95: ['原地修整（长休/短休）', null],
-                        96: ['返回', null],
-                        100: ['返回', null],
+                        50: ['进入随机遭遇', 'zy100'],
+                        51: ['采集资源（调查DC10）', null],
+                        80: ['采集资源（调查DC10）', null],
+                        81: ['调查附近', 'dc100'],
+                        100: ['调查附近', 'dc100'],
                     }
                 },
 
@@ -1901,7 +2215,7 @@
                         8: ['1d3只 野鹿（可跟踪，自然DC15）', null],
                         9: ['1d4只 麝牛（驯养DC15）', null],
                         10: ['1d4只 银蛛（可采集）', null],
-                        11: ['1d3只 霜羽雉（可跟随，自然DC15）', null],
+                        11: ['1d3只 霜羽雉（跟随可发现巢穴，自然DC15→1d3蛋+1d20出1-5得银羽）', null],
                         12: ['1d4只绒蜂 绒蜂巢（可采集，驯养DC15）', null],
                     }
                 },
@@ -2011,8 +2325,8 @@
                     items: {
                         1: ['发现遗迹', 'yj8'],
                         5: ['发现遗迹', 'yj8'],
-                        6: ['发现灵泉（魔法泉水，可收集2次，饮用后下次智力优势）', null],
-                        15: ['发现灵泉（魔法泉水，可收集2次，饮用后下次智力优势）', null],
+                        6: ['发现灵泉（魔法泉水，可收集2次，单独饮用后下次智力相关检定优势，也许可调配为药水）', null],
+                        15: ['发现灵泉（魔法泉水，可收集2次，单独饮用后下次智力相关检定优势，也许可调配为药水）', null],
                         16: ['发现猎人小屋（可长休/短休，获得1d4份口粮）', null],
                         40: ['发现猎人小屋（可长休/短休，获得1d4份口粮）', null],
                         41: ['发现天然温泉（可短休，回复1d4生命，下次体质优势）', null],
@@ -2076,7 +2390,7 @@
                     desc: '查询32项物品',
                     items: {
                         1: '药草（直接使用恢复1d2生命或止血）',
-                        2: '魔法泉水（饮用后下次智力检定优势）',
+                        2: '魔法泉水（单独饮用后下次智力相关检定优势，也许可调配为药水）',
                         3: '浆果/野菜（获得1d2份食物）',
                         4: '松枝（可制作火把，可作为柴火）',
                         5: '荧光苔（照明半径15尺，易燃，可在暴风雪中点燃）',
@@ -2107,11 +2421,11 @@
                         30: '兽肉（烹煮后2d2份食物，陷阱诱饵，可出售）',
                         31: '白花藤（磨粉撒伤口，1d4生命，可出售）',
                         32: '魔纹卷轴（奥秘DC18-20鉴定，可出售视内容而定）',
-                        33: '火把（点燃后持续8次事件，期间无需严寒考验，点燃时消除全部严寒）',
+                        33: '火把（点燃免疫2次严寒考验，点燃时消除2级严寒等级）',
                         34: '治疗药水（恢复2d4+2生命）',
                         35: '网兜（可触距离10尺，可制作陷阱）',
                         36: '长柄网兜（可触距离15尺，容量更大）',
-                        37: '驱寒药膏（消除2级严寒，接下来6次事件抵抗寒冷体质豁免）',
+                        37: '驱寒药膏（消除2级严寒，接下来6次事件抵抗寒冷体质豁免包括严寒考验）',
                     }
                 }
             };
@@ -2188,6 +2502,12 @@
                 // 断粮状态
                 isStarving: false,
                 starvationCount: 0,
+                // 探索深度
+                exploreDepth: 0,       // 深入雪原+1，返回成功-1
+                // 火把效果
+                torchChecks: 0,       // 剩余免疫严寒检定次数
+                // 驱寒药膏效果
+                coldResist: 0,        // 剩余抵抗寒冷事件次数（含严寒考验）
                 // 寒鸦庇护
                 ravenProtection: 0,  // 剩余庇护事件次数
                 // 恶霜现象 — 持续效果追踪
@@ -2276,20 +2596,21 @@
             // 物品合成配方（每个材料可有多个配方）
             const ITEM_SYNTHESIS = {
                 '药草': [{ recipe:'治疗药水', text:'药草×4 + 魔法泉水×2 → 治疗药水（恢复2d4+2生命）' },
-                        { recipe:'驱寒药膏', text:'药草×2 + 松脂×1 → 驱寒药膏（消除2级严寒，6次抵抗）' }],
-                '魔法泉水': [{ recipe:'治疗药水', text:'魔法泉水×2 + 药草×4 → 治疗药水（恢复2d4+2生命）' }],
-                '松枝': [{ recipe:'火把', text:'松枝×1 + 燃料×2 → 火把（点燃8次事件，消除严寒）' },
+                        { recipe:'驱寒药膏', text:'药草×2 + 松脂×1 → 驱寒药膏（消除2级严寒，6次抵抗含严寒考验）' }],
+                '魔法泉水': [{ recipe:'治疗药水', text:'魔法泉水×2 + 药草×4 → 治疗药水（恢复2d4+2生命）' },
+                    { text:'单独饮用后下次智力相关检定优势，也许可以调配为药水' }],
+                '松枝': [{ recipe:'火把', text:'松枝×1 + 燃料×2 → 火把（免疫2次严寒考验，消除2级严寒）' },
                         { recipe:'网兜', text:'松枝×1 + 银蛛蛛网×2 → 网兜（可触10尺）' },
                         { recipe:'长柄网兜', text:'松枝×2 + 银蛛蛛网×3 → 长柄网兜（15尺）' }],
                 '银蛛蛛网': [{ recipe:'网兜', text:'松枝×1 + 银蛛蛛网×2 → 网兜（可触10尺）' },
                             { recipe:'长柄网兜', text:'松枝×2 + 银蛛蛛网×3 → 长柄网兜（15尺）' }],
-                '松脂': [{ recipe:'驱寒药膏', text:'药草×2 + 松脂×1 → 驱寒药膏（消除2级严寒，6次抵抗）' },
+                '松脂': [{ recipe:'驱寒药膏', text:'药草×2 + 松脂×1 → 驱寒药膏（消除2级严寒，6次抵抗含严寒考验）' },
                         { recipe:'火把', text:'可作为燃料合成火把（松枝×1 + 燃料×2）' }],
-                '火把': [{ recipe:'火把', text:'效果：点燃后持续8次事件，期间无需严寒考验，点燃时消除全部严寒等级' }],
+                '火把': [{ recipe:'火把', text:'效果：点燃免疫2次严寒考验，点燃时消除2级严寒等级' }],
                 '治疗药水': [{ recipe:'治疗药水', text:'效果：恢复2d4+2生命值' }],
                 '网兜': [{ recipe:'网兜', text:'效果：可触距离10尺，可制作陷阱捕获生物' }],
                 '长柄网兜': [{ recipe:'长柄网兜', text:'效果：可触距离15尺，容量更大' }],
-                '驱寒药膏': [{ recipe:'驱寒药膏', text:'效果：消除2级严寒，接下来6次事件内抵抗寒冷体质豁免' }],
+                '驱寒药膏': [{ recipe:'驱寒药膏', text:'效果：消除2级严寒，接下来6次事件抵抗寒冷体质豁免（包括严寒考验）' }],
             };
             let discoveredCreatures = []; // 所有遭遇过的生物
             // 生物分类：敌对/中立
@@ -2511,6 +2832,8 @@
                 if (survival.isLost) badges.push({text:'🧭 迷失'});
                 if (survival.evilFrostActive) badges.push({text:'👻 恶霜'});
                 if (survival.ravenProtection > 0) badges.push({text:'🪶 庇护'});
+                if (survival.torchChecks > 0) badges.push({text:'🔥 火把('+survival.torchChecks+')',cls:'success'});
+                if (survival.coldResist > 0) badges.push({text:'🧴 药膏('+survival.coldResist+')',cls:'success'});
                 if (badges.length === 0 && survival.totalEvents === 0) badges.push({text:'正常'});
                 else if (badges.length === 0) badges.push({text:'警戒'});
                 // 根据负面状态数量确定颜色：0=绿 1=黄 2+=红
@@ -2524,6 +2847,13 @@
             function checkCold() {
                 survival.eventsSinceCold++;
                 if (survival.eventsSinceCold >= 3) {
+                    // 火把免疫：跳过严寒检定
+                    if (survival.torchChecks > 0) {
+                        survival.torchChecks--;
+                        survival.eventsSinceCold = 0;
+                        addSystemLog('🔥 火把庇护：跳过本次严寒检定（剩余' + survival.torchChecks + '次）', 'success');
+                        return;
+                    }
                     survival.eventsSinceCold = 0;
                     const dc = getColdDC();
                     // 模拟体质豁免 (使用当前角色的体质)
@@ -2537,11 +2867,17 @@
                         bonus = conMod + prof - survival.coldLevel;
                         profText = hasProf ? `(熟练+${prof})` : '';
                     }
-                    const d20 = rand(20);
+                    var d20 = rand(20);
+                    // 驱寒药膏：寒冷抵抗优势
+                    if (survival.coldResist > 0) {
+                        var d20b = rand(20);
+                        var advText = ' [优势' + d20 + '/' + d20b + ']';
+                        d20 = Math.max(d20, d20b);
+                    } else { var advText = ''; }
                     const total = d20 + bonus;
                     const success = total >= dc;
 
-                    let msg = `❄️ 严寒考验 (DC${dc})：d20=${d20} + ${bonus}${profText} = ${total}`;
+                    let msg = `❄️ 严寒考验 (DC${dc})：d20=${d20} + ${bonus}${profText} = ${total}${advText||''}`;
                     if (success) {
                         addSystemLog(msg, 'success');
                     } else {
@@ -2938,13 +3274,31 @@
                     },
                 },
                 'ts100': {
-                    41: { // 采集资源（区间41-60）
+                    51: { // 采集资源（区间51-80）
                         title: '采集资源',
                         desc: '雪地里似乎埋藏着一些有用的东西……',
                         steps: [
-                            { label: '调查', ability: 'int', skill: '调查', dc: 12,
+                            { label: '调查', ability: 'int', skill: '调查', dc: 10,
                               passMsg: '找到了可用的材料！', passDone: true,
-                              passEffect: function(el) { runCheckChain(el, 'cl50'); },
+                              passEffect: function(el) {
+                                var roll = rollDiceExpr('1d100');
+                                if (roll <= 60) {
+                                    addCheckResult(el, '🎲 1d100=' + roll + ' → 进入随机材料表');
+                                    runCheckChain(el, 'cl50');
+                                } else {
+                                    addCheckResult(el, '🎲 1d100=' + roll + ' → 获得了柴火与石块');
+                                    if (activeChar) {
+                                        activeChar.inventory = activeChar.inventory || [];
+                                        var stacked = false;
+                                        for (var si = 0; si < activeChar.inventory.length; si++) {
+                                            if (activeChar.inventory[si].name === '柴火/石块') { activeChar.inventory[si].qty++;
+                                                stacked = true; break; }
+                                        }
+                                        if (!stacked) activeChar.inventory.push({name:'柴火/石块', qty:1, location:'背包', weight:1});
+                                    }
+                                    survival.fuel.firewood = (survival.fuel.firewood || 0) + 1;
+                                }
+                              },
                               failMsg: '翻找了半天，一无所获', failDone: true }
                         ]
                     },
@@ -3049,15 +3403,28 @@
                         desc: '霜羽雉华丽的身影在林间穿行……',
                         steps: [
                             { label: '自然', ability: 'int', skill: '自然', dc: 15,
-                              passMsg: '跟随霜羽雉找到了它的巢穴！获得蛋和银羽', passDone: true,
+                              passMsg: '跟随霜羽雉找到了它的巢穴！', passDone: true,
                               passEffect: function(el) {
                                 var eggs = rollDiceExpr('1d3');
-                                var feathers = rollDiceExpr('1d2');
-                                addCheckResult(el, '🥚 获得霜羽雉的蛋×' + eggs + '，银羽×' + feathers, '#ffcc80');
+                                var d20 = rollDiceExpr('1d20');
+                                var hasFeather = d20 >= 1 && d20 <= 5;
+                                var msg = '🥚 获得霜羽雉的蛋×' + eggs;
                                 if (activeChar) {
-                                    activeChar.inventory.push({name:'霜羽雉的蛋',qty:eggs,location:'背包',weight:1});
-                                    activeChar.inventory.push({name:'霜羽雉的银羽',qty:feathers,location:'背包',weight:1});
-                                } },
+                                    var stacked = false;
+                                    for (var si = 0; si < activeChar.inventory.length; si++) {
+                                        if (activeChar.inventory[si].name === '霜羽雉的蛋') { activeChar.inventory[si].qty += eggs;
+                                            stacked = true; break; }
+                                    }
+                                    if (!stacked) activeChar.inventory.push({name:'霜羽雉的蛋',qty:eggs,location:'背包',weight:1});
+                                }
+                                if (hasFeather) {
+                                    msg += '，🪶 获得霜羽雉的银羽×1（1d20=' + d20 + '）';
+                                    if (activeChar) activeChar.inventory.push({name:'霜羽雉的银羽',qty:1,location:'背包',weight:1});
+                                } else {
+                                    msg += '（1d20=' + d20 + '，未掉落银羽）';
+                                }
+                                addCheckResult(el, msg, '#ffcc80');
+                              },
                               failMsg: '霜羽雉飞走了', failDone: true }
                         ]
                     },
@@ -3258,9 +3625,9 @@
                     const shortName = desc.split('（')[0].split('(')[0].trim();
                     effects.statTable = table.label;
                     effects.statEvent = shortName || desc.slice(0, 12);
-                    effects.isContinue = desc.includes('继续深入');
+                    effects.isContinue = desc.includes('深入雪原');
 
-                    // ★ 迷失状态：'继续深入'/'返回' 无效，重新检定（不产生任何记录与消耗）
+                    // ★ 迷失状态：'深入雪原'/'返回' 无效，重新检定（不产生任何记录与消耗）
                     if (survival.isLost && survival.lostEventsRemaining > 0 &&
                         (effects.isContinue || desc.includes('返回'))) {
                         return executeEvent(cmd, args, depth, probe);
@@ -3270,18 +3637,23 @@
                         recordStat(effects.statTable, effects.statEvent);
 
                         // ★ 生存系统：事件后处理
-                        // 1. 检查是否"继续深入"（不触发消耗）
+                        // 1. 检查是否"深入雪原"（纯文本事件，不触发消耗）
                         if (!effects.isContinue) {
                             // 触发生存检查
                             checkCold();
                             checkRation(); checkStarvation();
                             checkOrient();
                             checkFuel();
+                            // 驱寒药膏：每事件递减抵抗计数
+                            if (survival.coldResist > 0) {
+                                survival.coldResist--;
+                                if (survival.coldResist === 0) addSystemLog('🧴 驱寒药膏效果已消散', 'system');
+                            }
                             survival.totalEvents++;
                             advanceTime(1);
-                            // 更新UI
-                            updateSurvivalUI();
                         }
+                        // 更新UI（所有事件都刷新）
+                        updateSurvivalUI();
 
                         // 2. 恶霜持续效果：每事件生存DC15方向辨别，失败损失1d4生命
                         if (survival.evilFrostActive && !effects.isContinue) {
@@ -3342,6 +3714,12 @@
                     }
                     effects.linkCalls.push({ table: chainCmd, desc: finalDesc });
                     if (!probe) processLinks(chainCmd, finalDesc);
+                }
+
+                // 本表自身的联动规则：probe 模式下推迟到 applyEventEffects 执行
+                if (probe && !chainCmd) {
+                    effects.linkCalls = effects.linkCalls || [];
+                    effects.linkCalls.push({ table: cmd, desc: desc });
                 }
 
                 // 检查本表是否有物品/钱币产出（仅最终层）
@@ -3454,16 +3832,23 @@
                     recordStat(fx.statTable, fx.statEvent || fx.statTable);
                 }
 
-                // 生存系统（'继续深入' 不触发消耗）
-                if (!fx.isContinue) {
+                // 生存系统（'深入雪原' 纯文本事件不触发消耗）
+                if (fx.isContinue) {
+                    survival.exploreDepth++;
+                    addSystemLog('⬇ 探索深度 ' + survival.exploreDepth, 'system');
+                } else {
                     checkCold();
                     checkRation(); checkStarvation();
                     checkOrient();
                     checkFuel();
+                    if (survival.coldResist > 0) {
+                        survival.coldResist--;
+                        if (survival.coldResist === 0) addSystemLog('🧴 驱寒药膏效果已消散', 'system');
+                    }
                     survival.totalEvents++;
                     advanceTime(1);
-                    updateSurvivalUI();
                 }
+                updateSurvivalUI();
 
                 // 联动规则（含链式表）
                 (fx.linkCalls || []).forEach(function(lc) {
@@ -3574,7 +3959,7 @@
                         <span class="label">速度</span><span class="value">${data.speed} 尺</span>
                         <span class="label">AC</span><span class="value highlight">${data.ac}</span>
                         <span class="label">被动察觉</span><span class="value highlight">${data.passivePerception}</span>
-                        <span class="label">负重</span><span class="value">${carry} 磅</span>
+                        <span class="label">💰 资金</span><span class="value highlight">${(data.coins.gp||0)} GP ${(data.coins.sp||0)} SP ${(data.coins.cp||0)} CP</span>
 
                         <span class="section-title">⚔️ 属性</span>
                     </div>
@@ -3724,6 +4109,12 @@
                 const hasFuel = fuelTotal > 0;
                 document.getElementById('lightBtn').disabled = !hasFuel;
                 document.getElementById('orientBtn').disabled = !survival.isLost;
+                // 返回按钮：深度>0时可用
+                var backCard = document.querySelector('.event-card[data-cmd="back"]');
+                if (backCard) {
+                    backCard.style.opacity = survival.exploreDepth <= 0 ? '0.4' : '';
+                    backCard.style.pointerEvents = survival.exploreDepth <= 0 ? 'none' : '';
+                }
                 // 进食按钮：有口粮或背包有食物时可用
                 var hasFood = survival.rations > 0;
                 if (!hasFood && activeChar && activeChar.inventory) {
@@ -3735,12 +4126,48 @@
                     }
                 }
                 document.getElementById('consumeRationBtn').disabled = !hasFood;
+                // 涂药膏按钮：背包有驱寒药膏时可用
+                var hasOintment = false;
+                if (activeChar && activeChar.inventory) {
+                    for (var si2 = 0; si2 < activeChar.inventory.length; si2++) {
+                        if (activeChar.inventory[si2].name === '驱寒药膏' && activeChar.inventory[si2].qty > 0) {
+                            hasOintment = true; break;
+                        }
+                    }
+                }
+                var ointBtn = document.getElementById('useOintmentBtn');
+                if (ointBtn) {
+                    ointBtn.disabled = !hasOintment;
+                    ointBtn.textContent = survival.coldResist > 0 ? '🧴 药膏中(' + survival.coldResist + ')' : '🧴 涂药膏';
+                }
 
                 // 时间显示
                 var ti = formatGameTime();
                 document.getElementById('timeDisplay').textContent = ti.timeStr;
                 document.getElementById('timeDetail').textContent = ti.dayNight;
                 document.getElementById('timeIcon').textContent = ti.icon;
+                // 探索深度
+                document.getElementById('depthDisplay').textContent = survival.exploreDepth;
+            }
+
+            // 独立小界面弹窗提示（2秒自动关闭，可手动关闭）
+            let _popupTimer = null;
+            function showPopup(msg, type) {
+                var old = document.getElementById('depthPopup');
+                if (old) old.remove();
+                if (_popupTimer) clearTimeout(_popupTimer);
+                var popup = document.createElement('div');
+                popup.id = 'depthPopup';
+                popup.className = 'depth-popup depth-popup-' + (type || 'info');
+                popup.innerHTML = '<span class="depth-popup-text">' + msg + '</span>' +
+                    '<button class="depth-popup-close" onclick="document.getElementById(\'depthPopup\').remove()">✕</button>';
+                document.body.appendChild(popup);
+                // 动画入场
+                requestAnimationFrame(function() { popup.classList.add('show'); });
+                _popupTimer = setTimeout(function() {
+                    if (popup.parentNode) popup.remove();
+                }, 2000);
+                updateSurvivalUI();
             }
 
             // =========================================================================
@@ -4000,8 +4427,14 @@
                 } else if (useDice3D) {
                     try {
                         var roll3DResult = await window.roll3DDice('1d20');
-                        d20 = (roll3DResult && roll3DResult.total >= 1) ? roll3DResult.total : rand(20);
-                    } catch(e) { d20 = rand(20); }
+                        if (roll3DResult && roll3DResult.total >= 1) {
+                            d20 = roll3DResult.total;
+                        } else {
+                            d20 = 0;
+                        }
+                    } catch(e) { d20 = 0; }
+                    if (d20 <= 0) { if (btnEl) { btnEl.disabled = false;
+                        btnEl.textContent = '🎲 继续掷骰'; } unlockEvents(); return; }
                 } else {
                     d20 = rand(20);
                 }
@@ -4259,8 +4692,14 @@
                 if (window._diceReady) {
                     try {
                         var roll3DResult = await window.roll3DDice('1d20');
-                        d20 = (roll3DResult && roll3DResult.total >= 1) ? roll3DResult.total : rand(20);
-                    } catch(e) { d20 = rand(20); }
+                        if (roll3DResult && roll3DResult.total >= 1) {
+                            d20 = roll3DResult.total;
+                        } else {
+                            d20 = 0;
+                        }
+                    } catch(e) { d20 = 0; }
+                    if (d20 <= 0) { if (btnEl) { btnEl.disabled = false;
+                        btnEl.textContent = '🎲 继续掷骰'; } unlockEvents(); return; }
                 } else {
                     d20 = rand(20);
                 }
@@ -4437,6 +4876,9 @@
                         updateSurvivalUI();
                         // 同步到charData
                         if (activeCharId) charData[activeCharId] = activeChar;
+                        // 同步刷新所有工坊背包和商店
+                        if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
+
                     } else if (pg && !activeChar) {
                         pg.gains.forEach(function(g) {
                             addSystemLog(`${g.text}（无活跃角色）`, 'system');
@@ -4492,6 +4934,11 @@
                         const label = this.dataset.label;
 
                         if (cmd === 'ts100') {
+                            // 首次探索：深度 0→1，显示出发提示
+                            if (survival.exploreDepth === 0) {
+                                survival.exploreDepth = 1;
+                                showPopup('🏕️ 您已出发进行探索', 'start');
+                            }
                             deepCount = 0;
                             const shortLabels = {ts100:'探索'};
                             const shortLabel = shortLabels[cmd] || label;
@@ -4646,24 +5093,28 @@
                                             btns.innerHTML = doneMsg;
                                             _patchDisplayLogDiv(restId, doneMsg);
                                         } else {
-                                            // 短休：需要1燃料
-                                            if (countFuel() < 1) {
-                                                btns.innerHTML = '<span style="color:#e0556a;font-size:0.75rem;">⛔ 燃料不足（需1份）</span>';
+                                            // 短休：燃料优先，火把兜底
+                                            var hasT = hasTorch();
+                                            if (countFuel() < 1 && !hasT) {
+                                                btns.innerHTML = '<span style="color:#e0556a;font-size:0.75rem;">⛔ 燃料和火把均不足</span>';
                                                 updateSurvivalUI(); unlockEvents(); return;
                                             }
+                                            var useFuelHere = countFuel() >= 1;
+                                            if (!useFuelHere) useTorch();
                                             // 先执行短休效果
                                             if (activeChar) { var healVal = rollDiceExpr('1d8') + abilityMod(activeChar.con);
                                                 activeChar.hp = Math.min(activeChar.hp + healVal, activeChar.hpMax);
                                                 renderCharDetail(activeCharId);
                                                 addSystemLog('☕ 短休恢复 ' + healVal + ' HP', 'success'); }
-                                            if (survival.coldLevel > 0) { survival.coldLevel = Math.max(0, survival.coldLevel - 1);
+                                            if (useFuelHere && survival.coldLevel > 0) { survival.coldLevel = Math.max(0, survival.coldLevel - 1);
                                                 addSystemLog('❄️ 短休解除1级严寒', 'success'); }
-                                            // 后消耗：1燃料
-                                            consumeFuel(1);
+                                            // 后消耗
+                                            if (useFuelHere) consumeFuel(1);
                                             // 结束庇护所状态
                                             survival.isInShelter = false;
                                             survival.shelterType = null;
-                                            var doneMsg2 = '<span style="color:#6abf8a;font-size:0.75rem;">☕ 短休完成（消耗1燃料）</span>';
+                                            var costLabel = useFuelHere ? '（消耗1燃料）' : '（使用火把）';
+                                            var doneMsg2 = '<span style="color:#6abf8a;font-size:0.75rem;">☕ 短休完成' + costLabel + '</span>';
                                             btns.innerHTML = doneMsg2;
                                             _patchDisplayLogDiv(restId, doneMsg2);
                                         }
@@ -4679,6 +5130,10 @@
                                 });
                             }, 50);
                         } else if (cmd === 'back') {
+                            if (survival.exploreDepth <= 0) {
+                                addSystemLog('🏕️ 您已在营地，无需返回', 'system');
+                                unlockEvents(); return;
+                            }
                             deepCount = 0;
                             const loadingDiv3 = await showLoadingAnimation('返回');
                             loadingDiv3.remove();
@@ -4694,8 +5149,8 @@
                             }
                             var survD20 = rand(20);
                             var survTotal = survD20 + survBonus;
-                            if (survTotal < 12) {
-                                addSystemLog('🧭 返回时迷失方向（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' < DC12），自动深入雪原', 'warning');
+                            if (survTotal < 10) {
+                                addSystemLog('🧭 返回时迷失方向（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' < DC10），自动深入雪原', 'warning');
                                 // 自动执行深入雪原
                                 const autoResult = runEventSafe('ts100', '');
                                 if (!_knockedDownDuringEvent) {
@@ -4705,7 +5160,14 @@
                                 }
                                 unlockEvents(); return;
                             }
-                            addSystemLog('🧭 返回成功（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' ≥ DC12）', 'success');
+                            addSystemLog('🧭 返回成功（生存检定 ' + survD20 + '+' + survBonus + survProf + '=' + survTotal + ' ≥ DC10）', 'success');
+                            // 探索深度-1
+                            if (survival.exploreDepth > 0) {
+                                survival.exploreDepth--;
+                                if (survival.exploreDepth === 0) showPopup('🏕️ 您已成功返回营地', 'back');
+                                var dd2 = document.getElementById('depthDisplay');
+                                if (dd2) dd2.textContent = survival.exploreDepth;
+                            }
                             rollCount++;
                             document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                             survival.totalEvents++;
@@ -5062,39 +5524,100 @@
                 addSystemLog(`🛌 ${activeChar.name} 完成长休！HP 已恢复至 ${activeChar.hpMax}`, 'success');
             }
 
+            // 检查背包中是否有火把
+            function hasTorch() {
+                if (!activeChar || !activeChar.inventory) return false;
+                for (var i = 0; i < activeChar.inventory.length; i++) {
+                    if (activeChar.inventory[i].name === '火把' && activeChar.inventory[i].qty > 0) return true;
+                }
+                return false;
+            }
+            // 使用火把：激活效果并消耗1个
+            function useTorch() {
+                // 消耗1个火把
+                if (activeChar && activeChar.inventory) {
+                    for (var i = 0; i < activeChar.inventory.length; i++) {
+                        if (activeChar.inventory[i].name === '火把' && activeChar.inventory[i].qty > 0) {
+                            activeChar.inventory[i].qty--;
+                            if (activeChar.inventory[i].qty <= 0) activeChar.inventory.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+                survival.torchChecks = 2;
+                if (survival.coldLevel > 0) {
+                    survival.coldLevel = Math.max(0, survival.coldLevel - 2);
+                    addSystemLog('🔥 点燃火把（-1），消除2级严寒（剩余严寒' + survival.coldLevel + '级），免疫2次严寒检定', 'success');
+                } else {
+                    addSystemLog('🔥 点燃火把（-1），免疫2次严寒检定', 'success');
+                }
+            }
+
             function shortRest() {
                 if (checkKnockdown()) return false;
                 if (!activeChar) { alert('请先选择角色'); return false; }
-                // 需要1燃料
+                // 检查资源：燃料优先，火把兜底
                 var fuelTotal = 0;
                 ['firewood','pine_branch','resin','glow_moss','iron_resin'].forEach(function(fk) { fuelTotal += (survival.fuel[fk]||0) * (fk==='iron_resin'?2:1); });
-                if (fuelTotal < 1) { addSystemLog('⛔ 短休失败：燃料不足（需1份）', 'warning'); return false; }
+                var hasT = hasTorch();
+                if (fuelTotal < 1 && !hasT) { addSystemLog('⛔ 短休失败：燃料和火把均不足', 'warning'); return false; }
+                var useFuel = fuelTotal >= 1;
+                if (useFuel) {
+                    // 消耗1燃料
+                    var fuelPriority = ['firewood','pine_branch','resin','glow_moss','iron_resin'];
+                    var need = 1;
+                    for (var fi=0; fi<fuelPriority.length && need>0; fi++) {
+                        var fk = fuelPriority[fi];
+                        var val = (survival.fuel[fk]||0) * (fk==='iron_resin'?2:1);
+                        if (val<=0) continue;
+                        if (fk==='iron_resin') survival.fuel[fk] -= Math.ceil(need/2);
+                        else { var use=Math.min(survival.fuel[fk],need);
+                            survival.fuel[fk]-=use; need-=use; }
+                        if (need<=0) break;
+                        need -= val;
+                        survival.fuel[fk] = 0;
+                    }
+                } else {
+                    useTorch();
+                }
                 const heal = rollDiceExpr('1d8') + abilityMod(activeChar.con);
                 const actual = Math.min(heal, activeChar.hpMax - activeChar.hp);
                 activeChar.hp += actual;
-                // 消耗1燃料
-                var fuelPriority = ['firewood','pine_branch','resin','glow_moss','iron_resin'];
-                var need = 1;
-                for (var fi=0; fi<fuelPriority.length && need>0; fi++) {
-                    var fk = fuelPriority[fi];
-                    var val = (survival.fuel[fk]||0) * (fk==='iron_resin'?2:1);
-                    if (val<=0) continue;
-                    if (fk==='iron_resin') survival.fuel[fk] -= Math.ceil(need/2);
-                    else { var use=Math.min(survival.fuel[fk],need);
-                        survival.fuel[fk]-=use; need-=use; }
-                    if (need<=0) break;
-                    need -= val;
-                    survival.fuel[fk] = 0;
-                }
                 // 结束庇护所状态
                 survival.isInShelter = false;
                 survival.shelterType = null;
                 renderCharDetail(activeCharId);
-                addSystemLog(`☕ ${activeChar.name} 短休，恢复 ${actual} HP（消耗1燃料）`, 'success');
-                if (survival.coldLevel > 0) {
+                var costMsg = useFuel ? '（消耗1燃料）' : '（使用火把）';
+                addSystemLog(`☕ ${activeChar.name} 短休，恢复 ${actual} HP` + costMsg, 'success');
+                if (useFuel && survival.coldLevel > 0) {
                     survival.coldLevel = Math.max(0, survival.coldLevel - 1);
                     addSystemLog('❄️ 短休解除1级严寒', 'success');
                 }
+                updateSurvivalUI();
+            }
+
+            // 使用驱寒药膏
+            function doUseOintment() {
+                if (checkKnockdown()) return;
+                if (!activeChar || !activeChar.inventory) { alert('请先选择角色'); return; }
+                var found = false;
+                for (var i = 0; i < activeChar.inventory.length; i++) {
+                    if (activeChar.inventory[i].name === '驱寒药膏' && activeChar.inventory[i].qty > 0) {
+                        activeChar.inventory[i].qty--;
+                        if (activeChar.inventory[i].qty <= 0) activeChar.inventory.splice(i, 1);
+                        found = true; break;
+                    }
+                }
+                if (!found) { addSystemLog('🧴 背包中没有驱寒药膏', 'warning'); return; }
+                // 消除2级严寒
+                if (survival.coldLevel > 0) {
+                    var removed = Math.min(survival.coldLevel, 2);
+                    survival.coldLevel -= removed;
+                    addSystemLog('🧴 驱寒药膏消除' + removed + '级严寒（剩余' + survival.coldLevel + '级）', 'success');
+                }
+                // 6次事件抵抗
+                survival.coldResist = 6;
+                addSystemLog('🧴 涂上驱寒药膏，接下来6次事件抵抗寒冷体质豁免（包括严寒考验）', 'success');
                 updateSurvivalUI();
             }
 
@@ -5408,6 +5931,7 @@
                 document.getElementById('orientBtn').addEventListener('click', doOrient);
                 document.getElementById('lightBtn').addEventListener('click', doLight);
                 document.getElementById('consumeRationBtn').addEventListener('click', doConsumeRation);
+                document.getElementById('useOintmentBtn').addEventListener('click', doUseOintment);
                 // 顶部标签切换
                 const exploreView = document.getElementById('exploreView');
                 const campView = document.getElementById('campView');
@@ -5439,10 +5963,14 @@
                     if (document.getElementById('craftingWorkshop').style.display !== 'none') {
                         wsRenderBackpack();
                     }
+                    // 同步刷新工坊背包（当前可见的面板）
+                    if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
+                    restoreShopBpState();
                 });
 
                 // ━━ 营地底部标签（补给站 / 工作间 / 仓库）━━
                 let campStorage = []; // 营地仓库独立存储
+                let shopBpCollapsed = { supply: true, smith: true, alchemy: true }; // 背包折叠状态（默认全部关闭）
                 var bottomTabs = document.getElementById('campBottomTabs');
                 if (bottomTabs) bottomTabs.addEventListener('click', function(e) {
                     var tab = e.target.closest('.camp-bottom-tab');
@@ -5455,24 +5983,551 @@
                     document.getElementById('smithForge').style.display = tabName === 'smith' ? '' : 'none';
                     document.getElementById('alchemyLab').style.display = tabName === 'alchemy' ? '' : 'none';
                     document.getElementById('campStorage').style.display = tabName === 'storage' ? '' : 'none';
+                    // 同步当前角色
+                    var campSel = document.getElementById('campCharSelect');
+                    if (campSel && campSel.value && charData[campSel.value]) {
+                        activeCharId = campSel.value;
+                        activeChar = charData[activeCharId];
+                    }
                     if (tabName === 'craft') {
-                        var campSel2 = document.getElementById('campCharSelect');
-                        if (campSel2 && campSel2.value && charData[campSel2.value]) {
-                            activeCharId = campSel2.value;
-                            activeChar = charData[activeCharId];
-                        }
                         wsRenderBackpack();
                         wsRenderRecipes();
                     }
                     if (tabName === 'storage') {
-                        var campSel3 = document.getElementById('campCharSelect');
-                        if (campSel3 && campSel3.value && charData[campSel3.value]) {
-                            activeCharId = campSel3.value;
-                            activeChar = charData[activeCharId];
-                        }
                         storageRender();
                     }
+                    if (tabName === 'supply' || tabName === 'smith' || tabName === 'alchemy') {
+                        refreshAllShopBackpacks();
+                    }
+                    // 切换标签时重置封面（回到封面页）
+                    ['supply','craft','smith','alchemy'].forEach(function(k) {
+                        if (k !== tabName) resetWorkshopCover(k);
+                    });
                 });
+
+                // ━━ 共享背包渲染（补给站/铁匠/炼金）━━
+                function renderShopBackpack(panelId) {
+                    var bp = document.getElementById(panelId + 'Backpack');
+                    var grid = document.getElementById(panelId + 'BackpackGrid');
+                    if (!grid || !bp) return;
+                    if (bp.classList.contains('collapsed')) return;
+                    if (!activeChar || !activeChar.inventory || activeChar.inventory.length === 0) {
+                        grid.innerHTML = '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
+                        return;
+                    }
+                    var isSupply = (panelId === 'supply');
+                    var html = '';
+                    for (var i = 0; i < activeChar.inventory.length; i++) {
+                        var it = activeChar.inventory[i];
+                        if (it.qty <= 0) continue;
+                        var clickHandler = isSupply ? 'onclick="shopSellItem(' + i + ')"' : '';
+                        var sellHint = isSupply ? 'title="点击出售 ' + it.name + ' ×' + it.qty + '"' : 'title="' + it.name + ' ×' + it.qty + '"';
+                        html += '<div class="ws-bp-item" ' + clickHandler + ' ' + sellHint + '>';
+                        html += '<span class="bp-name">' + (it.name.length > 5 ? it.name.slice(0,5)+'…' : it.name) + '</span>';
+                        html += '<span class="bp-qty">×' + it.qty + '</span></div>';
+                    }
+                    if (isSupply && html) {
+                        html += '<div style="grid-column:1/-1;font-size:0.6rem;color:#6a5a4a;text-align:center;margin-top:0.2rem;">💰 点击物品出售（75%售价）</div>';
+                    }
+                    grid.innerHTML = html || '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
+                }
+
+                // 刷新所有补给站/铁匠/炼金的背包
+                function refreshAllShopBackpacks() {
+                    renderShopBackpack('supply');
+                    renderShopBackpack('smith');
+                    renderShopBackpack('alchemy');
+                }
+
+                // 两段式丝滑展开/折叠背包面板
+                window.toggleShopBackpack = function(panelId) {
+                    var bp = document.getElementById(panelId + 'Backpack');
+                    var btn = document.getElementById(panelId + 'BpToggle');
+                    if (!bp || !btn) return;
+                    var wasCollapsed = bp.classList.contains('collapsed');
+
+                    if (wasCollapsed) {
+                        // ★ 打开：两段式展开
+                        // 第一段：水平展开 → 显示标题栏
+                        bp.classList.remove('collapsed');
+                        btn.innerHTML = '✕';
+                        btn.title = '关闭背包';
+                        shopBpCollapsed[panelId] = false;
+                        // 第二段：延迟后向下展开网格
+                        setTimeout(function() {
+                            bp.classList.add('expanded');
+                            renderShopBackpack(panelId);
+                        }, 360);
+                    } else if (bp.classList.contains('expanded')) {
+                        // ★ 关闭：先收网格再收宽度
+                        bp.classList.remove('expanded');
+                        btn.innerHTML = '🎒';
+                        btn.title = '打开背包';
+                        shopBpCollapsed[panelId] = true;
+                        setTimeout(function() {
+                            bp.classList.add('collapsed');
+                        }, 400);
+                    }
+                };
+
+                // 恢复折叠/展开状态（跨标签切换时保持用户选择）
+                function restoreShopBpState() {
+                    ['supply','smith','alchemy'].forEach(function(pid) {
+                        var bp = document.getElementById(pid + 'Backpack');
+                        var btn = document.getElementById(pid + 'BpToggle');
+                        if (!bp || !btn) return;
+                        if (shopBpCollapsed[pid]) {
+                            // 恢复折叠态
+                            bp.classList.add('collapsed');
+                            bp.classList.remove('expanded');
+                            btn.innerHTML = '🎒';
+                            btn.title = '打开背包';
+                        } else {
+                            // 恢复展开态（两段都已展开）
+                            bp.classList.remove('collapsed');
+                            bp.classList.add('expanded');
+                            btn.innerHTML = '✕';
+                            btn.title = '关闭背包';
+                            // 重新渲染内容
+                            renderShopBackpack(pid);
+                        }
+                    });
+                }
+
+                // ━━ 工坊封面进入/返回 ━━
+                var wsEntered = { supply:false, craft:false, smith:false, alchemy:false };
+                window.enterWorkshop = function(pid) {
+                    if (survival.exploreDepth !== 0) {
+                        showPopup('🏕️ 您正在雪原中探索，尚未返回', 'warn');
+                        return;
+                    }
+                    if (pid === 'supply') {
+                        renderShop();
+                    }
+                    var cover = document.getElementById(pid + 'Cover');
+                    var content = document.getElementById(pid + 'Content');
+                    if (!cover || !content) return;
+                    cover.classList.add('hidden');
+                    content.style.display = '';
+                    wsEntered[pid] = true;
+                    if (pid === 'supply') { refreshAllShopBackpacks();
+                        renderShop(); }
+                    if (pid === 'smith') { refreshAllShopBackpacks(); }
+                    if (pid === 'alchemy') { refreshAllShopBackpacks(); }
+                    if (pid === 'craft') { wsRenderBackpack();
+                        wsRenderRecipes(); }
+                };
+                window.leaveWorkshop = function(pid) {
+                    var cover = document.getElementById(pid + 'Cover');
+                    var content = document.getElementById(pid + 'Content');
+                    if (!cover || !content) return;
+                    cover.classList.remove('hidden');
+                    content.style.display = 'none';
+                    wsEntered[pid] = false;
+                    // 折叠背包
+                    if (pid === 'supply' || pid === 'smith' || pid === 'alchemy') {
+                        var bp = document.getElementById(pid + 'Backpack');
+                        if (bp && !bp.classList.contains('collapsed')) {
+                            bp.classList.add('collapsed');
+                            bp.classList.remove('expanded');
+                            var btn = document.getElementById(pid + 'BpToggle');
+                            if (btn) { btn.innerHTML = '🎒';
+                                btn.title = '打开背包'; }
+                            shopBpCollapsed[pid] = true;
+                        }
+                    }
+                };
+                // 切换底部标签时重置封面状态
+                function resetWorkshopCover(pid) {
+                    var cover = document.getElementById(pid + 'Cover');
+                    var content = document.getElementById(pid + 'Content');
+                    if (!cover || !content) return;
+                    cover.classList.remove('hidden');
+                    content.style.display = 'none';
+                    wsEntered[pid] = false;
+                }
+
+                // ━━ 冒险补给站商店系统 ━━
+                var shopFundsGP = 1000;
+                var shopFundsSP = 0;
+                var shopFundsCP = 0;
+                function shopFundsTotalCP() { return (shopFundsGP * 10 + shopFundsSP) * 10 + shopFundsCP; }
+                function fmtFunds() {
+                    var p = [];
+                    if (shopFundsGP > 0) p.push(shopFundsGP + ' GP');
+                    if (shopFundsSP > 0) p.push(shopFundsSP + ' SP');
+                    if (shopFundsCP > 0 || p.length === 0) p.push(shopFundsCP + ' CP');
+                    return p.join(' ');
+                }
+                function deductShopFunds(totalPriceFloat) {
+                    var totalCP = Math.round(totalPriceFloat * 100);
+                    var curCP = ((shopFundsGP * 10 + shopFundsSP) * 10) + shopFundsCP;
+                    curCP -= totalCP;
+                    if (curCP < 0) curCP = 0;
+                    shopFundsGP = Math.floor(curCP / 100);
+                    shopFundsSP = Math.floor((curCP % 100) / 10);
+                    shopFundsCP = curCP % 10;
+                }
+                var shopCurrentPrices = {};   // {物品名: {priceGP, priceSP}}
+                var shopCurrentStock = {};    // {物品名: qty}
+                var shopCaravanItems = [];    // [{name, priceGP, priceSP, qty, desc}]
+                var caravanReturnCounter = 0; // 返回次数计数
+                var shopSellMode = false;     // 背包点击是否为出售模式
+
+                // 店铺补给数据
+                const SHOP_SUPPLY = [
+                    { name:'口粮（2份）', priceMin:3, priceMax:3, stock:Infinity, wp:null },
+                    { name:'火把', priceMin:4, priceMax:6, stock:Infinity, wp:33 },
+                    { name:'药草', priceMin:3, priceMax:5, stock:5, wp:1 },
+                    { name:'驱寒药膏', priceMin:12, priceMax:18, stock:3, wp:37 },
+                    { name:'治疗药水', priceMin:25, priceMax:40, stock:3, wp:34 },
+                    { name:'煤矿', priceMin:6, priceMax:8, stock:3, wp:16 },
+                    { name:'岩盐', priceMin:1, priceMax:3, stock:Infinity, wp:15 },
+                    { name:'网兜', priceMin:8, priceMax:12, stock:4, wp:35 },
+                ];
+                // 商队商品数据
+                const SHOP_CARAVAN = [
+                    { name:'铁松松脂', priceMin:5, priceMax:5, qtyMin:2, qtyMax:5, desc:'暴风雪燃料+1d6火焰附魔', wp:8 },
+                    { name:'魔法泉水', priceMin:8, priceMax:12, qtyMin:2, qtyMax:6, desc:'单独饮用后下次智力相关检定优势，也许可以调配为药水', wp:2 },
+                    { name:'松茸', priceMin:5, priceMax:8, qtyMin:2, qtyMax:5, desc:'食用后下次力量或体质检定优势', wp:6 },
+                    { name:'霜羽雉的银羽', priceMin:10, priceMax:20, qtyMin:1, qtyMax:4, desc:'装饰品', wp:11 },
+                    { name:'绒蜂蜜', priceMin:20, priceMax:20, qtyMin:1, qtyMax:4, desc:'1d4生命+寒冷抗性', wp:12 },
+                    { name:'银蛛蛛网', priceMin:5, priceMax:5, qtyMin:1, qtyMax:6, desc:'韧性较强，较稀有材料', wp:13 },
+                    { name:'铜矿', priceMin:3, priceMax:5, qtyMin:2, qtyMax:4, desc:'可熔炼→铜锭', wp:17 },
+                    { name:'铁矿', priceMin:6, priceMax:8, qtyMin:1, qtyMax:4, desc:'可熔炼→铁锭', wp:18 },
+                    { name:'银矿', priceMin:15, priceMax:30, qtyMin:1, qtyMax:3, desc:'可熔炼→银锭', wp:19 },
+                    { name:'金矿', priceMin:30, priceMax:50, qtyMin:1, qtyMax:3, desc:'可熔炼→金锭', wp:20 },
+                    { name:'寒铁矿', priceMin:15, priceMax:25, qtyMin:1, qtyMax:3, desc:'北境特产，魔力相性更好', wp:21 },
+                    { name:'寒铁髓', priceMin:100, priceMax:100, qtyMin:1, qtyMax:1, desc:'寒铁精华，顶级材料', wp:22 },
+                    { name:'霜晶核', priceMin:80, priceMax:80, qtyMin:1, qtyMax:1, desc:'蕴含冰冷能量，附魔核心', wp:23 },
+                    { name:'冰水晶', priceMin:50, priceMax:80, qtyMin:1, qtyMax:1, desc:'魔法水晶', wp:24 },
+                    { name:'化石', priceMin:1, priceMax:30, qtyMin:1, qtyMax:3, desc:'收藏与研究价值', wp:25 },
+                    { name:'宝石', priceMin:20, priceMax:50, qtyMin:1, qtyMax:3, desc:'可制作饰品/魔法物品', wp:26 },
+                    { name:'巨兽之骨', priceMin:100, priceMax:100, qtyMin:1, qtyMax:1, desc:'远古巨兽的骨头', wp:28 },
+                    { name:'白花藤', priceMin:16, priceMax:16, qtyMin:1, qtyMax:3, desc:'1d4生命，稀有药材', wp:31 },
+                    { name:'铜锭', priceMin:12, priceMax:12, qtyMin:1, qtyMax:3, desc:'可打造工具', wp:38 },
+                    { name:'铁锭', priceMin:16, priceMax:16, qtyMin:1, qtyMax:3, desc:'可打造工具', wp:39 },
+                    { name:'银锭', priceMin:32, priceMax:32, qtyMin:1, qtyMax:3, desc:'可制作饰品', wp:40 },
+                    { name:'金锭', priceMin:60, priceMax:60, qtyMin:1, qtyMax:3, desc:'可制作饰品/魔法物品', wp:41 },
+                    { name:'寒铁锭', priceMin:30, priceMax:30, qtyMin:1, qtyMax:3, desc:'可打造工具', wp:42 },
+                    { name:'兽肉', priceMin:8, priceMax:8, qtyMin:3, qtyMax:8, desc:'食材，烹煮→2d2口粮', wp:30 },
+                ];
+
+                function randPrice(minGP, maxGP) {
+                    if (minGP === maxGP) return { gp: minGP, sp: 0 };
+                    var totalSP = Math.floor(Math.random() * (maxGP * 10 - minGP * 10 + 1)) + minGP * 10;
+                    var gp = Math.floor(totalSP / 10);
+                    var sp = totalSP % 10;
+                    return { gp: gp, sp: sp };
+                }
+                function priceToStr(p) { return p.gp + ' GP' + (p.sp > 0 ? ' ' + p.sp + ' SP' : ''); }
+                function priceToGP(p) { return p.gp + p.sp / 10; }
+
+                function refreshShopSupply() {
+                    shopCurrentPrices = {};
+                    shopCurrentStock = {};
+                    SHOP_SUPPLY.forEach(function(item) {
+                        var p = randPrice(item.priceMin, item.priceMax);
+                        shopCurrentPrices[item.name] = p;
+                        shopCurrentStock[item.name] = item.stock === Infinity ? 999 : item.stock;
+                    });
+                }
+                function refreshCaravan() {
+                    shopCaravanItems = [];
+                    // 随机选最多10种
+                    var pool = SHOP_CARAVAN.slice();
+                    // 随机排列
+                    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = pool[i];
+                        pool[i] = pool[j];
+                        pool[j] = tmp; }
+                    var maxTypes = Math.min(10, pool.length);
+                    var count = 1 + Math.floor(Math.random() * maxTypes); // 随机1~10种
+                    for (var ci = 0; ci < count; ci++) {
+                        var item = pool[ci];
+                        var p = item.priceMin === item.priceMax
+                            ? { gp: item.priceMin, sp: 0 }
+                            : randPrice(item.priceMin, item.priceMax);
+                        // ±40%浮动
+                        if (item.priceMin !== item.priceMax || item.priceMin > 5) {
+                            var baseSP = p.gp * 10 + p.sp;
+                            var floatSP = Math.floor(baseSP * (0.6 + Math.random() * 0.8)); // 0.6~1.4倍
+                            if (floatSP < 10) floatSP = 10;
+                            p.gp = Math.floor(floatSP / 10);
+                            p.sp = floatSP % 10;
+                        }
+                        var qty = item.qtyMin + Math.floor(Math.random() * (item.qtyMax - item.qtyMin + 1));
+                        shopCaravanItems.push({ name: item.name, priceGP: p.gp, priceSP: p.sp, qty: qty, desc: item.desc });
+                    }
+                    // 矿石价格不能比矿锭高
+                    var oreIngotPairs = [['铜矿','铜锭'],['铁矿','铁锭'],['银矿','银锭'],['金矿','金锭'],['寒铁矿','寒铁锭']];
+                    oreIngotPairs.forEach(function(pair) {
+                        var oreItem = null, ingotItem = null, ingotData = null;
+                        for (var oi = 0; oi < shopCaravanItems.length; oi++) {
+                            if (shopCaravanItems[oi].name === pair[0]) oreItem = shopCaravanItems[oi];
+                            if (shopCaravanItems[oi].name === pair[1]) { ingotItem = shopCaravanItems[oi];
+                                ingotData = SHOP_CARAVAN.find(function(d){return d.name===pair[1];}); }
+                        }
+                        if (!oreItem || !ingotItem || !ingotData) return;
+                        var orePrice = oreItem.priceGP * 10 + oreItem.priceSP;
+                        var ingotPrice = ingotItem.priceGP * 10 + ingotItem.priceSP;
+                        var retries = 0;
+                        while (ingotPrice <= orePrice && retries < 20) {
+                            var newP = randPrice(ingotData.priceMin, ingotData.priceMax);
+                            ingotPrice = Math.max(orePrice + 1, newP.gp * 10 + newP.sp);
+                            ingotItem.priceGP = Math.floor(ingotPrice / 10);
+                            ingotItem.priceSP = ingotPrice % 10;
+                            retries++;
+                        }
+                    });
+                }
+                function refreshShopFunds() {
+                    shopFundsGP = 800 + Math.floor(Math.random() * 401); // 800-1200
+                    shopFundsSP = Math.floor(Math.random() * 10); // 0-9 SP
+                }
+                function getShopSellPrice(itemName) {
+                    if (shopCurrentPrices[itemName]) return priceToGP(shopCurrentPrices[itemName]) * 0.75;
+                    for (var ci = 0; ci < shopCaravanItems.length; ci++) {
+                        if (shopCaravanItems[ci].name === itemName) {
+                            return (shopCaravanItems[ci].priceGP + shopCaravanItems[ci].priceSP / 10) * 0.75;
+                        }
+                    }
+                    for (var bi = 0; bi < SHOP_CARAVAN.length; bi++) {
+                        if (SHOP_CARAVAN[bi].name === itemName) {
+                            var midPrice = (SHOP_CARAVAN[bi].priceMin + SHOP_CARAVAN[bi].priceMax) / 2;
+                            return midPrice * 0.75;
+                        }
+                    }
+                    return -1;
+                }
+                function canSellItem(itemName) {
+                    if (shopCurrentPrices[itemName] !== undefined) return true;
+                    for (var ci = 0; ci < shopCaravanItems.length; ci++) {
+                        if (shopCaravanItems[ci].name === itemName) return true;
+                    }
+                    return false;
+                }
+
+                // 初始化
+                refreshShopSupply();
+                refreshCaravan();
+                refreshShopFunds();
+                caravanReturnCounter = 0;
+
+                function renderShop() {
+                    var grid = document.getElementById('shopGrid');
+                    if (!grid) return;
+                    var html = '';
+                    // 商店资金
+                    html += '<div style="grid-column:1/-1;font-size:0.72rem;color:#8a7a5a;margin-bottom:0.3rem;">💰 商店资金：' + fmtFunds() + '</div>';
+
+                    // === 店铺补给 ===
+                    html += '<div style="grid-column:1/-1;font-size:0.78rem;color:#d4a860;border-bottom:1px solid rgba(212,168,96,0.15);padding-bottom:0.2rem;margin-bottom:0.2rem;">📦 店铺补给</div>';
+                    SHOP_SUPPLY.forEach(function(item) {
+                        var p = shopCurrentPrices[item.name] || { gp: 0, sp: 0 };
+                        var stock = shopCurrentStock[item.name] || 0;
+                        var cp = activeChar && activeChar.coins ? ((activeChar.coins.gp||0)*10+(activeChar.coins.sp||0))*10+(activeChar.coins.cp||0) : 0;
+                        var canBuy = stock > 0 && cp >= (p.gp * 10 + p.sp) * 10;
+                        html += '<div class="shop-card">' +
+                            '<div class="sc-name">' + item.name + '</div>' +
+                            '<div class="sc-price">' + priceToStr(p) + '</div>' +
+                            '<div style="font-size:0.6rem;color:#5a7a6a;">库存：' + (stock >= 999 ? '∞' : stock) + '</div>' +
+                            '<button class="sc-buy-btn" ' + (canBuy ? '' : 'disabled') + ' onclick="shopBuyItem(\'' + item.name + '\',\'supply\')">购买</button>' +
+                            '</div>';
+                    });
+
+                    // === 商队商品 ===
+                    if (caravanReturnCounter === 0) {
+                        html += '<div style="grid-column:1/-1;font-size:0.78rem;color:#d4a860;border-bottom:1px solid rgba(212,168,96,0.15);padding-bottom:0.2rem;margin-top:0.8rem;margin-bottom:0.2rem;">🐪 商队商品</div>';
+                        shopCaravanItems.forEach(function(item, ci) {
+                            var ccp = activeChar && activeChar.coins ? ((activeChar.coins.gp||0)*10+(activeChar.coins.sp||0))*10+(activeChar.coins.cp||0) : 0;
+                            var canBuy = item.qty > 0 && ccp >= (item.priceGP * 10 + item.priceSP) * 10;
+                            html += '<div class="shop-card">' +
+                                '<div class="sc-name">' + item.name + '</div>' +
+                                '<div class="sc-desc">' + (item.desc || '') + '</div>' +
+                                '<div class="sc-price">' + item.priceGP + ' GP' + (item.priceSP > 0 ? ' ' + item.priceSP + ' SP' : '') + '</div>' +
+                                '<div style="font-size:0.6rem;color:#5a7a6a;">库存：' + item.qty + '</div>' +
+                                '<button class="sc-buy-btn" ' + (canBuy ? '' : 'disabled') + ' onclick="shopBuyItem(\'' + item.name + '\',\'caravan\')">购买</button>' +
+                                '</div>';
+                        });
+                    } else {
+                        html += '<div style="grid-column:1/-1;font-size:0.78rem;color:#d4a860;border-bottom:1px solid rgba(212,168,96,0.15);padding-bottom:0.2rem;margin-top:0.8rem;margin-bottom:0.2rem;">🐪 商队商品</div>' +
+                            '<div style="grid-column:1/-1;text-align:center;color:#6a5a4a;font-size:0.75rem;padding:1rem;">🐪 商队已离开，正在旅途中…（还需返回' + (4 - caravanReturnCounter) + '次）</div>';
+                    }
+
+                    grid.innerHTML = html;
+                }
+
+                window.shopBuyItem = function(itemName, source) {
+                    if (!activeChar) { showPopup('请先选择角色', 'warn'); return; }
+                    activeChar.coins = activeChar.coins || { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+                    var priceGP, priceSP, storeIdx = -1, maxStock;
+                    if (source === 'supply') {
+                        var p = shopCurrentPrices[itemName];
+                        if (!p) return;
+                        priceGP = p.gp; priceSP = p.sp || 0;
+                        maxStock = shopCurrentStock[itemName];
+                        if (maxStock <= 0) { showPopup('库存不足', 'warn'); return; }
+                    } else {
+                        for (var i = 0; i < shopCaravanItems.length; i++) { if (shopCaravanItems[i].name === itemName) { storeIdx = i; break; } }
+                        if (storeIdx < 0) return;
+                        priceGP = shopCaravanItems[storeIdx].priceGP;
+                        priceSP = shopCaravanItems[storeIdx].priceSP || 0;
+                        maxStock = shopCaravanItems[storeIdx].qty;
+                        if (maxStock <= 0) { showPopup('库存不足', 'warn'); return; }
+                    }
+                    var playerCP = ((activeChar.coins.gp || 0) * 10 + (activeChar.coins.sp || 0)) * 10 + (activeChar.coins.cp || 0);
+                    var unitCP = (priceGP * 10 + priceSP) * 10;
+                    if (playerCP < unitCP) { showPopup('资金不足', 'warn'); return; }
+                    var maxByFunds = Math.floor(playerCP / unitCP);
+                    var maxQty = Math.min(maxStock >= 999 ? 99 : maxStock, maxByFunds, 99);
+                    var unitPriceFloat = priceGP + priceSP / 10;
+                    // 购买数量弹窗
+                    var old = document.getElementById('buyConfirmModal');
+                    if (old) old.remove();
+                    var overlay = document.createElement('div');
+                    overlay.id = 'buyConfirmModal';
+                    overlay.className = 'sell-modal-overlay';
+                    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+                    overlay.innerHTML = '<div class="sell-modal">' +
+                        '<div class="sell-modal-title">🛒 购买 ' + itemName + '</div>' +
+                        '<div class="sell-modal-price">单价：' + priceGP + ' GP' + (priceSP > 0 ? ' ' + priceSP + ' SP' : '') +
+                        ' ｜ 库存：' + (maxStock >= 999 ? '∞' : maxStock) + '</div>' +
+                        '<div class="sell-modal-qty">' +
+                            '<span>数量：</span>' +
+                            '<input type="range" min="1" max="' + maxQty + '" value="1" id="buyQtyRange" style="flex:1;">' +
+                            '<span id="buyQtyVal" style="color:#f0d080;font-weight:bold;">1</span>' +
+                        '</div>' +
+                        '<div class="sell-modal-total">合计：<b id="buyTotalVal" style="color:#f0d080;">' + priceGP + ' GP' + (priceSP > 0 ? ' ' + priceSP + ' SP' : '') + '</b></div>' +
+                        '<div class="sell-modal-btns">' +
+                            '<button class="sell-modal-cancel" onclick="document.getElementById(\'buyConfirmModal\').remove()">取消</button>' +
+                            '<button class="sell-modal-ok" id="buyConfirmOk">确认购买</button>' +
+                        '</div></div>';
+                    document.body.appendChild(overlay);
+                    document.getElementById('buyQtyRange').addEventListener('input', function() {
+                        var q = parseInt(this.value) || 1;
+                        document.getElementById('buyQtyVal').textContent = q;
+                        var total = unitPriceFloat * q;
+                        var tgp = Math.floor(total);
+                        var tsp = Math.round((total - tgp) * 10);
+                        document.getElementById('buyTotalVal').textContent = tgp + ' GP' + (tsp > 0 ? ' ' + tsp + ' SP' : '');
+                    });
+                    document.getElementById('buyConfirmOk').addEventListener('click', function() {
+                        var qty = parseInt(document.getElementById('buyQtyVal').textContent) || 1;
+                        var totalCP = unitCP * qty;
+                        playerCP -= totalCP;
+                        activeChar.coins.gp = Math.floor(playerCP / 100);
+                        activeChar.coins.sp = Math.floor((playerCP % 100) / 10);
+                        activeChar.coins.cp = playerCP % 10;
+                        var realName = itemName === '口粮（2份）' ? '口粮' : itemName;
+                        var addQty = itemName === '口粮（2份）' ? 2 * qty : qty;
+                        activeChar.inventory = activeChar.inventory || [];
+                        var stacked = false;
+                        for (var si = 0; si < activeChar.inventory.length; si++) {
+                            if (activeChar.inventory[si].name === realName) { activeChar.inventory[si].qty += addQty;
+                                stacked = true; break; }
+                        }
+                        if (!stacked) activeChar.inventory.push({ name: realName, qty: addQty, location: '背包', weight: 1 });
+                        if (source === 'supply') { if (shopCurrentStock[itemName] < 999) shopCurrentStock[itemName] -= qty; }
+                        else { shopCaravanItems[storeIdx].qty -= qty; }
+                        if (activeCharId) charData[activeCharId] = activeChar;
+                        var totalPrice = unitPriceFloat * qty;
+                        var tgp2 = Math.floor(totalPrice);
+                        var tsp2 = Math.round((totalPrice - tgp2) * 10);
+                        addSystemLog('🛒 购买了 ' + itemName + ' ×' + qty + '（' + tgp2 + ' GP' + (tsp2 > 0 ? ' ' + tsp2 + ' SP' : '') + '）', 'success');
+                        overlay.remove();
+                        renderShop();
+                        refreshAllShopBackpacks();
+                        if (typeof renderCampCharSheet === 'function') renderCampCharSheet();
+                        if (activeCharId) renderCharDetail(activeCharId);
+                    });
+                };
+
+                // 出售弹窗
+                function showSellModal(idx) {
+                    var it = activeChar.inventory[idx];
+                    var sellPrice = getShopSellPrice(it.name);
+                    var maxQty = it.qty;
+                    var old = document.getElementById('sellModal');
+                    if (old) old.remove();
+                    var overlay = document.createElement('div');
+                    overlay.id = 'sellModal';
+                    overlay.className = 'sell-modal-overlay';
+                    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+                    var priceGP = Math.floor(sellPrice);
+                    var priceSP = Math.round((sellPrice - priceGP) * 10);
+                    overlay.innerHTML = '<div class="sell-modal">' +
+                        '<div class="sell-modal-title">💰 出售物品</div>' +
+                        '<div class="sell-modal-item">' + it.name + '</div>' +
+                        '<div class="sell-modal-price">单价：' + priceGP + ' GP' + (priceSP > 0 ? ' ' + priceSP + ' SP' : '') +
+                        '（商店资金：' + fmtFunds() + '）</div>' +
+                        '<div class="sell-modal-qty">' +
+                            '<span>数量：</span>' +
+                            '<input type="range" min="1" max="' + maxQty + '" value="1" id="sellQtyRange" style="flex:1;">' +
+                            '<span id="sellQtyVal" style="color:#f0d080;font-weight:bold;">1</span>' +
+                        '</div>' +
+                        '<div class="sell-modal-total">合计：<b id="sellTotalVal" style="color:#f0d080;">' + priceGP + ' GP' + (priceSP > 0 ? ' ' + priceSP + ' SP' : '') + '</b></div>' +
+                        '<div class="sell-modal-btns">' +
+                            '<button class="sell-modal-cancel" onclick="document.getElementById(\'sellModal\').remove()">取消</button>' +
+                            '<button class="sell-modal-ok" id="sellConfirmBtn">确认出售</button>' +
+                        '</div>' +
+                    '</div>';
+                    document.body.appendChild(overlay);
+                    // 数量滑块事件
+                    document.getElementById('sellQtyRange').addEventListener('input', function() {
+                        var q = parseInt(this.value) || 1;
+                        document.getElementById('sellQtyVal').textContent = q;
+                        var total = sellPrice * q;
+                        var tgp = Math.floor(total);
+                        var tsp = Math.round((total - tgp) * 10);
+                        document.getElementById('sellTotalVal').textContent = tgp + ' GP' + (tsp > 0 ? ' ' + tsp + ' SP' : '');
+                    });
+                    document.getElementById('sellConfirmBtn').addEventListener('click', function() {
+                        var qty = parseInt(document.getElementById('sellQtyVal').textContent) || 1;
+                        var totalPrice = sellPrice * qty;
+                        if (shopFundsTotalCP() < totalPrice * 100) { showPopup('本店资金不足以收购...', 'warn'); return; }
+                        it.qty -= qty;
+                        if (it.qty <= 0) activeChar.inventory.splice(idx, 1);
+                        deductShopFunds(totalPrice);
+                        var totalSP = Math.round(totalPrice * 10);
+                        activeChar.coins = activeChar.coins || { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+                        var playerSP = (activeChar.coins.gp || 0) * 10 + (activeChar.coins.sp || 0) + totalSP;
+                        activeChar.coins.gp = Math.floor(playerSP / 10);
+                        activeChar.coins.sp = playerSP % 10;
+                        if (activeCharId) charData[activeCharId] = activeChar;
+                        var tgp3 = Math.floor(totalPrice);
+                        var tsp3 = Math.round((totalPrice - tgp3) * 10);
+                        addSystemLog('💰 出售 ' + it.name + ' ×' + qty + '（+' + tgp3 + ' GP' + (tsp3 > 0 ? ' ' + tsp3 + ' SP' : '') + '）', 'success');
+                        overlay.remove();
+                        renderShop();
+                        refreshAllShopBackpacks();
+                        if (typeof renderCampCharSheet === 'function') renderCampCharSheet();
+                        if (activeCharId) renderCharDetail(activeCharId);
+                    });
+                }
+
+                // 出售：点击背包物品
+                window.shopSellItem = function(idx) {
+                    if (!activeChar || !activeChar.inventory || idx >= activeChar.inventory.length) return;
+                    var it = activeChar.inventory[idx];
+                    if (!it || it.qty <= 0) return;
+                    var sellPrice = getShopSellPrice(it.name);
+                    if (sellPrice < 0) { showPopup('该物品无法出售...', 'warn'); return; }
+                    if (shopFundsTotalCP() < sellPrice * 100) { showPopup('本店资金不足以收购此材料...', 'warn'); return; }
+                    showSellModal(idx);
+                };
+
+                // 返回营地时更新商队计数和刷新商店资金
+                var _origShowPopup = showPopup;
+                showPopup = function(msg, type) {
+                    if (type === 'back') {
+                        caravanReturnCounter++;
+                        if (caravanReturnCounter >= 4) caravanReturnCounter = 0;
+                        if (caravanReturnCounter === 0) refreshCaravan();
+                        refreshShopSupply();
+                        refreshShopFunds();
+                    }
+                    _origShowPopup(msg, type);
+                };
 
                 // ━━ 营地仓库系统 ━━
                 function storageRender() {
@@ -5516,6 +6571,7 @@
                 }
                 let stPending = null; // {dir:'toStorage'|'toBackpack', idx:N, name:'', max:0}
                 window.backpackToStorage = function(idx) {
+                    if (survival.exploreDepth !== 0) { showPopup('🏕️ 您正在雪原中探索，尚未返回', 'warn'); return; }
                     if (!activeChar || !activeChar.inventory || idx >= activeChar.inventory.length) return;
                     var it = activeChar.inventory[idx];
                     if (!it || it.qty <= 0) return;
@@ -5523,6 +6579,7 @@
                     stShowModal();
                 };
                 window.storageToBackpack = function(idx) {
+                    if (survival.exploreDepth !== 0) { showPopup('🏕️ 您正在雪原中探索，尚未返回', 'warn'); return; }
                     if (!campStorage || idx >= campStorage.length) return;
                     if (!activeChar) return;
                     var it = campStorage[idx];
@@ -5596,7 +6653,8 @@
 
                 // ━━ 工作间系统 ━━
                 let wsActiveTab = 'craft';
-                let wsSmeltOre = null, wsSmeltCoal = 0, wsSmeltIngot = null;
+                let wsSmeltOre = null, wsSmeltCoal = 0, wsSmeltBars = 0, wsSmeltIngot = null;
+                const WS_SMELT_MAX_BARS = 3;
                 let wsPendingItem = null;
                 let wsSmeltTimer = null, wsSmeltProgress = 0;
 
@@ -5605,10 +6663,10 @@
                 function wsIsFuel(name) { return FUEL_ITEMS.indexOf(name) >= 0; }
                 const WS_RECIPES = {
                     craft: [
-                        { name:'火把', cost:{'松枝':1}, costFuel:2, result:'火把', desc:'点燃8次事件，消除严寒', tab:'craft' },
+                        { name:'火把', cost:{'松枝':1}, costFuel:2, result:'火把', desc:'免疫2次严寒考验，消除2级严寒', tab:'craft'},
                         { name:'网兜', cost:{'松枝':1,'银蛛蛛网':2}, result:'网兜', desc:'可触距离10尺', tab:'craft' },
                         { name:'长柄网兜', cost:{'松枝':2,'银蛛蛛网':3}, result:'长柄网兜', desc:'可触距离15尺，容量更大', tab:'craft' },
-                        { name:'驱寒药膏', cost:{'药草':2,'松脂':1}, result:'驱寒药膏', desc:'消除2级严寒+6次抵抗', tab:'craft' },
+                        { name:'驱寒药膏', cost:{'药草':2,'松脂':1}, result:'驱寒药膏', desc:'消除2级严寒+6次抵抗（含严寒考验）', tab:'craft' },
                     ],
                     brew: [
                         { name:'治疗药水', cost:{'药草':4,'魔法泉水':2}, result:'治疗药水', desc:'恢复2d4+2生命', tab:'brew' },
@@ -5682,6 +6740,8 @@
                         }
                         // 同步刷新营地端角色卡
                         renderCampCharSheet();
+                        // 同步刷新所有工坊背包
+                        if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
                     }
                 }
 
@@ -5702,7 +6762,12 @@
                     else if (panel === 'brew') { var si = parseInt(slot); placed = wsBrewSlots[si];
                         wsBrewSlots[si] = null; }
                     else if (panel === 'smelt') {
-                        if (slot === 'coal' && wsSmeltCoal > 0) { wsSmeltCoal--; placed = {name:'煤矿',_qty:1}; }
+                        if (slot === 'coal') {
+                            if (wsSmeltCoal > 0) { wsSmeltCoal = 0;
+                                placed = {name:'煤矿',_qty:1}; }
+                            else if (wsSmeltBars > 0) { wsSmeltBars = 0;
+                                showPopup('您将熔炼炉熄灭了', 'warn'); }
+                        }
                         else if (slot === 'ore' && wsSmeltOre) { placed = wsSmeltOre;
                             wsSmeltOre = null; }
                     }
@@ -5743,7 +6808,13 @@
                         if (slot === 'coal') {
                             if (itemName !== '煤矿') { wsPendingItem = null;
                                 wsRenderBackpack(); return; }
-                            wsSmeltCoal += 1;
+                            if (wsSmeltCoal > 0) { wsPendingItem = null;
+                                wsRenderBackpack();
+                                showPopup('煤槽已满，请先使用当前煤矿', 'warn'); return; }
+                            if (wsSmeltBars >= WS_SMELT_MAX_BARS) { wsPendingItem = null;
+                                wsRenderBackpack();
+                                showPopup('熔炉火力正旺，不需要添加燃料', 'warn'); return; }
+                            wsSmeltCoal = 1;
                         } else if (slot === 'ore') {
                             if (!WS_SMELT_MAP[itemName]) { wsPendingItem = null;
                                 wsRenderBackpack(); return; }
@@ -5797,14 +6868,14 @@
                         if (oreLabel) oreLabel.textContent = wsSmeltOre ? wsSmeltOre.name : '矿物'; }
                     var coalEl = document.querySelector('.smelt-slot.coal-slot');
                     if (coalEl) { var coalLabel = coalEl.querySelector('.slot-label');
-                        coalEl.className = 'smelt-slot coal-slot' + (wsSmeltCoal>0?' filled':'');
-                        if (coalLabel) coalLabel.textContent = wsSmeltCoal>0 ? '煤矿×'+wsSmeltCoal : '煤矿'; }
+                        coalEl.className = 'smelt-slot coal-slot' + (wsSmeltCoal>0 || wsSmeltBars>0?' filled':'');
+                        if (coalLabel) coalLabel.textContent = wsSmeltCoal>0 ? '煤矿×1' : (wsSmeltBars>0 ? '火力×'+wsSmeltBars : '煤矿'); }
                     var ingotEl = document.getElementById('smeltResult');
                     if (ingotEl) { ingotEl.className = 'smelt-slot ingot-slot' + (wsSmeltIngot?' filled':'');
                         ingotEl.textContent = wsSmeltIngot ? wsSmeltIngot : '锭'; }
                     document.getElementById('smeltTakeBtn').style.display = wsSmeltIngot ? '' : 'none';
                     // 火力条
-                    document.querySelectorAll('.fire-bar').forEach(function(b,i) { b.classList.toggle('lit', i < wsSmeltCoal); });
+                    if (!wsSmeltTimer) { document.querySelectorAll('.fire-bar').forEach(function(b,i) { b.classList.toggle('lit', i >= 3 - wsSmeltBars); }); }
                     // 炼药锅
                     var brewPanel = document.getElementById('wsBrew');
                     if (brewPanel) {
@@ -6001,15 +7072,39 @@
 
                 // 熔炼
                 window.wsDoSmelt = function() {
-                    if (!wsSmeltOre && wsSmeltCoal <= 0) { document.getElementById('smeltMsg').textContent = '缺少矿物和煤矿…'; return; }
+                    if (!wsSmeltOre && wsSmeltCoal <= 0 && wsSmeltBars <= 0) { document.getElementById('smeltMsg').textContent = '缺少矿物和燃料…'; return; }
                     if (!wsSmeltOre) { document.getElementById('smeltMsg').textContent = '缺少矿物进行熔炼…'; return; }
-                    if (wsSmeltCoal <= 0) { document.getElementById('smeltMsg').textContent = '缺少煤矿进行熔炼…'; return; }
-                    if (wsSmeltTimer) return; // 正在熔炼中
+                    if (wsSmeltCoal <= 0 && wsSmeltBars <= 0) { document.getElementById('smeltMsg').textContent = '熔炉火力不足，请添加煤矿…'; return; }
+                    if (wsSmeltTimer) return;
+                    // 先消耗煤矿→点亮3格火力
+                    if (wsSmeltCoal > 0) {
+                        wsSmeltCoal = 0;
+                        wsSmeltBars = Math.min(WS_SMELT_MAX_BARS, wsSmeltBars + 3);
+                        document.getElementById('smeltMsg').innerHTML = '<span style="color:#ff8030;">🔥 煤矿点燃，火力×' + wsSmeltBars + '</span>';
+                        wsRenderSlots();
+                        wsSmeltTimer = true; // 占位防重复点击
+                        setTimeout(function() {
+                            wsSmeltTimer = null;
+                            wsStartSmeltProgress();
+                        }, 400);
+                        return;
+                    }
+                    wsStartSmeltProgress();
+                };
+                function wsStartSmeltProgress() {
+                    wsSmeltBars--;
                     document.getElementById('smeltMsg').innerHTML = '<span style="color:#d49460;">🔥 开始熔炼…</span>';
                     wsSmeltProgress = 0;
+                    wsRenderSlots();
+                    var barsBeforeSmelt = wsSmeltBars;
                     wsSmeltTimer = setInterval(function() {
                         wsSmeltProgress += 3.3;
                         document.getElementById('smeltProgressFill').style.width = Math.min(wsSmeltProgress, 100) + '%';
+                        // 从上到下熄灭：进度过半时最上方一格熄灭
+                        var currentLit = wsSmeltProgress < 50 ? barsBeforeSmelt + 1 : barsBeforeSmelt;
+                        document.querySelectorAll('.fire-bar').forEach(function(b,i) {
+                            b.classList.toggle('lit', i >= 3 - currentLit);
+                        });
                         if (wsSmeltProgress >= 100) {
                             clearInterval(wsSmeltTimer);
                             wsSmeltTimer = null;
@@ -6018,7 +7113,6 @@
                             var oreName = wsSmeltOre.name;
                             var ingot = WS_SMELT_MAP[oreName] || '未知锭';
                             wsSmeltIngot = ingot;
-                            wsSmeltCoal--;
                             wsSmeltOre = null;
                             wsUnlockedRecipes[ingot] = true;
                             if (!craftedItems[oreName] || !Array.isArray(craftedItems[oreName])) craftedItems[oreName] = [];
@@ -6032,7 +7126,7 @@
                             setTimeout(function() { document.getElementById('smeltMsg').textContent = ''; }, 2000);
                         }
                     }, 100);
-                };
+                }
 
                 // 炼药
                 window.wsDoBrew = function() {
@@ -6162,9 +7256,9 @@
                         const rules = [
                             { icon:'❄️', title:'严寒考验', text:'每完成3次事件进行体质豁免。基准DC12，庇护所DC10，暴风雪DC15。具有体质豁免熟练可加上熟练加值。失败严寒+1（最高3级），体质检定-N。庇护所长休解除全部严寒，短休解除1级。驱寒药膏、天然温泉可解除1级。' },
                             { icon:'🍖', title:'口粮消耗', text:'每4次事件消耗1份口粮，庇护所内暂停。断粮后：体质豁免劣势、长休恢复减半、移速-10尺；每3次事件仍无口粮则损失1d4生命。浆果1d2份、猎人小屋1d4份、兽肉2d2份。进食解除断粮。' },
-                            { icon:'🧭', title:'方向感迷失', text:'每5次事件进行感知或生存检定，DC12起步。熟练可加值。迷失后继续深入和返回无效。持续2次事件，每次DC+1（上限DC15）。方向判断DC15成功可重置。发现踪迹自动解除。' },
+                            { icon:'🧭', title:'方向感迷失', text:'每5次事件进行感知或生存检定，DC12起步。熟练可加值。迷失后深入雪原和返回无效。持续2次事件，每次DC+1（上限DC15）。方向判断DC15成功可重置。发现踪迹自动解除。' },
                             { icon:'🔥', title:'火源与照明', text:'无光源时夜间攻击劣势。燃料：松枝/松脂/荧光苔/铁松松脂/煤矿/柴火，每份2次事件，庇护所内不消耗。暴风雪仅荧光苔和铁松松脂可用。原地休整需消耗燃料才能进行。' },
-                            { icon:'⛺', title:'休息规则', text:'原地休整点击后在事件回响中选择长休或短休。长休需4燃料+2口粮/食物，恢复满HP+解除全部严寒；短休需1燃料，恢复1d8+体调HP+解除1级严寒。消耗在休息完成后结算。' },
+                            { icon:'⛺', title:'休息规则', text:'原地休整点击后在事件回响中选择长休或短休。长休需4燃料+2口粮/食物，恢复满HP+解除全部严寒；短休可用火把（激活效果不消耗）或1燃料，恢复1d8+体调HP。火把短休消除2级严寒+免疫2次严寒检定；燃料短休解除1级严寒。' },
                         ];
                         leftEl.innerHTML = '<div class="book-rules">' + rules.map(r =>
                             `<div class="br-item"><b>${r.icon} ${r.title}</b><p>${r.text}</p></div>`
@@ -6291,15 +7385,29 @@
                                 var raw = craftedItems[item.name];
                                 var craftedList = Array.isArray(raw) ? raw : (raw ? [item.name] : []);
                                 if (synList) {
-                                    var unlocked = synList.filter(function(entry) { return craftedList.indexOf(entry.recipe) >= 0; });
-                                    var locked = synList.filter(function(entry) { return craftedList.indexOf(entry.recipe) < 0; });
-                                    if (unlocked.length > 0) {
-                                        var lines = unlocked.map(function(entry) { return '<div style="color:#3d6e16;">' + entry.text + '</div>'; });
-                                        if (locked.length > 0) lines.push('<div style="color:#8a7a5e;margin-top:2px;"><span style="color:#c83040;">🔒</span> 还有' + locked.length + '个配方未解锁</div>');
-                                        descHtml = '<div style="font-size:0.68rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">' + lines.join('') + '</div>';
-                                    } else {
-                                        descHtml = '<div style="color:#8a7a5e;font-size:0.65rem;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;"><span style="color:#c83040;">🔒</span> 达成条件解锁</div>';
+                                    // 分离：无recipe的是物品描述，有recipe的是合成配方
+                                    var descEntries = synList.filter(function(entry) { return !entry.recipe; });
+                                    var recipeEntries = synList.filter(function(entry) { return entry.recipe; });
+                                    var unlocked = recipeEntries.filter(function(entry) { return craftedList.indexOf(entry.recipe) >= 0; });
+                                    var locked = recipeEntries.filter(function(entry) { return craftedList.indexOf(entry.recipe) < 0; });
+                                    var lines = [];
+                                    // 始终显示物品原始描述
+                                    if (descEntries.length > 0) {
+                                        lines.push('<div style="color:#6b5a3e;">' + descEntries.map(function(e){return e.text;}).join('；') + '</div>');
+                                    } else if (wpDesc) {
+                                        lines.push('<div style="color:#6b5a3e;">' + wpDesc + '</div>');
                                     }
+                                    // 显示已解锁配方
+                                    if (unlocked.length > 0) {
+                                        lines.push('<div style="color:#3d6e16;margin-top:2px;">' + unlocked.map(function(entry) { return '✅ ' + entry.text; }).join('<br>') + '</div>');
+                                    }
+                                    // 显示未解锁数量
+                                    if (locked.length > 0) {
+                                        lines.push('<div style="color:#8a7a5e;margin-top:2px;"><span style="color:#c83040;">🔒</span> 还有' + locked.length + '个配方未解锁</div>');
+                                    } else if (unlocked.length === 0 && recipeEntries.length > 0) {
+                                        lines.push('<div style="color:#8a7a5e;margin-top:2px;"><span style="color:#c83040;">🔒</span> 达成条件解锁配方</div>');
+                                    }
+                                    descHtml = '<div style="font-size:0.68rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">' + lines.join('') + '</div>';
                                 } else {
                                     descHtml = '<div style="color:#6b5a3e;font-size:0.72rem;line-height:1.7;border-top:1px dashed rgba(0,0,0,0.1);padding-top:0.4rem;">' + (wpDesc || '暂无详细描述') + '</div>';
                                 }
@@ -6403,6 +7511,8 @@
                     // 同步 activeChar（工作间背包/合成依赖此引用）
                     activeCharId = id;
                     activeChar = data;
+                    // 刷新所有工坊背包
+                    if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
                     document.getElementById('campCharStatus').textContent = data.rank || '青羽';
                     document.getElementById('campCharNameInHeader').textContent = '· ' + id;
                     const mods = {};

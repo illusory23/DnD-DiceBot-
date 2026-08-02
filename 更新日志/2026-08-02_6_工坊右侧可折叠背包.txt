@@ -1,0 +1,39 @@
+2026-08-02 #6 工坊右侧可折叠背包（两段式丝滑展开）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+文件修改：web/templates/north-expedition.html
+
+改动内容：
+
+1. CSS 新增/重写
+   - .shop-layout：左右flex布局 + position:relative
+   - .shop-backpack：牛皮皮革质感背包面板，width过渡0.35s缓动
+   - .shop-backpack.collapsed：默认折叠态 46px宽，仅显示右上角精致小按钮
+     · 边框收窄(3px)、隐藏皮革缝线装饰
+     · 按钮：30×30px圆角方形，皮革渐变底色+金色边框+🎒图标
+   - .shop-backpack:not(.collapsed)：展开态 350px宽，标题栏可见
+   - .shop-bp-grid-wrap：max-height过渡0.4s缓动（第二段向下展开）
+   - .shop-backpack.expanded .shop-bp-grid-wrap：max-height 550px
+   - 响应式适配（小屏上下堆叠）
+
+2. HTML 改动
+   - 冒险补给站/铁匠工房/炼金工坊：各新增右侧背包面板
+   - 默认带 collapsed 类（进入界面即关闭状态）
+   - 结构：按钮 + 标题区(.shop-backpack-inner) + 网格包裹器(.shop-bp-grid-wrap)
+
+3. JS 两段式展开动画
+   ★ 打开（两段）：
+     第一段 → 移除collapsed，width 46px→350px 水平展开（0.35s），标题栏显现
+     第二段 → 360ms后添加expanded，max-height 0→550px 向下展开（0.4s）
+   ★ 关闭（两段）：
+     第一段 → 移除expanded，max-height→0 网格收起（0.4s）
+     第二段 → 400ms后添加collapsed，width 350px→46px 水平收缩（0.35s）
+
+4. 同步机制
+   - renderShopBackpack：折叠态跳过渲染（节省性能）
+   - refreshAllShopBackpacks：一键刷新三个面板
+   - restoreShopBpState：跨标签切换保持用户展开/折叠选择
+   - 角色切换/工作间操作/材料拾取均自动同步
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
