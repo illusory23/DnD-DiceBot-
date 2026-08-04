@@ -1,0 +1,32 @@
+# ━━━ 尘封之卷 · Dependabot 自动依赖更新配置 ━━━
+
+version: 2
+updates:
+  # Python (pip) 依赖
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    # 最多同时打开 3 个 PR
+    open-pull-requests-limit: 3
+    # 自动分配审查者（如需要可配置）
+    # reviewers:
+    #   - "illusory23"
+    labels:
+      - "dependencies"
+      - "python"
+
+  # GitHub Actions 自身
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    labels:
+      - "dependencies"
+      - "ci"

@@ -11,11 +11,6 @@ import re as _re
 from pathlib import Path as _Path
 
 from flask import Flask, render_template, request, jsonify, send_file, abort, redirect
-from utils.logger import (
-    get_logger, setup_request_logging,
-    log_frontend_error, get_frontend_errors,
-    audit_log,
-)
 from core.dice_engine import roll, generate_ability_scores, roll_ability_check
 from core.dnd5e_rules import (
     ability_modifier, get_ability_for_skill, normalize_ability,
@@ -131,7 +126,6 @@ import json as _json
 import threading as _threading
 
 _CHAT_LOG_FILE = _Path(__file__).parent / 'chat_log.json'
-_CHAT_ARCHIVE_DIR = _Path(__file__).parent / 'chat_archive'
 _chat_messages: list[dict] = []  # [{name, text, time, is_dm, ip, color}]
 MAX_CHAT_MSGS = 500  # 最多保留500条消息
 
@@ -153,43 +147,8 @@ def _save_chat_log():
     except Exception:
         pass
 
-def _archive_chat_messages(msgs_to_archive: list[dict]):
-    """将超出限制的旧消息归档到 chat_archive/ 目录。
-
-    每次归档生成一个带时间戳的 JSON 文件。
-    自动清理超过30天的归档文件。
-    """
-    if not msgs_to_archive:
-        return
-    try:
-        _CHAT_ARCHIVE_DIR.mkdir(exist_ok=True)
-        ts = _time.strftime('%Y%m%d_%H%M%S')
-        archive_file = _CHAT_ARCHIVE_DIR / f'chat_{ts}.json'
-        with open(archive_file, 'w', encoding='utf-8') as f:
-            _json.dump(msgs_to_archive, f, ensure_ascii=False, indent=2)
-        # 清理30天前的归档
-        cutoff = _time.time() - 30 * 86400
-        for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-            if f.stat().st_mtime < cutoff:
-                f.unlink(missing_ok=True)
-    except Exception:
-        pass
-
-def _trim_and_archive_chat():
-    """裁剪聊天消息：超过 MAX_CHAT_MSGS 时将旧消息归档。"""
-    global _chat_messages
-    if len(_chat_messages) > MAX_CHAT_MSGS:
-        overflow = len(_chat_messages) - MAX_CHAT_MSGS
-        to_archive = _chat_messages[:overflow]
-        _chat_messages = _chat_messages[-MAX_CHAT_MSGS:]
-        # 异步归档旧消息
-        _threading.Thread(target=_archive_chat_messages, args=(to_archive,), daemon=True).start()
-
 # 启动时加载
 _load_chat_log()
-
-# ━━━ 日志系统初始化 ━━━
-_app_logger = get_logger('dicebot')
 
 # ━━━ DM/主机系统 ━━━
 _dm_name: str | None = None  # 当前DM的名字
@@ -1464,11 +1423,6 @@ def api_delete_character(name_or_id):
     char_name = char['name']
     char_id = char['id']
     delete_character(char_id)
-
-    # 审计日志
-    ip = request.remote_addr or 'unknown'
-    audit_log('character.delete', username=char_name, ip=ip,
-              detail=f'删除角色 id={char_id} name={char_name}')
 
     global active_char_id
     if active_char_id == char_id:
@@ -3018,8 +2972,9 @@ def api_chat_send():
     # Trim old mentions
     while len(_mentions) > MAX_MENTIONS:
         _mentions.pop(0)
-    # 裁剪并归档旧消息
-    _trim_and_archive_chat()
+    # Trim old messages
+    while len(_chat_messages) > MAX_CHAT_MSGS:
+        _chat_messages.pop(0)
     # 异步保存聊天记录到磁盘
     _threading.Thread(target=_save_chat_log, daemon=True).start()
     return jsonify({'ok': True, 'msg': msg})
@@ -3069,7 +3024,8 @@ def api_dice_broadcast():
         '_ts': _time.time(),
     }
     _chat_messages.append(msg)
-    _trim_and_archive_chat()
+    while len(_chat_messages) > MAX_CHAT_MSGS:
+        _chat_messages.pop(0)
     _threading.Thread(target=_save_chat_log, daemon=True).start()
     return jsonify({'ok': True})
 
@@ -3594,319 +3550,13 @@ def api_record_dice_stats():
 @app.route('/api/dice-stats', methods=['DELETE'])
 def api_clear_dice_stats():
     """清空所有骰子统计数据"""
-    username = request.args.get('name', '').strip()
-    ip = request.remote_addr or 'unknown'
     with _stats_lock:
         _save_stats({})
-    audit_log('dice_stats.clear', username=username, ip=ip, detail='清空全部骰子统计')
-    _app_logger.info(f'管理员清空骰子统计数据 (操作者={username}, IP={ip})')
     return jsonify({'ok': True})
-
-
-# ━━━ 前端错误上报 API ━━━
-
-@app.route('/api/error-report', methods=['POST'])
-def api_error_report():
-    """接收前端 JavaScript 错误上报。
-
-    请求体:
-      { message, source, lineno, colno, stack, url, page, username }
-    """
-    data = request.get_json(silent=True) or {}
-    log_frontend_error(data)
-    return jsonify({'ok': True})
-
-
-# ━━━ 管理：聊天归档 ━━━
-
-@app.route('/api/admin/chat-archives', methods=['GET'])
-def api_list_chat_archives():
-    """列出所有聊天归档文件 (按时间倒序，最近20个)。"""
-    archives = []
-    try:
-        if _CHAT_ARCHIVE_DIR.exists():
-            for f in sorted(_CHAT_ARCHIVE_DIR.glob('chat_*.json'), reverse=True):
-                archives.append({
-                    'filename': f.name,
-                    'size': f.stat().st_size,
-                    'time': _time.strftime('%Y-%m-%d %H:%M:%S', _time.localtime(f.stat().st_mtime)),
-                })
-    except Exception:
-        pass
-    return jsonify({'ok': True, 'archives': archives[:20]})
-
-
-@app.route('/api/admin/chat-archives', methods=['DELETE'])
-def api_clean_chat_archives():
-    """清理聊天归档 (保留最近 N 天，默认30天，最小7天)。
-
-    URL参数: ?days=30
-    """
-    days = request.args.get('days', '30')
-    try:
-        days = max(7, int(days))
-    except ValueError:
-        days = 30
-
-    cleaned = 0
-    cutoff = _time.time() - days * 86400
-    try:
-        if _CHAT_ARCHIVE_DIR.exists():
-            for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-                if f.stat().st_mtime < cutoff:
-                    f.unlink(missing_ok=True)
-                    cleaned += 1
-    except Exception:
-        pass
-
-    username = request.args.get('name', '').strip()
-    ip = request.remote_addr or 'unknown'
-    audit_log('chat_archive.clean', username=username, ip=ip,
-              detail=f'清理{days}天前的归档，删除{cleaned}个文件')
-    _app_logger.info(f'聊天归档清理: 删除{cleaned}个文件 (保留{days}天)')
-    return jsonify({'ok': True, 'cleaned': cleaned, 'retention_days': days})
-
-
-# ━━━ 管理：统计清理与归档 ━━━
-
-@app.route('/api/admin/archive-stats', methods=['POST'])
-def api_archive_stats():
-    """将当前统计数据归档（快照），然后重置。
-
-    生成一个带时间戳的统计快照文件在 data/stats_archive/ 目录。
-    """
-    data_dir = _Path(__file__).parent.parent / 'data' / 'stats_archive'
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    ts = _time.strftime('%Y%m%d_%H%M%S')
-    result = {'archived': []}
-
-    # 归档骰子统计
-    try:
-        with _stats_lock:
-            dice_stats = _load_stats()
-            if dice_stats:
-                snapshot_file = data_dir / f'dice_stats_{ts}.json'
-                with open(snapshot_file, 'w', encoding='utf-8') as f:
-                    _json.dump(dice_stats, f, ensure_ascii=False)
-                result['archived'].append('dice_stats')
-                _save_stats({})
-    except Exception as e:
-        _app_logger.error(f'归档骰子统计失败: {e}')
-
-    # 归档事件统计
-    try:
-        event_stats = _load_event_stats()
-        if event_stats:
-            snapshot_file = data_dir / f'event_stats_{ts}.json'
-            with open(snapshot_file, 'w', encoding='utf-8') as f:
-                _json.dump(event_stats, f, ensure_ascii=False)
-            result['archived'].append('event_stats')
-            _save_event_stats({})
-    except Exception as e:
-        _app_logger.error(f'归档事件统计失败: {e}')
-
-    username = request.args.get('name', '').strip()
-    ip = request.remote_addr or 'unknown'
-    audit_log('stats.archive', username=username, ip=ip,
-              detail=f'归档统计快照 ({ts})')
-    _app_logger.info(f'统计归档完成: {result["archived"]}')
-    result['snapshot_time'] = ts
-    return jsonify({'ok': True, **result})
-
-
-@app.route('/api/admin/stats-summary', methods=['GET'])
-def api_stats_summary():
-    """获取当前运行时数据概况 (用于管理面板)。
-
-    返回:
-      { chat_count, dice_records, event_records, combat_state, online_users,
-        frontend_errors_recent, disk_usage }
-    """
-    # 在线用户数
-    _cleanup_online_users()
-    online_count = len(_online_users)
-
-    # 聊天消息数
-    chat_count = len(_chat_messages)
-
-    # 骰子统计记录数
-    with _stats_lock:
-        dice_stats = _load_stats()
-    dice_records = sum(s.get('total', 0) for s in dice_stats.values())
-
-    # 事件统计记录数
-    event_stats = _load_event_stats()
-    event_records = sum(
-        s.get('_clicks', 0) for s in event_stats.values()
-        if isinstance(s, dict)
-    )
-
-    # 聊天归档数
-    archive_count = 0
-    archive_size = 0
-    if _CHAT_ARCHIVE_DIR.exists():
-        for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-            archive_count += 1
-            archive_size += f.stat().st_size
-
-    # 前端错误数（最近24小时）
-    recent_errors = 0
-    cutoff = _time.time() - 86400
-    try:
-        from utils.logger import _FRONTEND_ERROR_FILE
-        if _FRONTEND_ERROR_FILE.exists():
-            with open(_FRONTEND_ERROR_FILE, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            err = _json.loads(line.strip())
-                            if err.get('time', '') >= _time.strftime('%Y-%m-%d', _time.localtime(cutoff)):
-                                recent_errors += 1
-                        except _json.JSONDecodeError:
-                            pass
-    except Exception:
-        pass
-
-    return jsonify({
-        'ok': True,
-        'chat_count': chat_count,
-        'dice_records': dice_records,
-        'event_records': event_records,
-        'combat_has_participants': bool(_combat_state and _combat_state.get('combatants')),
-        'online_users': online_count,
-        'chat_archives': archive_count,
-        'chat_archives_size_mb': round(archive_size / 1048576, 2),
-        'frontend_errors_24h': recent_errors,
-    })
-
-
-# ━━━ 地图 JSON 存档 API ━━━
-
-_MAP_SAVES_DIR = _Path(__file__).parent.parent / '跑团存档' / '地图'
-_MAP_SAVES_DIR.mkdir(parents=True, exist_ok=True)
-
-
-@app.route('/api/map-saves', methods=['GET'])
-def api_list_map_saves():
-    """列出所有服务端地图存档。
-
-    返回:
-      { saves: [{name, filename, size, time}] }
-    """
-    saves = []
-    try:
-        for f in sorted(_MAP_SAVES_DIR.glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True):
-            saves.append({
-                'name': f.stem,
-                'filename': f.name,
-                'size': f.stat().st_size,
-                'size_mb': round(f.stat().st_size / 1048576, 2),
-                'time': _time.strftime('%Y-%m-%d %H:%M', _time.localtime(f.stat().st_mtime)),
-            })
-    except Exception:
-        pass
-    return jsonify({'ok': True, 'saves': saves})
-
-
-@app.route('/api/map-saves', methods=['POST'])
-def api_save_map():
-    """将当前地图状态保存到服务端 JSON 文件。
-
-    请求体: { name: "存档名称", state: {...} }
-      name  — 存档名称（会清理非法字符）
-      state — collectState() 的完整输出
-    """
-    data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    state = data.get('state')
-
-    if not name:
-        return jsonify({'error': '需要存档名称'}), 400
-    if not state or not isinstance(state, dict):
-        return jsonify({'error': '需要地图状态数据'}), 400
-
-    # 清理文件名中的非法字符
-    safe_name = ''.join(c for c in name if c not in r'<>:"/\|?*')[:100]
-    if not safe_name:
-        return jsonify({'error': '存档名称无效'}), 400
-
-    # 添加服务端元数据
-    state['_server_meta'] = {
-        'saved_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
-        'saved_by': data.get('username', ''),
-        'filename': safe_name + '.json',
-    }
-
-    try:
-        filepath = _MAP_SAVES_DIR / (safe_name + '.json')
-        with open(filepath, 'w', encoding='utf-8') as f:
-            _json.dump(state, f, ensure_ascii=False)
-        file_size = filepath.stat().st_size
-
-        username = data.get('username', '').strip()
-        ip = request.remote_addr or 'unknown'
-        audit_log('map.save', username=username, ip=ip,
-                  detail=f'保存地图存档: {safe_name} ({file_size/1048576:.1f}MB)')
-        _app_logger.info(f'地图存档已保存: {safe_name} ({file_size/1048576:.1f}MB)')
-
-        return jsonify({
-            'ok': True,
-            'name': safe_name,
-            'size': file_size,
-            'size_mb': round(file_size / 1048576, 2),
-        })
-    except Exception as e:
-        _app_logger.error(f'地图存档保存失败: {e}')
-        return jsonify({'error': f'保存失败: {e}'}), 500
-
-
-@app.route('/api/map-saves/<name>', methods=['GET'])
-def api_load_map_save(name):
-    """从服务端加载指定地图存档。
-
-    返回存档的完整 JSON 内容。
-    """
-    safe_name = ''.join(c for c in name if c not in r'<>:"/\|?*')[:100]
-    filepath = _MAP_SAVES_DIR / (safe_name + '.json')
-
-    if not filepath.exists():
-        return jsonify({'error': '存档不存在'}), 404
-
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            state = _json.load(f)
-        return jsonify({'ok': True, 'name': safe_name, 'state': state})
-    except Exception as e:
-        return jsonify({'error': f'读取失败: {e}'}), 500
-
-
-@app.route('/api/map-saves/<name>', methods=['DELETE'])
-def api_delete_map_save(name):
-    """删除服务端地图存档"""
-    safe_name = ''.join(c for c in name if c not in r'<>:"/\|?*')[:100]
-    filepath = _MAP_SAVES_DIR / (safe_name + '.json')
-
-    if not filepath.exists():
-        return jsonify({'error': '存档不存在'}), 404
-
-    try:
-        filepath.unlink()
-        username = request.args.get('name', '').strip()
-        ip = request.remote_addr or 'unknown'
-        audit_log('map.delete', username=username, ip=ip,
-                  detail=f'删除地图存档: {safe_name}')
-        return jsonify({'ok': True})
-    except Exception as e:
-        return jsonify({'error': f'删除失败: {e}'}), 500
 
 
 def run_server():
     """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
-    # 安装请求日志中间件
-    setup_request_logging(app, _app_logger)
-    _app_logger.info('尘封之卷 Web 服务器启动中...')
-
     # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
     # debug=False：生产使用；避免 Werkzeug 调试器暴露远程执行入口
     app.config['TEMPLATES_AUTO_RELOAD'] = True

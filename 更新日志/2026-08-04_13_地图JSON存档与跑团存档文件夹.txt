@@ -1,0 +1,38 @@
+✅ 实施地图 JSON 存档系统 + 跑团存档文件夹
+
+📁 新建:
+  • 跑团存档/地图/ — 服务端地图存档目录
+
+📝 修改文件:
+  • web/app.py — 新增 4 个 API 端点
+  • web/static/map.js (v30→v31) — 新增 7 个 JS 函数
+  • web/templates/map.html — 存档面板 UI 扩展 + CSS
+
+━━━ 服务端 API (web/app.py) ━━━
+  GET    /api/map-saves         列出所有服务端地图存档
+  POST   /api/map-saves         保存地图 JSON 到服务器
+  GET    /api/map-saves/<name>  加载指定存档
+  DELETE /api/map-saves/<name>  删除服务端存档
+
+━━━ 前端功能 (map.js) ━━━
+  📥 exportMapJSON()           一键下载 JSON 文件（含完整 base64 图层）
+  📤 importMapJSON()           触发文件选择器导入
+  🔄 handleMapJSONImport()     解析JSON → applyState() → 重建画布
+  ☁️ saveMapToServer()         服务端保存（带名称输入）
+  📂 loadMapFromServer()       服务端存档列表（展开式）
+  📥 loadMapFromServerByName() 加载指定服务端存档
+  🗑 deleteServerMapSave()     删除服务端存档
+
+━━━ UI 变更 (map.html) ━━━
+  存档面板新增分区:
+    ┌──────────────────────────┐
+    │ 📂 本地存档槽             │  ← 原有 IndexedDB 存档槽
+    │ ─────────────────────── │
+    │ ☁️ 服务端存档             │  ← 新增
+    │  📥 下载 JSON 文件        │  ← 新增: 浏览器下载
+    │  📤 从 JSON 文件导入      │  ← 新增: 文件选择器
+    │  ☁️ 保存到服务器          │  ← 新增: POST API
+    │  📂 从服务器加载...       │  ← 新增: GET 列表
+    │    ☁️ 凡达琳地图  1.8MB  │  ← 展开后的存档列表
+    │    ☁️ 战斗遭遇    0.5MB  │
+    └──────────────────────────┘

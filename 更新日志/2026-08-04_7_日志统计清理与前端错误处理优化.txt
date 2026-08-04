@@ -1,0 +1,49 @@
+✅ 完成三项优化：日志系统改进 + 聊天统计清理 + 前端错误处理
+
+━━━ 5.3 日志系统改进 ━━━
+  📁 新增 utils/logger.py — 统一日志模块
+    • get_logger() — 按日期轮转文件日志（logs/dicebot.log + logs/error.log）
+    • setup_request_logging() — Flask 请求日志中间件（API方法/路径/耗时/状态码/IP）
+    • log_frontend_error() — 前端错误收集（JSON Lines 格式）
+    • audit_log() — 关键操作审计（角色删除/统计清空/归档清理）
+  📝 修改 web/app.py
+    • 导入日志模块，初始化 _app_logger
+    • 安装请求日志中间件（自动记录慢请求>1s + 5xx错误）
+    • 添加 POST /api/error-report 前端错误上报接口
+    • 角色删除操作添加审计日志
+
+━━━ 4.2 聊天记录与统计数据清理 ━━━
+  📝 修改 web/app.py — 聊天系统
+    • _archive_chat_messages() — 超500条自动归档到 chat_archive/ 目录
+    • _trim_and_archive_chat() — 裁剪+异步归档，保留最近500条
+    • 自动清理30天前的归档文件
+    • api_chat_send / api_dice_broadcast 改用归档函数替代静默丢弃
+  📝 新增管理API
+    • GET  /api/admin/chat-archives — 列出归档文件（最近20个）
+    • DELETE /api/admin/chat-archives — 清理旧归档（?days=30）
+    • POST /api/admin/archive-stats — 统计快照归档（数据存 data/stats_archive/）
+    • GET  /api/admin/stats-summary — 运行时数据概况（聊天数/骰子记录/事件数/在线人数/归档大小）
+    • DELETE /api/dice-stats — 增加审计日志和IP记录
+
+━━━ 6.1 前端错误处理与用户提示 ━━━
+  📁 新增 web/static/common-error-handler.js — 前端通用错误处理模块
+    • window.onerror + unhandledrejection → sendBeacon 上报到 /api/error-report
+    • 网络断开/恢复自动检测（offline/online 事件 + 横幅提示）
+    • Toast 浮动提示组件（window.Toast.show/error/success/warning/info）
+    • safeFetch() — 带错误处理+重试的fetch包装器
+    • apiCall() — 自动JSON序列化+错误Toast提示
+    • Loading 帮助器（按钮加载态/全屏遮罩）
+    • CSS动画自动注入（fadeIn/spin）
+  📝 注入到7个核心模板
+    • dice3d-e.html / map.html / index.html / chat.html
+    • north-expedition.html / character.html / combat.html
+  📝 修改 web/static/style.css — 新增UI组件样式
+    • Toast/加载遮罩/重试按钮/网络横幅/状态指示器等样式
+  📁 备份到 backups/日志与错误处理优化前_20260804_155507/
+
+━━━ 新增API一览 ━━━
+  POST   /api/error-report           前端JS错误上报
+  GET    /api/admin/chat-archives    查看聊天归档列表
+  DELETE /api/admin/chat-archives    清理旧聊天归档
+  POST   /api/admin/archive-stats    统计快照归档
+  GET    /api/admin/stats-summary    运行时数据概况

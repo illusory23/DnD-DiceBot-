@@ -1,0 +1,21 @@
+🐛 修复地图存档图层图片丢失导致反复报错的问题
+
+📝 修改文件:
+  • web/static/map.js (v29→v30) — 图层加载逻辑修复
+  • web/templates/map.html — JS版本号更新
+
+🔍 问题:
+  服务端 maps/layers/5.png 被删除后，浏览器 IndexedDB 存档仍引用该图层，
+  每次加载页面都尝试加载不存在的图片 → 追加"⚠️加载失败"到图层名 →
+  保存回IndexedDB → 下次加载名字更长 → 死循环
+
+  控制台输出:
+    Failed to load resource: 404 maps/layers/5.png
+    Failed to load resource: 404 api/shared-canvas/layer/5
+    图层加载失败(已重试): id=5 name=凡达琳地图 ⚠️加载失败 ⚠️加载失败...
+
+✅ 修复内容:
+  ① 图层名称清理: 加载前先 strip 已有的"⚠️加载失败"标记，防止反复刷新累积
+  ② 自动清理存档: 加载完成后自动从 IndexedDB 移除损坏的图层引用 (+Toast提示)
+  ③ 手动清理按钮: 图层面板底部新增"🗑 清理 N 个损坏图层"按钮（DM可见）
+  ④ 损坏图层不保存: 无图片的占位图层不再包含 dataURL/url，下次加载不会重试

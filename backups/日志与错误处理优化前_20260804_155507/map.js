@@ -310,46 +310,19 @@
                 layerIdCounter = state.layerIdCounter || 0;
                 activeLayerId = state.activeLayerId || null;
                 mapLayers = [];
-                var _brokenLayerIds = [];  // 收集加载失败的图层ID
                 const layersToLoad = (state.layers || []).filter(ld => ld.dataURL || ld.url);
                 if (layersToLoad.length > 0) {
                     let idx = 0;
                     function loadNext() {
-                        if (idx >= layersToLoad.length) {
-                            // ━━ 所有图层加载完毕 ━━
-                            // 自动清理损坏的图层引用（从下次加载的存档中移除）
-                            if (_brokenLayerIds.length > 0) {
-                                console.warn('[地图存档] 清理 ' + _brokenLayerIds.length + ' 个损坏图层引用, ids=' + _brokenLayerIds.join(','));
-                                // 延迟保存清理后的状态（等页面完全初始化后）
-                                setTimeout(function() {
-                                    // 从 mapLayers 中移除损坏的图层再保存
-                                    var cleanedLayers = mapLayers.filter(function(l) {
-                                        return _brokenLayerIds.indexOf(l.id) === -1;
-                                    });
-                                    // 临时替换 mapLayers 来保存清理后的状态
-                                    var saved = mapLayers;
-                                    mapLayers = cleanedLayers;
-                                    saveState();
-                                    mapLayers = saved;
-                                    // Toast 提示用户
-                                    if (typeof Toast !== 'undefined') {
-                                        Toast.info('已自动清理 ' + _brokenLayerIds.length + ' 个失效的图层引用');
-                                    }
-                                }, 2000);
-                            }
-                            resolve(true);
-                            return;
-                        }
+                        if (idx >= layersToLoad.length) { resolve(true); return; }
                         const ld = layersToLoad[idx++];
-                        // 清理名称中已有的错误标记（防止反复刷新累积）
-                        var cleanName = (ld.name || '').replace(/\s*⚠️加载失败/g, '');
                         const img = new Image();
                         var retried = false;  // 是否已完成回退重试
                         img.onload = function() {
                             try {
                                 if (img.width > 0) {
                                     mapLayers.push({
-                                        id: ld.id, name: cleanName, image: img,
+                                        id: ld.id, name: ld.name, image: img,
                                         dataURL: ld.dataURL, url: ld.url || '', visible: ld.visible !== false,
                                         offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
                                     });
@@ -368,13 +341,12 @@
                                     img.src = fallbackUrl;
                                     return;
                                 }
-                                // 两轮都失败：记录损坏ID（不加入 mapLayers，不保存回存档）
-                                console.warn('图层加载失败(已重试): id=' + ld.id + ' name=' + cleanName + ' url=' + ld.url);
-                                _brokenLayerIds.push(ld.id);
-                                // 标记为损坏，加入占位图层仅用于当前会话显示（不可见，不含图片）
+                                // 两轮都失败：保留占位图层，输出警告（不再静默丢弃）
+                                console.warn('图层加载失败(已重试): id=' + ld.id + ' name=' + ld.name + ' url=' + ld.url);
+                                // 加入占位图层，保持图层列表完整（后续可通过 WS init 修复）
                                 mapLayers.push({
-                                    id: ld.id, name: cleanName + ' ⚠️加载失败', image: null,
-                                    dataURL: '', url: '', visible: false,
+                                    id: ld.id, name: ld.name + ' ⚠️加载失败', image: null,
+                                    dataURL: ld.dataURL, url: ld.url || '', visible: false,
                                     offsetX: ld.offsetX || 0, offsetY: ld.offsetY || 0, scale: ld.scale || 1
                                 });
                                 redrawCanvas();
@@ -825,193 +797,6 @@
             if (reg.activeSlotId === slotId) setActiveSave(slotId, trimmed);
             document.getElementById('save-dropdown-menu').classList.remove('show');
         }
-
-        // ━━━ JSON 导出/导入 ━━━
-
-        /** 导出地图为 JSON 文件并下载 */
-        window.exportMapJSON = function() {
-            var state = collectState();
-            // 清理损坏图层
-            state.layers = (state.layers || []).filter(function(l) {
-                return l.dataURL || l.url;
-            });
-            // 添加元数据
-            state._meta = {
-                version: 2,
-                app: '尘封之卷',
-                exportTime: new Date().toISOString(),
-                canvasWidth: state.canvasWidth,
-                canvasHeight: state.canvasHeight,
-                layerCount: state.layers.length,
-                strokeCount: (state.brushStrokes || []).length,
-                tokenCount: (state.mapTokens || []).length,
-            };
-            var json = JSON.stringify(state, null, 2);
-            var blob = new Blob([json], { type: 'application/json' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            var dateStr = new Date().toISOString().slice(0, 10);
-            var saveName = (currentSaveName || '地图存档').replace(/[<>:"/\\|?*]/g, '_');
-            a.download = '尘封之卷_' + saveName + '_' + dateStr + '.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-            if (typeof Toast !== 'undefined') {
-                Toast.success('地图已导出 (' + (blob.size / 1048576).toFixed(1) + ' MB)');
-            }
-        };
-
-        /** 触发 JSON 文件导入选择 */
-        window.importMapJSON = function() {
-            document.getElementById('map-json-import').click();
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-        };
-
-        /** 处理 JSON 文件导入 */
-        window.handleMapJSONImport = function(event) {
-            var file = event.target.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    var state = JSON.parse(e.target.result);
-                    // 校验格式
-                    if (!state.brushStrokes && !state.layers && !state.canvasWidth) {
-                        throw new Error('无效的存档文件：缺少必要数据');
-                    }
-                    // 确认覆盖
-                    if (!confirm(
-                        '即将导入地图存档:\n' +
-                        '  图层: ' + ((state.layers||[]).length) + ' 个\n' +
-                        '  笔画: ' + ((state.brushStrokes||[]).length) + ' 条\n' +
-                        '  标记: ' + ((state.mapTokens||[]).length) + ' 个\n' +
-                        '  画布: ' + (state.canvasWidth||'?') + 'x' + (state.canvasHeight||'?') + '\n\n' +
-                        '⚠ 当前未保存的修改将丢失。是否继续？'
-                    )) {
-                        event.target.value = '';
-                        return;
-                    }
-                    // 应用状态
-                    applyState(state).then(function() {
-                        saveState();
-                        if (typeof Toast !== 'undefined') {
-                            Toast.success('地图已导入');
-                        }
-                    });
-                } catch(err) {
-                    if (typeof Toast !== 'undefined') {
-                        Toast.error('导入失败: ' + err.message);
-                    } else {
-                        alert('导入失败: ' + err.message);
-                    }
-                }
-            };
-            reader.readAsText(file);
-            event.target.value = '';
-        };
-
-        // ━━━ 服务端存档 ━━━
-
-        /** 保存当前地图到服务器 */
-        window.saveMapToServer = function() {
-            var saveName = (currentSaveName || '');
-            var name = prompt('存档名称（将保存到服务器 跑团存档/地图/ 目录）:', saveName);
-            if (!name || !name.trim()) return;
-            name = name.trim();
-            var state = collectState();
-            // 清理损坏图层
-            state.layers = (state.layers || []).filter(function(l) {
-                return l.dataURL || l.url;
-            });
-            var username = '';
-            try {
-                var ident = JSON.parse(sessionStorage.getItem('dnd_joined_room') || '{}');
-                username = ident.name || '';
-            } catch(e) {}
-            if (typeof Toast !== 'undefined') Toast.info('正在保存...');
-            fetch('/api/map-saves', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, state: state, username: username }),
-            }).then(function(r) { return r.json(); }).then(function(d) {
-                if (d.error) {
-                    if (typeof Toast !== 'undefined') Toast.error(d.error);
-                    else alert(d.error);
-                } else {
-                    if (typeof Toast !== 'undefined') Toast.success('已保存到服务器 (' + d.size_mb + ' MB)');
-                    else alert('已保存: ' + name + ' (' + d.size_mb + ' MB)');
-                }
-            }).catch(function(e) {
-                if (typeof Toast !== 'undefined') Toast.error('保存失败: ' + e.message);
-                else alert('保存失败: ' + e.message);
-            });
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-        };
-
-        /** 从服务器加载地图存档列表 */
-        window.loadMapFromServer = function() {
-            var listEl = document.getElementById('server-save-list');
-            listEl.style.display = 'block';
-            listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">加载中...</div>';
-            fetch('/api/map-saves').then(function(r) { return r.json(); }).then(function(d) {
-                if (!d.saves || !d.saves.length) {
-                    listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">（服务端无存档）</div>';
-                    return;
-                }
-                listEl.innerHTML = d.saves.map(function(s) {
-                    return '<div class="save-entry" style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0.75rem;">' +
-                        '<span class="save-name" style="cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" onclick="loadMapFromServerByName(\'' + s.name.replace(/'/g, "\\'") + '\')" title="点击加载">' +
-                        '☁️ ' + s.name + '</span>' +
-                        '<span style="font-size:0.6rem;color:var(--text-dim);margin:0 4px;">' + s.size_mb + 'MB</span>' +
-                        '<span style="font-size:0.6rem;color:var(--text-dim);margin:0 4px;">' + s.time + '</span>' +
-                        '<button class="save-action delete" onclick="event.stopPropagation();deleteServerMapSave(\'' + s.name.replace(/'/g, "\\'") + '\')" title="删除">✕</button>' +
-                        '</div>';
-                }).join('');
-            }).catch(function(e) {
-                listEl.innerHTML = '<div style="color:var(--red);font-size:0.75rem;padding:0.3rem 0.75rem;">加载失败</div>';
-            });
-        };
-
-        /** 从服务器加载指定存档 */
-        window.loadMapFromServerByName = function(name) {
-            if (!confirm('确定从服务器加载 "' + name + '" 吗？\n\n⚠ 当前未保存的修改将丢失。')) return;
-            fetch('/api/map-saves/' + encodeURIComponent(name)).then(function(r) { return r.json(); }).then(function(d) {
-                if (d.error) {
-                    if (typeof Toast !== 'undefined') Toast.error(d.error);
-                    else alert(d.error);
-                    return;
-                }
-                applyState(d.state).then(function() {
-                    saveState();
-                    if (typeof Toast !== 'undefined') Toast.success('已加载: ' + name);
-                    else alert('已加载: ' + name);
-                });
-            }).catch(function(e) {
-                if (typeof Toast !== 'undefined') Toast.error('加载失败: ' + e.message);
-                else alert('加载失败: ' + e.message);
-            });
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-            var listEl = document.getElementById('server-save-list');
-            if (listEl) listEl.style.display = 'none';
-        };
-
-        /** 删除服务端存档 */
-        window.deleteServerMapSave = function(name) {
-            if (!confirm('确定删除服务端存档 "' + name + '" 吗？此操作不可恢复。')) return;
-            fetch('/api/map-saves/' + encodeURIComponent(name) + '?name=' + encodeURIComponent(name), {
-                method: 'DELETE',
-            }).then(function(r) { return r.json(); }).then(function(d) {
-                if (d.ok) {
-                    if (typeof Toast !== 'undefined') Toast.success('已删除: ' + name);
-                    loadMapFromServer(); // 刷新列表
-                }
-            }).catch(function(e) {
-                if (typeof Toast !== 'undefined') Toast.error('删除失败');
-            });
-        };
 
         // ━━━ 坐标转换 ━━━
         function screenToCanvas(sx, sy) {
@@ -2427,34 +2212,8 @@
                     </div>
                 `).join('');
             }
-            // ━━ 损坏图层清理按钮 ━━
-            var brokenCount = mapLayers.filter(function(l) { return !l.image; }).length;
-            if (brokenCount > 0) {
-                html += '<div style="padding:0.3rem;border-top:1px solid var(--red);margin-top:0.3rem;">';
-                html += '<button onclick="event.stopPropagation();cleanupBrokenLayers()" style="width:100%;padding:0.3rem;background:rgba(220,53,69,0.15);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-size:0.7rem;">🗑 清理 ' + brokenCount + ' 个损坏图层</button>';
-                html += '</div>';
-            }
-
             el.innerHTML = html;
         }
-
-        // ━━━ 清理损坏图层（无图片引用的占位图层）━━━
-        window.cleanupBrokenLayers = function() {
-            var before = mapLayers.length;
-            mapLayers = mapLayers.filter(function(l) { return l.image !== null; });
-            var removed = before - mapLayers.length;
-            if (removed > 0) {
-                console.log('[地图存档] 手动清理了 ' + removed + ' 个损坏图层');
-                saveState();
-                renderLayerList();
-                redrawCanvas();
-                if (typeof Toast !== 'undefined') {
-                    Toast.success('已清理 ' + removed + ' 个损坏图层');
-                } else {
-                    alert('已清理 ' + removed + ' 个损坏图层');
-                }
-            }
-        };
 
         function setActiveLayer(id) {
             activeLayerId = id;
@@ -2556,16 +2315,12 @@
                     redrawCanvas();
                     renderLayerList();
                     saveState();
-                    // 上传图片到服务端（P0-1: 图片与状态分离）
+                    // P0-1: 先上传图片拿到 url，再广播元数据（网络上不传 base64）
                     var newLayer = mapLayers[mapLayers.length - 1];
-                    try {
-                        if (typeof uploadLayerImage === 'function') {
-                            uploadLayerImage(newLayer).then(function() {
-                                window._markDirty('layers');
-                                window._onLocalChange();
-                            });
-                        }
-                    } catch(e) { console.warn('图层上传跳过:', e.message); }
+                    uploadLayerImage(newLayer).then(function() {
+                        window._markDirty('layers');
+                        window._onLocalChange();
+                    });
                 };
                 img.src = e.target.result;
             };

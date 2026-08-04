@@ -1,0 +1,96 @@
+name: Lint — 代码质量检查
+
+# ━━━ 触发条件 ━━━
+# Pull Request 时自动运行，main 推送时也运行
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Job 1: Python 代码规范 (flake8)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  flake8:
+    name: flake8 — Python 代码规范
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: 📦 安装 flake8
+        run: pip install flake8
+
+      - name: 🔍 运行 flake8
+        run: |
+          flake8 . \
+            --count \
+            --select=E,F,W,C90 \
+            --max-line-length=120 \
+            --exclude=.git,__pycache__,.venv,backups,node_modules,Lib,Scripts,chm_extracted \
+            --statistics \
+            --show-source
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Job 2: 文件组织检查
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  file-check:
+    name: 文件组织检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 📏 检查超大文件 (>500KB)
+        run: |
+          echo "=== 检查超大文件 (>500KB) ==="
+          find . -type f -size +500k \
+            -not -path "*/.git/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.venv/*" \
+            -not -path "*/backups/*" \
+            -not -path "*/chm_extracted/*" \
+            -not -path "*/dice-box/*" \
+            -not -path "*/dice-engine-v3/*" \
+            -not -path "*/three/*" \
+            -not -path "*/dice-v2/*" \
+            -not -path "*.mp4" \
+            -not -path "*.wasm" \
+            -exec ls -lh {} \; || true
+          echo "以上为超过 500KB 的非第三方文件（如有）"
+
+      - name: 🔎 检查是否有未追踪的大文件
+        run: |
+          echo "=== 统计项目代码行数 ==="
+          echo "Python 文件:"
+          find . -name "*.py" \
+            -not -path "*/.git/*" \
+            -not -path "*/backups/*" \
+            -not -path "*/__pycache__/*" \
+            -not -path "*/.venv/*" \
+            -exec cat {} + | wc -l | xargs echo "  总计行数:"
+          echo ""
+          echo "HTML 模板:"
+          find . -path "*/templates/*" -name "*.html" \
+            -exec cat {} + | wc -l | xargs echo "  总计行数:"
+          echo ""
+          echo "JavaScript 文件:"
+          find . -path "*/static/*" -name "*.js" \
+            -not -path "*/three/*" \
+            -not -path "*/dice-box*/*" \
+            -not -path "*/dice-v*/*" \
+            -not -path "*/dice-engine*/*" \
+            -not -path "*/dice3d*/*" \
+            -exec cat {} + | wc -l | xargs echo "  总计行数 (不含第三方库):"

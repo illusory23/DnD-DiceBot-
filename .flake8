@@ -1,0 +1,44 @@
+[flake8]
+# ━━━ 尘封之卷 · flake8 代码规范配置 ━━━
+
+# 最大行长度
+max-line-length = 120
+
+# 排除目录
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    backups,
+    node_modules,
+    Lib,
+    Scripts,
+    data/chm_extracted,
+
+# 忽略的规则
+# E203: 冒号前的空格 (与 Black 冲突)
+# E302: 期望2个空行 (太严格)
+# E305: 期望2个空行在函数之后
+# E402: 模块级导入不在文件顶部 (sys.path.insert 需要)
+# E501: 行太长 (由 max-line-length 处理)
+# E722: 裸 except (某些地方确实是故意的)
+# W503: 二元操作符前换行
+# W504: 二元操作符后换行
+# F401: 导入但未使用 (某些导入是为了一致性)
+ignore =
+    E203,
+    W503,
+
+# 每个文件的复杂度阈值 (McCabe)
+max-complexity = 25
+
+# 统计输出
+statistics = True
+count = True
+
+# 显示源代码
+show-source = True
+
+# 文件编码
+encoding = utf-8

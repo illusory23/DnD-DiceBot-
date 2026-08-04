@@ -1,0 +1,23 @@
+✅ 完成 SQLite → PostgreSQL 迁移可行性分析
+📝 生成文件：优化方向/PostgreSQL迁移可行性分析_2026-08-04.txt
+
+分析结论：✅ 完全可行，推荐分两步走
+
+📊 当前数据库盘点：
+  • SQLite 240KB，16张表，约600行数据
+  • 52个CRUD函数使用 raw sqlite3（无ORM）
+  • flask-sqlalchemy 已在 requirements.txt 中但从未使用
+  • 每次函数调用新建+关闭连接，无连接池
+
+🔀 两条路径对比：
+  ✅ 路径B (推荐): SQLAlchemy ORM (9天) — 模型定义、Alembic自动迁移、类型安全
+  ⚡ 路径A: psycopg2原生SQL (2天) — 仅改SQL语法，快但不治本
+
+🥇 推荐路径:
+  先 SQLAlchemy ORM + SQLite (3天) → 稳定后切换 PG (加1行配置)
+  未来切换 PostgreSQL 只需改连接字符串，零代码变动
+
+📦 部署方案:
+  • 开发: Docker Compose 一键启动 PG16
+  • 生产: Supabase 免费层 (500MB) 或 VPS 自建
+  • CI: GitHub Actions service container (postgres:16-alpine)

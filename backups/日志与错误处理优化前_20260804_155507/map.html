@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>战术地图 — 尘封之卷</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/common-error-handler.js"></script>
     <style>
         :root {
             --toolbar-h: 48px;
@@ -483,26 +482,6 @@
             display: inline-block; vertical-align: middle; color: var(--green);
         }
 
-        /* 服务端存档列表 (复用 save-entry 结构) */
-        #server-save-list .save-entry {
-            display: flex; align-items: center; gap: 0.3rem;
-            padding: 0.3rem 0.6rem; cursor: default; font-size: 0.75rem;
-            color: var(--text); transition: background 0.15s;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-        }
-        #server-save-list .save-entry:hover { background: var(--surface2); }
-        #server-save-list .save-entry .save-name {
-            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            cursor: pointer; color: var(--gold);
-        }
-        #server-save-list .save-entry .save-action {
-            background: none; border: 1px solid var(--border); border-radius: 3px;
-            color: var(--text-dim); cursor: pointer; font-size: 0.6rem; padding: 1px 6px;
-            flex-shrink: 0;
-        }
-        #server-save-list .save-entry .save-action.delete { color: var(--red); }
-        #server-save-list .save-entry .save-action.delete:hover { background: var(--red); color: #fff; }
-
         /* ━━ 聊天面板 ━━ */
         .chat-panel {
             position: fixed; left: 0; top: var(--toolbar-total); bottom: 0;
@@ -750,22 +729,14 @@
                     <button class="select-dropdown-btn" id="save-btn" onclick="toggleSaveDropdown()" title="存档管理">
                         💾<span class="save-name-badge" id="save-name-badge">存档</span><span class="arrow">▾</span>
                     </button>
-                    <div class="select-dropdown-menu" id="save-dropdown-menu" style="left:auto;right:0;max-height:80vh;overflow-y:auto;">
+                    <div class="select-dropdown-menu" id="save-dropdown-menu" style="left:auto;right:0;">
                         <div class="menu-item" onclick="saveMapAs()">➕ 保存当前为...</div>
                         <div class="save-divider"></div>
-                        <div class="save-section-label">📂 本地存档槽</div>
-                        <div id="save-list-items" style="max-height:200px;overflow-y:auto;">
+                        <div class="save-section-label">📂 已保存的场景</div>
+                        <div id="save-list-items" style="max-height:260px;overflow-y:auto;">
                             <div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">（暂无存档）</div>
                         </div>
-                        <div class="save-divider"></div>
-                        <div class="save-section-label">☁️ 服务端存档</div>
-                        <div class="menu-item" onclick="exportMapJSON()" style="color:var(--green);">📥 下载 JSON 文件</div>
-                        <div class="menu-item" onclick="importMapJSON()" style="color:var(--cyan);">📤 从 JSON 文件导入</div>
-                        <div class="menu-item" onclick="saveMapToServer()" style="color:var(--gold);">☁️ 保存到服务器</div>
-                        <div class="menu-item" onclick="loadMapFromServer()" style="color:var(--gold);">📂 从服务器加载...</div>
-                        <div id="server-save-list" style="max-height:160px;overflow-y:auto;display:none;"></div>
                     </div>
-                    <input type="file" id="map-json-import" accept=".json" style="display:none;" onchange="handleMapJSONImport(event)">
                 </div>
                 <button class="tool-btn" id="layer-panel-btn" onclick="toggleLayerPanel()">📐 图层</button>
             </div>
@@ -1069,7 +1040,7 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map.js?v=32"></script>
+    <script src="/static/map.js?v=29"></script>
 <script>
 (function(){
 var K='dnd_joined_room';
