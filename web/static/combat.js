@@ -66,7 +66,7 @@
             const ac = parseInt(document.getElementById('combatant-ac').value) || 10;
 
             // 先攻：加入后手动在列表中填入
-            const initiative = 0;
+            const initiative = null;  // null = 未填入，用户必须手动输入
 
             // 记录添加者
             const identity = getIdentity();
@@ -91,6 +91,12 @@
 
         function startCombat() {
             if (!combatants.length) { alert('请先添加战斗参与者'); return; }
+            // 检查所有角色是否都已填入先攻值
+            var missing = combatants.filter(function(c) { var v = c.initiative; return v === undefined || v === null || v === '' || isNaN(v); });
+            if (missing.length > 0) {
+                alert('有 ' + missing.length + ' 位角色尚未准备好…\n请为所有参战者填入先攻值后再开始战斗。');
+                return;
+            }
             // 按先攻从高到低排序
             combatants.sort((a, b) => b.initiative - a.initiative);
             combatants.forEach(c => c.isCurrent = false);
@@ -179,9 +185,11 @@
         }
 
         function updateInitiative(index, value) {
-            combatants[index].initiative = parseInt(value) || 0;
-            combatants[index].initDetail = value !== '' ? '手动: ' + (parseInt(value)||0) : '';
-            _localChangeTs = Date.now();  // 标记本地修改时间
+            var v = (value !== '' && value !== null) ? parseInt(value) : null;
+            if (isNaN(v)) v = null;
+            combatants[index].initiative = v;
+            combatants[index].initDetail = (v !== null) ? '手动: ' + v : '';
+            _localChangeTs = Date.now();
         }
 
         function confirmInitiative(index) {

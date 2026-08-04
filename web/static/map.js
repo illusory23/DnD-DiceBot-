@@ -2,8 +2,8 @@
             try {
                 const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
                 const role = (saved && saved.is_dm) ? 'DM' : ((saved && saved.role) || 'PL');
-                return { name: (saved && saved.name) || '', role: role };
-            } catch(e) { return { name: '', role: 'PL' }; }
+                return { name: (saved && saved.name) || '', role: role, user_id: (saved && saved.user_id) || null };
+            } catch(e) { return { name: '', role: 'PL', user_id: null }; }
         }
 
         // ━━━ 笔画 ID 生成器（必须在文件最前面，避免前面代码出错导致未定义）━━
@@ -483,6 +483,27 @@
                     localStorage.setItem(STORAGE_KEY + '_emergency', JSON.stringify(emergency));
                 }
             } catch(e) { console.error('⚠ localStorage 保存失败 (可能超出配额):', e); }
+
+            // 同步到服务器（防浏览器数据丢失）
+            _autoSaveToServer(state);
+        }
+
+        var _autoSaveTimer = null;
+        function _autoSaveToServer(state) {
+            // 防抖：2秒内不重复发送
+            clearTimeout(_autoSaveTimer);
+            _autoSaveTimer = setTimeout(function() {
+                var username = '';
+                try {
+                    var ident = JSON.parse(sessionStorage.getItem('dnd_joined_room') || '{}');
+                    username = ident.name || '';
+                } catch(e) {}
+                fetch('/api/map-saves', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: '_autosave', state: state, username: username }),
+                }).catch(function() {});  // 静默失败，不打扰用户
+            }, 2000);
         }
 
         // 带 IndexedDB 确认的完整保存（定时自动保存用，确保图层 dataURL 可靠落盘）
@@ -692,7 +713,28 @@
             // 同步更新 dnd_map_state 到 IndexedDB
             dbSetSync(STORAGE_KEY, state);
 
+            // 同步保存到服务器 跑团存档/地图/
+            var username = '';
+            try {
+                var ident = JSON.parse(sessionStorage.getItem('dnd_joined_room') || '{}');
+                username = ident.name || '';
+            } catch(e) {}
+            fetch('/api/map-saves', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, state: state, username: username }),
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) {
+                    console.log('[地图存档] 已同步到服务器: ' + name + ' (' + d.size_mb + ' MB)');
+                }
+            }).catch(function(e) {
+                console.warn('[地图存档] 服务端同步失败（本地已保存）:', e.message);
+            });
+
             document.getElementById('save-dropdown-menu').classList.remove('show');
+            if (typeof Toast !== 'undefined') {
+                Toast.success('已保存: ' + name + ' (本地 + 服务器)');
+            }
         }
 
         async function loadMapSave(slotId) {
@@ -828,39 +870,30 @@
 
         // ━━━ JSON 导出/导入 ━━━
 
-        /** 导出地图为 JSON 文件并下载 */
+        /** 导出地图为 JSON 文件（浏览器下载） */
         window.exportMapJSON = function() {
             var state = collectState();
-            // 清理损坏图层
-            state.layers = (state.layers || []).filter(function(l) {
-                return l.dataURL || l.url;
-            });
-            // 添加元数据
+            state.layers = (state.layers || []).filter(function(l) { return l.dataURL || l.url; });
             state._meta = {
-                version: 2,
-                app: '尘封之卷',
-                exportTime: new Date().toISOString(),
-                canvasWidth: state.canvasWidth,
-                canvasHeight: state.canvasHeight,
-                layerCount: state.layers.length,
-                strokeCount: (state.brushStrokes || []).length,
-                tokenCount: (state.mapTokens || []).length,
+                version: 2, app: '尘封之卷', exportTime: new Date().toISOString(),
+                canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight,
+                layerCount: state.layers.length, strokeCount: (state.brushStrokes||[]).length,
+                tokenCount: (state.mapTokens||[]).length,
             };
+            var dateStr = new Date().toISOString().slice(0, 10);
+            var saveName = (currentSaveName || '地图存档').replace(/[<>:"/\\|?*]/g, '_');
+            var filename = '尘封之卷_' + saveName + '_' + dateStr + '.json';
+
             var json = JSON.stringify(state, null, 2);
             var blob = new Blob([json], { type: 'application/json' });
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
-            a.href = url;
-            var dateStr = new Date().toISOString().slice(0, 10);
-            var saveName = (currentSaveName || '地图存档').replace(/[<>:"/\\|?*]/g, '_');
-            a.download = '尘封之卷_' + saveName + '_' + dateStr + '.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
             document.getElementById('save-dropdown-menu').classList.remove('show');
             if (typeof Toast !== 'undefined') {
-                Toast.success('地图已导出 (' + (blob.size / 1048576).toFixed(1) + ' MB)');
+                Toast.success('已下载 (' + (blob.size/1048576).toFixed(1) + ' MB)');
             }
         };
 
@@ -916,41 +949,6 @@
         // ━━━ 服务端存档 ━━━
 
         /** 保存当前地图到服务器 */
-        window.saveMapToServer = function() {
-            var saveName = (currentSaveName || '');
-            var name = prompt('存档名称（将保存到服务器 跑团存档/地图/ 目录）:', saveName);
-            if (!name || !name.trim()) return;
-            name = name.trim();
-            var state = collectState();
-            // 清理损坏图层
-            state.layers = (state.layers || []).filter(function(l) {
-                return l.dataURL || l.url;
-            });
-            var username = '';
-            try {
-                var ident = JSON.parse(sessionStorage.getItem('dnd_joined_room') || '{}');
-                username = ident.name || '';
-            } catch(e) {}
-            if (typeof Toast !== 'undefined') Toast.info('正在保存...');
-            fetch('/api/map-saves', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, state: state, username: username }),
-            }).then(function(r) { return r.json(); }).then(function(d) {
-                if (d.error) {
-                    if (typeof Toast !== 'undefined') Toast.error(d.error);
-                    else alert(d.error);
-                } else {
-                    if (typeof Toast !== 'undefined') Toast.success('已保存到服务器 (' + d.size_mb + ' MB)');
-                    else alert('已保存: ' + name + ' (' + d.size_mb + ' MB)');
-                }
-            }).catch(function(e) {
-                if (typeof Toast !== 'undefined') Toast.error('保存失败: ' + e.message);
-                else alert('保存失败: ' + e.message);
-            });
-            document.getElementById('save-dropdown-menu').classList.remove('show');
-        };
-
         /** 从服务器加载地图存档列表 */
         window.loadMapFromServer = function() {
             var listEl = document.getElementById('server-save-list');
@@ -3270,7 +3268,7 @@
             const ac = parseInt(document.getElementById('map-combatant-ac').value) || 10;
 
             // 先攻：加入后手动在列表中填入
-            const initiative = 0;
+            const initiative = null;  // null = 未填入
 
             // 记录添加者
             const identity = typeof getIdentity === 'function' ? getIdentity() : { name: '', role: 'PL' };
@@ -3296,6 +3294,11 @@
 
         function mapStartCombat() {
             if (!mapCombatants.length) { alert('请先添加战斗参与者'); return; }
+            var missing = mapCombatants.filter(function(c) { return c.initiative === undefined || c.initiative === null || isNaN(c.initiative); });
+            if (missing.length > 0) {
+                alert('有 ' + missing.length + ' 位角色尚未准备好…\n请为所有参战者填入先攻值后再开始战斗。');
+                return;
+            }
             mapCombatants.sort((a, b) => b.initiative - a.initiative);
             mapCombatants.forEach(c => c.isCurrent = false);
             mapCombatants[0].isCurrent = true;
@@ -3380,7 +3383,9 @@
         }
 
         function mapUpdateInitiative(index, value) {
-            mapCombatants[index].initiative = parseInt(value) || 0;
+            var v = (value !== '' && value !== null) ? parseInt(value) : null;
+            if (isNaN(v)) v = null;
+            mapCombatants[index].initiative = v;
             mapCombatants[index].initDetail = value !== '' ? '手动: ' + (parseInt(value)||0) : '';
         }
 
@@ -4101,10 +4106,10 @@ applyRoleRestrictions();
                         body: JSON.stringify({name: _cu, color: chatColor, role: userRole})
                     }).then(r => r.json()).then(data => {
                         if (data.need_rejoin) {
-                            // 用户被服务端清理（超时/重启），自动重新加入
+                            var _uid=null; try{var _s=JSON.parse(sessionStorage.getItem('dnd_joined_room')); _uid=_s?(_s.user_id||null):null;}catch(e){}
                             fetch('/api/room/join', {
                                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({name: _cu, color: chatColor, role: userRole || 'PL'})
+                                body: JSON.stringify({name: _cu, color: chatColor, role: userRole || 'PL', user_id: _uid})
                             }).catch(() => {});
                         }
                         if (data.ok && data.online_users) {

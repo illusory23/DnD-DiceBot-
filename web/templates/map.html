@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>战术地图 — 尘封之卷</title>
     <link rel="stylesheet" href="/static/style.css">
@@ -758,10 +759,9 @@
                             <div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">（暂无存档）</div>
                         </div>
                         <div class="save-divider"></div>
-                        <div class="save-section-label">☁️ 服务端存档</div>
-                        <div class="menu-item" onclick="exportMapJSON()" style="color:var(--green);">📥 下载 JSON 文件</div>
+                        <div class="save-section-label">☁️ 服务端存档 (跑团存档/地图/)</div>
+                        <div class="menu-item" onclick="exportMapJSON()" style="color:var(--green);">📥 导出为 JSON 文件下载</div>
                         <div class="menu-item" onclick="importMapJSON()" style="color:var(--cyan);">📤 从 JSON 文件导入</div>
-                        <div class="menu-item" onclick="saveMapToServer()" style="color:var(--gold);">☁️ 保存到服务器</div>
                         <div class="menu-item" onclick="loadMapFromServer()" style="color:var(--gold);">📂 从服务器加载...</div>
                         <div id="server-save-list" style="max-height:160px;overflow-y:auto;display:none;"></div>
                     </div>
@@ -1069,7 +1069,7 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map.js?v=32"></script>
+    <script src="/static/map.js?v=38"></script>
 <script>
 (function(){
 var K='dnd_joined_room';
@@ -1080,7 +1080,7 @@ function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.m
 B();
 window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
 window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
-fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+window._portalUserId=null;fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById('join-username').value=d.user.username;document.getElementById('join-subtitle').textContent='已绑定官网账号：'+d.user.username+'（可修改显示名）';}}).catch(function(){});fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
 document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
 window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharTokens==='function')loadCharTokens();if(typeof loadMapCombatCharSelect==='function')loadMapCombatCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
 document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});

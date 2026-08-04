@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>北境雪原 · 尘封之卷</title>
     <script src="/static/common-error-handler.js"></script>
@@ -923,21 +924,86 @@
 
         /* 书页内笔记编辑区 */
         .book-journal-title {
-            width: 100%; background: rgba(255,250,240,0.6); border: 1px solid rgba(0,0,0,0.2);
-            color: #0a0400; padding: 0.3rem 0.5rem; border-radius: 3px;
+            width: 100%; background: #e8d5b0; border: 1px solid rgba(0,0,0,0.2);
+            color: #0a0400; padding: 0.35rem 0.6rem; border-radius: 3px;
             font-size: 0.88rem; font-weight: 700; font-family: 'Georgia', serif;
             outline: none; margin-bottom: 0.4rem;
             text-shadow: 0 1px 0 rgba(255,255,255,0.3);
         }
-        .book-journal-title:focus { border-color: rgba(0,0,0,0.4); }
+        .book-journal-title:focus { border-color: rgba(0,0,0,0.5); background: #ecd9b4; }
         .book-journal-text {
-            flex: 1; width: 100%; background: rgba(255,250,240,0.55); border: 1px solid rgba(0,0,0,0.18);
-            color: #0a0400; padding: 0.4rem 0.5rem; border-radius: 3px;
-            font-size: 0.8rem; line-height: 1.6; resize: none; outline: none; font-weight: 600;
-            font-family: 'Georgia', serif; min-height: 180px;
+            flex: 1; width: 100%; background: #e8d5b0; border: 1px solid rgba(0,0,0,0.18);
+            color: #0a0400; padding: 0.5rem 0.6rem; border-radius: 3px;
+            font-size: 0.82rem; line-height: 1.7; resize: none; outline: none; font-weight: 600;
+            font-family: 'Georgia', serif; min-height: 280px;
             text-shadow: 0 1px 0 rgba(255,255,255,0.2);
         }
-        .book-journal-text:focus { border-color: rgba(0,0,0,0.4); }
+        .book-journal-text:focus { border-color: rgba(0,0,0,0.5); background: #ecd9b4; }
+
+        /* ===== 酒馆面板 ===== */
+        #tavernPanel {
+            display:none; position:fixed; top:56px; left:0; right:0; bottom:0;
+            background:linear-gradient(180deg, #1a0f08 0%, #2d1810 30%, #1a0c06 60%, #0d0502 100%);
+            background-image:url('/static/tavern_bg.png');
+            background-size:cover; background-position:center; background-blend-mode:overlay;
+            z-index:50; flex-direction:column;
+            font-family:'Georgia','Times New Roman',serif;
+        }
+        #tavernPanel.active { display:flex; }
+        .tavern-header {
+            padding:0.6rem 1.2rem; background:rgba(0,0,0,0.5);
+            border-bottom:2px solid #5a3a1a; display:flex; align-items:center; gap:0.6rem;
+            color:#d4a050; font-size:0.95rem; font-weight:700; letter-spacing:1px;
+            text-shadow:0 1px 2px rgba(0,0,0,0.8);
+        }
+        .tavern-header::before { content:'🍺'; font-size:1.3rem; }
+        .tavern-body {
+            flex:1; display:flex; overflow:hidden;
+        }
+        .tavern-chat {
+            flex:1; display:flex; flex-direction:column; max-width:800px; margin:0 auto; width:100%;
+            background:rgba(0,0,0,0.7); border-left:1px solid #3a2010; border-right:1px solid #3a2010;
+        }
+        .tavern-messages {
+            flex:1; overflow-y:auto; padding:0.8rem 1rem;
+        }
+        .tavern-msg {
+            margin-bottom:0.5rem; padding:0.35rem 0.6rem;
+            border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.82rem; line-height:1.5;
+        }
+        .tavern-msg .tm-name {
+            color:#e8b860; font-weight:700; margin-right:0.4rem; font-size:0.8rem;
+        }
+        .tavern-msg .tm-time {
+            color:#8a6a4a; font-size:0.62rem; margin-left:0.5rem;
+        }
+        .tavern-msg .tm-text { color:#d4b896; }
+        .tavern-msg.system { text-align:center; font-style:italic; }
+        .tavern-msg.system .tm-text { color:#9a7a5a; font-size:0.72rem; }
+        .tavern-input-area {
+            display:flex; gap:0.4rem; padding:0.6rem 0.8rem;
+            background:rgba(0,0,0,0.75); border-top:1px solid #3a2010;
+        }
+        .tavern-input-area input {
+            flex:1; padding:0.5rem 0.8rem;
+            background:rgba(0,0,0,0.6); border:1px solid #5a3a1a; border-radius:4px;
+            color:#d4b896; font-size:0.82rem; font-family:inherit;
+        }
+        .tavern-input-area input:focus { border-color:#d4a050; outline:none; }
+        .tavern-input-area input::placeholder { color:#5a3a2a; }
+        .tavern-input-area button {
+            padding:0.5rem 1rem; background:#5a2a0a; border:1px solid #8a5a2a;
+            color:#d4a050; cursor:pointer; border-radius:4px; font-weight:700; font-family:inherit;
+            transition:all 0.15s;
+        }
+        .tavern-input-area button:hover { background:#7a3a10; border-color:#d4a050; }
+        .tavern-online {
+            padding:0.3rem 1rem; font-size:0.7rem; color:#9a7a5a;
+            background:rgba(0,0,0,0.6); border-bottom:1px solid #2a1508;
+            display:flex; gap:0.5rem; flex-wrap:wrap;
+        }
+        .tavern-online span { color:#8a6a3a; }
+        .tavern-online b { color:#d4a050; }
 
         /* ===== 角色卡面板（右侧） ===== */
         .camp-char-detail {
@@ -1623,13 +1689,19 @@
         <header class="top-bar">
             <a class="brand" href="/" title="返回官网">❄️ <span>尘封之卷</span> · 北境雪原</a>
             <div class="nav-links">
-                <a id="exploreTab" class="active">🏕️ 探索</a>
+                <a id="exploreTab">🏕️ 探索</a>
                 <a id="campTab">⛺ 营地</a>
+                <a id="guildTab" title="公会功能即将开放" style="opacity:0.5;cursor:not-allowed;">⚔️ 公会</a>
+                <a id="tavernTab">🍺 酒馆</a>
                 <a id="mapPlaceholder" title="地图功能即将开放" style="opacity:0.5;cursor:not-allowed;">🗺️ 地图</a>
                 <a id="soundToggleBtn" onclick="toggleNorthSound()" title="声音开关" style="cursor:pointer;">🔇</a>
                 <a id="videoToggleBtn" onclick="toggleBgVideo()" title="暂停/播放背景" style="cursor:pointer;">⏯️</a>
             </div>
         </header>
+        <script>
+        // 立即恢复标签状态，避免闪烁
+        (function(){var t=sessionStorage.getItem('north_active_tab');if(t){var el=document.getElementById(t==='camp'?'campTab':t==='tavern'?'tavernTab':'exploreTab');if(el)el.classList.add('active');}else{document.getElementById('exploreTab').classList.add('active');}})();
+        </script>
 
         <div class="hero-title">
             <h1>苍白大地 <small>❄️ 揭开这片大地的面纱 ❄️</small></h1>
@@ -2047,6 +2119,13 @@
             <!-- 营地仓库 -->
             <div id="campStorage" style="display:none;">
                 <h3>📦 营地仓库</h3>
+                <!-- 仓库资金 -->
+                <div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.8rem;margin-bottom:0.5rem;background:rgba(0,0,0,0.2);border-radius:6px;flex-wrap:wrap;font-size:0.75rem;">
+                    <span style="color:#d4b896;font-weight:600;">💰 库存资金：</span>
+                    <span id="storageCoinsDisplay" style="color:#c0b090;"></span>
+                    <button onclick="storageDepositCoins()" style="background:rgba(255,215,0,0.2);border:1px solid #b8941e;color:#ffd700;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.68rem;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='rgba(255,215,0,0.35)'" onmouseout="this.style.background='rgba(255,215,0,0.2)'">📥 存入</button>
+                    <button onclick="storageWithdrawCoins()" style="background:rgba(192,192,192,0.2);border:1px solid #a0a0a0;color:#d4d4d4;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.68rem;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='rgba(192,192,192,0.35)'" onmouseout="this.style.background='rgba(192,192,192,0.2)'">📤 取出</button>
+                </div>
                 <div class="storage-body">
                     <!-- 左侧：仓库物品（10列） -->
                     <div class="storage-left">
@@ -2066,18 +2145,114 @@
             </div>
         </div><!-- /campView -->
 
+        <!-- 酒馆面板 -->
+        <div id="tavernPanel">
+            <div class="tavern-header">瑟伦瑞达酒馆</div>
+            <div class="tavern-online" id="tavernOnline">🍺 酒馆内暂无其他旅人</div>
+            <div class="tavern-body">
+                <div class="tavern-chat">
+                    <div class="tavern-messages" id="tavernMessages">
+                        <div class="tavern-msg system"><span class="tm-text">🕯️ 炉火噼啪作响，酒馆老板娘擦拭着吧台...</span></div>
+                    </div>
+                    <div class="tavern-input-area">
+                        <input type="text" id="tavernInput" placeholder="说点什么..." maxlength="200" onkeydown="if(event.key==='Enter')northTavernSend()">
+                        <button onclick="northTavernSend()">🍺 发言</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div style="margin-top:1.2rem; text-align:center; font-size:0.7rem; color:#3a5a7a; letter-spacing:1px; border-top:1px solid rgba(74,128,184,0.08); padding-top:0.8rem;">
             ❄️ 尘封之卷 · 北境雪原 &nbsp;|&nbsp; 冰霜之下，万物皆寂
         </div>
     </div>
 
     <script>
+        // 声音开关（HTML onclick 调用，需全局作用域）
+        var _northSoundOn = false;
+        function toggleNorthSound() {
+            _northSoundOn = !_northSoundOn;
+            var bgVideo = document.getElementById('bgVideo');
+            var icon = document.getElementById('soundPromptIcon');
+            var icon2 = document.getElementById('soundToggleBtn');
+            var text = document.getElementById('soundPromptText');
+            if (bgVideo) bgVideo.muted = !_northSoundOn;
+            if (icon) icon.textContent = _northSoundOn ? '🔊' : '🔇';
+            if (icon2) icon2.textContent = _northSoundOn ? '🔊' : '🔇';
+            if (text) text.textContent = _northSoundOn ? '声音已开启' : '点击开启声音';
+        }
+
         window.onerror = function(msg, src, line, col, err) {
-            document.getElementById('outputArea').innerHTML = '<div style=\"color:#e0556a;padding:1rem;\">⚠️ 脚本错误: ' + msg + '<br>文件: ' + src + '<br>行号: ' + line + '</div>';
+            (document.getElementById('outputArea')||{}).innerHTML = '<div style=\"color:#e0556a;padding:1rem;\">⚠️ 脚本错误: ' + msg + '<br>文件: ' + src + '<br>行号: ' + line + '</div>';
             console.error(msg, src, line, col, err);
+            try { navigator.sendBeacon('/api/error-report', JSON.stringify({message:String(msg||''), source:String(src||''), lineno:line||0, url:location.href, page:'/north'})); } catch(e) {}
         };
         (function() {
             'use strict';
+
+            // =========================================================================
+            // 零、工具函数 & 自定义弹窗（替换浏览器 alert/confirm/prompt）
+            // =========================================================================
+
+            // 自定义弹窗组件 — 北境冰霜主题
+            function northDialog(options) {
+                var o = options || {};
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+                var card = document.createElement('div');
+                card.style.cssText = 'background:linear-gradient(180deg,#1a1a2e 0%,#12122a 100%);border:2px solid #e94460;border-radius:12px;padding:24px 20px;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(233,68,96,0.25);text-align:center;';
+                var title = o.title || '';
+                var msg = o.msg || '';
+                var type = o.type || 'alert'; // alert | confirm | prompt
+                var defaultVal = o.defaultVal || '';
+                var placeholder = o.placeholder || '';
+                card.innerHTML = '<h3 style="color:#ffd700;margin-bottom:10px;font-size:1rem;">' + title + '</h3>'
+                    + '<p style="color:#c0c0d0;font-size:0.82rem;margin-bottom:16px;line-height:1.5;white-space:pre-wrap;">' + msg + '</p>'
+                    + (type === 'prompt'
+                        ? '<input type="text" id="__nd_input" value="' + defaultVal.replace(/"/g,'&quot;') + '" placeholder="' + placeholder + '" style="width:100%;padding:9px 12px;background:#0a0a14;border:1px solid #2a2a40;border-radius:6px;color:#e0e0e0;font-size:0.9rem;text-align:center;box-sizing:border-box;margin-bottom:14px;" maxlength="100">'
+                        : '')
+                    + '<div style="display:flex;gap:8px;justify-content:center;">'
+                    + (type === 'confirm'
+                        ? '<button id="__nd_cancel" style="flex:1;padding:10px;background:rgba(255,255,255,0.06);border:1px solid #2a2a40;border-radius:6px;color:#888;cursor:pointer;font-size:0.85rem;">取消</button>'
+                        : (type === 'prompt'
+                            ? '<button id="__nd_cancel" style="flex:1;padding:10px;background:rgba(255,255,255,0.06);border:1px solid #2a2a40;border-radius:6px;color:#888;cursor:pointer;font-size:0.85rem;">取消</button>'
+                            : ''))
+                    + '<button id="__nd_ok" style="flex:1;padding:10px;background:#e94460;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600;">' + (o.okText || '确定') + '</button>'
+                    + '</div>';
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+                overlay.onclick = function(e) { if (e.target === overlay && type === 'alert') { overlay.remove(); if (o.onOk) o.onOk(); } };
+                var okBtn = document.getElementById('__nd_ok');
+                var cancelBtn = document.getElementById('__nd_cancel');
+                var input = document.getElementById('__nd_input');
+                function close(result) {
+                    overlay.remove();
+                    if (o.onOk && result !== false) o.onOk(type === 'prompt' ? (input ? input.value.trim() : '') : true);
+                    if (o.onCancel && result === false) o.onCancel();
+                }
+                if (okBtn) okBtn.addEventListener('click', function() { close(true); });
+                if (cancelBtn) cancelBtn.addEventListener('click', function() { close(false); });
+                if (input) { input.focus(); input.select(); input.addEventListener('keydown', function(e) { if (e.key === 'Enter') close(true); if (e.key === 'Escape') close(false); }); }
+                document.addEventListener('keydown', function _ndk(e) { if (e.key === 'Escape') { close(false); document.removeEventListener('keydown', _ndk); } });
+            }
+
+            // 直接替换 alert — 仅通知
+            var _origAlert = window.alert;
+            window.alert = function(msg) { northDialog({ title: '❄️ 北境雪原', msg: String(msg||''), type: 'alert' }); };
+
+            // ━━━ 以下为原有工具函数 ━━━
+            // =========================================================================
+            // 零、工具函数（需在 IIFE 顶部声明，供全作用域使用）
+            // =========================================================================
+            function fmtCoinHtml(gp, sp, cp) {
+                gp = gp || 0; sp = sp || 0; cp = cp || 0;
+                var parts = [];
+                if (gp) parts.push('<span style=\"color:#ffd700;\">' + gp + ' GP</span>');
+                if (sp) parts.push('<span style=\"color:#c0c0c0;\">' + sp + ' SP</span>');
+                if (cp) parts.push('<span style=\"color:#cd7f32;\">' + cp + ' CP</span>');
+                if (parts.length === 0) parts.push('<span style=\"color:#7a6a5a;\">0 GP</span>');
+                return parts.join(' ');
+            }
 
             // =========================================================================
             // 一、完整事件表
@@ -2601,7 +2776,8 @@
             let currentPageIdx = 0;
             let discoveredItems = []; // 所有探索获得过的物品
             let eventSubStats = {}; // 事件子结果统计 { "发现材料": { "松枝": 8, "药草": 5 }, ... }
-            let campStorage = []; // 营地仓库独立存储
+            let campStorage = []; // 营地仓库独立存储（物品）
+            let campStorageCoins = { gp: 0, sp: 0, cp: 0 }; // 营地仓库资金
             let shopBpCollapsed = { supply: true, smith: true, alchemy: true }; // 背包折叠状态
             let shopFundsGP = 1000, shopFundsSP = 0, shopFundsCP = 0; // 商店资金
             let shopCurrentPrices = {};  // {物品名: {gp, sp}}
@@ -3944,7 +4120,7 @@
                     charDetailContainer.innerHTML =
                         '<div style="color:#5a7a9a; font-size:0.8rem; text-align:center; padding:0.8rem 0;">请选择或创建角色</div>';
                     charStatus.textContent = '未选择';
-                    document.getElementById('charNameInHeader').textContent = '—';
+                    document.getElementById('charNameInHeader').textContent = _northUsername ? '· ' + _northUsername : '';
                     activeChar = null;
                     activeCharId = null;
                     return;
@@ -3954,7 +4130,7 @@
                 activeCharId = id;
                 const rank = data.rank || '青羽';
                 charStatus.textContent = rank;
-                document.getElementById('charNameInHeader').textContent = '· ' + id;
+                /* charName now always shows username */
 
                 const mods = {
                     str: abilityMod(data.str),
@@ -5334,6 +5510,7 @@
                     wsCraftResult: wsCraftResult,
                     wsBrewResult: wsBrewResult,
                     campStorage: campStorage,
+                    campStorageCoins: campStorageCoins,
                     // 商店状态
                     shopFundsGP: shopFundsGP,
                     shopFundsSP: shopFundsSP,
@@ -5385,6 +5562,7 @@
                         if (saveData.wsCraftResult) wsCraftResult = saveData.wsCraftResult;
                         if (saveData.wsBrewResult) wsBrewResult = saveData.wsBrewResult;
                         if (saveData.campStorage) campStorage = saveData.campStorage;
+                        if (saveData.campStorageCoins) campStorageCoins = saveData.campStorageCoins;
                         // 商店状态
                         if (saveData.shopFundsGP !== undefined) shopFundsGP = saveData.shopFundsGP;
                         if (saveData.shopFundsSP !== undefined) shopFundsSP = saveData.shopFundsSP;
@@ -5471,6 +5649,136 @@
                 reader.readAsText(file);
                 event.target.value = '';
             }
+
+            // ━━━ 服务端持久化 ━━━
+            var _northServerSyncTimer = null;
+
+            function collectNorthSaveData() {
+                var cleanLog = fullLog.map(function(e) {
+                    return { time: e.time, label: e.label, output: e.output, gains: e.gains };
+                });
+                return {
+                    version: 2,
+                    _northName: _northUsername,
+                    charData: charData,
+                    activeCharId: activeCharId,
+                    survival: survival,
+                    fullLog: cleanLog,
+                    bookPages: bookPages,
+                    currentPageIdx: currentPageIdx,
+                    statsData: statsData,
+                    discoveredItems: discoveredItems,
+                    eventSubStats: eventSubStats,
+                    discoveredCreatures: discoveredCreatures,
+                    craftedItems: craftedItems,
+                    rollCount: rollCount,
+                    deepCount: deepCount,
+                    wsUnlockedRecipes: wsUnlockedRecipes,
+                    wsCraftSlots: wsCraftSlots,
+                    wsBrewSlots: wsBrewSlots,
+                    wsCraftResult: wsCraftResult,
+                    wsBrewResult: wsBrewResult,
+                    campStorage: campStorage,
+                    campStorageCoins: campStorageCoins,
+                    shopFundsGP: shopFundsGP,
+                    shopFundsSP: shopFundsSP,
+                    shopFundsCP: shopFundsCP,
+                    shopCurrentPrices: shopCurrentPrices,
+                    shopCurrentStock: shopCurrentStock,
+                    shopCaravanItems: shopCaravanItems,
+                    caravanReturnCounter: caravanReturnCounter,
+                    wsSmeltOre: wsSmeltOre,
+                    wsSmeltCoal: wsSmeltCoal,
+                    wsSmeltBars: wsSmeltBars,
+                    wsSmeltIngot: wsSmeltIngot,
+                };
+            }
+
+            function saveNorthToServer() {
+                if (!_northUserId) return;  // 未登录不同步
+                var data = collectNorthSaveData();
+                fetch('/api/north/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ save_name: 'auto', save_data: data }),
+                }).catch(function() {});
+            }
+
+            function loadNorthFromServer() {
+                if (!_northUserId) return;
+                fetch('/api/north/load?save_name=auto').then(function(r){return r.json();}).then(function(d){
+                    if (!d.ok || !d.save_data) return;
+                    var sd = d.save_data;
+                    try {
+                        if (sd.charData) Object.assign(charData, sd.charData);
+                        if (sd.survival) Object.assign(survival, sd.survival);
+                        if (sd.fullLog) {
+                            fullLog = sd.fullLog;
+                            displayLog = fullLog.slice(-16).map(function(e) {
+                                var lines = (e.output||'').split('\n');
+                                var h = '';
+                                for (var li = 0; li < lines.length; li++) {
+                                    var line = lines[li];
+                                    if (line.indexOf('🎲')===0) h += '<div class=\"l0\">' + line + '</div>';
+                                    else if (line.indexOf('↳')===0) { var im = line.match(/^(\s*)/); var il = im ? Math.min(Math.floor(im[1].length/3)+1, 5) : 1; h += '<div class=\"l' + il + '\">' + line.trim() + '</div>'; }
+                                    else if (line.trim().length > 0 && line.indexOf('   ')!==0) h += '<div class=\"desc-line\">' + line + '</div>';
+                                    else if (line.trim().length > 0) h += '<div>' + line + '</div>';
+                                }
+                                return { time: e.time, label: e.label, output: e.output, html: '<div class=\"log-entry\"><span class=\"log-time\">' + e.time + '</span><span class=\"log-label\">' + e.label + '</span><div class=\"log-content\">' + h + '</div></div>' };
+                            });
+                        }
+                        if (sd.bookPages) bookPages = sd.bookPages;
+                        if (sd.currentPageIdx !== undefined) currentPageIdx = sd.currentPageIdx;
+                        if (sd.statsData) statsData = sd.statsData;
+                        if (sd.discoveredItems) discoveredItems = sd.discoveredItems;
+                        if (sd.eventSubStats) eventSubStats = sd.eventSubStats;
+                        if (sd.discoveredCreatures) discoveredCreatures = sd.discoveredCreatures;
+                        if (sd.craftedItems) craftedItems = sd.craftedItems;
+                        if (sd.rollCount !== undefined) rollCount = sd.rollCount;
+                        if (sd.deepCount !== undefined) deepCount = sd.deepCount;
+                        if (sd.wsUnlockedRecipes) wsUnlockedRecipes = sd.wsUnlockedRecipes;
+                        if (sd.wsCraftSlots) wsCraftSlots = sd.wsCraftSlots;
+                        if (sd.wsBrewSlots) wsBrewSlots = sd.wsBrewSlots;
+                        if (sd.wsCraftResult) wsCraftResult = sd.wsCraftResult;
+                        if (sd.wsBrewResult) wsBrewResult = sd.wsBrewResult;
+                        if (sd.campStorage) campStorage = sd.campStorage;
+                        if (sd.campStorageCoins) campStorageCoins = sd.campStorageCoins;
+                        if (sd.shopFundsGP !== undefined) shopFundsGP = sd.shopFundsGP;
+                        if (sd.shopFundsSP !== undefined) shopFundsSP = sd.shopFundsSP;
+                        if (sd.shopFundsCP !== undefined) shopFundsCP = sd.shopFundsCP;
+                        if (sd.shopCurrentPrices) shopCurrentPrices = sd.shopCurrentPrices;
+                        if (sd.shopCurrentStock) shopCurrentStock = sd.shopCurrentStock;
+                        if (sd.shopCaravanItems) shopCaravanItems = sd.shopCaravanItems;
+                        if (sd.caravanReturnCounter !== undefined) caravanReturnCounter = sd.caravanReturnCounter;
+                        if (sd.wsSmeltOre !== undefined) wsSmeltOre = sd.wsSmeltOre;
+                        if (sd.wsSmeltCoal !== undefined) wsSmeltCoal = sd.wsSmeltCoal;
+                        if (sd.wsSmeltBars !== undefined) wsSmeltBars = sd.wsSmeltBars;
+                        if (sd.wsSmeltIngot !== undefined) wsSmeltIngot = sd.wsSmeltIngot;
+                        // 刷新UI
+                        renderDisplayLog();
+                        updateSurvivalUI();
+                        renderStats();
+                        if (activeCharId && charData[activeCharId]) {
+                            activeChar = charData[activeCharId];
+                            renderCharDetail(activeCharId);
+                        }
+                        renderCharSelect();
+                        document.getElementById('rollCounter').textContent = '掷表 ' + (rollCount||0) + ' 次';
+                        addSystemLog('🏕️ 冒险者已返回', 'success');
+                    } catch(e) { console.error('加载存档失败:', e); }
+                }).catch(function(){});
+            }
+
+            // 每30秒自动保存到服务器
+            _northServerSyncTimer = setInterval(saveNorthToServer, 30000);
+            // 每次事件后保存（关键时机)
+            var _origAddSystemLog = addSystemLog;
+            addSystemLog = function(msg, type) {
+                _origAddSystemLog(msg, type);
+                // 延迟2秒保存，避免连续事件频繁请求
+                clearTimeout(addSystemLog._saveTimer);
+                addSystemLog._saveTimer = setTimeout(saveNorthToServer, 2000);
+            };
 
             function clearDisplay() { displayLog = [];
                 renderDisplayLog(); }
@@ -5967,29 +6275,109 @@
             const bgVideo = document.getElementById('bgVideo');
             const appContainer = document.querySelector('.app-container');
 
+            var _northUsername = '';
+            var _northUserId = null;
+
             function showContent() {
                 if (_introDone) return;
                 _introDone = true;
                 if (appContainer) appContainer.classList.add('visible');
                 if (bgVideo) { bgVideo.loop = true; bgVideo.play().catch(function() {}); }
-                // 开幕完成后自动隐藏声音提示
-                const sp = document.getElementById('soundPrompt');
+                var sp = document.getElementById('soundPrompt');
                 if (sp) sp.classList.add('hidden');
+                // 显示用户名输入弹窗
+                setTimeout(showNameDialog, 300);
             }
+
+            var _nameDialogShown = false;
+            function showNameDialog() {
+                if (_nameDialogShown) return;
+                fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){
+                    if (d.ok && d.user) {
+                        _northUserId = d.user.id;
+                        fetch('/api/north/load?save_name=auto').then(function(r){return r.json();}).then(function(sd){
+                            if (sd.ok && sd.save_data && sd.save_data._northName) {
+                                // 有存档记录 → 跳过弹窗，直接恢复
+                                _nameDialogShown = true;
+                                _northUsername = sd.save_data._northName;
+                                document.getElementById('charNameInHeader').textContent = '· ' + _northUsername;
+                                document.getElementById('campCharNameInHeader').textContent = '· ' + _northUsername;
+                                loadNorthFromServer();
+                            } else {
+                                _nameDialogShown = true;
+                                showNameInput(d.user.username);
+                            }
+                        }).catch(function(){ _nameDialogShown = true; showNameInput(d.user.username); });
+                    }
+                }).catch(function(){});
+            }
+
+            function showNameInput(defaultName) {
+                var overlay = document.createElement('div');
+                overlay.id = '__name_overlay';
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+                var card = document.createElement('div');
+                card.style.cssText = 'background:#12122a;border:2px solid #e94460;border-radius:16px;padding:28px 24px;max-width:380px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);';
+                var title = _northUserId ? '已绑定官网账号：' + defaultName : '输入冒险者名称';
+                card.innerHTML = '<h2 style=\"color:#ffd700;margin-bottom:6px;font-size:1.1rem;\">❄️ ' + title + '</h2>' +
+                    '<p style=\"color:#888;font-size:0.75rem;margin-bottom:16px;\">' + (_northUserId ? '已关联您的官网账号，可修改冒险者显示名' : '未登录官网，将作为本地冒险者') + '</p>' +
+                    '<input type=\"text\" id=\"__name_input\" value=\"' + defaultName + '\" placeholder=\"冒险者名称\" maxlength=\"20\" style=\"width:100%;padding:10px 14px;background:#0a0a14;border:1px solid #2a2a40;border-radius:8px;color:#e0e0e0;font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:12px;\">' +
+                    '<button id=\"__name_btn\" style=\"width:100%;padding:12px;background:#e94460;border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;\">⚔️ 进入北境</button>';
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+                var inp = document.getElementById('__name_input');
+                inp.focus(); inp.select();
+                inp.addEventListener('keydown', function(e){ if(e.key==='Enter') confirmName(); });
+                document.getElementById('__name_btn').addEventListener('click', confirmName);
+                function confirmName() {
+                    var n = inp.value.trim();
+                    if (!n) { inp.style.borderColor = '#f44336'; return; }
+                    var btn = document.getElementById('__name_btn');
+                    btn.disabled = true; btn.textContent = '⏳ 保存中...';
+                    _northUsername = n;
+                    document.getElementById('charNameInHeader').textContent = '· ' + n;
+                    document.getElementById('campCharNameInHeader').textContent = '· ' + n;
+                    if (_northUserId) {
+                        // 先保存名字到服务器，确保刷新后能识别
+                        fetch('/api/north/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ save_name: 'auto', save_data: { _northName: n } }),
+                        }).then(function() {
+                            overlay.remove();
+                            loadNorthFromServer();
+                        }).catch(function() {
+                            overlay.remove();
+                        });
+                    } else {
+                        overlay.remove();
+                    }
+                }
+            }
+
+            // 老访客快速进入：有存档或已登录 → 跳过开幕视频
+            fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){
+                if (d.ok && d.user) {
+                    fetch('/api/north/load?save_name=auto').then(function(r){return r.json();}).then(function(sd){
+                        if (sd.ok && sd.save_data) { showContent(); }
+                    }).catch(function(){});
+                }
+            }).catch(function(){});
 
             if (bgVideo) {
                 bgVideo.addEventListener('ended', function() {
-                    if (!_introDone) {
-                        _introDone = true;
-                        if (appContainer) appContainer.classList.add('visible');
-                        setTimeout(function() { if (bgVideo) { bgVideo.loop = true;
-                                bgVideo.play().catch(function() {}); } }, 800);
-                    }
+                    showContent();
                 });
                 bgVideo.addEventListener('error', showContent);
+                bgVideo.addEventListener('click', showContent);
+                bgVideo.style.cursor = 'pointer';
             }
+            document.addEventListener('click', function _earlySkip(e) {
+                if (_introDone) { document.removeEventListener('click', _earlySkip); return; }
+                if (e.target.closest('#soundPrompt')) return;
+                showContent();
+            });
 
-            // 兜底：8秒后强制显示
             setTimeout(showContent, 8000);
 
             // 防护：确保 app-container 的 pointer-events 不因异常丢失
@@ -6084,38 +6472,94 @@
                 // 顶部标签切换
                 const exploreView = document.getElementById('exploreView');
                 const campView = document.getElementById('campView');
+                const tavernPanel = document.getElementById('tavernPanel');
                 const exploreTab = document.getElementById('exploreTab');
                 const campTab = document.getElementById('campTab');
+                const tavernTab = document.getElementById('tavernTab');
+                const guildTab = document.getElementById('guildTab');
 
-                exploreTab.addEventListener('click', function() {
-                    this.classList.add('active');
-                    campTab.classList.remove('active');
-                    exploreView.style.display = '';
-                    campView.style.display = 'none';
-                });
-                campTab.addEventListener('click', function() {
-                    this.classList.add('active');
+                function deactivateAll() {
                     exploreTab.classList.remove('active');
+                    campTab.classList.remove('active');
+                    tavernTab.classList.remove('active');
+                    guildTab.classList.remove('active');
                     exploreView.style.display = 'none';
-                    campView.style.display = '';
-                    // 同步角色数据：营地角色优先，否则用探索端角色
-                    var campSel = document.getElementById('campCharSelect');
-                    if (campSel && campSel.value && charData[campSel.value]) {
-                        activeCharId = campSel.value;
-                        activeChar = charData[activeCharId];
-                    } else if (activeCharId && charData[activeCharId]) {
-                        activeChar = charData[activeCharId];
+                    campView.style.display = 'none';
+                    tavernPanel.classList.remove('active');
+                }
+                function activateTab(tabName) {
+                    deactivateAll();
+                    if (tabName === 'camp') {
+                        campTab.classList.add('active'); campView.style.display = '';
+                        var campSel = document.getElementById('campCharSelect');
+                        if (campSel && campSel.value && charData[campSel.value]) {
+                            activeCharId = campSel.value; activeChar = charData[activeCharId];
+                        } else if (activeCharId && charData[activeCharId]) {
+                            activeChar = charData[activeCharId];
+                        }
+                        renderStats(); renderCampCharSheet();
+                        if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
+                        restoreShopBpState();
+                    } else if (tabName === 'tavern') {
+                        tavernTab.classList.add('active'); tavernPanel.classList.add('active'); northTavernRefresh();
+                    } else {
+                        exploreTab.classList.add('active'); exploreView.style.display = '';
                     }
-                    renderStats();
-                    renderCampCharSheet();
-                    // 如果工作间可见，刷新背包
-                    if (document.getElementById('craftingWorkshop').style.display !== 'none') {
-                        wsRenderBackpack();
+                    sessionStorage.setItem('north_active_tab', tabName);
+                }
+                exploreTab.addEventListener('click', function() { activateTab('explore'); });
+                campTab.addEventListener('click', function() { activateTab('camp'); });
+                tavernTab.addEventListener('click', function() { activateTab('tavern'); });
+
+                // 刷新后立即恢复到上次的标签页
+                var savedTab = sessionStorage.getItem('north_active_tab');
+                if (savedTab && savedTab !== 'explore') {
+                    activateTab(savedTab);
+                }
+
+                // ━━ 酒馆聊天 ━━
+                var _tavernMessages = [];
+                var _tavernTimer = null;
+                window.northTavernSend = function() {
+                    var inp = document.getElementById('tavernInput');
+                    var text = (inp.value||'').trim();
+                    if (!text || !_northUsername) return;
+                    inp.value = '';
+                    fetch('/api/chat/send', {
+                        method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({name:'🍺 '+_northUsername, text:text, color:'#d4a050', role:'PL'})
+                    }).then(function(r){return r.json();}).then(function(d){
+                        if(d.ok) northTavernRefresh();
+                    }).catch(function(){});
+                };
+                function northTavernRefresh() {
+                    fetch('/api/chat/messages').then(function(r){return r.json();}).then(function(d){
+                        if (!d.ok) return;
+                        var msgs = d.messages || [];
+                        // 只显示北境玩家的消息（名字以🍺开头）
+                        var tavernMsgs = msgs.filter(function(m){ return m.name && m.name.indexOf('🍺')===0; });
+                        _tavernMessages = tavernMsgs.slice(-50);
+                        renderTavernMessages();
+                    }).catch(function(){});
+                }
+                function renderTavernMessages() {
+                    var el = document.getElementById('tavernMessages');
+                    if (!el) return;
+                    var html = '<div class=\"tavern-msg system\"><span class=\"tm-text\">🕯️ 炉火噼啪作响，酒馆老板娘擦拭着吧台...</span></div>';
+                    for (var i=0; i<_tavernMessages.length; i++) {
+                        var m = _tavernMessages[i];
+                        var name = (m.name||'').replace('🍺 ','');
+                        html += '<div class=\"tavern-msg'+(m.system?' system':'')+'\">';
+                        html += '<span class=\"tm-name\">'+name+'</span>';
+                        html += '<span class=\"tm-text\">'+m.text+'</span>';
+                        html += '<span class=\"tm-time\">'+m.time+'</span>';
+                        html += '</div>';
                     }
-                    // 同步刷新工坊背包（当前可见的面板）
-                    if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
-                    restoreShopBpState();
-                });
+                    el.innerHTML = html;
+                    el.scrollTop = el.scrollHeight;
+                }
+                // 每5秒刷新酒馆消息
+                _tavernTimer = setInterval(northTavernRefresh, 2000);
 
                 // ━━ 营地底部标签（补给站 / 工作间 / 仓库）━━
                 // campStorage / shopBpCollapsed 已提升至全局作用域
@@ -6189,16 +6633,6 @@
                     grid.innerHTML = html || '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
                 }
 
-                // 通用金币颜色格式化：GP金色 SP银色 CP铜色
-                function fmtCoinHtml(gp, sp, cp) {
-                    gp = gp || 0; sp = sp || 0; cp = cp || 0;
-                    var parts = [];
-                    if (gp) parts.push('<span style="color:#ffd700;">' + gp + ' GP</span>');
-                    if (sp) parts.push('<span style="color:#c0c0c0;">' + sp + ' SP</span>');
-                    if (cp) parts.push('<span style="color:#cd7f32;">' + cp + ' CP</span>');
-                    if (parts.length === 0) parts.push('<span style="color:#7a6a5a;">0 GP</span>');
-                    return parts.join(' ');
-                }
                 // 渲染金币栏（补给站/铁匠/炼金/仓库背包通用）
                 function renderShopCoinsBar() {
                     if (!activeChar || !activeChar.coins) return '';
@@ -6696,10 +7130,45 @@
                 };
 
                 // ━━ 营地仓库系统 ━━
+                function storageRenderCoins() {
+                    var el = document.getElementById('storageCoinsDisplay');
+                    if (el) el.innerHTML = fmtCoinHtml(campStorageCoins.gp, campStorageCoins.sp, campStorageCoins.cp);
+                }
                 function storageRender() {
                     storageRenderStorage();
                     storageRenderBackpack();
+                    storageRenderCoins();
                 }
+                // 存入资金到仓库
+                window.storageDepositCoins = function() {
+                    if (!activeChar || !activeChar.coins) { alert('请先选择角色'); return; }
+                    var gp = parseInt(prompt('存入金币 (GP):', activeChar.coins.gp || 0)) || 0;
+                    var sp = parseInt(prompt('存入银币 (SP):', activeChar.coins.sp || 0)) || 0;
+                    var cp = parseInt(prompt('存入铜币 (CP):', activeChar.coins.cp || 0)) || 0;
+                    if (gp < 0 || sp < 0 || cp < 0) { alert('不能为负数'); return; }
+                    if (gp === 0 && sp === 0 && cp === 0) return;
+                    if (gp > activeChar.coins.gp || sp > activeChar.coins.sp || cp > activeChar.coins.cp) { alert('资金不足'); return; }
+                    activeChar.coins.gp -= gp; campStorageCoins.gp += gp;
+                    activeChar.coins.sp -= sp; campStorageCoins.sp += sp;
+                    activeChar.coins.cp -= cp; campStorageCoins.cp += cp;
+                    storageRenderCoins();
+                    storageRenderBackpack();
+                };
+                // 从仓库取出资金
+                window.storageWithdrawCoins = function() {
+                    if (!activeChar || !activeChar.coins) { alert('请先选择角色'); return; }
+                    var gp = parseInt(prompt('取出金币 (GP):', Math.min(campStorageCoins.gp, 100))) || 0;
+                    var sp = parseInt(prompt('取出银币 (SP):', Math.min(campStorageCoins.sp, 100))) || 0;
+                    var cp = parseInt(prompt('取出铜币 (CP):', Math.min(campStorageCoins.cp, 100))) || 0;
+                    if (gp < 0 || sp < 0 || cp < 0) { alert('不能为负数'); return; }
+                    if (gp === 0 && sp === 0 && cp === 0) return;
+                    if (gp > campStorageCoins.gp || sp > campStorageCoins.sp || cp > campStorageCoins.cp) { alert('仓库资金不足'); return; }
+                    campStorageCoins.gp -= gp; activeChar.coins.gp += gp;
+                    campStorageCoins.sp -= sp; activeChar.coins.sp += sp;
+                    campStorageCoins.cp -= cp; activeChar.coins.cp += cp;
+                    storageRenderCoins();
+                    storageRenderBackpack();
+                };
                 function storageRenderStorage() {
                     var grid = document.getElementById('storageGrid');
                     if (!grid) return;
@@ -7514,96 +7983,121 @@
                         ).join('') + '</div>';
                         rightEl.innerHTML = '<div style="color:#5a4a30;text-align:center;padding:2rem;font-style:italic;font-size:0.8rem;">❄️<br>铭记这些规则<br>它们将决定你的生死<br>—— 北境旅人</div>';
                     } else if (activeBookTab === 'journal') {
-                        // 冒险笔记 — 页码翻阅 + 批量删除
                         const page = bookPages[currentPageIdx] || { title: '', content: '' };
                         pageNum.textContent = `第 ${currentPageIdx+1} / ${bookPages.length} 页`;
-                        leftEl.innerHTML = '';
-                        // 页码导航栏：◀ 页码输入 ▶ + 批量删除
-                        leftEl.innerHTML = `<div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.5rem;padding-bottom:0.3rem;border-bottom:1px dashed rgba(0,0,0,0.1);flex-wrap:wrap;">
-                            <button id="journalPrevBtn" style="background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);color:#4a3a22;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;" ${currentPageIdx===0?'disabled':''}>◀</button>
-                            <input id="journalPageInput" type="number" min="1" max="${bookPages.length}" value="${currentPageIdx+1}" style="width:42px;background:rgba(0,0,0,0.03);border:1px solid rgba(0,0,0,0.12);color:#3d2e16;padding:0.1rem;border-radius:3px;font-size:0.65rem;text-align:center;font-family:inherit;">
-                            <span style="font-size:0.62rem;color:#6b5a3e;">/ ${bookPages.length}</span>
-                            <button id="journalNextBtn" style="background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);color:#4a3a22;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;" ${currentPageIdx>=bookPages.length-1?'disabled':''}>▶</button>
-                            <button id="journalBatchDelBtn" style="background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);color:#8a3a3a;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.6rem;cursor:pointer;font-family:inherit;margin-left:auto;" title="批量删除">🗑 批量</button>
-                        </div>`;
-                        leftEl.innerHTML += `<div style="color:#4a3a22;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;">${page.title || '(无标题)'}</div>`;
-                        leftEl.innerHTML += `<div style="color:#5a4a30;white-space:pre-wrap;font-size:0.75rem;line-height:1.7;">${page.content || ''}</div>`;
 
-                        // 绑定页码导航
+                        // 左页：目录 + 底部固定翻页
+                        var tocHtml = '<div style="display:flex;flex-direction:column;height:100%;">';
+                        tocHtml += '<div style="font-size:0.72rem;font-weight:700;color:#3d2e16;margin-bottom:0.3rem;padding-bottom:0.2rem;border-bottom:2px solid rgba(0,0,0,0.1);">📑 目录</div>';
+                        tocHtml += '<div style="flex:1;overflow-y:auto;font-size:0.7rem;min-height:0;">';
+                        for (var ti = 0; ti < bookPages.length; ti++) {
+                            var bp = bookPages[ti];
+                            var isActive = ti === currentPageIdx;
+                            tocHtml += '<div class="journal-toc-item' + (isActive ? ' journal-toc-active' : '') + '" data-idx="' + ti + '" style="display:flex;align-items:center;gap:0.35rem;padding:0.25rem 0.3rem;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.04);' + (isActive ? 'background:rgba(0,0,0,0.06);font-weight:600;' : '') + '">';
+                            tocHtml += '<span style="color:#8a7a5a;font-size:0.6rem;min-width:20px;">' + (ti+1) + '.</span>';
+                            tocHtml += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4a3a22;">' + (bp.title || '(无标题)') + '</span>';
+                            tocHtml += '</div>';
+                        }
+                        tocHtml += '</div>';
+                        // 底部固定：操作按钮
+                        tocHtml += '<div style="flex-shrink:0;border-top:1px solid rgba(0,0,0,0.08);padding-top:0.3rem;">';
+                        tocHtml += '<div style="display:flex;gap:0.25rem;flex-wrap:wrap;margin-bottom:0.3rem;">';
+                        tocHtml += '<button id="journalAddBtn2" style="background:rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.3);color:#2d1a0a;padding:0.2rem 0.6rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;font-weight:600;">+ 新页</button>';
+                        tocHtml += '<button id="journalBatchDelBtn2" style="background:rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.3);color:#6b2020;padding:0.2rem 0.6rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;font-weight:600;">🗑 删此页</button>';
+                        tocHtml += '<button id="journalBatchDelAllBtn" style="background:rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.3);color:#6b2020;padding:0.2rem 0.6rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;font-weight:600;">🗑 批量删除</button>';
+                        tocHtml += '</div>';
+                        // 翻页导航
+                        tocHtml += '<div style="display:flex;align-items:center;justify-content:center;gap:0.3rem;">';
+                        tocHtml += '<button id="journalPrevBtn" style="background:rgba(0,0,0,0.12);border:1px solid rgba(0,0,0,0.25);color:#2d1a0a;padding:0.15rem 0.5rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;font-weight:600;"' + (currentPageIdx===0?' disabled':'') + '>◀</button>';
+                        tocHtml += '<input id="journalPageInput" type="number" min="1" max="' + bookPages.length + '" value="' + (currentPageIdx+1) + '" style="width:38px;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.2);color:#2d1a0a;padding:0.12rem;border-radius:3px;font-size:0.62rem;text-align:center;font-family:inherit;font-weight:600;">';
+                        tocHtml += '<span style="font-size:0.62rem;color:#4a3a22;font-weight:600;">/ ' + bookPages.length + '</span>';
+                        tocHtml += '<button id="journalNextBtn" style="background:rgba(0,0,0,0.12);border:1px solid rgba(0,0,0,0.25);color:#2d1a0a;padding:0.15rem 0.5rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;font-weight:600;"' + (currentPageIdx>=bookPages.length-1?' disabled':'') + '>▶</button>';
+                        tocHtml += '</div>';
+                        tocHtml += '</div>';
+                        tocHtml += '</div>';
+                        leftEl.innerHTML = tocHtml;
+
+                        // 绑定目录点击
                         setTimeout(function() {
-                            const pi = document.getElementById('journalPageInput');
-                            const prev = document.getElementById('journalPrevBtn');
-                            const next = document.getElementById('journalNextBtn');
-                            const batch = document.getElementById('journalBatchDelBtn');
-                            function goPage(n) { saveCurrentPage();
-                                currentPageIdx = Math.max(0, Math.min(n, bookPages.length - 1));
-                                renderBookContent(); }
-                            if (pi) pi.addEventListener('change', function() { const v = parseInt(this.value) - 1; if (!isNaN(v)) goPage(v); });
-                            if (pi) pi.addEventListener('keydown', function(e) { if (e.key === 'Enter') { const v = parseInt(this.value) - 1; if (!isNaN(v)) goPage(v); } });
-                            if (prev) prev.addEventListener('click', function() { if (currentPageIdx > 0) goPage(currentPageIdx - 1); });
-                            if (next) next.addEventListener('click', function() { if (currentPageIdx < bookPages.length - 1) goPage(currentPageIdx + 1); });
-                            if (batch) batch.addEventListener('click', function() {
-                                saveCurrentPage();
-                                const total = bookPages.length;
-                                const range = prompt(`批量删除页面\n当前共 ${total} 页\n请输入要删除的页码范围（如: 3-5 或 2,4,6）:`, '');
-                                if (!range) return;
-                                const toRemove = [];
-                                const parts = range.split(',');
-                                parts.forEach(function(part) {
-                                    part = part.trim();
-                                    if (part.includes('-')) {
-                                        const rp = part.split('-');
-                                        const s = parseInt(rp[0]), e = parseInt(rp[1]);
-                                        if (!isNaN(s) && !isNaN(e)) {
-                                            for (let i = Math.min(s,e); i <= Math.max(s,e); i++) toRemove.push(i);
-                                        }
-                                    } else {
-                                        const n = parseInt(part);
-                                        if (!isNaN(n)) toRemove.push(n);
-                                    }
+                            leftEl.querySelectorAll('.journal-toc-item').forEach(function(el) {
+                                el.addEventListener('click', function() {
+                                    saveCurrentPage();
+                                    currentPageIdx = parseInt(this.dataset.idx);
+                                    renderBookContent();
                                 });
-                                if (toRemove.length === 0) return;
-                                if (toRemove.length >= total) { alert('不能删除所有页面，至少保留一页'); return; }
-                                if (!confirm(`确定删除以下 ${toRemove.length} 页吗？\n页码: ${toRemove.join(', ')}\n此操作不可恢复。`)) return;
-                                // 从大到小删除，避免索引错乱
-                                toRemove.sort(function(a,b){return b-a;});
-                                toRemove.forEach(function(n) {
-                                    const idx = n - 1;
-                                    if (idx >= 0 && idx < bookPages.length) bookPages.splice(idx, 1);
-                                });
-                                if (currentPageIdx >= bookPages.length) currentPageIdx = bookPages.length - 1;
-                                renderBookContent();
                             });
-                        }, 50);
-
-                        // 右侧编辑区
-                        rightEl.innerHTML = `
-                            <input class="book-journal-title" id="journalTitle" value="${(page.title||'').replace(/"/g,'&quot;')}" placeholder="标题..." maxlength="60">
-                            <textarea class="book-journal-text" id="journalText" placeholder="在此书写笔记...">${(page.content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
-                            <div style="display:flex;gap:0.4rem;margin-top:0.3rem;">
-                                <button id="journalAddBtn" style="background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);color:#4a3a22;padding:0.15rem 0.6rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;">+ 新页</button>
-                                <button id="journalDelBtn" style="background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);color:#8a3a3a;padding:0.15rem 0.6rem;border-radius:3px;font-size:0.65rem;cursor:pointer;font-family:inherit;">🗑 删此页</button>
-                            </div>`;
-                        // 自动保存 + 按钮事件
-                        setTimeout(function() {
-                            const jt = document.getElementById('journalTitle');
-                            const jc = document.getElementById('journalText');
-                            if (jt) jt.addEventListener('input', saveCurrentPage);
-                            if (jc) jc.addEventListener('input', saveCurrentPage);
-                            const addBtn = document.getElementById('journalAddBtn');
-                            const delBtn = document.getElementById('journalDelBtn');
-                            if (addBtn) addBtn.addEventListener('click', function() {
+                            var addBtn2 = document.getElementById('journalAddBtn2');
+                            var delBtn2 = document.getElementById('journalBatchDelBtn2');
+                            if (addBtn2) addBtn2.addEventListener('click', function() {
                                 saveCurrentPage();
                                 bookPages.push({ title: '新页面', content: '' });
                                 currentPageIdx = bookPages.length - 1;
                                 renderBookContent();
                             });
-                            if (delBtn) delBtn.addEventListener('click', function() {
+                            if (delBtn2) delBtn2.addEventListener('click', function() {
                                 if (bookPages.length <= 1) { alert('至少保留一页'); return; }
                                 if (!confirm('确定删除当前第 '+(currentPageIdx+1)+' 页？')) return;
+                                saveCurrentPage();
                                 bookPages.splice(currentPageIdx, 1);
                                 if (currentPageIdx >= bookPages.length) currentPageIdx = bookPages.length - 1;
                                 renderBookContent();
+                            });
+                            var batchAll = document.getElementById('journalBatchDelAllBtn');
+                            if (batchAll) batchAll.addEventListener('click', function() {
+                                saveCurrentPage();
+                                var total = bookPages.length;
+                                var range = prompt('批量删除页面\n当前共 ' + total + ' 页\n请输入要删除的页码（如: 3-5 或 2,4,6）:', '');
+                                if (!range) return;
+                                var toRemove = [];
+                                var parts = range.split(',');
+                                parts.forEach(function(part) {
+                                    part = part.trim();
+                                    if (part.indexOf('-') >= 0) {
+                                        var rp = part.split('-');
+                                        var s = parseInt(rp[0]), e = parseInt(rp[1]);
+                                        if (!isNaN(s) && !isNaN(e)) for (var ri = Math.min(s,e); ri <= Math.max(s,e); ri++) toRemove.push(ri);
+                                    } else {
+                                        var n = parseInt(part);
+                                        if (!isNaN(n)) toRemove.push(n);
+                                    }
+                                });
+                                if (toRemove.length === 0) return;
+                                if (toRemove.length >= total) { alert('不能删除所有页面，至少保留一页'); return; }
+                                if (!confirm('确定删除以下 ' + toRemove.length + ' 页吗？\n页码: ' + toRemove.join(', ') + '\n此操作不可恢复。')) return;
+                                toRemove.sort(function(a,b){return b-a;});
+                                toRemove.forEach(function(n) { var idx = n - 1; if (idx >= 0 && idx < bookPages.length) bookPages.splice(idx, 1); });
+                                if (currentPageIdx >= bookPages.length) currentPageIdx = bookPages.length - 1;
+                                renderBookContent();
+                            });
+                            // 翻页导航
+                            function goJournalPage(n) { saveCurrentPage(); currentPageIdx = Math.max(0, Math.min(n, bookPages.length - 1)); renderBookContent(); }
+                            var pi = document.getElementById('journalPageInput');
+                            var prev = document.getElementById('journalPrevBtn');
+                            var next = document.getElementById('journalNextBtn');
+                            if (pi) { pi.addEventListener('change', function() { var v = parseInt(this.value) - 1; if (!isNaN(v)) goJournalPage(v); }); pi.addEventListener('keydown', function(e) { if (e.key === 'Enter') { var v = parseInt(this.value) - 1; if (!isNaN(v)) goJournalPage(v); } }); }
+                            if (prev) prev.addEventListener('click', function() { if (currentPageIdx > 0) goJournalPage(currentPageIdx - 1); });
+                            if (next) next.addEventListener('click', function() { if (currentPageIdx < bookPages.length - 1) goJournalPage(currentPageIdx + 1); });
+                        }, 50);
+
+                        // 右页：内容编辑 + 保存按钮
+                        rightEl.innerHTML = ''
+                            + '<input class="book-journal-title" id="journalTitle" value="' + (page.title||'').replace(/"/g,'&quot;') + '" placeholder="标题..." maxlength="60">'
+                            + '<textarea class="book-journal-text" id="journalText" placeholder="在此书写笔记...">' + (page.content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>'
+                            + '<div style="display:flex;gap:0.4rem;margin-top:0.3rem;align-items:center;">'
+                            + '<button id="journalSaveBtn" style="background:rgba(60,120,60,0.15);border:1px solid #5a8a5a;color:#3a6a3a;padding:0.2rem 0.8rem;border-radius:3px;font-size:0.68rem;cursor:pointer;font-family:inherit;font-weight:600;">💾 保存笔记</button>'
+                            + '<span id="journalSaveHint" style="font-size:0.58rem;color:#8a7a5a;"></span>'
+                            + '</div>';
+                        setTimeout(function() {
+                            var jt = document.getElementById('journalTitle');
+                            var jc = document.getElementById('journalText');
+                            var saveBtn = document.getElementById('journalSaveBtn');
+                            var hint = document.getElementById('journalSaveHint');
+                            if (jt) jt.addEventListener('input', function() { if(hint)hint.textContent='● 未保存'; });
+                            if (jc) jc.addEventListener('input', function() { if(hint)hint.textContent='● 未保存'; });
+                            if (saveBtn) saveBtn.addEventListener('click', function() {
+                                saveCurrentPage();
+                                if (hint) hint.textContent = '✓ 已保存';
+                                setTimeout(function() { if(hint)hint.textContent=''; }, 2000);
                             });
                         }, 100);
                     } else if (activeBookTab === 'gifts') {
@@ -7764,7 +8258,7 @@
                     if (!data) {
                         document.getElementById('campCharDetail').innerHTML = '<div style="color:#5a7a9a;text-align:center;padding:1rem;">请选择或创建角色</div>';
                         document.getElementById('campCharStatus').textContent = '未选择';
-                        document.getElementById('campCharNameInHeader').textContent = '—';
+                        document.getElementById('campCharNameInHeader').textContent = _northUsername ? '· ' + _northUsername : '';
                         return;
                     }
                     // 同步 activeChar（工作间背包/合成依赖此引用）
@@ -7773,7 +8267,7 @@
                     // 刷新所有工坊背包
                     if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
                     document.getElementById('campCharStatus').textContent = data.rank || '青羽';
-                    document.getElementById('campCharNameInHeader').textContent = '· ' + id;
+                    /* campCharName now always shows username */
                     const mods = {};
                     ['str','dex','con','int','wis','cha'].forEach(k => { mods[k] = Math.floor((data[k]-10)/2); });
                     const hpPct = Math.round(data.hp / Math.max(1, data.hpMax) * 100);
@@ -8191,7 +8685,8 @@
                     if (activeCharId === id) {
                         activeChar = null;
                         activeCharId = null;
-                        document.getElementById('charNameInHeader').textContent = '—';
+                        document.getElementById('charNameInHeader').textContent = _northUsername ? '· ' + _northUsername : '';
+                        document.getElementById('campCharNameInHeader').textContent = _northUsername ? '· ' + _northUsername : '';
                         charStatus.textContent = '未选择';
                         charDetailContainer.innerHTML = '<div style="color:#5a7a9a;font-size:0.8rem;text-align:center;padding:0.8rem 0;">请选择或创建角色</div>';
                     }

@@ -1,0 +1,89 @@
+═══════════════════════════════════════════════════════════════════
+  尘封之卷 v4.5 → v5.0  本次启动完整更新总结
+  日期: 2026-08-04
+═══════════════════════════════════════════════════════════════════
+
+本次启动实施了 19 个任务，覆盖全平台后端、前端、数据库、CI/CD。
+
+
+━━━ 一、数据库升级：SQLite → SQLAlchemy ORM ━━━
+
+  1. 新增 config.py — 统一配置，DATABASE_URL 环境变量切换数据库
+  2. 新增 core/database.py — SQLAlchemy 引擎/会话管理
+  3. 新增 core/models.py — 18张表完整 ORM 模型（含级联关系）
+  4. 重写 core/character.py — 1864行→600行，52个函数 raw sqlite3→ORM
+  5. web/app.py 集成 ORM 初始化
+  6. requirements.txt 补 flask-sock、alembic
+
+  收益: 连接池复用、自动级联删除、一行配置切换 PostgreSQL
+
+
+━━━ 二、用户认证系统 ━━━
+
+  7. 新增 users 表 + 注册/登录/修改资料/修改密码 API（6个端点）
+  8. 官网登录/注册从 localStorage 假数据改为真实 API
+  9. 密码强度: 至少9位 + 必须含英文和数字 + scrypt 哈希
+  10. 用户ID自动分配不可修改，用户名可在用户中心修改
+  11. 登录时自动关联旧角色（created_by 匹配）
+
+
+━━━ 三、跑团平台身份绑定 ━━━
+
+  12. 跑团平台加入房间绑定官网 user_id
+  13. DM 身份绑定到 user_id（改名不丢 DM）
+  14. 自动上下线追踪（beforeunload + visibilitychange）
+  15. 未登录用户点击跑团入口弹出注册提示
+
+
+━━━ 四、地图系统优化 ━━━
+
+  16. 修复地图图层损坏加载死循环（自动清理 + 手动清理按钮）
+  17. 地图 JSON 存档系统: 导出下载 + 服务端保存/加载
+  18. 自动保存同步到跑团存档/地图/_autosave.json
+
+
+━━━ 五、北境雪原重大更新 ━━━
+
+  19. 冒险者名称绑定官网账号（开幕后弹出输入框，已登录自动跳过）
+  20. 数据从 localStorage 迁移到 PostgreSQL（north_saves 表）
+  21. 自动保存（每30秒 + 事件后2秒）+ 进入自动加载
+  22. 冒险笔记改造: 左页目录 + 右页编辑 + 💾 保存按钮 + 批量删除
+  23. 翻页导航固定在底部，按钮颜色加深
+  24. 输入框底色改为羊皮纸色(#e8d5b0)
+  25. alert() 弹窗替换为北境冰霜主题
+  26. favicon 品牌图标（17个页面）
+  27. 深色/浅色模式切换
+
+
+━━━ 六、基础设施与CI/CD ━━━
+
+  28. GitHub Actions CI/CD: ci.yml + lint.yml + smoke-test.yml
+  29. Dependabot 自动依赖更新
+  30. utils/logger.py 统一日志系统（文件轮转+请求日志+审计+前端错误上报）
+  31. common-error-handler.js 前端错误处理（Toast/Loading/网络检测）
+  32. .flake8 + .gitattributes + dependabot.yml 配置文件
+
+
+━━━ 七、清理与优化 ━━━
+
+  33. 删除冗余: north-expedition-backup-v2 / dice-box-backup-v2 / dice3d-backup-v2 / dice-v2 / tmp_dice_pkg
+  34. 删除废弃 map_saves 目录
+  35. 删除 .claude 目录
+  36. 修复 _test_dice.html 过期引用
+  37. 聊天记录自动归档（chat_archive/）
+  38. 统计快照归档 API
+  39. README.txt → README.md
+  40. 功能卡片点击区域优化
+  41. 用户中心接入真实API
+  42. 角色数量统计含 legacy 数据
+  43. 密码规则强化
+  44. 在线用户脏数据清理
+
+
+━━━ 数据统计 ━━━
+  新增文件: 17 个
+  修改文件: 25+ 个
+  删除文件/目录: 7 个
+  新增 API: 20+ 个
+  代码行数: Python +1200 / JS +800 / HTML +300
+  数据库: 15表 → 18表

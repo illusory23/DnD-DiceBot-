@@ -2,16 +2,25 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>尘封之卷 — 跑团伙伴平台 v2</title>
 <style>
-:root {
+:root, [data-theme='dark'] {
   --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
   --text: #e0e0e0; --text-dim: #888; --text-light: #666;
   --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
   --gold: #ffd700; --green: #4caf50; --red: #f44336;
   --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
   --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+[data-theme='light'] {
+  --bg: #f5f0eb; --surface: #fffef9; --surface2: #f0ebe3;
+  --text: #2c2416; --text-dim: #8b7355; --text-light: #b8a88a;
+  --accent: #c0392b; --accent-light: rgba(192,57,43,0.08);
+  --gold: #8b6914; --green: #2d7d46; --red: #c0392b;
+  --cyan: #1a7a8a; --border: #d4c8b8; --border-light: #e8ddd0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-width:320px;}
@@ -63,7 +72,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .section-title{font-size:1.05rem;font-weight:700;color:var(--gold);padding:8px 0;border-bottom:2px solid var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:color 0.2s;}
 .section-title:hover{color:#fff;}
 .board-list{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
-.board-row{background:var(--surface);display:flex;align-items:center;gap:14px;padding:12px 16px;transition:background 0.15s;cursor:pointer;}
+.board-row{background:var(--surface);display:flex;align-items:center;gap:14px;padding:12px 16px;transition:background 0.15s;}
 .board-row:hover{background:rgba(255,215,0,0.05);border-left:2px solid var(--gold);}
 .board-icon{font-size:1.8rem;flex-shrink:0;width:40px;text-align:center;}
 .board-info{flex:1;min-width:0;}
@@ -79,7 +88,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 /* ━━ 帖子列表 ━━ */
 .thread-list{background:var(--surface);border:1px solid var(--border);border-radius:4px;}
 .thread-header{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:0.78rem;color:var(--text-dim);font-weight:600;}
-.thread-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-light);transition:background 0.15s;cursor:pointer;}
+.thread-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-light);transition:background 0.15s;}
 .thread-row:hover{background:rgba(255,215,0,0.05);}
 .thread-row:last-child{border-bottom:none;}
 .thread-icon{font-size:1.2rem;flex-shrink:0;width:28px;text-align:center;}
@@ -114,7 +123,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .feature-detail-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px;}
 .feature-detail-card .detail-content{font-size:0.88rem;color:var(--text);line-height:1.9;}
 .feat-icon{font-size:2.2rem;margin-bottom:8px;}
-.feat-name{font-size:0.85rem;font-weight:600;color:var(--gold);margin-bottom:4px;}
+.feat-name{font-size:0.85rem;font-weight:600;color:var(--gold);margin-bottom:4px;text-decoration:underline;text-underline-offset:3px;}
 .feat-desc{font-size:0.73rem;color:var(--text-dim);line-height:1.5;}
 .platform-entry .entry-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:linear-gradient(135deg,var(--accent),#c0392b);color:#fff;text-decoration:none;border-radius:4px;font-size:0.85rem;font-weight:600;letter-spacing:1px;transition:all 0.3s;text-align:center;}
 .platform-entry .entry-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(233,68,96,0.35);color:#fff;}
@@ -146,7 +155,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .thread-tag.hot{background:var(--red);}
 .thread-tag.new{background:var(--green);}
 .workshop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;}
-.ws-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:all 0.2s;cursor:pointer;}
+.ws-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:all 0.2s;}
 .ws-card:hover{border-color:var(--accent);box-shadow:var(--shadow);}
 .ws-img{height:100px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:2.8rem;}
 .ws-body{padding:10px 12px;}
@@ -180,7 +189,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center;}
 .modal-overlay.show{display:flex;}
 .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:28px 24px;max-width:400px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15);position:relative;}
-.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;color:var(--text-dim);font-size:1.3rem;cursor:pointer;}
+.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;color:var(--text-dim);font-size:1.3rem;}
 .modal-close:hover{color:var(--text);}
 .modal-card h2{font-size:1.1rem;color:var(--accent);margin-bottom:16px;text-align:center;}
 .modal-card input{width:100%;padding:9px 12px;margin-bottom:10px;border:1px solid var(--border);border-radius:3px;font-size:0.9rem;color:var(--text);background:var(--bg);}
@@ -202,6 +211,9 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
   .header-inner{flex-direction:column;align-items:flex-start;}
   .header-actions{padding-bottom:8px;}
 }
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:9999;width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--gold);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.2);transition:all 0.3s;}
+.theme-toggle:hover{transform:scale(1.1);}
 </style>
 </head>
 <body>
@@ -255,7 +267,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
   <aside class="sidebar">
     <!-- 用户面板 -->
     <div class="side-card" id="side-user">
-      <div class="side-head">👤 冒险者面板</div>
+      <div class="side-head">👤 冒险者信息</div>
       <div class="side-body" style="text-align:center;">
         <div style="font-size:3rem;margin-bottom:6px;">⚔️</div>
         <div style="font-size:0.85rem;color:var(--text-dim);" id="side-username">登录后查看冒险者信息</div>
@@ -296,7 +308,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
     <!-- 跑团平台入口 -->
     <div class="side-card platform-entry">
       <div class="side-body">
-        <a href="/dice3d" class="entry-btn">🎲 进入跑团平台 <span class="entry-arrow">→</span></a>
+        <a href="javascript:void(0)" class="entry-btn" onclick="checkAuthThenGo('/dice3d')">🎲 进入跑团平台 <span class="entry-arrow">→</span></a>
       </div>
     </div>
   </aside>
@@ -340,7 +352,7 @@ body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',s
     <h2>✨ 创建冒险者账号</h2>
     <input type="text" id="reg-user" placeholder="用户名">
     <input type="email" id="reg-email" placeholder="邮箱">
-    <input type="password" id="reg-pass" placeholder="密码（至少6位）">
+    <input type="password" id="reg-pass" placeholder="密码（至少9位，含英文+数字）">
     <input type="password" id="reg-pass2" placeholder="确认密码">
     <button class="modal-btn btn-primary" onclick="doRegister()">注册</button>
     <div class="modal-error" id="reg-error"></div>
@@ -361,11 +373,11 @@ function hEscape(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").
 function showModal(t){S("modal-"+t).classList.add("show");}
 function hideModal(t){S("modal-"+t).classList.remove("show");}
 document.querySelectorAll(".modal-overlay").forEach(function(m){m.addEventListener("click",function(e){if(e.target===m)m.classList.remove("show");});});
-function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;if(!u||!p){S("login-error").textContent="请填写用户名和密码";return;}var users={};try{users=JSON.parse(localStorage.getItem("portal_users")||"{}");}catch(e){}var ud=users[u];if(ud)localStorage.setItem("portal_user_data",JSON.stringify(ud));var r=S("login-remember").checked;if(r){localStorage.setItem("portal_user",u);localStorage.setItem("portal_remember","1");}else{sessionStorage.setItem("portal_user",u);localStorage.removeItem("portal_user");localStorage.removeItem("portal_remember");}hideModal("login");updateUserUI(u);}
-function doRegister(){var u=S("reg-user").value.trim();var e=S("reg-email").value.trim();var p=S("reg-pass").value;var p2=S("reg-pass2").value;var err=S("reg-error");if(!u||!e||!p){err.textContent="请填写所有字段";return;}if(p.length<6){err.textContent="密码至少6位";return;}if(p!==p2){err.textContent="两次密码不一致";return;}var users={};try{users=JSON.parse(localStorage.getItem("portal_users")||"{}");}catch(e){}if(users[u]){err.textContent="用户名已存在";return;}var uid=parseInt(localStorage.getItem("portal_user_counter")||"0")+1;localStorage.setItem("portal_user_counter",uid);var ud={id:uid,username:u,email:e,phone:"",bio:"",created_at:new Date().toISOString().slice(0,10)};users[u]=ud;localStorage.setItem("portal_users",JSON.stringify(users));localStorage.setItem("portal_user_data",JSON.stringify(ud));sessionStorage.setItem("portal_user",u);hideModal("register");updateUserUI(u);}
-function updateUserUI(name){S("side-username").textContent="👤 "+name;S("side-user").querySelector(".side-body").innerHTML="<div style='font-size:0.85rem;color:var(--accent);'><b>"+name+"</b></div><div style='font-size:0.72rem;color:var(--text-dim);'>已登录</div><button class='btn' onclick='doLogout()' style='font-size:0.72rem;margin-top:8px;width:100%;'>退出</button>";document.getElementById("header-actions").innerHTML="<a href='#' style='color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:8px;'>帮助</a><span class='user-info'>"+name+"</span><button class='btn' onclick='doLogout()'>退出</button>";}
-function doLogout(){sessionStorage.removeItem("portal_user");localStorage.removeItem("portal_user");localStorage.removeItem("portal_user_data");localStorage.removeItem("portal_remember");location.reload();}
-(function(){var u=sessionStorage.getItem("portal_user")||localStorage.getItem("portal_user");if(u)updateUserUI(u);})();
+function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;var err=S("login-error");if(!u||!p){err.textContent="请填写用户名和密码";return;}err.textContent="登录中...";fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error+(d.error.indexOf("用户名或密码")>=0?" — 还没有账号？点下方立即注册":"");return;}err.textContent="";hideModal("login");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
+function doRegister(){var u=S("reg-user").value.trim();var e=S("reg-email").value.trim();var p=S("reg-pass").value;var p2=S("reg-pass2").value;var err=S("reg-error");if(!u||!e||!p){err.textContent="请填写所有字段";return;}if(p.length<9){err.textContent="密码至少9位";return;}if(!/[a-zA-Z]/.test(p)||!/\d/.test(p)){err.textContent="密码必须包含英文和数字";return;}if(p!==p2){err.textContent="两次密码不一致";return;}err.textContent="注册中...";fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,email:e,password:p,confirm_password:p2})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error;return;}err.textContent="";hideModal("register");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
+function updateUserUI(name,userData){S("side-username").textContent="👤 "+name;var extra=userData?('<div style=font-size:0.68rem;color:var(--text-dim);>'+ (userData.character_count||0) +' 个角色</div>'):'';S("side-user").querySelector(".side-body").innerHTML="<div style='font-size:0.85rem;color:var(--accent);'><b>"+name+"</b></div>"+extra+"<button class='btn' onclick='doLogout()' style='font-size:0.72rem;margin-top:8px;width:100%;'>退出</button>";document.getElementById("header-actions").innerHTML="<a href='#' style='color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:8px;'>帮助</a><a href='/user' class='user-info' style='text-decoration:none;cursor:pointer;'>"+name+"</a><button class='btn' onclick='doLogout()'>退出</button>";}
+function doLogout(){fetch("/api/auth/logout",{method:"POST"}).then(function(){location.reload();}).catch(function(){location.reload();});}
+(function(){fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user)updateUserUI(d.user.username,d.user);}).catch(function(){});})();
 function toggleSidebar(){S("nav-sidebar").classList.toggle("open");}
 document.addEventListener("click",function(e){var sb=S("nav-sidebar");if(sb.classList.contains("open")&&!sb.contains(e.target)&&!e.target.closest(".nav-brand")){sb.classList.remove("open");}});
 function navTo(nav,el){_setSidebarActive(nav);if(nav==="home")renderHome();else if(nav==="features")renderFeatures();else if(nav==="community")renderCommunity();else if(nav==="workshop")renderWorkshop();else if(nav==="about")renderAbout();window.scrollTo(0,0);}
@@ -384,7 +396,7 @@ function showFeatureDetail(id){_setSidebarActive("features");
   var h="<div class='section-title'>"+d.title+"</div>";
   if(id!=="events") h+="<div class='feature-demo-card'><div class='demo-label'>📸 功能演示</div><div class='demo-content'>"+d.demo+"</div></div>";
   h+="<div class='feature-detail-card'><div class='detail-label'>📋 详细说明</div><div class='detail-content'>"+d.desc+"</div></div>";
-  if(id==="events") h+="<div class='north-call'><div class='north-call-inner'><div class='north-mist'></div><div class='north-call-decor'>❄️ ⬩ <img src='/static/portal/skull.png' style='border:0;display:inline-block;'> ⬩ ❄️</div><div class='north-call-title'>🗺️ 冒险者，这片大地埋葬了许多过去</div><div class='north-call-sub'>穿越苍白大地，揭开极北之地的古老面纱</div><button class='north-call-btn' onclick=\"window.location.href='/north-expedition'\">❄️ 进入北境雪原</button></div></div>";h+="<button class='detail-back-btn' onclick='renderFeatures()'>← 返回功能介绍</button>";
+  if(id==="events") h+="<div class='north-call'><div class='north-call-inner'><div class='north-mist'></div><div class='north-call-decor'>❄️ ⬩ <img src='/static/portal/skull.png' style='border:0;display:inline-block;'> ⬩ ❄️</div><div class='north-call-title'>🗺️ 冒险者，这片大地埋葬了许多过去</div><div class='north-call-sub'>穿越苍白大地，揭开极北之地的古老面纱</div><button class='north-call-btn' onclick=\"checkAuthThenGo('/north-expedition')\">❄️ 进入北境雪原</button></div></div>";h+="<button class='detail-back-btn' onclick='renderFeatures()'>← 返回功能介绍</button>";
   S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderFeatures()'>功能介绍</a> &raquo; "+d.title;
 }
 
@@ -418,6 +430,47 @@ function doCommunityPost(){var title=S("post-title").value.trim();var boardId=S(
 
 (function(){document.body.style.marginLeft="108px";document.body.style.paddingTop="56px";document.body.style.marginRight="0";})();
 renderHome();
+
+
+function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
+(function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();
+
+
+function checkAuthThenGo(url) {
+    fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){
+        if (d.ok && d.user) { window.location.href = url; }
+        else { showAuthRequiredModal(url); }
+    }).catch(function(){ showAuthRequiredModal(url); });
+}
+function showAuthRequiredModal(url) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay show';
+    overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+    var card = document.createElement('div');
+    card.className = 'modal-card';
+    card.style.textAlign = 'center';
+    card.style.maxWidth = '400px';
+    var h2 = document.createElement('h2');
+    h2.textContent = '🔐 请先注册登录';
+    card.appendChild(h2);
+    var p = document.createElement('p');
+    p.style.cssText = 'color:var(--text-dim);font-size:0.85rem;margin:14px 0 18px;line-height:1.6;';
+    p.textContent = '进入跑团平台需要注册账号，以便保存你的角色和冒险记录。';
+    card.appendChild(p);
+    var btnReg = document.createElement('button');
+    btnReg.className = 'modal-btn btn-primary';
+    btnReg.textContent = '📝 立即注册';
+    btnReg.onclick = function() { showModal('register'); overlay.remove(); };
+    card.appendChild(btnReg);
+    var btnLogin = document.createElement('button');
+    btnLogin.className = 'modal-btn btn-primary';
+    btnLogin.style.cssText = 'margin-top:10px;background:var(--surface);color:var(--text);border:1px solid var(--border);';
+    btnLogin.textContent = '🔑 已有账号，去登录';
+    btnLogin.onclick = function() { showModal('login'); overlay.remove(); };
+    card.appendChild(btnLogin);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+}
 
 </script>
 
@@ -464,5 +517,7 @@ renderHome();
     <div class="modal-error" id="post-error"></div>
   </div>
 </div>
+
+<button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
 </body>
 </html>

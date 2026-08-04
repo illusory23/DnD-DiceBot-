@@ -1,39 +1,5 @@
 [
   {
-    "name": "系统",
-    "text": "🔴 厄内 退出房间",
-    "time": "16:50:48",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785228648.8321526,
-    "system": true
-  },
-  {
-    "name": "天冥",
-    "text": "🎲 20d20 = [253]",
-    "time": "16:50:54",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "DM",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785228654.3084707
-  },
-  {
-    "name": "凌羽",
-    "text": "🎲 2d6+3 = [7]",
-    "time": "16:51:02",
-    "is_dm": false,
-    "color": "#888888",
-    "role": "PL",
-    "dice_roll": true,
-    "hidden": false,
-    "ip": "system",
-    "_ts": 1785228662.7492857
-  },
-  {
     "name": "凌羽",
     "text": "🎲 8d6 = [30]",
     "time": "16:51:14",
@@ -5464,5 +5430,37 @@
     "hidden": false,
     "ip": "system",
     "_ts": 1785836378.384764
+  },
+  {
+    "name": "🍺 天冥",
+    "text": "1",
+    "time": "22:38:42",
+    "is_dm": true,
+    "color": "#d4a050",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785854322.206685
+  },
+  {
+    "name": "🍺 天冥",
+    "text": "11111111111111",
+    "time": "22:38:47",
+    "is_dm": true,
+    "color": "#d4a050",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785854327.9365149
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [8]",
+    "time": "22:53:41",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785855221.2252746
   }
 ]

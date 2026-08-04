@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🎲 掷骰 — 尘封之卷</title>
 <link rel="stylesheet" href="/static/style.css">
 <script src="/static/common-error-handler.js"></script>
@@ -453,17 +454,22 @@ loadCharSelect();
   bp();
   window.toggleJoinColorPalette=function(){bp();document.getElementById('join-color-palette').classList.toggle('show');};
   window._selJC=function(c){joinColor=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+  // 检查官网登录状态，自动绑定账号
+  fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById('join-username').value=d.user.username;document.getElementById('join-subtitle').textContent='已绑定官网账号：'+d.user.username+'（可修改显示名）';}}).catch(function(){});
   fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){joinColor='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
   document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+  window._portalUserId=null;
   window.doJoin=function(){
     var name=document.getElementById('join-username').value.trim();
     if(!name){document.getElementById('join-error').textContent='请输入你的ID';return;}
     var btn=document.getElementById('join-btn');btn.disabled=true;btn.textContent='⏳ 连接中...';
     var jr=document.querySelector('input[name="join-role"]:checked');
     var role=jr?jr.value:'PL';
-    fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,color:joinColor,role:role})})
+    var body={name:name,color:joinColor,role:role};
+    if(window._portalUserId)body.user_id=window._portalUserId;
+    fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).then(function(data){
-      if(data.ok){sessionStorage.setItem(SK,JSON.stringify({name:name,color:joinColor,is_dm:data.is_dm,role:role}));document.getElementById('join-overlay').classList.add('hidden');if(data.is_dm||role==='DM'){document.getElementById('hidden-btn').style.display='';}if(data.online_count!==undefined){document.getElementById('chat-online').textContent=data.online_count+'人在线';}loadCharSelect();_heartbeatId=setInterval(fetchOnlineUsers,8000);}
+      if(data.ok){var save={name:name,color:joinColor,is_dm:data.is_dm,role:role};if(window._portalUserId)save.user_id=window._portalUserId;sessionStorage.setItem(SK,JSON.stringify(save));document.getElementById('join-overlay').classList.add('hidden');if(data.is_dm||role==='DM'){document.getElementById('hidden-btn').style.display='';}if(data.online_count!==undefined){document.getElementById('chat-online').textContent=data.online_count+'人在线';}loadCharSelect();_heartbeatId=setInterval(fetchOnlineUsers,8000);}
       else{document.getElementById('join-error').textContent='加入失败: '+(data.error||'未知错误');btn.disabled=false;btn.textContent='🚪 进入骰娘';}
     }).catch(function(e){document.getElementById('join-error').textContent='网络错误: '+e.message;btn.disabled=false;btn.textContent='🚪 进入骰娘';});
   };

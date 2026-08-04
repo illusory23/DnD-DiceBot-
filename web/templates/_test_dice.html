@@ -1,4 +1,5 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dice Test</title></head>
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><title>Dice Test</title></head>
 <body>
 <h1>Dice-box Test</h1>
 <div id="c" style="width:400px;height:300px;background:#111;"></div>
@@ -18,8 +19,8 @@ try{
 }catch(e){log.innerHTML+='ESM ERROR: '+e.message+'<br>';}
 </script>
 
-<!-- Test 2: world.onscreen -->
-<script src="/static/dice-box/world.onscreen.min.js"></script>
+<!-- Test 2: dice-box UMD -->
+<script src="/static/dice-box/Dice.min.js"></script>
 <script>
 var log2=document.getElementById('log');
 setTimeout(function(){

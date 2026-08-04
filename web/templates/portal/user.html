@@ -2,15 +2,23 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>用户中心 — 尘封之卷</title>
 <style>
-:root {
+:root, [data-theme='dark'] {
   --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
   --text: #e0e0e0; --text-dim: #888; --text-light: #666;
   --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
   --gold: #ffd700; --green: #4caf50; --red: #f44336;
   --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
+}
+[data-theme='light'] {
+  --bg: #f5f0eb; --surface: #fffef9; --surface2: #f0ebe3;
+  --text: #2c2416; --text-dim: #8b7355; --text-light: #b8a88a;
+  --accent: #c0392b; --accent-light: rgba(192,57,43,0.08);
+  --gold: #8b6914; --green: #2d7d46; --red: #c0392b;
+  --cyan: #1a7a8a; --border: #d4c8b8; --border-light: #e8ddd0;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;}
@@ -71,6 +79,9 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
 
 @media(max-width:600px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:9999;width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--gold);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.2);transition:all 0.3s;}
+.theme-toggle:hover{transform:scale(1.1);}
 </style>
 </head>
 <body>
@@ -111,17 +122,17 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
     <div class="card-header">📊 平台数据</div>
     <div class="card-body">
       <div class="stat-grid">
-        <div class="stat-item"><div class="stat-num" id="stat-workshop">0</div><div class="stat-label">工坊投稿</div></div>
-        <div class="stat-item"><div class="stat-num" id="stat-posts">0</div><div class="stat-label">社区发帖</div></div>
-        <div class="stat-item"><div class="stat-num" id="stat-replies">0</div><div class="stat-label">回复总数</div></div>
-        <div class="stat-item"><div class="stat-num" id="stat-downloads">0</div><div class="stat-label">被下载次数</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-workshop">0</div><div class="stat-label">角色数量</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-posts">0</div><div class="stat-label">—</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-replies">0</div><div class="stat-label">—</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-downloads">0</div><div class="stat-label">—</div></div>
       </div>
     </div>
   </div>
 
   <!-- ━━ 发布的资源 ━━ -->
   <div class="card">
-    <div class="card-header">🔧 创意工坊投稿</div>
+    <div class="card-header">🔧 创意角色数量</div>
     <div class="card-body">
       <div class="item-list" id="workshop-list">
         <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无投稿</div>
@@ -131,7 +142,7 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
 
   <!-- ━━ 社区帖子 ━━ -->
   <div class="card">
-    <div class="card-header">💬 社区发帖</div>
+    <div class="card-header">💬 —</div>
     <div class="card-body">
       <div class="item-list" id="posts-list">
         <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无发帖</div>
@@ -144,6 +155,8 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
 <div class="modal-overlay" id="edit-modal">
   <div class="modal-card">
     <h3>✏️ 编辑资料</h3>
+    <label style="font-size:0.78rem;color:var(--text-dim);">用户名（可修改，用户ID不变）</label>
+    <input type="text" id="edit-username" placeholder="用户名">
     <label style="font-size:0.78rem;color:var(--text-dim);">邮箱</label>
     <input type="email" id="edit-email" placeholder="绑定邮箱">
     <label style="font-size:0.78rem;color:var(--text-dim);">手机号</label>
@@ -158,67 +171,88 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
 </div>
 
 <script>
-// ━━ 加载用户数据 ━━
-function loadUserData(){
-  var user = null;
-  try { user = JSON.parse(localStorage.getItem('portal_user_data')); } catch(e) {}
-  if (!user) {
-    var name = sessionStorage.getItem('portal_user') || localStorage.getItem('portal_user');
-    if (name) {
-      user = { username: name, id: '-', email: '', phone: '', bio: '', created_at: '', last_login: '' };
-    }
-  }
-  if (!user) { return; }
+var _currentUser = null;
 
+// 加载用户数据（从服务器API）
+function loadUserData(){
+  fetch('/api/auth/me').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok || !d.user) {
+      // 未登录，跳转首页
+      document.querySelector('.container').innerHTML = '<div class="page-title">请先登录</div><div class="card"><div class="card-body" style="text-align:center;padding:40px;"><p style="color:var(--text-dim);margin-bottom:16px;">请先在首页登录或注册账号</p><a href="/" class="btn btn-primary" style="display:inline-block;">返回首页</a></div></div>';
+      return;
+    }
+    _currentUser = d.user;
+    renderUser(d.user);
+  }).catch(function(e){
+    console.error('加载用户数据失败:', e);
+  });
+}
+
+function renderUser(user){
   document.getElementById('info-id').textContent = user.id || '—';
   document.getElementById('info-username').textContent = user.username || '—';
-  if (user.email) { document.getElementById('info-email').textContent = user.email; document.getElementById('info-email').classList.remove('empty'); }
-  if (user.phone) { document.getElementById('info-phone').textContent = user.phone; document.getElementById('info-phone').classList.remove('empty'); }
-  document.getElementById('info-created').textContent = user.created_at || '—';
-  document.getElementById('info-login').textContent = user.last_login || '—';
-  if (user.bio) { document.getElementById('info-bio').textContent = user.bio; document.getElementById('info-bio').classList.remove('empty'); }
+  setValue('info-email', user.email);
+  setValue('info-phone', user.phone);
+  document.getElementById('info-created').textContent = (user.created_at||'').slice(0,10) || '—';
+  document.getElementById('info-login').textContent = (user.last_login||'').slice(0,16) || '—';
+  setValue('info-bio', user.bio, '暂无简介');
 
-  // 模拟统计数据
-  document.getElementById('stat-workshop').textContent = user.workshop_count || 0;
-  document.getElementById('stat-posts').textContent = user.posts_count || 0;
-  document.getElementById('stat-replies').textContent = user.replies_count || 0;
-  document.getElementById('stat-downloads').textContent = user.downloads_count || 0;
+  // 真实数据
+  document.getElementById('stat-workshop').textContent = user.character_count || 0;
+  document.getElementById('stat-posts').textContent = '—';
+  document.getElementById('stat-replies').textContent = '—';
+  document.getElementById('stat-downloads').textContent = '—';
 
   // 填充编辑框
+  document.getElementById('edit-username').value = user.username || '';
   document.getElementById('edit-email').value = user.email || '';
   document.getElementById('edit-phone').value = user.phone || '';
   document.getElementById('edit-bio').value = user.bio || '';
 }
 
-// ━━ 编辑弹窗 ━━
+function setValue(id, val, emptyText){
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (val) { el.textContent = val; el.classList.remove('empty'); }
+  else { el.textContent = emptyText || '未设置'; el.classList.add('empty'); }
+}
+
+// 编辑弹窗
 function showEditModal(){ document.getElementById('edit-modal').classList.add('show'); }
 function hideEditModal(){ document.getElementById('edit-modal').classList.remove('show'); }
 document.getElementById('edit-modal').addEventListener('click',function(e){ if(e.target===this)hideEditModal(); });
 
 function saveProfile(){
-  var user = null;
-  try { user = JSON.parse(localStorage.getItem('portal_user_data')); } catch(e) {}
-  if (!user) {
-    var name = sessionStorage.getItem('portal_user') || localStorage.getItem('portal_user');
-    user = { username: name || 'user', id: '-', email: '', phone: '', bio: '', created_at: '', last_login: '' };
-  }
-  user.email = document.getElementById('edit-email').value.trim();
-  user.phone = document.getElementById('edit-phone').value.trim();
-  user.bio = document.getElementById('edit-bio').value.trim();
-  localStorage.setItem('portal_user_data', JSON.stringify(user));
-  hideEditModal();
-  loadUserData();
+  var data = {
+    username: document.getElementById('edit-username').value.trim(),
+    email: document.getElementById('edit-email').value.trim(),
+    phone: document.getElementById('edit-phone').value.trim(),
+    bio: document.getElementById('edit-bio').value.trim(),
+  };
+  fetch('/api/auth/update-profile', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { alert(d.error); return; }
+    hideEditModal();
+    renderUser(d.user);
+  }).catch(function(e){ alert('保存失败: ' + e.message); });
 }
 
 function doLogout(){
-  sessionStorage.removeItem('portal_user');
-  localStorage.removeItem('portal_user');
-  localStorage.removeItem('portal_user_data');
-  localStorage.removeItem('portal_remember');
-  window.location.href = '/';
+  fetch('/api/auth/logout', {method:'POST'}).then(function(){
+    window.location.href = '/';
+  }).catch(function(){ window.location.href = '/'; });
 }
 
 loadUserData();
+
+function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
+(function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();
+
 </script>
+
+<button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
 </body>
 </html>

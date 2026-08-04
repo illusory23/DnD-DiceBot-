@@ -10,7 +10,9 @@ import builtins
 import re as _re
 from pathlib import Path as _Path
 
-from flask import Flask, render_template, request, jsonify, send_file, abort, redirect
+from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, session as _flask_session
+from datetime import datetime
+from core.database import db
 from utils.logger import (
     get_logger, setup_request_logging,
     log_frontend_error, get_frontend_errors,
@@ -104,8 +106,13 @@ _EVENT_GROUPS = [
 ]
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'chenfengzhijuan-dev-secret-change-in-production')
 # 请求体大小上限（资源上传最大 50MB，留余量；防止恶意超大 JSON 耗尽内存）
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
+
+# ━━━ SQLAlchemy ORM 初始化 ━━━
+from core.database import init_db as _init_orm_db
+_init_orm_db(app)  # 创建所有数据库表（含 users 表）
 
 # ━━━ 静态文件缓存 ━━━
 # 本地工具场景优先保证代码改动立即可见：JS/CSS 不做长缓存，避免浏览器沿用旧版脚本
@@ -192,8 +199,9 @@ _load_chat_log()
 _app_logger = get_logger('dicebot')
 
 # ━━━ DM/主机系统 ━━━
-_dm_name: str | None = None  # 当前DM的名字
-_dm_ip: str | None = None    # DM的IP地址
+_dm_name: str | None = None      # 当前DM的显示名
+_dm_ip: str | None = None        # DM的IP地址
+_dm_user_id: int | None = None   # DM的官网用户ID（改名不丢失DM身份）
 
 # ━━━ 在线用户/房间系统 ━━━
 # {name: {'ip': str, 'color': str, 'role': str, 'last_heartbeat': float, 'joined_at': float}}
@@ -541,14 +549,10 @@ def get_active():
 
 # ━━━ 页面路由 ━━━
 
-
-# 临时：为Vite chunk文件提供/assets/路径服务
-@app.route('/assets/<path:filename>')
-def serve_vite_assets(filename):
-    from flask import send_from_directory
-    import os
-    asset_dir = os.path.join(os.path.dirname(__file__), 'static', 'dice-v2', 'assets')
-    return send_from_directory(asset_dir, filename)
+@app.route('/favicon.ico')
+def favicon():
+    """将 .ico 请求重定向到 SVG 图标"""
+    return redirect('/static/favicon.svg')
 
 @app.route('/')
 def index():
@@ -616,18 +620,10 @@ def chat_page():
     return render_template('chat.html')
 
 
-@app.route('/dice3d-e')
-def dice3d_e_page():
-    """3D 确定性多人骰子"""
-    return render_template('dice3d-e.html')
-
-
 @app.route('/dice3d')
-def dice3d_redirect():
-    """重定向到新版3D骰子页面，保留查询参数"""
-    qs = request.query_string.decode('utf-8')
-    target = '/dice3d-e' + ('?' + qs if qs else '')
-    return redirect(target)
+def dice3d_page():
+    """3D掷骰主页面"""
+    return render_template('dice3d-e.html')
 
 
 # ━━━ API 路由 ━━━
@@ -3118,15 +3114,23 @@ def api_clear_mentions():
 
 @app.route('/api/dm-status', methods=['GET'])
 def api_dm_status():
-    """返回当前DM信息。有name时按名匹配，无name时按IP回退。"""
-    global _dm_name, _dm_ip
+    """返回当前DM信息。按 user_id > name > IP 优先级匹配。"""
+    global _dm_name, _dm_ip, _dm_user_id
     client_ip = request.remote_addr or 'unknown'
     name = request.args.get('name', '').strip()
+    user_id_str = request.args.get('user_id', '').strip()
 
-    if name and _dm_name is not None:
-        is_dm = (name == _dm_name)
-    elif _dm_name is not None:
-        is_dm = _is_dm_ip(client_ip) and (client_ip == _dm_ip)
+    if _dm_name is not None:
+        # 优先按 user_id 匹配（改名不丢DM）
+        if user_id_str and _dm_user_id is not None:
+            try:
+                is_dm = (int(user_id_str) == _dm_user_id)
+            except (ValueError, TypeError):
+                is_dm = (name == _dm_name)
+        elif name:
+            is_dm = (name == _dm_name)
+        else:
+            is_dm = _is_dm_ip(client_ip) and (client_ip == _dm_ip)
     else:
         is_dm = _is_dm_ip(client_ip)
 
@@ -3141,10 +3145,15 @@ def api_dm_status():
 
 def _prune_stale_users():
     """清理过期在线记录（超过10秒无心跳视为离线），并发送退出消息。"""
-    global _dm_name
+    global _dm_name, _dm_user_id, _dm_ip
     _now = _time.time()
     stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
     for n in stale_names:
+        # DM离线时清除DM身份
+        if _dm_name and n == _dm_name:
+            _dm_name = None
+            _dm_ip = None
+            _dm_user_id = None
         del _online_users[n]
         # 发送退出消息（与 api_room_leave 保持一致）
         if _dm_name and n != _dm_name:
@@ -3186,18 +3195,33 @@ def api_room_join():
         else:
             return jsonify({'ok': False, 'error': f'「{name}」已被使用，请更换ID'})
 
-    # 尊重用户选择的身份：只有明确选择DM且无人认领时才成为DM
-    if role == 'DM' and _dm_name is None:
-        _dm_name = name
-        _dm_ip = client_ip
-    elif role == 'DM' and _dm_name is not None and _dm_name != name:
-        role = 'PL'  # 已有人认领DM，后来者降为PL
-    # localhost不再自动成为DM——尊重用户的选择
+    # 绑定官网注册用户（可选）
+    user_id = data.get('user_id')
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
+
+    # DM 身份判定：优先通过 user_id 识别，其次通过 _dm_name
+    # 同一 user_id 改名后仍保持 DM 身份
+    if role == 'DM':
+        if _dm_name is None:
+            _dm_name = name
+            _dm_ip = client_ip
+            _dm_user_id = user_id
+        elif user_id is not None and _dm_user_id is not None and user_id == _dm_user_id:
+            # 同一用户改名：更新 DM 显示名，保持身份
+            _dm_name = name
+            _dm_ip = client_ip
+        elif _dm_name != name:
+            role = 'PL'  # 另有其人已是DM
 
     _online_users[name] = {
         'ip': client_ip,
         'color': color,
         'role': role,
+        'user_id': user_id,          # 关联 users 表主键
         'last_heartbeat': _time.time(),
         'joined_at': _time.time(),
     }
@@ -3268,13 +3292,18 @@ def api_room_heartbeat():
 @app.route('/api/room/leave', methods=['POST'])
 def api_room_leave():
     """用户离开房间。"""
-    global _online_users, _dm_name
+    global _online_users, _dm_name, _dm_user_id
     data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     if not name:
         return jsonify({'ok': False, 'error': 'Name required'})
 
     if name in _online_users:
+        # DM离开时清除DM身份
+        if _dm_name and name == _dm_name:
+            _dm_name = None
+            _dm_ip = None
+            _dm_user_id = None
         del _online_users[name]
 
         if _dm_name and name != _dm_name:
@@ -3901,8 +3930,254 @@ def api_delete_map_save(name):
         return jsonify({'error': f'删除失败: {e}'}), 500
 
 
+# ━━━ 用户认证 API ━━━
+
+from core.models import User as _UserModel, NorthSave as _NorthSave
+
+
+def _get_current_user() -> _UserModel | None:
+    """从 session 获取当前登录用户"""
+    user_id = _flask_session.get('user_id')
+    if user_id:
+        return db.session.get(_UserModel, user_id)
+    return None
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_auth_register():
+    """用户注册。用户ID由数据库自动分配（注册顺序），不可修改。用户名可在用户中心修改。"""
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '').strip()
+    confirm_password = (data.get('confirm_password') or '').strip()
+
+    if not username or not email or not password:
+        return jsonify({'ok': False, 'error': '请填写所有字段'}), 400
+    if len(username) < 2 or len(username) > 30:
+        return jsonify({'ok': False, 'error': '用户名需2-30个字符'}), 400
+    if len(password) < 9:
+        return jsonify({'ok': False, 'error': '密码至少9位'}), 400
+    if not (_re.search(r'[a-zA-Z]', password) and _re.search(r'\d', password)):
+        return jsonify({'ok': False, 'error': '密码必须包含英文和数字'}), 400
+    if password != confirm_password:
+        return jsonify({'ok': False, 'error': '两次密码不一致'}), 400
+
+    if _UserModel.query.filter_by(username=username).first():
+        return jsonify({'ok': False, 'error': '用户名已存在'}), 409
+    if _UserModel.query.filter_by(email=email).first():
+        return jsonify({'ok': False, 'error': '邮箱已被注册'}), 409
+
+    user = _UserModel(username=username, email=email)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    # 自动登录
+    _flask_session['user_id'] = user.id
+    _flask_session['username'] = user.username
+
+    ip = request.remote_addr or 'unknown'
+    audit_log('user.register', username=username, ip=ip, detail=f'新用户注册 id={user.id}')
+    _app_logger.info(f'新用户注册: {username} ({email})')
+
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    """用户登录"""
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    password = (data.get('password') or '').strip()
+
+    if not username or not password:
+        return jsonify({'ok': False, 'error': '请填写用户名和密码'}), 400
+
+    user = _UserModel.query.filter_by(username=username).first()
+    if not user or not user.check_password(password):
+        return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
+
+    _flask_session['user_id'] = user.id
+    _flask_session['username'] = user.username
+
+    # 更新最后登录时间
+    user.last_login = datetime.utcnow()
+    # 自动关联旧角色（created_by 匹配但 user_id 为空）
+    from core.models import Character as _Char
+    _Char.query.filter(
+        _Char.user_id.is_(None),
+        _Char.created_by == user.username,
+    ).update({_Char.user_id: user.id}, synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    """获取当前登录用户信息"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '未登录'}), 401
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/update-profile', methods=['POST'])
+def api_auth_update_profile():
+    """修改个人资料（用户名、邮箱、手机、简介）"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    data = request.get_json(silent=True) or {}
+    new_username = (data.get('username') or '').strip()
+    new_email = (data.get('email') or '').strip().lower()
+    phone = (data.get('phone') or '').strip()
+    bio = (data.get('bio') or '').strip()
+
+    if new_username and new_username != user.username:
+        if len(new_username) < 2 or len(new_username) > 30:
+            return jsonify({'ok': False, 'error': '用户名需2-30个字符'}), 400
+        if _UserModel.query.filter_by(username=new_username).first():
+            return jsonify({'ok': False, 'error': '用户名已存在'}), 409
+        user.username = new_username
+        _flask_session['username'] = new_username
+    if new_email and new_email != user.email:
+        if _UserModel.query.filter_by(email=new_email).first():
+            return jsonify({'ok': False, 'error': '邮箱已被使用'}), 409
+        user.email = new_email
+    if phone:
+        user.phone = phone
+    if bio:
+        user.bio = bio
+
+    db.session.commit()
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+def api_auth_change_password():
+    """修改密码"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    data = request.get_json(silent=True) or {}
+    old_password = (data.get('old_password') or '').strip()
+    new_password = (data.get('new_password') or '').strip()
+
+    if not user.check_password(old_password):
+        return jsonify({'ok': False, 'error': '原密码错误'}), 400
+    if len(new_password) < 9:
+        return jsonify({'ok': False, 'error': '新密码至少9位'}), 400
+    if not (_re.search(r'[a-zA-Z]', new_password) and _re.search(r'\d', new_password)):
+        return jsonify({'ok': False, 'error': '新密码必须包含英文和数字'}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    """退出登录"""
+    _flask_session.pop('user_id', None)
+    _flask_session.pop('username', None)
+    return jsonify({'ok': True})
+
+
+# 注入到 Jinja2 模板全局变量
+@app.context_processor
+def _inject_user():
+    return {'current_user': _get_current_user()}
+
+
+# ━━━ 北境雪原存档 API ━━━
+
+@app.route('/api/north/save', methods=['POST'])
+def api_north_save():
+    """保存北境雪原存档到数据库。
+
+    请求体: { save_name, save_data }
+      save_name: 存档名称（默认 'auto'）
+      save_data: JSON 格式的完整游戏状态
+    自动关联当前登录用户（如已登录）
+    """
+    data = request.get_json(silent=True) or {}
+    save_name = (data.get('save_name') or 'auto').strip()
+    save_data = data.get('save_data')
+    if not save_data:
+        return jsonify({'ok': False, 'error': '缺少存档数据'}), 400
+
+    user = _get_current_user()
+    user_id = user.id if user else None
+
+    # 查找现有存档（同一用户+同一名称）
+    existing = _NorthSave.query.filter_by(user_id=user_id, save_name=save_name).first()
+    if existing:
+        existing.save_data = _json.dumps(save_data, ensure_ascii=False)
+        existing.updated_at = datetime.utcnow()
+    else:
+        ns = _NorthSave(
+            user_id=user_id,
+            save_name=save_name,
+            save_data=_json.dumps(save_data, ensure_ascii=False),
+        )
+        db.session.add(ns)
+    db.session.commit()
+
+    return jsonify({'ok': True, 'save_name': save_name})
+
+
+@app.route('/api/north/load', methods=['GET'])
+def api_north_load():
+    """加载北境雪原存档。
+
+    URL参数: ?save_name=auto（默认 'auto'）
+    已登录用户加载自己的存档，未登录返回空。
+    """
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录官网账号'}), 401
+
+    save_name = request.args.get('save_name', 'auto').strip()
+    ns = _NorthSave.query.filter_by(user_id=user.id, save_name=save_name).first()
+    if not ns:
+        return jsonify({'ok': False, 'save_data': None})
+
+    try:
+        save_data = _json.loads(ns.save_data)
+    except Exception:
+        save_data = None
+
+    return jsonify({
+        'ok': True,
+        'save_name': save_name,
+        'save_data': save_data,
+        'updated_at': ns.updated_at.isoformat() if ns.updated_at else '',
+    })
+
+
+@app.route('/api/north/saves', methods=['GET'])
+def api_north_list_saves():
+    """列出当前用户的所有北境存档"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    saves = _NorthSave.query.filter_by(user_id=user.id).order_by(_NorthSave.updated_at.desc()).all()
+    return jsonify({
+        'ok': True,
+        'saves': [{
+            'save_name': s.save_name,
+            'updated_at': s.updated_at.isoformat() if s.updated_at else '',
+            'size': len(s.save_data) if s.save_data else 0,
+        } for s in saves],
+    })
+
+
 def run_server():
     """启动 Web 服务器（HTTP + WebSocket 共用 5000 端口）"""
+    # 数据库表已在模块加载时通过 _init_orm_db(app) 创建
     # 安装请求日志中间件
     setup_request_logging(app, _app_logger)
     _app_logger.info('尘封之卷 Web 服务器启动中...')

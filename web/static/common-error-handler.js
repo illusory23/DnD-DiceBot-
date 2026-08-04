@@ -332,8 +332,43 @@
     document.head.appendChild(styleEl);
   }
 
-  // ━━━ 全局 loading 快捷键绑定（可选）━━━
+  // ━━━ 上下线自动追踪 ━━━
+  // 离开跑团页面时自动发送 leave，切换标签页时通过心跳更新状态
+  var _hasLeft = false;
+  function _leaveRoom() {
+    if (_hasLeft) return;
+    _hasLeft = true;
+    var name = '';
+    try { var s = JSON.parse(sessionStorage.getItem('dnd_joined_room')); if (s) name = s.name || ''; } catch(e) {}
+    if (!name) return;
+    var data = JSON.stringify({name: name});
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/room/leave', new Blob([data], {type: 'application/json'}));
+    } else {
+      fetch('/api/room/leave', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: data}).catch(function(){});
+    }
+  }
+  // 页面关闭/刷新时自动离开
+  window.addEventListener('beforeunload', _leaveRoom);
+  // 切换标签页时：隐藏时立即心跳告知离线，显示时立即心跳告知在线
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      _leaveRoom();
+    } else {
+      _hasLeft = false;
+      // 重新上线：快速心跳
+      var name = '';
+      try { var s = JSON.parse(sessionStorage.getItem('dnd_joined_room')); if (s) name = s.name || ''; } catch(e) {}
+      if (name) {
+        fetch('/api/room/heartbeat', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: name}),
+        }).catch(function(){});
+      }
+    }
+  });
+
   // 暴露到全局
-  window.___errorHandlerVersion = '1.0';
+  window.___errorHandlerVersion = '1.1';
   console.log('[尘封之卷] 错误处理模块已加载 ✓');
 })();

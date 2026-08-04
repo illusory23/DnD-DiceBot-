@@ -1,7 +1,5 @@
 name: CI — Python 后端
 
-# ━━━ 触发条件 ━━━
-# 推送到 main 分支 或 对 main 的 Pull Request
 on:
   push:
     branches: [main]
@@ -15,61 +13,42 @@ on:
       - '**.py'
       - 'requirements.txt'
       - '.github/workflows/ci.yml'
-  # 允许手动触发
   workflow_dispatch:
 
-# 并发控制: 同一分支的新运行会取消旧的
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Job 1: Python 语法 & 导入验证
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   syntax-and-imports:
     name: Python ${{ matrix.python-version }} — 语法 & 导入
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false  # 一个版本失败不影响其他
+      fail-fast: false
       matrix:
         python-version: ['3.11', '3.12', '3.13']
 
-    steps:
-      - name: 📥 检出代码
-        uses: actions/checkout@v4
+    # 静默 Node.js 弃用警告（actions 内部使用，不影响功能）
+    env:
+      ACTIONS_ALLOW_USE_UNOFFICIAL_NODE_VERSION: '1'
 
-      - name: 🐍 安装 Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: 📦 安装依赖
+      - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install flask-sock
 
-      - name: 🔍 检查所有 .py 文件语法
+      - name: 检查所有 .py 文件语法
         run: |
           echo "=== 编译检查所有 Python 文件 ==="
-          errors=0
-          # 排除 .git, backups, __pycache__, .venv, node_modules 等
-          find . -name "*.py" \
-            -not -path "*/.git/*" \
-            -not -path "*/backups/*" \
-            -not -path "*/__pycache__/*" \
-            -not -path "*/.venv/*" \
-            -not -path "*/node_modules/*" \
-            -not -path "*/Lib/*" \
-            -not -path "*/Scripts/*" \
-            -print0 | while IFS= read -r -d '' f; do
-            echo "  检查: $f"
-            python -m py_compile "$f" || errors=1
-          done
-          # 注意: 子shell 中 errors 无法传回，改用 xargs
-          echo ""
-          echo "=== 第二阶段: 汇总检查 ==="
           find . -name "*.py" \
             -not -path "*/.git/*" \
             -not -path "*/backups/*" \
@@ -79,46 +58,27 @@ jobs:
             -not -path "*/Lib/*" \
             -not -path "*/Scripts/*" \
             -exec python -m py_compile {} +
-          echo ""
           echo "✅ 所有 Python 文件语法检查通过"
 
-      - name: 🧪 验证核心模块可导入
+      - name: 验证核心模块可导入
         run: |
-          echo "=== 验证核心模块导入 ==="
           python -c "
           import sys, os
           sys.path.insert(0, os.getcwd())
-
-          modules = [
-              'core.dice_engine',
-              'core.dnd5e_rules',
-              'core.combat',
-              'utils.data_loader',
-              'utils.formatter',
-          ]
-          for m in modules:
-              try:
-                  __import__(m)
-                  print(f'  ✅ {m}')
-              except Exception as e:
-                  print(f'  ❌ {m}: {e}')
-                  sys.exit(1)
+          for m in ['core.dice_engine','core.dnd5e_rules','core.combat','utils.data_loader','utils.formatter']:
+              __import__(m)
+              print(f'  OK: {m}')
           print('所有核心模块导入成功')
           "
 
-      - name: 📋 检查依赖声明完整性
+      - name: 检查依赖声明完整性
         run: |
-          echo "=== 检查 requirements.txt ==="
-          # 扫描所有 .py 文件的 import 语句
-          echo "项目 import 的第三方库:"
+          echo "=== 项目使用的第三方库 ==="
           grep -rh "^import \|^from " --include="*.py" . \
-            | grep -v "^\s*#" \
-            | sed 's/import /|/g; s/from /|/g' \
-            | awk -F'|' '{print $2}' \
-            | awk -F'.' '{print $1}' \
-            | sort -u \
+            | grep -v "^\s*#" | sed 's/import /|/g; s/from /|/g' \
+            | awk -F'|' '{print $2}' | awk -F'.' '{print $1}' | sort -u \
             | grep -vE "^(core|utils|web|mods|dnd_bot|json|os|sys|re|time|pathlib|datetime|random|math|io|builtins|threading|atexit|base64|copy|logging|importlib|typing|collections|sqlite3|dataclasses|readline|pyreadline3|socket|hashlib)$" \
             || true
           echo ""
-          echo "requirements.txt 声明的依赖:"
+          echo "=== requirements.txt ==="
           cat requirements.txt
