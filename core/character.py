@@ -6,6 +6,7 @@
 """
 
 import os
+import json as _json
 from pathlib import Path
 from core.dnd5e_rules import (
     ability_modifier, proficiency_bonus, SKILL_TO_ABILITY,
@@ -42,11 +43,7 @@ def init_db() -> None:
 
 def _save():
     """提交数据库事务"""
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
+    db.session.commit()
 
 
 def resolve_portrait_path(path: str):
@@ -207,6 +204,15 @@ def _char_to_dict(char: Character) -> dict:
         d['appearance'] = bg.appearance or ''; d['backstory'] = bg.backstory or ''
         d['origin'] = bg.origin or ''; d['languages'] = bg.languages or ''
         d['tool_proficiencies'] = bg.tool_proficiencies or ''
+    # features — 专长/职业能力/种族特性/特殊能力
+    d['features'] = [{'id': f.id, 'category': f.category, 'feature_name': f.name,
+                       'description': f.description, 'sort_order': f.sort_order}
+                      for f in char.features]
+    # spell_slots — 法术位（前端期望 {slot_level: {max, used}} 格式）
+    spell_slots = {}
+    for s in char.spell_slots:
+        spell_slots[str(s.slot_level)] = {'max': s.max_slots, 'used': s.used_slots}
+    d['spell_slots'] = spell_slots
     return d
 
 
@@ -226,10 +232,12 @@ def _get_char(name_or_id) -> Character | None:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
-                     created_by: str = '') -> int:
+                     background: str = '', created_by: str = '', group_id: int = None) -> int:
     """创建角色并返回ID"""
     char = Character(
-        name=name, level=level, class_=cls, race=race, created_by=created_by,
+        name=name, level=level, class_=cls, race=race,
+        background_field=background, created_by=created_by,
+        group_id=group_id,
         hp_max=10, hp_current=10,
     )
     db.session.add(char)
@@ -498,7 +506,7 @@ def long_rest(char_id: int) -> dict:
     char.temp_hp = 0
     for slot in char.spell_slots:
         slot.used_slots = 0
-    char.hd_count = int(char.hit_dice[1:]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
+    char.hd_count = int(char.hit_dice.split('d')[1]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
     if char.death_saves:
         char.death_saves.successes = 0
         char.death_saves.failures = 0
@@ -836,6 +844,28 @@ def add_feature(char_id: int, category: str, name: str, description: str = '') -
     return f.id
 
 
+def update_feature(feature_id: int, **kwargs) -> bool:
+    """更新特性字段。kwargs 可选: name, description, category"""
+    f = CharacterFeature.query.get(feature_id)
+    if not f:
+        return False
+    for k, v in kwargs.items():
+        if hasattr(f, k):
+            setattr(f, k, v)
+    _save()
+    return True
+
+
+def delete_feature(feature_id: int) -> bool:
+    """删除特性"""
+    f = CharacterFeature.query.get(feature_id)
+    if not f:
+        return False
+    db.session.delete(f)
+    _save()
+    return True
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 角色分组
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -958,7 +988,12 @@ def import_from_excel_data(data: dict, source_file: str = '',
                    else Armor(character_id=char.id))
 
     # 背景
-    bg_data = data.get('background', {})
+    bg_data = data.get('background_data', data.get('background', {}))
+    if isinstance(bg_data, str):
+        try:
+            bg_data = _json.loads(bg_data)
+        except Exception:
+            bg_data = {}
     db.session.add(BackgroundDetail(character_id=char.id, **bg_data) if bg_data
                    else BackgroundDetail(character_id=char.id))
 
@@ -976,6 +1011,53 @@ def import_from_excel_data(data: dict, source_file: str = '',
         if prof:
             db.session.add(SaveProficiency(
                 character_id=char.id, ability_name=ability_name, is_proficient=True))
+
+    # 武器
+    for w in data.get('weapons', []):
+        if w and w.get('name'):
+            db.session.add(Weapon(
+                character_id=char.id,
+                name=w.get('name', ''),
+                attack_bonus=w.get('attack_bonus', 0),
+                damage_dice=str(w.get('damage_dice', '')),
+                damage_type=str(w.get('damage_type', '')),
+                is_proficient=w.get('is_proficient', True),
+                ammo=str(w.get('ammo', '')),
+                description=str(w.get('description', '')),
+                effect=str(w.get('effect', '')),
+            ))
+
+    # 物品/背包
+    for item in data.get('inventory', []):
+        if item and item.get('item_name'):
+            db.session.add(InventoryItem(
+                character_id=char.id,
+                item_name=item.get('item_name', ''),
+                quantity=item.get('quantity', 1),
+                weight=float(item.get('weight', 0)),
+                location=item.get('location', '背包'),
+                notes=str(item.get('description', '')),
+            ))
+
+    # 已准备法术
+    for spell in data.get('prepared_spells', []):
+        if spell and spell.get('name'):
+            db.session.add(PreparedSpell(
+                character_id=char.id,
+                spell_name=spell.get('name', ''),
+                spell_level=int(spell.get('level', 0)),
+            ))
+
+    # 特性/专长/职业能力/种族特性
+    for feat in data.get('features', []):
+        if feat and feat.get('name'):
+            db.session.add(CharacterFeature(
+                character_id=char.id,
+                category=feat.get('category', '特殊能力'),
+                name=feat.get('name', ''),
+                description=feat.get('description', ''),
+                sort_order=feat.get('sort_order', 0),
+            ))
 
     _save()
     return char.id

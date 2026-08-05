@@ -1,0 +1,22 @@
+主题：修复特性/专长分类映射不匹配 + 表头行误提取
+
+问题：
+- Excel 解析器成功提取 12 条特性，但页面不显示
+- 原因一：分类名不匹配
+  Excel 解析器输出中文分类（职业能力/种族特性/专长/特殊能力），
+  但北境页面渲染代码期望英文 key（class_feature/racial_trait/feat/special_ability）
+- 原因二：表头行（名称、描述、Lv）被误识别为词条
+
+修改内容：
+
+1. web/templates/north-expedition.html：
+   - importFromExcel 函数中 features 映射新增分类转换：
+     职业能力→class_feature、种族特性→racial_trait、专长→feat、
+     特殊能力→special_ability、其他→other
+   - 字段名对齐：feature_name→name、category→cat、description→desc
+
+2. utils/excel_importer.py：
+   - _import_features 新增表头关键词检测：名称/描述/Lv/等级等 ≤4 字符时跳过
+   - 扩大搜索范围：50-120 行（原 68-100）
+   - 新增 _import_features_from_sheet：自动扫描「特性」「专长」等专用 sheet
+   - 增强 B/A 列标签识别自动切换分类

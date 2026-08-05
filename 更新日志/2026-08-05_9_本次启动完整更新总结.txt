@@ -1,0 +1,159 @@
+═══════════════════════════════════════════════════════════════
+2026-08-05 本次启动完整更新总结
+═══════════════════════════════════════════════════════════════
+
+【一、北境营地 & 酒馆加载覆盖页】
+─────────────────────────────────────────────
+文件：web/templates/north-expedition.html
+
+1. 新增加载覆盖层系统：
+   - CSS：全屏冰蓝主题覆盖层（.north-loading-overlay 系列样式）
+   - HTML：覆盖层结构（背景图 + 尘封之卷标题 + 副标题 + 冰蓝进度条 + 提示文字）
+   - JS：showNorthLoading(type, callback) 函数（1.5秒进度条动画 → 淡出 → 回调）
+   - 背景图：/static/portal/loading_tavern.png（酒馆）、loading_camp.png（营地）
+   - 提示文字：固定「正在进入XXX...」，不再分段变化
+
+2. 修改 activateTab()：
+   - 营地和酒馆切换前调用 deactivateAll() 先隐藏旧视图
+   - 再用 showNorthLoading() 显示加载页
+   - 避免淡出时闪现旧界面
+
+3. 双向角色同步：
+   - 营地切换角色 → 同步更新探索界面角色选择器和详情
+   - 探索界面切换角色 → 同步更新营地角色选择器和详情
+
+【二、官网用户中心标题修正】
+─────────────────────────────────────────────
+文件：web/templates/portal/user.html
+
+1. 「🔧 创意角色数量」→「🔧 创意工坊投稿」（与 localStorage workshop_subs 一致）
+2. 「💬 —」→「💬 酒馆发帖数量」
+
+文件：web/app.py
+3. HTML 响应禁用缓存（防止模板更新不生效）
+
+【三、Excel 角色卡导入全管线修复】
+─────────────────────────────────────────────
+
+★ 问题链：Excel 解析器返回嵌套结构 → import_from_excel_data 期望扁平结构 →
+   background 字典当字符串写 SQL → 武器/背包/法术/特性全部跳过 →
+   API 返回字段格式与北境 JS 期望不一致 → 页面不显示
+
+◆ 服务端修复：
+
+文件：utils/excel_importer.py（+320行）
+
+1. 数据结构扁平化（app.py 配合）：
+   - import_character_from_excel 返回嵌套 {basic:{}, combat:{}, ...}
+   - app.py 新增扁平化步骤：basic.* → 顶层、combat.* → 顶层、
+     abilities/spell_info/coins 保持不变
+   - background 字典 → JSON 字符串（存 Character.background_field）
+   - background_data 保留原始字典（供 BackgroundDetail 模型）
+
+2. 武器/背包/法术入库（core/character.py import_from_excel_data）：
+   - 武器：遍历 data['weapons'] → Weapon(name, attack_bonus, damage_dice, ...)
+   - 背包：遍历 data['inventory'] → InventoryItem(item_name, quantity, ...)
+   - 法术：遍历 data['prepared_spells'] → PreparedSpell(spell_name, spell_level)
+   - 移除不存在的 weight 参数（Weapon 模型无此列）
+
+3. 特性/专长/职业能力提取（_import_features 函数）：
+   a. 动态定位特性区域：扫描 A/B 列找到精确标签（职业能力/专长/种族特性等）
+   b. 遇到「其他特性」停止提取（玩家自行填写）
+   c. 过滤表头行（名称/描述/Lv）、元数据行（职业/经验值/属性名）
+   d. 分类映射：中文名→英文 key（职业能力→class_feature, 专长→feat, 种族特性→racial_trait）
+   e. 提取范围：特性区域起始行到停止标签之间（约 69-80 行）
+   f. 当前提取结果：9 条（6 职业能力 + 3 专长，0 误判）
+
+4. 专用特性 sheet 扫描（_import_features_from_sheet）：
+   - 自动查找「特性」「专长」「职业能力」等命名的 sheet
+
+5. 关键属性提取：
+   - 全表搜索「关键属性」标签 → 读取同行右侧相邻列的值
+   - 定位：N19 / AD39 等单元格
+   - 同样逻辑应用于 v440 和 neko21 两种格式
+
+6. 版本检测调试（_detect_version）：
+   - 新增 print 输出检测结果，确认走 v440 或 neko21
+
+7. Bug 修复：
+   - neko21 函数 docstring 被 print 语句拆断（导致 400+ 行代码被当成字符串）
+   - 全角逗号（U+FF0C）替换为 ASCII 逗号
+   - \s 转义序列修复为空格
+
+文件：core/character.py（+65行）
+
+8. import_from_excel_data 补全：
+   - 武器入库（Weapon 模型，排除不存在的 weight 字段）
+   - 背包物品入库（InventoryItem 模型）
+   - 已准备法术入库（PreparedSpell 模型）
+   - 特性入库（CharacterFeature 模型：category/name/description/sort_order）
+   - background_data 兼容字符串/字典双格式（json.loads 兜底）
+   - _save() 不再静默吞异常（直接 raise，便于调试）
+   - 新增 import json as _json
+
+9. _char_to_dict 补全：
+   - 新增 features 数组输出（CharacterFeature → {category, feature_name, description}）
+
+文件：web/app.py（+66行）
+
+10. /api/character/import 端点：
+    - Excel 解析结果扁平化（14 个字段映射）
+    - 透传 features / inventory / weapons / background_data / key_abilities
+    - 响应新增 _debug 字段（features_count / features_sample）
+
+11. /api/auth/me 端点：
+    - user.to_dict() 返回 character_count（角色数统计）
+
+◆ 前端修复：
+
+文件：web/templates/north-expedition.html（+250行）
+
+12. 营地角色卡面板新增「📊 导入Excel」按钮：
+    - 绿色调，位于导出和 JSON 导入之间
+    - 隐藏文件输入框（accept=".xlsx,.xls"）
+
+13. importFromExcel(file) JS 函数：
+    a. 校验文件扩展名
+    b. POST /api/character/import（FormData）
+    c. 导入后立即 renderCharSelect() 刷新下拉列表
+    d. GET /api/character/<id> 获取完整角色数据
+    e. 映射服务器字段 → 北境 charData 格式：
+       - 基本信息：name/level/class/race/alignment/faith/gender/height/weight
+       - 战斗：hp/hpMax/ac/speed/profBonus/passivePerception
+       - 属性：str/dex/con/int/wis/cha
+       - 技能/豁免：skillProfs/saveProfs
+       - 武器：{name, bonus, damage, type}
+       - 背包：{name, qty, location}
+       - 钱币：cp/sp/gp（API 返回扁平字段）
+       - 背景：personality_traits→personality, ideals, bonds, flaws, appearance, backstory（API 返回扁平字段）
+       - 特性：feature_name→name, category→cat（中文→英文分类映射）
+       - 关键属性：key_abilities→keyAbilities
+       - 语言/起源/工具熟练
+
+14. 自动选中导入角色（800ms 延迟，等渲染完成）
+
+【四、其他修复】
+─────────────────────────────────────────────
+文件：core/character.py
+- _save() 不再静默吞异常（原 try/except/rollback 改为直接 commit，报错可见）
+
+文件：web/static/portal/
+- 新增加载页背景图：loading_tavern.png、loading_camp.png
+
+═══════════════════════════════════════════════════════════════
+修改文件清单
+═══════════════════════════════════════════════════════════════
+1. utils/excel_importer.py     - Excel 解析器（特性/关键属性/bug修复）
+2. web/app.py                  - Flask 路由（扁平化/调试/缓存）
+3. core/character.py           - 数据入库（武器/背包/法术/特性）
+4. web/templates/north-expedition.html - 北境页面（加载页/Excel导入/角色同步）
+5. web/templates/portal/user.html     - 官网用户中心（标题修正）
+6. web/static/portal/loading_tavern.png - 酒馆加载页背景图
+7. web/static/portal/loading_camp.png   - 营地加载页背景图
+
+═══════════════════════════════════════════════════════════════
+待后续优化
+═══════════════════════════════════════════════════════════════
+- 生存物资（口粮/燃料）改为按角色独立追踪（当前为全局共享）
+- 种族特性提取：当前 Excel 中人类变体无独立种族特性词条，需补充关键词
+- 特性描述过长时的展示优化（如"巨像屠夫"描述跨行截断）

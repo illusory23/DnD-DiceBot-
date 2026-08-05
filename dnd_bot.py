@@ -526,9 +526,55 @@ def cmd_char(args: str) -> tuple[str | None, str | None]:
         try:
             # 预览
             preview = import_and_print_summary(filepath)
-            # 导入
-            data = import_character_from_excel(filepath)
-            # CLI 导入使用系统用户名作为 created_by
+            # 导入 — Excel 解析结果需扁平化（与 web/app.py 保持一致）
+            raw = import_character_from_excel(filepath)
+            basic = raw.get('basic', {})
+            combat = raw.get('combat', {})
+            abilities = raw.get('abilities', {})
+            spell_info = raw.get('spell_info', {})
+            spell_slots = raw.get('spell_slots', {})
+            coins = raw.get('coins', {})
+            bg_data = raw.get('background', {})
+            data = {
+                'name': basic.get('name', '未命名'),
+                'player': basic.get('player', ''),
+                'class': basic.get('class', ''),
+                'level': basic.get('level', 1),
+                'race': basic.get('race', ''),
+                'background': json.dumps(bg_data, ensure_ascii=False) if bg_data else '',
+                'alignment': basic.get('alignment', ''),
+                'faith': basic.get('faith', ''),
+                'gender': basic.get('gender', ''),
+                'age': basic.get('age', ''),
+                'height': basic.get('height', ''),
+                'weight': basic.get('weight', ''),
+                'hp_max': combat.get('hp_max', 10),
+                'hp_current': combat.get('hp_current', 10),
+                'ac': combat.get('ac', 10),
+                'initiative_bonus': combat.get('initiative_bonus', 0),
+                'speed': combat.get('speed', 30),
+                'proficiency_bonus': basic.get('proficiency_bonus', 2),
+                'hd_count': combat.get('hd_count', 1),
+                'hit_dice': combat.get('hd_type', '1d8'),
+                'xp': basic.get('xp', 0),
+                'key_abilities': raw.get('key_abilities', basic.get('key_abilities', '')),
+                'resistances': raw.get('resistances', basic.get('resistances', '')),
+                'passive_perception': combat.get('passive_perception', 10),
+                'spellcasting_ability': spell_info.get('spellcasting_ability', ''),
+                'spell_attack_bonus': spell_info.get('spell_attack_bonus', 0),
+                'spell_save_dc': spell_info.get('spell_save_dc', 10),
+                'prepared_spell_count': spell_info.get('prepared_spell_count', 0),
+                'abilities': abilities,
+                'save_proficiencies': raw.get('save_proficiencies', {}),
+                'skill_proficiencies': raw.get('skill_proficiencies', {}),
+                'weapons': raw.get('weapons', []),
+                'spell_slots': spell_slots,
+                'prepared_spells': raw.get('prepared_spells', []),
+                'coins': coins,
+                'inventory': raw.get('inventory', []),
+                'features': raw.get('features', []),
+                'background_data': bg_data,
+            }
             import getpass
             cli_user = getpass.getuser()
             char_id = import_from_excel_data(data, source_file=os.path.abspath(filepath), created_by=cli_user)
@@ -811,9 +857,11 @@ def cmd_wealth(args: str) -> tuple[str | None, str | None]:
             return None, result['error']
 
         coin_names = {'cp': '铜币', 'sp': '银币', 'ep': '金银币', 'gp': '金币', 'pp': '白金币'}
-        cname = coin_names.get(result['coin_type'], result['coin_type'])
+        cname = coin_names.get(coin_type, coin_type)
+        new_val = result.get(coin_type, '?')
+        old_val = new_val - amount
         return (
-            f"💰 {cname}: {result['old']} → {result['new']} "
+            f"💰 {cname}: {old_val} → {new_val} "
             f"({'+' if amount >= 0 else ''}{amount})"
         ), None
 
@@ -922,28 +970,27 @@ def cmd_hp(args: str) -> tuple[str | None, str | None]:
             except ValueError:
                 return None, f"无效的最大HP值: {parts[2]}"
 
-        result = set_hp(char['id'], hp_current=requested_current, hp_max=max_val)
-        if 'error' in result:
-            return None, result['error']
+        ok = set_hp(char['id'], hp_current=requested_current, hp_max=max_val)
+        if not ok:
+            return None, '设置HP失败（角色不存在）'
 
-        status = result.get('status', '')
-        status_msg = f" ⚠ {status}" if status else ''
+        # 重新读取角色获取更新后的值
+        char = get_character(char['id'])
+        if not char:
+            return None, '读取角色失败'
 
-        # 提示被限制的情况
         capped_note = ''
-        effective_max = max_val if max_val is not None else char['hp_max']
-        if requested_current > effective_max:
-            capped_note = f'\n   💡 当前HP已自动限制为最大值 {effective_max}（无法超过最大HP）'
-        elif requested_current < 0:
-            capped_note = f'\n   💡 已自动调整为 0（HP不能为负）'
+        effective_max = max_val if max_val is not None else char.get('hp_max', 10)
+        actual_current = char.get('hp_current', 0)
+        actual_max = char.get('hp_max', 0)
 
         if max_val is not None:
             return (
                 f"✅ {char['name']} HP 已设置\n"
-                f"   ❤️ 当前: {result['hp_current']}  |  最大: {result['hp_max']}{status_msg}{capped_note}"
+                f"   ❤️ 当前: {actual_current}  |  最大: {actual_max}{capped_note}"
             ), None
         else:
-            return f"✅ {char['name']} 当前HP: {result['hp_current']}/{result['hp_max']}{status_msg}{capped_note}", None
+            return f"✅ {char['name']} 当前HP: {actual_current}/{actual_max}{capped_note}", None
 
     elif sub == 'max' or sub == '最大':
         if len(parts) < 2:
@@ -954,11 +1001,14 @@ def cmd_hp(args: str) -> tuple[str | None, str | None]:
         except ValueError:
             return None, f"无效的最大HP值: {parts[1]}"
 
-        result = set_hp(char['id'], hp_max=max_val)
-        if 'error' in result:
-            return None, result['error']
+        ok = set_hp(char['id'], hp_max=max_val)
+        if not ok:
+            return None, '设置HP失败（角色不存在）'
 
-        return f"✅ {char['name']} 最大HP: {result['hp_max']} (当前: {result['hp_current']})", None
+        char = get_character(char['id'])
+        if not char:
+            return None, '读取角色失败'
+        return f"✅ {char['name']} 最大HP: {char.get('hp_max','?')} (当前: {char.get('hp_current','?')})", None
 
     else:
         # 相对调整 (原逻辑)
@@ -1436,15 +1486,16 @@ def cmd_longrest(args: str) -> tuple[str | None, str | None]:
         return None, "请先选择角色: .char use <名字>"
 
     result = long_rest(char['id'])
-    if 'error' in result:
-        return None, result['error']
+    if not result:
+        return None, '长休失败（角色不存在）'
 
+    char = get_character(char['id']) or char
     return (
         f"🛌 {bold(char['name'])} 完成长休!\n"
-        f"   ❤️ HP 恢复至: {result['hp']}\n"
+        f"   ❤️ HP 恢复至: {result.get('hp_current','?')}/{result.get('hp_max','?')}\n"
         f"   ✨ 法术位已恢复\n"
         f"   💀 死亡豁免已重置\n"
-        f"   🎲 生命骰已恢复: {result.get('hd_restored', '?')}个"
+        f"   🎲 生命骰已恢复: {char.get('hd_count','?')}个"
     ), None
 
 
@@ -1461,27 +1512,23 @@ def cmd_shortrest(args: str) -> tuple[str | None, str | None]:
         except ValueError:
             return None, f"无效的生命骰数量: {args.strip()}"
 
+    hp_before = char.get('hp_current', 0)
     result = short_rest(char['id'], hd_to_spend)
-    if 'error' in result:
-        return None, result['error']
+    if not result:
+        return None, '短休失败（角色不存在）'
 
-    con_sign = '+' if result['con_mod'] >= 0 else ''
-    roll_details = '\n'.join(
-        f"      🎲 {r['die']}: {r['roll']} {con_sign}{r['con_mod']} = 恢复{r['heal']}HP"
-        for r in result['hd_rolls']
-    )
+    char = get_character(char['id']) or char
+    healed = result.get('healed', 0)
+    spent = result.get('spent_hd', 0)
+    remaining = char.get('hd_count', 0)
 
     lines = [
         f"☕ {bold(char['name'])} 完成短休!",
-        f"   消耗生命骰: {result['hd_spent']}个 (剩余{result['hd_remaining']}个)",
-        f"   体质调整值: {con_sign}{result['con_mod']}",
-        f"   生命骰详情:",
-        roll_details,
-        f"   总计掷出: {result['total_rolled']}HP → 实际恢复: {color_green(str(result['actual_healed']))}HP",
-        f"   ❤️ HP: {result['hp_before']} → {result['hp_after']}/{result['hp_max']}",
+        f"   消耗生命骰: {spent}个 (剩余{remaining}个)",
+        f"   恢复HP: {healed}",
+        f"   ❤️ HP: {hp_before} → {result.get('hp_current','?')}/{result.get('hp_max','?')}",
     ]
-    if result.get('capped'):
-        lines.append(f"   💡 HP已达上限，多余恢复量被舍弃")
+    return '\n'.join(lines), None
 
     return "\n".join(lines), None
 
@@ -2161,7 +2208,6 @@ def _apply_item_action(action: dict, roll_val: int, pre_rolled: dict | None = No
             return f"💰 +{qty} {cname}（无活跃角色）"
         result = adjust_coin(char['id'], coin_type, qty)
         if 'error' not in result:
-            cname = coin_names.get(result.get('coin_type', coin_type), coin_type)
             return f"💰 +{qty} {cname}（已添加至角色）"
         return None
 

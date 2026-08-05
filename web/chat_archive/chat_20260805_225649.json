@@ -1,0 +1,36 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "01:50:08",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785261008.6169581,
+    "system": true
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [18]",
+    "time": "01:58:39",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785261519.270264
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [7]",
+    "time": "01:58:51",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785261531.7365835
+  }
+]

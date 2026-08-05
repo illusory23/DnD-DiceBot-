@@ -1,0 +1,62 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:59:49",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239989.6448305,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "19:59:57",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785239997.749805
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "20:00:02",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785240002.3084977,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "20:00:11",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785240011.5984313,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "20:00:34",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785240034.7072208,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "20:01:19",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785240079.24688,
+    "system": true
+  }
+]

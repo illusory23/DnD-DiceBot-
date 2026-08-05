@@ -1,0 +1,34 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:26:40",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785241600.2310534,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:28:16",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785241696.2856543,
+    "system": true
+  },
+  {
+    "name": "厄内",
+    "text": "戈尔丹•伦纳海姆 🎯 察觉检定: [5] (d20:3 +2)",
+    "time": "20:29:26",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785241766.7345524
+  }
+]

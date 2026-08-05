@@ -1,0 +1,27 @@
+主题：修复 Excel 导入后背景信息为空、特性数据缺失
+
+问题一：背景信息全部显示 "—"
+- 原因：north-expedition 的 importFromExcel JS 函数中，尝试从
+  full.background.personality_traits 读取背景（嵌套写法），
+  但 /api/character/<id> 返回的是扁平字段（full.personality_traits）
+- 修复：改为直接读取 full.personality_traits / ideals / bonds / flaws /
+  appearance / backstory / background_feature 等顶层字段
+
+问题二：专长/职业能力/种族特性等无法读取
+- 原因：_char_to_dict 未包含 features 字段
+- 修复：_char_to_dict 新增 features 数组输出，包含 category /
+  feature_name / description 字段
+
+修改文件：
+1. web/templates/north-expedition.html：
+   - 背景映射改为扁平字段读取
+   - 补充 languages / origin / tool_proficiencies / features 映射
+   - 背景映射不再依赖不存在的 full.background 嵌套对象
+
+2. core/character.py：
+   - _char_to_dict 新增 features（CharacterFeature 模型→数组）
+   - 字段：id / category / feature_name / description / sort_order
+
+说明：
+- Excel 模板本身不包含结构化的专长/职业能力数据，这些需在导入后手动添加
+- 背景信息（性格/理念/牵绊/缺点/外貌/背景故事）Excel 中有完整字段，现已正确映射

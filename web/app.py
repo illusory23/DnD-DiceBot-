@@ -119,7 +119,7 @@ _init_orm_db(app)  # 创建所有数据库表（含 users 表）
 # 导致功能（如3D掷骰）异常；如后续需要性能可改为带版本号的资源引用。
 @app.after_request
 def add_cache_header(response):
-    if response.content_type and ('text/css' in response.content_type or 'application/javascript' in response.content_type):
+    if response.content_type and ('text/css' in response.content_type or 'application/javascript' in response.content_type or 'text/html' in response.content_type):
         response.cache_control.max_age = 0
         response.cache_control.no_cache = True
         response.cache_control.must_revalidate = True
@@ -141,6 +141,12 @@ _CHAT_LOG_FILE = _Path(__file__).parent / 'chat_log.json'
 _CHAT_ARCHIVE_DIR = _Path(__file__).parent / 'chat_archive'
 _chat_messages: list[dict] = []  # [{name, text, time, is_dm, ip, color}]
 MAX_CHAT_MSGS = 500  # 最多保留500条消息
+
+# ━━━ 酒馆聊天系统（独立于主聊天室）━━━
+_TAVERN_CHAT_LOG_FILE = _Path(__file__).parent / 'tavern_chat_log.json'
+_TAVERN_CHAT_ARCHIVE_DIR = _Path(__file__).parent / 'tavern_chat_archive'
+_tavern_messages: list[dict] = []
+MAX_TAVERN_CHAT_MSGS = 500
 
 def _load_chat_log():
     """从磁盘加载聊天记录"""
@@ -192,8 +198,61 @@ def _trim_and_archive_chat():
         # 异步归档旧消息
         _threading.Thread(target=_archive_chat_messages, args=(to_archive,), daemon=True).start()
 
+# ━━━ 酒馆聊天持久化 ━━━
+
+def _load_tavern_chat_log():
+    """从磁盘加载酒馆聊天记录"""
+    global _tavern_messages
+    try:
+        if _TAVERN_CHAT_LOG_FILE.exists():
+            with open(_TAVERN_CHAT_LOG_FILE, 'r', encoding='utf-8') as f:
+                _tavern_messages = _json.load(f)
+    except Exception:
+        _tavern_messages = []
+
+def _save_tavern_chat_log():
+    """保存酒馆聊天记录到磁盘"""
+    try:
+        with open(_TAVERN_CHAT_LOG_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(_tavern_messages[-MAX_TAVERN_CHAT_MSGS:], f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def _archive_tavern_chat_messages(msgs_to_archive: list[dict]):
+    """将超出限制的旧消息归档到 tavern_chat_archive/ 目录。
+
+    每次归档生成一个带时间戳的 JSON 文件。
+    自动清理超过30天的归档文件。
+    """
+    if not msgs_to_archive:
+        return
+    try:
+        _TAVERN_CHAT_ARCHIVE_DIR.mkdir(exist_ok=True)
+        ts = _time.strftime('%Y%m%d_%H%M%S')
+        archive_file = _TAVERN_CHAT_ARCHIVE_DIR / f'tavern_{ts}.json'
+        with open(archive_file, 'w', encoding='utf-8') as f:
+            _json.dump(msgs_to_archive, f, ensure_ascii=False, indent=2)
+        # 清理30天前的归档
+        cutoff = _time.time() - 30 * 86400
+        for f in _TAVERN_CHAT_ARCHIVE_DIR.glob('tavern_*.json'):
+            if f.stat().st_mtime < cutoff:
+                f.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+def _trim_and_archive_tavern_chat():
+    """裁剪酒馆聊天消息：超过 MAX_TAVERN_CHAT_MSGS 时将旧消息归档。"""
+    global _tavern_messages
+    if len(_tavern_messages) > MAX_TAVERN_CHAT_MSGS:
+        overflow = len(_tavern_messages) - MAX_TAVERN_CHAT_MSGS
+        to_archive = _tavern_messages[:overflow]
+        _tavern_messages = _tavern_messages[-MAX_TAVERN_CHAT_MSGS:]
+        # 异步归档旧消息
+        _threading.Thread(target=_archive_tavern_chat_messages, args=(to_archive,), daemon=True).start()
+
 # 启动时加载
 _load_chat_log()
+_load_tavern_chat_log()
 
 # ━━━ 日志系统初始化 ━━━
 _app_logger = get_logger('dicebot')
@@ -775,13 +834,10 @@ def api_reorder_characters():
     if not ordered_ids or not isinstance(ordered_ids, list):
         return jsonify({'error': '请提供角色ID列表'}), 400
 
-    from core.character import get_db
-    conn = get_db()
-    cursor = conn.cursor()
+    from core.models import Character as _CharModel
     for i, char_id in enumerate(ordered_ids):
-        cursor.execute("UPDATE characters SET sort_order = ? WHERE id = ?", (i, char_id))
-    conn.commit()
-    conn.close()
+        _CharModel.query.filter_by(id=char_id).update({'sort_order': i})
+    db.session.commit()
     return jsonify({'ok': True})
 
 
@@ -2230,8 +2286,59 @@ def api_import_character():
 
         # 预览
         preview = import_and_print_summary(tmp.name)
-        # 导入
-        data = import_character_from_excel(tmp.name)
+        # 导入（Excel 解析结果需扁平化）
+        raw = import_character_from_excel(tmp.name)
+        basic = raw.get('basic', {})
+        combat = raw.get('combat', {})
+        abilities = raw.get('abilities', {})
+        spell_info = raw.get('spell_info', {})
+        spell_slots = raw.get('spell_slots', {})
+        coins = raw.get('coins', {})
+        bg_data = raw.get('background', {})
+        data = {
+            'name': basic.get('name', '未命名'),
+            'player': basic.get('player', ''),
+            'class': basic.get('class', ''),
+            'level': basic.get('level', 1),
+            'race': basic.get('race', ''),
+            'subrace': basic.get('subrace', ''),
+            'background': _json.dumps(bg_data, ensure_ascii=False) if bg_data else '',
+            'alignment': basic.get('alignment', ''),
+            'faith': basic.get('faith', ''),
+            'gender': basic.get('gender', ''),
+            'age': basic.get('age', ''),
+            'height': basic.get('height', ''),
+            'weight': basic.get('weight', ''),
+            'hp_max': combat.get('hp_max', 10),
+            'hp_current': combat.get('hp_current', 10),
+            'ac': combat.get('ac', 10),
+            'initiative_bonus': combat.get('initiative_bonus', 0),
+            'speed': combat.get('speed', 30),
+            'proficiency_bonus': basic.get('proficiency_bonus', 2),
+            'hd_count': combat.get('hd_count', 1),
+            'hit_dice': combat.get('hd_type', '1d8'),
+            'xp': basic.get('xp', 0),
+            'key_abilities': raw.get('key_abilities', basic.get('key_abilities', '')),
+            'resistances': raw.get('resistances', basic.get('resistances', '')),
+            'passive_perception': combat.get('passive_perception', 10),
+            'spellcasting_ability': spell_info.get('spellcasting_ability', ''),
+            'spell_attack_bonus': spell_info.get('spell_attack_bonus', 0),
+            'spell_save_dc': spell_info.get('spell_save_dc', 10),
+            'prepared_spell_count': spell_info.get('prepared_spell_count', 0),
+            'portrait_path': raw.get('portrait_path', ''),
+            'abilities': abilities,
+            'save_proficiencies': raw.get('save_proficiencies', {}),
+            'skill_proficiencies': raw.get('skill_proficiencies', {}),
+            'weapons': raw.get('weapons', []),
+            'armor': raw.get('armor', {}),
+            'spell_slots': spell_slots,
+            'prepared_spells': raw.get('prepared_spells', []),
+            'coins': coins,
+            'weight_data': raw.get('weight', {}),
+            'background_data': bg_data,
+            'inventory': raw.get('inventory', []),
+            'features': raw.get('features', []),
+        }
         created_by = request.form.get('created_by', '')
         char_id = import_from_excel_data(data, source_file=_os.path.abspath(tmp.name), created_by=created_by)
         char = get_character(char_id)
@@ -2240,6 +2347,11 @@ def api_import_character():
         global active_char_id
         active_char_id = char_id
 
+        # 调试：提取到的特性数据
+        features_raw = raw.get('features', [])
+        features_debug = [{'name': f['name'], 'cat': f['category'],
+                           'desc': (f.get('description','') or '')[:80]}
+                          for f in features_raw[:10]]
         return jsonify({
             'id': char_id,
             'name': char['name'],
@@ -2251,6 +2363,150 @@ def api_import_character():
             'ac': char.get('ac', 10),
             'preview': preview,
             'formatted': format_character_sheet(char),
+            '_debug': {
+                'features_count': len(features_raw),
+                'features_sample': features_debug,
+            },
+        })
+    except Exception as e:
+        return jsonify({'error': f'导入失败: {type(e).__name__}: {e}'}), 500
+    finally:
+        if tmp is not None:
+            try:
+                _os.unlink(tmp.name)
+            except Exception:
+                pass
+
+
+# ━━━ 北境酒馆 Excel 导入（独立，不写入 characters 表）━━━
+
+@app.route('/api/tavern/character/import', methods=['POST'])
+def api_tavern_character_import():
+    """北境酒馆专用：解析 Excel 角色卡并返回完整数据，不写入数据库。
+
+    与 /api/character/import 的区别：只解析 Excel，不调用 import_from_excel_data，
+    因此不会写入 characters 表，跑团平台不可见。
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': '请上传文件（字段名: file）'}), 400
+
+    file = request.files['file']
+    if not file or not file.filename or file.filename.strip() == '':
+        return jsonify({'error': '未选择文件'}), 400
+
+    try:
+        ext = _os.path.splitext(file.filename)[1].lower()
+    except Exception:
+        return jsonify({'error': '无法解析文件名'}), 400
+    if ext not in ('.xlsx', '.xls'):
+        return jsonify({'error': f'不支持的文件类型: {ext}，请上传 .xlsx 或 .xls 文件'}), 400
+
+    import tempfile
+    tmp = None
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+        file.save(tmp.name)
+        tmp.close()
+
+        # 预览
+        preview = import_and_print_summary(tmp.name)
+        # 解析 Excel
+        raw = import_character_from_excel(tmp.name)
+        basic = raw.get('basic', {})
+        combat = raw.get('combat', {})
+        abilities = raw.get('abilities', {})
+        spell_info = raw.get('spell_info', {})
+        spell_slots = raw.get('spell_slots', {})
+        coins = raw.get('coins', {})
+        bg_data = raw.get('background', {})
+        weapons = raw.get('weapons', [])
+        inventory = raw.get('inventory', [])
+        features = raw.get('features', [])
+
+        # 转换武器格式
+        weapons_out = []
+        for w in weapons:
+            weapons_out.append({
+                'name': w.get('name', ''),
+                'bonus': w.get('attack_bonus', 0),
+                'damage': w.get('damage_dice', ''),
+                'type': w.get('damage_type', ''),
+            })
+
+        # 转换物品格式
+        inventory_out = []
+        for it in inventory:
+            inventory_out.append({
+                'name': it.get('item_name', it.get('name', '')),
+                'qty': it.get('quantity', 1),
+                'location': it.get('location', '背包'),
+            })
+
+        # 转换特性格式（中文 category → 北境 key）
+        cat_map = {
+            '职业能力': 'class_feature', '种族特性': 'racial_trait',
+            '专长': 'feat', '特殊能力': 'special_ability', '其他': 'other',
+        }
+        features_out = []
+        for f in features:
+            cat = f.get('category', '其他')
+            features_out.append({
+                'name': f.get('feature_name', f.get('name', '')),
+                'cat': cat_map.get(cat, 'other'),
+                'desc': f.get('description', ''),
+            })
+
+        return jsonify({
+            'ok': True,
+            'name': basic.get('name', '未命名'),
+            'level': basic.get('level', 1),
+            'class': basic.get('class', ''),
+            'race': basic.get('race', ''),
+            'hp_current': combat.get('hp_current', 10),
+            'hp_max': combat.get('hp_max', 10),
+            'ac': combat.get('ac', 10),
+            'speed': combat.get('speed', 30),
+            'proficiency_bonus': basic.get('proficiency_bonus', 2),
+            'passive_perception': combat.get('passive_perception', 10),
+            'spell_save_dc': spell_info.get('spell_save_dc', 10),
+            'spell_attack_bonus': spell_info.get('spell_attack_bonus', 0),
+            'initiative_bonus': combat.get('initiative_bonus', 0),
+            'abilities': {
+                'str': abilities.get('str', 10), 'dex': abilities.get('dex', 10),
+                'con': abilities.get('con', 10), 'int': abilities.get('int', 10),
+                'wis': abilities.get('wis', 10), 'cha': abilities.get('cha', 10),
+            },
+            'skill_proficiencies': raw.get('skill_proficiencies', {}),
+            'save_proficiencies': raw.get('save_proficiencies', {}),
+            'weapons': weapons_out,
+            'inventory': inventory_out,
+            'coins': {'cp': coins.get('cp', 0), 'sp': coins.get('sp', 0), 'gp': coins.get('gp', 0)},
+            'spell_slots': {
+                '1': spell_slots.get('1', 0), '2': spell_slots.get('2', 0),
+                '3': spell_slots.get('3', 0), '4': spell_slots.get('4', 0),
+                '5': spell_slots.get('5', 0), '6': spell_slots.get('6', 0),
+                '7': spell_slots.get('7', 0), '8': spell_slots.get('8', 0),
+                '9': spell_slots.get('9', 0),
+            },
+            'prepared_spells': raw.get('prepared_spells', []),
+            'features': features_out,
+            'background': {
+                'personality': bg_data.get('personality_traits', ''),
+                'ideals': bg_data.get('ideals', ''),
+                'bonds': bg_data.get('bonds', ''),
+                'flaws': bg_data.get('flaws', ''),
+                'appearance': bg_data.get('appearance', ''),
+                'backstory': bg_data.get('backstory', bg_data.get('background_feature', '')),
+            },
+            'alignment': basic.get('alignment', ''),
+            'faith': basic.get('faith', ''),
+            'gender': basic.get('gender', ''),
+            'height': basic.get('height', ''),
+            'weight': basic.get('weight', ''),
+            'languages': basic.get('languages', '通用语'),
+            'key_abilities': raw.get('key_abilities', basic.get('key_abilities', '')),
+            'resistances': raw.get('resistances', basic.get('resistances', '')),
+            'preview': preview,
         })
     except Exception as e:
         return jsonify({'error': f'导入失败: {type(e).__name__}: {e}'}), 500
@@ -2634,10 +2890,12 @@ def api_file_content():
     if not path:
         return jsonify({'error': '缺少 path 参数'}), 400
 
-    # 安全检查
+    # 安全检查：解析真实路径并确保在项目根目录内
     script_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     project_root = _os.path.dirname(script_dir) if _os.path.basename(script_dir) == '骰娘' else script_dir
-    full_path = _os.path.join(project_root, path)
+    full_path = _os.path.realpath(_os.path.join(project_root, path))
+    if not full_path.startswith(_os.path.realpath(project_root) + _os.sep):
+        return jsonify({'error': '路径越权'}), 403
     if not _os.path.exists(full_path):
         return jsonify({'error': '文件不存在'}), 404
 
@@ -2682,7 +2940,9 @@ def api_file_raw():
 
     script_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     project_root = _os.path.dirname(script_dir) if _os.path.basename(script_dir) == '骰娘' else script_dir
-    full_path = _os.path.join(project_root, path)
+    full_path = _os.path.realpath(_os.path.join(project_root, path))
+    if not full_path.startswith(_os.path.realpath(project_root) + _os.sep):
+        return jsonify({'error': '路径越权'}), 403
     if not _os.path.exists(full_path):
         abort(404)
 
@@ -2834,11 +3094,44 @@ _ALLOWED_MAP_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
 
 @app.route('/maps/<path:filename>')
 def serve_map(filename):
-    """Serve map image files from the maps/ directory."""
+    """Serve map image files from the maps/ directory.
+
+    如果文件不存在，尝试从共享画布图层状态中恢复（dataURL 回退）。
+    """
     filepath = (MAPS_DIR / filename).resolve()
     if not str(filepath).startswith(str(MAPS_DIR.resolve())):
         return jsonify({'error': 'Access denied'}), 403
     if not filepath.exists() or not filepath.is_file():
+        # 自愈：文件丢失时尝试从共享画布状态恢复
+        # 文件名如 "layers/1.png" → 提取 layer_id=1
+        if filename.startswith('layers/') or filename.startswith('layers\\'):
+            try:
+                name_part = filename.split('/')[-1].split('\\')[-1]
+                layer_id = int(name_part.split('.')[0])
+                canvas = get_shared_canvas()
+                for layer in canvas.get('layers', []):
+                    if layer.get('id') == layer_id:
+                        data_url = layer.get('dataURL', '')
+                        if data_url and data_url.startswith('data:image'):
+                            import base64
+                            try:
+                                header, b64 = data_url.split(',', 1)
+                                img_data = base64.b64decode(b64)
+                                # 异步写回磁盘
+                                _threading.Thread(target=save_layer_image, args=(layer_id, data_url), daemon=True).start()
+                                mime = 'image/png'
+                                if 'image/jpeg' in header or 'image/jpg' in header:
+                                    mime = 'image/jpeg'
+                                elif 'image/gif' in header:
+                                    mime = 'image/gif'
+                                elif 'image/webp' in header:
+                                    mime = 'image/webp'
+                                return app.response_class(img_data, mimetype=mime)
+                            except Exception:
+                                pass
+                        break
+            except (ValueError, IndexError):
+                pass
         return jsonify({'error': 'File not found'}), 404
     ext = filepath.suffix.lower()
     mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -3035,6 +3328,49 @@ def api_chat_messages():
     return jsonify({'ok': True, 'messages': _chat_messages[-50:]})  # Last 50
 
 
+# ━━━ 酒馆聊天系统 API ━━━
+
+@app.route('/api/tavern/chat/send', methods=['POST'])
+def api_tavern_chat_send():
+    """发送酒馆聊天消息"""
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    text = data.get('text', '').strip()
+    color = data.get('color', '#d4a050')
+    role = data.get('role', 'PL')
+    if not name or not text:
+        return jsonify({'ok': False, 'error': 'Name and text required'})
+    if len(text) > 2000:
+        return jsonify({'ok': False, 'error': 'Message too long (max 2000 chars)'})
+
+    msg = {
+        'name': name,
+        'text': text,
+        'time': _time.strftime('%H:%M:%S'),
+        'color': color,
+        'role': role,
+        '_ts': _time.time(),
+    }
+    _tavern_messages.append(msg)
+    _trim_and_archive_tavern_chat()
+    _threading.Thread(target=_save_tavern_chat_log, daemon=True).start()
+    return jsonify({'ok': True, 'msg': msg})
+
+
+@app.route('/api/tavern/chat/messages')
+def api_tavern_chat_messages():
+    """获取酒馆聊天消息。?since=<timestamp> 增量查询"""
+    since = request.args.get('since', '')
+    if since:
+        try:
+            since_ts = float(since)
+            new_msgs = [m for m in _tavern_messages if m.get('_ts', 0) > since_ts]
+            return jsonify({'ok': True, 'messages': new_msgs})
+        except ValueError:
+            pass
+    return jsonify({'ok': True, 'messages': _tavern_messages[-50:]})  # Last 50
+
+
 # ━━━ DM 状态 API ━━━
 
 # ━━━ 骰点广播到聊天室 ━━━
@@ -3172,7 +3508,7 @@ def _prune_stale_users():
 @app.route('/api/room/join', methods=['POST'])
 def api_room_join():
     """用户加入房间。"""
-    global _dm_name, _online_users
+    global _dm_name, _dm_ip, _dm_user_id, _online_users
     data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     color = data.get('color', '#00bcd4')
@@ -3292,7 +3628,7 @@ def api_room_heartbeat():
 @app.route('/api/room/leave', methods=['POST'])
 def api_room_leave():
     """用户离开房间。"""
-    global _online_users, _dm_name, _dm_user_id
+    global _online_users, _dm_name, _dm_ip, _dm_user_id
     data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     if not name:
@@ -3753,7 +4089,7 @@ def api_stats_summary():
         frontend_errors_recent, disk_usage }
     """
     # 在线用户数
-    _cleanup_online_users()
+    _prune_stale_users()
     online_count = len(_online_users)
 
     # 聊天消息数

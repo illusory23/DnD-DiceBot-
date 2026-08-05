@@ -1,0 +1,23 @@
+主题：修复 Excel 角色卡导入报错——数据格式扁平化
+
+问题：
+- 导入 Excel 时报错 ProgrammingError: Error binding parameter 8: type 'dict' is not supported
+- 原因：import_character_from_excel() 返回嵌套结构（basic/combat/abilities/background 等子字典），
+  但 import_from_excel_data() 期望扁平的单层字典，导致 background 整个字典被当作 background_field 字符串写入数据库
+
+修改内容：
+
+1. web/app.py（/api/character/import 端点）：
+   - 在 import_character_from_excel() 和 import_from_excel_data() 之间新增扁平化步骤
+   - 将嵌套结构拆解为扁平字典：basic.* → 顶层字段，combat.* → 顶层字段，abilities/spell_info/coins 等保持不变
+   - background 字典序列化为 JSON 字符串（存入 background_field 列）
+   - background_data 单独保留原始字典（供 BackgroundDetail 模型使用）
+
+2. core/character.py（import_from_excel_data）：
+   - 新增 import json as _json
+   - BackgroundDetail 构建：从 data['background_data'] 优先获取，
+     兼容字符串格式（JSON反序列化），兜底使用空字典
+   - 避免 background 字段（现在为 JSON 字符串）被误传给 BackgroundDetail 模型
+
+3. web/templates/north-expedition.html：
+   - Excel 导入后立即调用 renderCharSelect() 刷新下拉框（之前仅在异步回调中调用）

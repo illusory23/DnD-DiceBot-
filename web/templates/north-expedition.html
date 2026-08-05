@@ -1667,9 +1667,34 @@
                 transform: translateY(0);
             }
         }
+        /* ===== 加载覆盖页 ===== */
+        .north-loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity 0.4s ease-out;pointer-events:all;}
+        .north-loading-overlay.fade-out{opacity:0;pointer-events:none;}
+        .north-loading-overlay.hidden{display:none;}
+        .north-loading-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;}
+        .north-loading-bg::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.5);}
+        .north-loading-content{position:relative;z-index:1;text-align:center;max-width:500px;width:90%;}
+        .north-loading-title{font-size:2rem;font-weight:bold;color:#c8dff8;letter-spacing:6px;text-shadow:0 0 30px rgba(160,200,240,0.4),0 2px 4px rgba(0,0,0,0.6);margin-bottom:6px;font-family:'Georgia','Times New Roman',serif;}
+        .north-loading-sub{font-size:0.9rem;color:rgba(200,220,240,0.8);letter-spacing:3px;margin-bottom:32px;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
+        .north-loading-bar-track{width:100%;height:5px;background:rgba(200,220,240,0.12);border-radius:3px;overflow:hidden;margin-bottom:10px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.3);}
+        .north-loading-bar-fill{height:100%;width:0%;background:linear-gradient(90deg,#4a80b8,#88bbee,#4a80b8);border-radius:3px;transition:width 0.3s linear;box-shadow:0 0 12px rgba(120,180,230,0.5);}
+        .north-loading-hint{font-size:0.72rem;color:rgba(180,210,240,0.5);letter-spacing:2px;}
     </style>
 </head>
 <body>
+
+<!-- ━━ 加载覆盖页 ━━ -->
+<div class="north-loading-overlay hidden" id="northLoadingOverlay">
+  <div class="north-loading-bg" id="northLoadingBg"></div>
+  <div class="north-loading-content">
+    <div class="north-loading-title">尘封之卷</div>
+    <div class="north-loading-sub" id="northLoadingSub"></div>
+    <div class="north-loading-bar-track">
+      <div class="north-loading-bar-fill" id="northLoadingBarFill"></div>
+    </div>
+    <div class="north-loading-hint" id="northLoadingHint">正在准备...</div>
+  </div>
+</div>
 
     <video id="bgVideo" class="bg-video" autoplay muted playsinline>
         <source src="/static/portal/snow.mp4" type="video/mp4">
@@ -1881,6 +1906,8 @@
                         <span class="badge" id="campCharStatus">未选择</span>
                         <span style="margin-left:auto;display:flex;gap:3px;">
                             <button id="exportSaveBtn" style="background:rgba(100,160,210,0.12);color:#88bbee;border:1px solid rgba(100,160,210,0.2);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">💾 导出</button>
+                            <button id="importExcelBtn" style="background:rgba(80,180,130,0.12);color:#7acc9a;border:1px solid rgba(80,180,130,0.2);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">📊 导入Excel</button>
+                            <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">
                             <button id="importSaveBtn" style="background:rgba(100,160,210,0.06);color:#7aacd8;border:1px solid rgba(100,160,210,0.12);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">📥 导入</button>
                             <input type="file" id="importFileInput" accept=".json" style="display:none;">
                         </span>
@@ -5650,6 +5677,77 @@
                 event.target.value = '';
             }
 
+            /* ━━ Excel 角色卡导入（北境独立端点，不写入跑团平台数据库）━━━ */
+            function importFromExcel(event) {
+                var file = event.target.files[0];
+                if (!file) return;
+                var ext = file.name.split('.').pop().toLowerCase();
+                if (ext !== 'xlsx' && ext !== 'xls') {
+                    alert('请上传 .xlsx 或 .xls 格式的 Excel 文件');
+                    event.target.value = '';
+                    return;
+                }
+                var formData = new FormData();
+                formData.append('file', file);
+                addSystemLog('📊 正在导入Excel角色卡: ' + file.name + '...', 'system');
+                fetch('/api/tavern/character/import', {
+                    method: 'POST',
+                    body: formData
+                }).then(function(r) { return r.json(); }).then(function(d) {
+                    if (d.error) { alert('导入失败: ' + d.error); addSystemLog('❌ Excel导入失败: ' + d.error, 'danger'); return; }
+                    // 将导入的角色加入本地 charData（不写入服务端 characters 表）
+                    var newId = 'camp_' + Date.now();
+                    charData[newId] = {
+                        name: d.name,
+                        rank: '青羽',
+                        level: d.level || 1,
+                        class: d.class || '未知',
+                        race: d.race || '未知',
+                        hp: d.hp_current || d.hp_max || 10,
+                        hpMax: d.hp_max || 10,
+                        tempHp: 0,
+                        ac: d.ac || 10,
+                        speed: d.speed || 30,
+                        profBonus: d.proficiency_bonus || 2,
+                        passivePerception: d.passive_perception || 10,
+                        spellSaveDc: d.spell_save_dc || 10,
+                        spellAttackBonus: d.spell_attack_bonus || 0,
+                        initiativeBonus: d.initiative_bonus || 0,
+                        str: (d.abilities && d.abilities.str) || 10,
+                        dex: (d.abilities && d.abilities.dex) || 10,
+                        con: (d.abilities && d.abilities.con) || 10,
+                        int: (d.abilities && d.abilities.int) || 10,
+                        wis: (d.abilities && d.abilities.wis) || 10,
+                        cha: (d.abilities && d.abilities.cha) || 10,
+                        height: d.height || '', weight: d.weight || '',
+                        alignment: d.alignment || '', faith: d.faith || '', gender: d.gender || '',
+                        languages: d.languages || '通用语', keyAbilities: d.key_abilities || '',
+                        resistances: d.resistances || '',
+                        skillProfs: d.skill_proficiencies || {},
+                        saveProfs: d.save_proficiencies || {},
+                        weapons: d.weapons || [],
+                        inventory: d.inventory || [],
+                        coins: d.coins || {cp:0, sp:0, gp:0},
+                        spells: d.prepared_spells || [],
+                        spellSlots: d.spell_slots || {},
+                        features: d.features || [],
+                        background: d.background || {personality:'', ideals:'', bonds:'', flaws:'', appearance:'', backstory:''}
+                    };
+                    renderCharSelect();
+                    if (typeof renderCampCharSheet === 'function') { try { renderCampCharSheet(); } catch(e) {} }
+                    addSystemLog('✅ ' + d.name + ' 已从Excel导入（Lv.' + d.level + ' ' + d.class + ' ' + d.race + '）', 'success');
+                    // 自动选中新导入的角色
+                    setTimeout(function() {
+                        var cs = document.getElementById('campCharSelect');
+                        if (cs) { cs.value = newId; cs.dispatchEvent(new Event('change')); }
+                    }, 800);
+                }).catch(function(e) {
+                    alert('导入失败: 网络错误');
+                    addSystemLog('❌ Excel导入失败: 网络错误', 'danger');
+                });
+                event.target.value = '';
+            }
+
             // ━━━ 服务端持久化 ━━━
             var _northServerSyncTimer = null;
 
@@ -6448,11 +6546,21 @@
                     document.getElementById('importFileInput').click();
                 });
                 document.getElementById('importFileInput').addEventListener('change', importSave);
+                // Excel 导入
+                document.getElementById('importExcelBtn').addEventListener('click', function() {
+                    document.getElementById('excelFileInput').click();
+                });
+                document.getElementById('excelFileInput').addEventListener('change', importFromExcel);
                 const csb = document.getElementById('clearStatsBtn');
                 if (csb) csb.addEventListener('click', clearStats);
 
                 charSelect.addEventListener('change', function() {
-                    if (this.value) renderCharDetail(this.value);
+                    if (this.value) {
+                        renderCharDetail(this.value);
+                        // 同步到营地界面
+                        var campSel = document.getElementById('campCharSelect');
+                        if (campSel) { campSel.value = this.value; renderCampCharDetail(this.value); }
+                    }
                 });
 
                 document.getElementById('healBtn').addEventListener('click', function() {
@@ -6478,6 +6586,45 @@
                 const tavernTab = document.getElementById('tavernTab');
                 const guildTab = document.getElementById('guildTab');
 
+                /* ━━ 北境加载覆盖页 ━━ */
+                var _northLoadingTimer=null;
+                var NORTH_LOADING_CONFIG={
+                  tavern:{bg:'/static/portal/loading_tavern.png',sub:'瑟伦瑞达酒馆',hint:'正在进入瑟伦瑞达酒馆...'},
+                  camp:{bg:'/static/portal/loading_camp.png',sub:'冒险者营地',hint:'正在进入冒险者营地...'}
+                };
+                function showNorthLoading(type,callback){
+                  var cfg=NORTH_LOADING_CONFIG[type]||NORTH_LOADING_CONFIG['camp'];
+                  var overlay=document.getElementById('northLoadingOverlay');
+                  var bg=document.getElementById('northLoadingBg');
+                  var bar=document.getElementById('northLoadingBarFill');
+                  var sub=document.getElementById('northLoadingSub');
+                  var hint=document.getElementById('northLoadingHint');
+                  bg.style.backgroundImage='url('+cfg.bg+')';
+                  sub.textContent=cfg.sub;
+                  hint.textContent=cfg.hint;
+                  bar.style.width='0%';
+                  overlay.classList.remove('fade-out','hidden');
+                  var start=Date.now();
+                  var duration=1500;
+                  if(_northLoadingTimer)clearInterval(_northLoadingTimer);
+                  _northLoadingTimer=setInterval(function(){
+                    var elapsed=Date.now()-start;
+                    var pct=Math.min(100,Math.round((elapsed/duration)*100));
+                    bar.style.width=pct+'%';
+                    if(pct>=100){
+                      clearInterval(_northLoadingTimer);
+                      _northLoadingTimer=null;
+                      setTimeout(function(){
+                        overlay.classList.add('fade-out');
+                        setTimeout(function(){
+                          overlay.classList.add('hidden');
+                          if(callback)callback();
+                        },400);
+                      },150);
+                    }
+                  },50);
+                }
+
                 function deactivateAll() {
                     exploreTab.classList.remove('active');
                     campTab.classList.remove('active');
@@ -6488,24 +6635,32 @@
                     tavernPanel.classList.remove('active');
                 }
                 function activateTab(tabName) {
-                    deactivateAll();
                     if (tabName === 'camp') {
-                        campTab.classList.add('active'); campView.style.display = '';
-                        var campSel = document.getElementById('campCharSelect');
-                        if (campSel && campSel.value && charData[campSel.value]) {
-                            activeCharId = campSel.value; activeChar = charData[activeCharId];
-                        } else if (activeCharId && charData[activeCharId]) {
-                            activeChar = charData[activeCharId];
-                        }
-                        renderStats(); renderCampCharSheet();
-                        if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
-                        restoreShopBpState();
+                        deactivateAll();
+                        showNorthLoading('camp',function(){
+                            campTab.classList.add('active'); campView.style.display = '';
+                            var campSel = document.getElementById('campCharSelect');
+                            if (campSel && campSel.value && charData[campSel.value]) {
+                                activeCharId = campSel.value; activeChar = charData[activeCharId];
+                            } else if (activeCharId && charData[activeCharId]) {
+                                activeChar = charData[activeCharId];
+                            }
+                            renderStats(); renderCampCharSheet();
+                            if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
+                            restoreShopBpState();
+                            sessionStorage.setItem('north_active_tab', tabName);
+                        });
                     } else if (tabName === 'tavern') {
-                        tavernTab.classList.add('active'); tavernPanel.classList.add('active'); northTavernRefresh();
+                        deactivateAll();
+                        showNorthLoading('tavern',function(){
+                            tavernTab.classList.add('active'); tavernPanel.classList.add('active'); northTavernRefresh();
+                            sessionStorage.setItem('north_active_tab', tabName);
+                        });
                     } else {
+                        deactivateAll();
                         exploreTab.classList.add('active'); exploreView.style.display = '';
+                        sessionStorage.setItem('north_active_tab', tabName);
                     }
-                    sessionStorage.setItem('north_active_tab', tabName);
                 }
                 exploreTab.addEventListener('click', function() { activateTab('explore'); });
                 campTab.addEventListener('click', function() { activateTab('camp'); });
@@ -6525,20 +6680,17 @@
                     var text = (inp.value||'').trim();
                     if (!text || !_northUsername) return;
                     inp.value = '';
-                    fetch('/api/chat/send', {
+                    fetch('/api/tavern/chat/send', {
                         method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({name:'🍺 '+_northUsername, text:text, color:'#d4a050', role:'PL'})
+                        body: JSON.stringify({name:_northUsername, text:text, color:'#d4a050', role:'PL'})
                     }).then(function(r){return r.json();}).then(function(d){
                         if(d.ok) northTavernRefresh();
                     }).catch(function(){});
                 };
                 function northTavernRefresh() {
-                    fetch('/api/chat/messages').then(function(r){return r.json();}).then(function(d){
+                    fetch('/api/tavern/chat/messages').then(function(r){return r.json();}).then(function(d){
                         if (!d.ok) return;
-                        var msgs = d.messages || [];
-                        // 只显示北境玩家的消息（名字以🍺开头）
-                        var tavernMsgs = msgs.filter(function(m){ return m.name && m.name.indexOf('🍺')===0; });
-                        _tavernMessages = tavernMsgs.slice(-50);
+                        _tavernMessages = (d.messages || []).slice(-50);
                         renderTavernMessages();
                     }).catch(function(){});
                 }
@@ -6548,7 +6700,7 @@
                     var html = '<div class=\"tavern-msg system\"><span class=\"tm-text\">🕯️ 炉火噼啪作响，酒馆老板娘擦拭着吧台...</span></div>';
                     for (var i=0; i<_tavernMessages.length; i++) {
                         var m = _tavernMessages[i];
-                        var name = (m.name||'').replace('🍺 ','');
+                        var name = (m.name||'');
                         html += '<div class=\"tavern-msg'+(m.system?' system':'')+'\">';
                         html += '<span class=\"tm-name\">'+name+'</span>';
                         html += '<span class=\"tm-text\">'+m.text+'</span>';
@@ -8610,7 +8762,12 @@
 
                 // 营地角色选择器
                 document.getElementById('campCharSelect').addEventListener('change', function() {
-                    if (this.value) renderCampCharDetail(this.value);
+                    if (this.value) {
+                        renderCampCharDetail(this.value);
+                        // 同步到探索界面
+                        charSelect.value = this.value;
+                        renderCharDetail(this.value);
+                    }
                 });
                 document.getElementById('campCreateCharBtn').addEventListener('click', function() {
                     const name = prompt('输入新角色名:', '北境旅人');

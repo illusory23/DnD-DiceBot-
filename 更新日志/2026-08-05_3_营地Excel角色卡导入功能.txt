@@ -1,0 +1,34 @@
+主题：营地冒险者信息界面新增 Excel 角色卡导入功能
+
+修改内容：
+- web/templates/north-expedition.html：
+
+  1. HTML：营地面板 header 中「导出」按钮右侧新增「📊 导入Excel」按钮
+     （绿色调和风格，与导出/导入按钮并排）和隐藏的 Excel 文件输入框
+     （accept=".xlsx,.xls"）
+
+  2. JS：
+     - importExcelBtn click → 触发 excelFileInput 文件选择
+     - excelFileInput change → 调用 importFromExcel() 处理
+     - importFromExcel(file) 函数流程：
+       a. 校验文件扩展名（.xlsx/.xls）
+       b. 构建 FormData，POST 到 /api/character/import（复用现有后端导入API）
+       c. 导入成功后创建本地 charData 条目（前缀 svr_）
+       d. 异步调用 /api/character/<id> 获取完整角色详情并映射到北境数据格式
+       e. 刷新角色选择下拉框和角色卡显示
+       f. 自动选中新导入的角色
+       g. 系统日志提示导入成功/失败
+
+  3. 数据映射（服务端格式 → 北境 charData 格式）：
+     - 基本信息：name/level/class/race/alignment/faith/gender/height/weight
+     - 战斗数据：hp/hpMax/ac/speed/profBonus/passivePerception
+     - 属性：str/dex/con/int/wis/cha
+     - 技能/豁免熟练：skillProfs/saveProfs
+     - 武器/物品/钱币：weapons/inventory/coins
+     - 背景信息：personality/ideals/bonds/flaws/appearance/backstory
+
+说明：
+- 复用现有 utils/excel_importer.py 的解析逻辑和服务端 /api/character/import 端点
+- 支持 NekoWorks v2.1 和 New Edition v4.4.0 两种 Excel 模板
+- 不影响现有 JSON 存档导入导出功能
+- 导入的角色服务器端存入 characters.db，本地 charData 关联 serverId

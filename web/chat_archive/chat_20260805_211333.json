@@ -1,0 +1,32 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "20:15:09",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785240909.0678267,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "20:17:07",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785241027.8405042,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:17:18",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785241038.077612,
+    "system": true
+  }
+]

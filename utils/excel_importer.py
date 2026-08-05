@@ -29,7 +29,7 @@ def _safe_str(value: Any) -> str | None:
 
 
 def _parse_attack_bonus(value: str) -> int | None:
-    """解析攻击加值，例如 "D20+5" -> 5"""
+    """解析攻击加值,例如 "D20+5" -> 5"""
     if value is None:
         return None
     value = str(value).strip()
@@ -40,12 +40,12 @@ def _parse_attack_bonus(value: str) -> int | None:
 
 
 def _or(val, default):
-    """如果 val 是 None，返回 default"""
+    """如果 val 是 None,返回 default"""
     return default if val is None else val
 
 
 def _find_coins_in_cells(cells: dict, location_sets: list[dict]) -> dict:
-    """在多个候选位置中查找钱币值，返回第一个非全零的结果
+    """在多个候选位置中查找钱币值,返回第一个非全零的结果
 
     每个 location_sets 项是一个 {币种: 单元格地址} 字典。
     """
@@ -65,10 +65,10 @@ def _find_coins_in_cells(cells: dict, location_sets: list[dict]) -> dict:
 def _extract_images_from_workbook(wb, dest_dir: Path) -> list[str]:
     """从 Excel 工作簿中提取嵌入的图片。
 
-    遍历所有 sheet 的 _images 属性，将嵌入的图片保存到 dest_dir，
+    遍历所有 sheet 的 _images 属性,将嵌入的图片保存到 dest_dir,
     返回已保存的文件路径列表。
 
-    注意: 使用 openpyxl 内部 API (ws._images)，最佳努力提取。
+    注意: 使用 openpyxl 内部 API (ws._images),最佳努力提取。
     """
     saved_paths = []
     image_count = 0
@@ -115,6 +115,7 @@ def _extract_images_from_workbook(wb, dest_dir: Path) -> list[str]:
 
 def _import_v440(ws, cells: dict) -> dict:
     """导入 New Edition v4.4.0 格式的角色卡"""
+    print('[excel-import] _import_v440 开始解析')
     result: dict = {}
 
     # ━ 基本信息 ━
@@ -330,10 +331,248 @@ def _import_v440(ws, cells: dict) -> dict:
         'light_load': 0, 'medium_load': 0, 'heavy_load': 0, 'current_load': 0,
     }
 
+    # ━ 关键属性（全区域搜索「关键属性」标签）━━
+    key_abilities = ''
+    import re as _re_ka
+    for row_num in range(1, 60):
+        for col_idx in range(1, 40):
+            col_letter = ''
+            n = col_idx
+            while n > 0:
+                n, r = divmod(n - 1, 26)
+                col_letter = chr(65 + r) + col_letter
+            val = str(cells.get(f'{col_letter}{row_num}', ''))
+            if val.strip() == '关键属性' or val.startswith('关键属性'):
+                print(f'[excel-import] 找到关键属性标签: {col_letter}{row_num}')
+                # 值在同行右侧列
+                for offset in range(1, 10):
+                    next_n = col_idx + offset
+                    next_col = ''
+                    nn = next_n
+                    while nn > 0:
+                        nn, r = divmod(nn - 1, 26)
+                        next_col = chr(65 + r) + next_col
+                    next_val = str(cells.get(f'{next_col}{row_num}', '')).strip()
+                    if next_val and next_val != '关键属性' and len(next_val) < 30:
+                        key_abilities = next_val
+                        print(f'[excel-import] 提取值(相邻列): {next_col}{row_num} = "{key_abilities}"')
+                        break
+                if not key_abilities:
+                    m = _re_ka.search(r'关键属性[；;:\s]*(\S+)', val)
+                    if m:
+                        key_abilities = m.group(1)
+                break
+        if key_abilities:
+            break
+    if not key_abilities:
+        print(f'[excel-import] 未找到关键属性标签')
+    result['key_abilities'] = key_abilities
+
     # ━ 背景 (从背景 sheet 读取) ━
     result['background'] = {}
 
+    # ━ 特性/专长/职业能力 ━
+    # 全表扫描（种族特性可能在前面行,职业能力/专长在后面）
+    result['features'] = _import_features(cells, start_row=3, max_row=130)
+
     return result
+
+
+def _import_features(cells: dict, start_row: int = 50, max_row: int = 130) -> list[dict]:
+    """从主 sheet 提取特性/专长/职业能力/种族特性等词条。
+
+    先扫描 A/B 列找到特性区域的起始行,再从该行开始提取词条。
+    支持通过 B 列标签自动推断分类。
+    """
+    import re as _re
+
+    # ━ 第一步：找到特性区域的起始行 ━
+    feature_section_start = 999
+    feature_section_labels = [
+        '职业能力', '职业特性', '专长', '种族特性', '特殊能力',
+        '特性与专长', '职业特性与专长', '职业能力与专长',
+    ]
+    for row_num in range(3, min(max_row + 1, 200)):
+        for col in ('B', 'A'):
+            val = str(cells.get(f'{col}{row_num}', '')).strip()
+            if val and len(val) < 15:
+                for label in feature_section_labels:
+                    if val == label or val.startswith(label):
+                        if row_num < feature_section_start:
+                            print(f'[excel-import] 特性标签匹配: {col}{row_num}="{val}" → {label}, 更新起始行={row_num}')
+                            feature_section_start = row_num
+                        break
+    if feature_section_start == 999:
+        feature_section_start = start_row
+        print(f'[excel-import] 未找到特性标签,回退起始行={start_row}')
+    else:
+        print(f'[excel-import] 特性标签匹配完成,起始行={feature_section_start}')
+
+    features = []
+    # 分类标签关键词 → 对应分类
+    b_label_map = {
+        '职业': '职业能力', '职业特性': '职业能力', '职业能力': '职业能力',
+        '种族': '种族特性', '种族特性': '种族特性',
+        '专长': '专长', '特殊': '特殊能力', '其他': '其他', '特性': '其他',
+    }
+    current_category = '职业能力'
+    # 非数据标签（章节标题/分隔符等）
+    skip_exact = {'职业特性', '种族特性', '专长', '特性', '职业能力',
+                  '特性与专长', '职业特性与专长', '特性 & 专长',
+                  '职业特性 & 专长', '职业能力与专长',
+                  '职业能力/特性', '职业特性/专长', '特性/专长',
+                  '其他特性', '特殊能力'}
+    # 表头关键词（跳过）
+    header_keywords = ('名称', '描述', 'Lv', '等级', '来源', '备注')
+    # 已知的非特性区域关键词（遇到则停止提取）
+    stop_labels = {'法术', '钱币', '负重', '财产', '背包', '装备物品',
+                   '已准备', '已学会', '铜币', '银币', '金币',
+                   '其他特性', '笔记', '你的角色', '技能分布'}
+
+    b_labels_seen = []  # 诊断
+    stop_extraction = False
+
+    for row_num in range(feature_section_start, min(max_row + 1, 200)):
+        if stop_extraction:
+            break
+
+        # ━ 检测 A/B 列标签 ━
+        for label_col in ('B', 'A'):
+            label_val = str(cells.get(f'{label_col}{row_num}', '')).strip()
+            if not label_val or len(label_val) >= 15:
+                continue
+            if label_val not in b_labels_seen:
+                b_labels_seen.append(label_val)
+            # 停止条件：遇到非特性区域的标签
+            if any(kw in label_val for kw in stop_labels):
+                stop_extraction = True
+                break
+            # 切换分类
+            for kw, cat in b_label_map.items():
+                if kw in label_val:
+                    current_category = cat
+                    break
+            if label_val in skip_exact:
+                continue  # 跳过纯标签行本身
+
+        if stop_extraction:
+            break
+
+        # ━ 尝试从 C/P/B/E/D 列读取词条名 ━
+        name = ''
+        for col in ('C', 'P', 'B', 'E', 'D'):
+            val = cells.get(f'{col}{row_num}', '')
+            if val:
+                s = str(val).strip()
+                if s and s not in skip_exact and len(s) >= 2 and len(s) <= 80:
+                    # 过滤掉数值行、分隔符、属性名
+                    if (s.replace('.', '').replace('>', '').replace('<', '').replace('+', '')
+                          .replace('-', '').replace(' ', '').replace('尺', '').isdigit()):
+                        continue
+                    name = s
+                    break
+
+        if not name:
+            continue
+        if any(hk in name for hk in header_keywords) and len(name) <= 4:
+            continue
+        # 跳过元数据行：这些是标签名,不是特性词条
+        if name in ('职业', '经验值', '等级', '职业等级', '背景', '种族',
+                     '属性', '熟练', '技能', '力量', '敏捷', '体质', '智力', '感知', '魅力'):
+            continue
+        # 跳过长分隔符行
+        if name.startswith('——') or name.startswith('---'):
+            continue
+
+        # ━ 描述：从名称列右侧的宽列读取 ━
+        desc = ''
+        for col in ('U', 'AI', 'T', 'S', 'R', 'Q', 'V', 'W', 'X', 'Y', 'Z',
+                     'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH'):
+            val = cells.get(f'{col}{row_num}', '')
+            if val:
+                s = str(val).strip()
+                if len(s) > 5:
+                    desc = s
+                    break
+
+        # 如果宽列没有描述,拼接该行后面列
+        if not desc:
+            row_texts = []
+            for col_idx in range(1, 40):
+                col_letter = ''
+                n = col_idx
+                while n > 0:
+                    n, r = divmod(n - 1, 26)
+                    col_letter = chr(65 + r) + col_letter
+                val = cells.get(f'{col_letter}{row_num}', '')
+                if val:
+                    row_texts.append(str(val).strip())
+            desc = '；'.join(row_texts[1:]) if len(row_texts) > 1 else ''
+
+        # ━ 推断分类 ━
+        inferred_cat = current_category
+        cat_keywords = [
+            (['狂暴', '偷袭', '战斗风格', '回气', '动作如潮', '至圣斩', '引导神力',
+              '野蛮', '战技', '先攻', '偷袭攻击', '疾风连击', '气合', '魔力',
+              '子职业', '领域', '道途', '范型', '宗派', '宿敌', '熟练探险',
+              '武器精通'], '职业能力'),
+            (['黑暗视觉', '精灵血统', '矮人', '半身人', '龙族', '侏儒', '半兽',
+              '提夫林', '天生', '血脉', '种族武器', '精灵'], '种族特性'),
+            (['专长', '警觉', '幸运', '健壮', '巨武器', '神射手', '盾牌大师',
+              '双持', '法术射手', '战地施法', '地城探险', '元素导师',
+              '起源专长', '战斗风格专长'], '专长'),
+        ]
+        for keywords, cat in cat_keywords:
+            if any(kw in name for kw in keywords):
+                inferred_cat = cat
+                break
+
+        features.append({
+            'name': name,
+            'description': desc if desc else '',
+            'category': inferred_cat,
+            'sort_order': len(features),
+        })
+
+    print(f'[excel-import] 特性区域起始行={feature_section_start}, 提取到 {len(features)} 条')
+    print(f'[excel-import] B列标签: {b_labels_seen}')
+    cats_found = {}
+    for f in features:
+        cats_found[f['category']] = (cats_found.get(f['category'], 0) + 1)
+    print(f'[excel-import] 分类统计: {cats_found}')
+    for f in features[:10]:
+        d = f.get('description','') or ''
+        print(f'  [{f["category"]}] {f["name"]}: {d[:100]}')
+    if len(features) > 10:
+        print(f'  ... 还有 {len(features)-10} 条')
+
+    return features
+
+
+def _import_features_from_sheet(wb, result: dict) -> None:
+    """从专用的「特性」或「专长」sheet 提取词条。
+
+    如果工作簿中存在名为「特性」「专长」「职业能力」「Features」的 sheet,
+    从中提取词条列表并存入 result['features']。
+    """
+    features = []
+    target_sheets = []
+    for name in wb.sheetnames:
+        lower = name.lower()
+        if any(kw in lower for kw in ('特性', '专长', '职业能力', 'feature', 'feat', 'trait')):
+            target_sheets.append(name)
+
+    if not target_sheets:
+        return
+
+    for sheet_name in target_sheets:
+        ws = wb[sheet_name]
+        cells = _build_cell_dict(ws, max_rows=80)
+        features.extend(_import_features(cells, start_row=1, max_row=80))
+
+    if features:
+        result['features'] = features
+        print(f'[excel-import] 从特性sheet提取到 {len(features)} 条词条')
 
 
 # ━━━ NekoWorks ver2.1 单元格映射 ━━━
@@ -346,6 +585,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
       - 钱币在行43-48 (AE列为币种)
       - 法术位在 AM39-AM47
     """
+    print('[excel-import] _import_nekox21 开始解析')
     result: dict = {}
 
     # 基本信息
@@ -356,7 +596,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
     subrace = cells.get('E7') or cells.get('B7', '')
 
     # 阵营/信仰 — 过滤掉标签文本
-    # NekoWorks v2.1: 标签在X列，值在AA列
+    # NekoWorks v2.1: 标签在X列,值在AA列
     alignment_raw = (cells.get('AA6') or cells.get('L9') or cells.get('X6', ''))
     faith_raw = (cells.get('AA7') or cells.get('L10') or cells.get('X7', ''))
     if alignment_raw in ('阵营', '陣營', None):
@@ -470,7 +710,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
     result['skill_proficiencies'] = skill_profs
 
     # 武器 — NekoWorks格式的行号(28-32)与v4.4.0(47-51)不同
-    # NekoWorks v2.1 使用 O 列(武器名)，v4.4.0 使用 P 列
+    # NekoWorks v2.1 使用 O 列(武器名),v4.4.0 使用 P 列
     # 判断用哪组行: 检查行28的O列或P列是否有武器名
     use_nekox_rows = (
         (cells.get('O28') is not None and str(cells.get('O28', '')).strip()) or
@@ -509,7 +749,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
 
         # 解析攻击加值
         if atk_col == 'AE':
-            # NekoWorks v2.1: AE列可能是 "D20+" 文本，加值需从技能/属性推算
+            # NekoWorks v2.1: AE列可能是 "D20+" 文本,加值需从技能/属性推算
             atk_raw = _safe_str(cells.get(f'{atk_col}{row_num}', ''))
             atk_val = _parse_attack_bonus(atk_raw) if atk_raw else None
             if atk_val is None:
@@ -572,7 +812,7 @@ def _import_nekox21(ws, cells: dict) -> dict:
         max_slots = (_safe_int(cells.get(f'AM{57+level}'))  # v4.4.0
                      or _safe_int(cells.get(f'AM{38+level}'))  # NekoWorks
                      or 0)
-        # 如果 max_slots 等于 level 号，可能是行号标签而非真实法术位
+        # 如果 max_slots 等于 level 号,可能是行号标签而非真实法术位
         if max_slots == level:
             max_slots = 0
         spell_slots[str(level)] = {'max': max_slots, 'used': 0}
@@ -591,7 +831,42 @@ def _import_nekox21(ws, cells: dict) -> dict:
     ])
     result['coins'] = coins
     result['weight'] = {'light_load': 0, 'medium_load': 0, 'heavy_load': 0, 'current_load': 0}
+    # 关键属性
+    key_abilities = ''
+    for row_num in range(1, 60):
+        for col_idx in range(1, 40):
+            col_letter = ''
+            n = col_idx
+            while n > 0:
+                n, r = divmod(n - 1, 26)
+                col_letter = chr(65 + r) + col_letter
+            val = str(cells.get(f'{col_letter}{row_num}', ''))
+            if val.strip() == '关键属性' or val.startswith('关键属性'):
+                print(f'[excel-import] 找到关键属性标签: {col_letter}{row_num}')
+                for offset in range(1, 10):
+                    next_n = col_idx + offset
+                    next_col = ''
+                    nn = next_n
+                    while nn > 0:
+                        nn, r = divmod(nn - 1, 26)
+                        next_col = chr(65 + r) + next_col
+                    next_val = str(cells.get(f'{next_col}{row_num}', '')).strip()
+                    if next_val and next_val != '关键属性' and len(next_val) < 30:
+                        key_abilities = next_val
+                        print(f'[excel-import] 提取值(相邻列): {next_col}{row_num} = "{key_abilities}"')
+                        break
+                if not key_abilities:
+                    m = re.search(r'关键属性[；;:\s]*(\S+)', val)
+                    if m:
+                        key_abilities = m.group(1)
+                break
+        if key_abilities:
+            break
+    if not key_abilities:
+        print(f'[excel-import] 未找到关键属性标签')
+    result['key_abilities'] = key_abilities
     result['background'] = {}
+    result['features'] = _import_features(cells, start_row=3, max_row=130)
     return result
 
 
@@ -602,6 +877,7 @@ def _detect_version(ws) -> str:
     # 检查 O1 单元格
     o1 = str(ws.cell(1, 15).value or '')  # O1
     if 'v4.4' in o1 or 'New Edition' in o1:
+        print(f'[excel-import] 版本检测结果: v440 (O1匹配)')
         return 'v440'
     if 'v4.3' in o1:
         return 'v440'  # 兼容
@@ -611,10 +887,11 @@ def _detect_version(ws) -> str:
     # 通过检查是否有 New Edition 特有单元格来判断
     e3 = str(ws.cell(3, 5).value or '')  # E3
     if e3 and e3 not in ('角色名', ''):
-        # 如果E3有非标签内容，可能是v4.4.0格式
+        # 如果E3有非标签内容,可能是v4.4.0格式
         b3 = str(ws.cell(3, 2).value or '')  # B3
         if '角色名' in b3:
             return 'v440'
+    print(f'[excel-import] 版本检测结果: neko21 (O1="{o1}", E3="{e3}")')
     return 'neko21'
 
 
@@ -630,7 +907,7 @@ def _build_cell_dict(ws, max_rows: int = 200) -> dict:
 
 
 def _read_multi_row_cells(cells: dict, col: str, start_row: int, max_empty: int = 2) -> list[str]:
-    """读取某列连续行的多个值，遇到连续空行或B列有新标签时停止"""
+    """读取某列连续行的多个值, 遇到连续空行或B列有新标签时停止"""
     values = []
     empty_count = 0
     label_keywords = {'角色名', '玩家', '年龄', '身高', '体重', '肤色', '发色', '瞳色',
@@ -662,7 +939,7 @@ def _read_multi_row_cells(cells: dict, col: str, start_row: int, max_empty: int 
 
 
 def _import_background_sheet(wb, result: dict) -> None:
-    """从背景sheet读取背景信息，支持v4.4.0和NekoWorks v2.1两种格式"""
+    """从背景sheet读取背景信息,支持v4.4.0和NekoWorks v2.1两种格式"""
     bg_sheet = None
     for name in wb.sheetnames:
         if '背景' in name:
@@ -770,11 +1047,11 @@ def _import_inventory_sheet(wb) -> list[dict]:
     """从物品/背包sheet读取物品列表
 
     支持 NekoWorks v2.1 的「物品」sheet 和 v4.4.0 的「背包」sheet。
-    物品以 B 列为名称，I 列为描述，逐行列出。
+    物品以 B 列为名称,I 列为描述,逐行列出。
     """
     items = []
 
-    # 查找物品或背包sheet（优先"背包"，其次"物品"，避免匹配到"装备物品"）
+    # 查找物品或背包sheet（优先"背包",其次"物品",避免匹配到"装备物品"）
     inv_sheet_name = None
     for name in wb.sheetnames:
         if '背包' in name:
@@ -837,7 +1114,7 @@ def _import_equipment_sheet(wb) -> dict:
       - 护甲表 (A-G列): 护甲名称/AC/属性
       - 武器表 (I-N列): 武器名称/伤害/属性(含描述)
       - 冒险用品表 (Q-T列): 物品/价格/重量
-    这些是通用参考表，不是角色实际装备的物品。
+    这些是通用参考表,不是角色实际装备的物品。
     角色的实际装备在主要sheet的武器区域和物品sheet中。
     此函数用于补充读取可能遗漏的装备描述信息。
     """
@@ -853,7 +1130,7 @@ def _import_equipment_sheet(wb) -> dict:
     ws = wb[eq_sheet_name]
     cells = _build_cell_dict(ws, max_rows=60)
 
-    # 读取武器属性描述（N列），用于补充主要sheet中武器的描述
+    # 读取武器属性描述（N列）,用于补充主要sheet中武器的描述
     weapon_descriptions = {}
     for row_num in range(3, 40):
         name = cells.get(f'J{row_num}', '')
@@ -867,10 +1144,10 @@ def _import_equipment_sheet(wb) -> dict:
 
 
 def _sanitize_wps_xlsx(filepath: Path):
-    """修复 WPS 表格保存的 xlsx 兼容性问题，返回内存中的文件对象
+    """修复 WPS 表格保存的 xlsx 兼容性问题,返回内存中的文件对象
 
     WPS 在数据有效性(下拉框)的 sqref 属性中用分号分隔多个区域
-    (如 sqref="R19;T19")，而 OOXML 标准要求空格分隔，
+    (如 sqref="R19;T19"),而 OOXML 标准要求空格分隔,
     openpyxl 严格校验会抛出 TypeError: expected MultiCellRange。
     此函数将工作表 XML 中 sqref 属性内的分号替换为空格。
     """
@@ -903,7 +1180,7 @@ def _load_workbook_compat(filepath: Path, openpyxl):
             return openpyxl.load_workbook(fixed, data_only=True)
         except Exception:
             raise ValueError(
-                f"无法解析该 Excel 文件（可能由 WPS 保存，存在兼容性问题）。\n"
+                f"无法解析该 Excel 文件（可能由 WPS 保存,存在兼容性问题）。\n"
                 f"请尝试用 Microsoft Excel 或 LibreOffice 打开并另存为 .xlsx 后重新导入。\n"
                 f"文件: {filepath}"
             )
@@ -976,6 +1253,9 @@ def import_character_from_excel(filepath: str | Path) -> dict:
     # 读取背景
     _import_background_sheet(wb, result)
 
+    # 读取特性/专长（优先专用 sheet,主 sheet 已在版本解析器中提取）
+    _import_features_from_sheet(wb, result)
+
     # 读取物品/背包
     inventory_items = _import_inventory_sheet(wb)
     if inventory_items:
@@ -1004,7 +1284,7 @@ def import_character_from_excel(filepath: str | Path) -> dict:
 
 
 def import_and_print_summary(filepath: str | Path) -> str:
-    """导入角色并返回摘要文本，用于预览"""
+    """导入角色并返回摘要文本, 用于预览"""
     data = import_character_from_excel(filepath)
     basic = data.get('basic', {})
     abilities = data.get('abilities', {})
