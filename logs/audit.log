@@ -371,3 +371,38 @@
 [2026-08-06 01:01:12] [map.save] user=TISH ip=127.0.0.1 保存地图存档: _autosave (0.2MB)
 [2026-08-06 01:09:26] [map.save] user=凌羽 ip=127.0.0.1 保存地图存档: _autosave (0.2MB)
 [2026-08-06 01:09:32] [map.save] user=凌羽 ip=127.0.0.1 保存地图存档: _autosave (0.2MB)
+[2026-08-09 02:48:22] [character.delete] user=红烙印恶霸2号 ip=127.0.0.1 删除角色 id=130 name=红烙印恶霸2号
+[2026-08-09 02:48:25] [character.delete] user=红烙印恶霸3号 ip=127.0.0.1 删除角色 id=131 name=红烙印恶霸3号
+[2026-08-09 02:48:28] [character.delete] user=红烙印恶霸4号 ip=127.0.0.1 删除角色 id=132 name=红烙印恶霸4号
+[2026-08-09 02:48:32] [character.delete] user=红烙印恶霸5号 ip=127.0.0.1 删除角色 id=133 name=红烙印恶霸5号
+[2026-08-09 02:48:39] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (2.5MB)
+[2026-08-09 03:26:46] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:28:15] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:29:17] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:30:16] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:33:53] [admin.user_update] user=IllusoryActer ip=127.0.0.1 更新用户 #1 (天冥): {"is_admin": true}
+[2026-08-09 03:36:15] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:37:16] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:38:14] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:38:37] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:38:47] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:39:22] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:47:46] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:47:46] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #1: 本周话题：北境探险
+[2026-08-09 03:47:46] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #2: x
+[2026-08-09 03:47:46] [admin.topic_update] user=IllusoryActer ip=127.0.0.1 更新每周话题 #1: 更新后的标题
+[2026-08-09 03:47:46] [admin.topic_delete] user=IllusoryActer ip=127.0.0.1 删除每周话题 #1: 更新后的标题
+[2026-08-09 03:47:46] [admin.topic_delete] user=IllusoryActer ip=127.0.0.1 删除每周话题 #2: x
+[2026-08-09 03:47:56] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:47:56] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #1: 话题A
+[2026-08-09 03:47:56] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #2: 话题B
+[2026-08-09 03:47:57] [admin.topic_update] user=IllusoryActer ip=127.0.0.1 更新每周话题 #1: 话题A-更新
+[2026-08-09 03:47:57] [admin.topic_delete] user=IllusoryActer ip=127.0.0.1 删除每周话题 #2: 话题B
+[2026-08-09 03:47:57] [admin.topic_delete] user=IllusoryActer ip=127.0.0.1 删除每周话题 #1: 话题A-更新
+[2026-08-09 03:48:12] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:48:28] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:48:28] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #1: 欢迎来到尘封之卷·跑团平台
+[2026-08-09 03:48:33] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 03:48:33] [admin.topic_create] user=IllusoryActer ip=127.0.0.1 发布每周话题 #2: 欢迎来到尘封之卷·跑团平台
+[2026-08-09 03:52:38] [admin.login] user=IllusoryActer ip=127.0.0.1 管理员登录
+[2026-08-09 04:52:17] [admin.login] user=IllusoryActor ip=127.0.0.1 管理员登录

@@ -106,13 +106,59 @@ _EVENT_GROUPS = [
 ]
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'chenfengzhijuan-dev-secret-change-in-production')
+# SECRET_KEY：优先环境变量，否则从 data/secret_key 读取（不存在则生成持久化随机值）
+# 避免使用公开的硬编码默认值（否则攻击者可伪造 session 提权）
+def _load_secret_key() -> str:
+    env_key = os.environ.get('SECRET_KEY')
+    if env_key:
+        return env_key
+    key_file = _Path(__file__).parent.parent / 'data' / 'secret_key'
+    try:
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        if key_file.exists():
+            key = key_file.read_text(encoding='utf-8').strip()
+            if key:
+                return key
+        key = os.urandom(32).hex()
+        key_file.write_text(key, encoding='utf-8')
+        return key
+    except Exception:
+        return os.urandom(32).hex()
+
+app.secret_key = _load_secret_key()
 # 请求体大小上限（资源上传最大 50MB，留余量；防止恶意超大 JSON 耗尽内存）
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
+
+# ━━━ 管理员后台 Blueprint ━━━
+from web.admin import admin_bp
+app.register_blueprint(admin_bp)
 
 # ━━━ SQLAlchemy ORM 初始化 ━━━
 from core.database import init_db as _init_orm_db
 _init_orm_db(app)  # 创建所有数据库表（含 users 表）
+
+
+def _ensure_user_columns():
+    """旧库补列：users.is_admin / is_active / last_login_ip（幂等）。
+
+    已有 users 表不会因 create_all 加列，这里手动 ALTER TABLE 补齐。
+    is_admin 曾缺失导致任何 User 查询报错，必须最先补上。
+    """
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        cols = {c['name'] for c in _sa_inspect(db.engine).get_columns('users')}
+        with db.engine.begin() as conn:
+            if 'is_admin' not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0")
+            if 'is_active' not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1")
+            if 'last_login_ip' not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(64) NOT NULL DEFAULT ''")
+    except Exception as _e:
+        _app_logger.warning(f'补列 users 表失败: {_e}')
 
 # ━━━ 静态文件缓存 ━━━
 # 本地工具场景优先保证代码改动立即可见：JS/CSS 不做长缓存，避免浏览器沿用旧版脚本
@@ -257,6 +303,10 @@ _load_tavern_chat_log()
 # ━━━ 日志系统初始化 ━━━
 _app_logger = get_logger('dicebot')
 
+# 旧库补列（is_active / last_login_ip），依赖 _app_logger，需在应用上下文内执行
+with app.app_context():
+    _ensure_user_columns()
+
 # ━━━ DM/主机系统 ━━━
 _dm_name: str | None = None      # 当前DM的显示名
 _dm_ip: str | None = None        # DM的IP地址
@@ -265,6 +315,13 @@ _dm_user_id: int | None = None   # DM的官网用户ID（改名不丢失DM身份
 # ━━━ 在线用户/房间系统 ━━━
 # {name: {'ip': str, 'color': str, 'role': str, 'last_heartbeat': float, 'joined_at': float}}
 _online_users: dict[str, dict] = {}
+
+# ━━━ 全站在线会话（打开任意页面即在线，关闭全部页面才下线）━━━
+# {session_id: {'username': str, 'user_id': int, 'ip': str, 'page': str, 'last_seen': float}}
+# session_id 由每个浏览器标签页生成，多标签 = 多会话；全部关闭即下线。
+_online_sessions: dict[str, dict] = {}
+_online_lock = _threading.Lock()
+ONLINE_SESSION_TIMEOUT = 60  # 心跳超时秒数（异常关闭页面兜底清理）
 
 # ━━━ @提及通知系统 ━━━
 _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
@@ -2639,6 +2696,7 @@ def api_list_events():
 # 数据模型: {用户名: {表名: {事件内容: 次数}}}
 # 例如: {"张三": {"随机环境": {"雪坑（需要过被动察觉...）": 3, "暴风雪...": 2}}}
 _EVENT_STATS_FILE = _Path(__file__).parent / 'event_stats.json'
+_event_stats_lock = _threading.Lock()
 
 
 def _load_event_stats() -> dict:
@@ -3738,7 +3796,8 @@ def api_upload_resource():
                '.doc', '.docx',                                     # 文档
                '.xls', '.xlsx',                                     # 表格
                '.txt', '.md',                                       # 文本
-               '.json'}                                             # 存档
+               '.json',                                             # 存档
+               '.zip'}                                              # 压缩包（工坊投稿）
     if ext not in allowed:
         return jsonify({'error': f'不支持的文件格式: {ext}，仅支持图片/PDF/文档/表格/TXT'}), 400
 
@@ -3796,6 +3855,531 @@ def api_upload_resource():
         'category': info[1],
         'url': f'/resources/{safe_name}',
     })
+
+
+# ━━━ 每周话题 API（官网公开）━━━
+# 数据文件 data/topics.json: {"topics": [{id, title, content, images[], author, created_at, updated_at}]}
+# 内容由管理员在后台发布，content 支持 HTML（含图片标签）
+
+_TOPICS_FILE = _Path(__file__).parent.parent / 'data' / 'topics.json'
+_topics_lock = _threading.Lock()
+_comment_rate: dict[str, float] = {}  # 评论防刷: {username: 最近评论时间}
+COMMENT_RATE_SECONDS = 15  # 同一用户两次评论最小间隔
+
+
+def _load_topics() -> dict:
+    try:
+        if _TOPICS_FILE.exists():
+            with open(_TOPICS_FILE, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and 'topics' in data:
+                return data
+    except Exception:
+        pass
+    return {'topics': []}
+
+
+def _save_topics(data: dict):
+    _TOPICS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_TOPICS_FILE, 'w', encoding='utf-8') as f:
+        _json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/stats/overview')
+def api_stats_overview():
+    """平台统计（公开）：主题/帖子/用户/工坊投稿/投掷次数。"""
+    result = {'topics': 0, 'posts': 0, 'users': 0, 'workshop': 0, 'dice': 0}
+    try:
+        with _community_lock:
+            cposts = _load_json_file(_COMMUNITY_FILE, [])
+            witems = _load_json_file(_WORKSHOP_FILE, [])
+        result['topics'] = len(cposts)
+        result['posts'] = len(cposts)  # 帖子总数 = 酒馆帖子数（评论不计入）
+        result['workshop'] = len(witems)
+    except Exception:
+        pass
+    try:
+        result['users'] = _UserModel.query.count()
+    except Exception:
+        pass
+    try:
+        with _stats_lock:
+            dice_stats = _load_stats()
+        result['dice'] = sum(s.get('total', 0) for s in dice_stats.values())
+    except Exception:
+        pass
+    return jsonify({'ok': True, **result})
+
+
+@app.route('/api/topics')
+def api_topics_list():
+    """每周话题列表（公开，按创建时间倒序）。"""
+    with _topics_lock:
+        data = _load_topics()
+    topics = []
+    for t in data.get('topics', []):
+        text = _re.sub(r'<[^>]+>', '', t.get('content', ''))  # 去 HTML 标签
+        topics.append({
+            'id': t.get('id', 0),
+            'title': t.get('title', ''),
+            'summary': text.strip()[:80],
+            'author': t.get('author', ''),
+            'created_at': t.get('created_at', ''),
+            'updated_at': t.get('updated_at', ''),
+            'image_count': len(t.get('images', [])),
+            'cover': (t.get('images') or [''])[0],
+        })
+    return jsonify({'ok': True, 'topics': topics})
+
+
+@app.route('/topics/<int:topic_id>')
+def topic_detail_page(topic_id):
+    """每周话题独立详情页（含评论区）。"""
+    with _topics_lock:
+        data = _load_topics()
+    topic = next((t for t in data.get('topics', []) if t.get('id') == topic_id), None)
+    if not topic:
+        return jsonify({'error': '话题不存在'}), 404
+    return render_template('topic_detail.html', topic_id=topic_id)
+
+
+@app.route('/api/topics/<int:topic_id>')
+def api_topic_detail(topic_id):
+    """每周话题详情（公开，含评论）。"""
+    with _topics_lock:
+        data = _load_topics()
+    for t in data.get('topics', []):
+        if t.get('id') == topic_id:
+            t.setdefault('comments', [])
+            return jsonify({'ok': True, 'topic': t})
+    return jsonify({'ok': False, 'error': '话题不存在'}), 404
+
+
+@app.route('/api/topics/<int:topic_id>/comments', methods=['POST'])
+def api_topic_comment(topic_id):
+    """发表评论（需登录）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'ok': False, 'error': '评论内容不能为空'}), 400
+    if len(content) > 500:
+        return jsonify({'ok': False, 'error': '评论最多 500 字'}), 400
+
+    with _topics_lock:
+        # 防刷：同一用户 15 秒内只能评论一次
+        now = _time.time()
+        last = _comment_rate.get(user.username, 0)
+        if now - last < COMMENT_RATE_SECONDS:
+            return jsonify({'ok': False, 'error': '评论太频繁，请稍后再试'}), 429
+        _comment_rate[user.username] = now
+
+        data_topics = _load_topics()
+        topic = next((t for t in data_topics.get('topics', []) if t.get('id') == topic_id), None)
+        if not topic:
+            return jsonify({'ok': False, 'error': '话题不存在'}), 404
+
+        comments = topic.setdefault('comments', [])
+        comment = {
+            'id': max([c.get('id', 0) for c in comments], default=0) + 1,
+            'username': user.username,
+            'content': content,
+            'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        comments.append(comment)
+        _save_topics(data_topics)
+
+    return jsonify({'ok': True, 'comment': comment})
+
+
+@app.route('/api/topics/<int:topic_id>/comments/<int:comment_id>', methods=['DELETE'])
+def api_topic_comment_delete(topic_id, comment_id):
+    """删除评论（仅作者本人或管理员）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    with _topics_lock:
+        data_topics = _load_topics()
+        topic = next((t for t in data_topics.get('topics', []) if t.get('id') == topic_id), None)
+        if not topic:
+            return jsonify({'ok': False, 'error': '话题不存在'}), 404
+
+        comments = topic.get('comments', [])
+        comment = next((c for c in comments if c.get('id') == comment_id), None)
+        if not comment:
+            return jsonify({'ok': False, 'error': '评论不存在'}), 404
+
+        is_admin_user = bool(user.is_admin if user.is_admin is not None else False)
+        if comment.get('username') != user.username and not is_admin_user:
+            return jsonify({'ok': False, 'error': '只能删除自己的评论'}), 403
+
+        topic['comments'] = [c for c in comments if c.get('id') != comment_id]
+        _save_topics(data_topics)
+
+    return jsonify({'ok': True})
+
+
+# ━━━ 冒险者酒馆 + 创意工坊 API（真实存储）━━━
+# 数据文件：data/community.json（帖子）、data/workshop.json（工坊投稿）
+# 板块定义为静态结构，主题数/帖子数为真实统计
+
+_COMMUNITY_FILE = _Path(__file__).parent.parent / 'data' / 'community.json'
+_WORKSHOP_FILE = _Path(__file__).parent.parent / 'data' / 'workshop.json'
+_community_lock = _threading.Lock()
+
+# 板块静态定义
+_COMMUNITY_BOARDS = [
+    {'id': 'discuss', 'icon': '💭', 'name': '综合讨论区', 'desc': '跑团相关的任何话题'},
+    {'id': 'rules', 'icon': '📖', 'name': '规则研讨堂', 'desc': 'D&D 5E 规则深度讨论'},
+    {'id': 'recruit', 'icon': '📯', 'name': '跑团招募版', 'desc': '寻找 DM 或玩家'},
+    {'id': 'battle', 'icon': '📜', 'name': '冒险战报馆', 'desc': '记录你的每一次冒险'},
+    {'id': 'tech', 'icon': '🛠️', 'name': '技术支持区', 'desc': '平台使用问题、Bug反馈'},
+]
+
+
+def _load_json_file(path: _Path, default: list) -> list:
+    try:
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return default
+
+
+def _save_json_file(path: _Path, data: list):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        _json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/community/boards')
+def api_community_boards():
+    """板块列表 + 真实帖子统计。"""
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+    boards = []
+    for b in _COMMUNITY_BOARDS:
+        b_posts = [p for p in posts if p.get('board') == b['id']]
+        replies = sum(p.get('reply_count', 0) for p in b_posts)
+        boards.append({
+            **b,
+            'topics': len(b_posts),
+            'posts': len(b_posts) + replies,
+            'last': b_posts[0].get('created_at', '') if b_posts else '',
+            'lastBy': b_posts[0].get('author', '') if b_posts else '',
+            'lastTopic': b_posts[0].get('title', '') if b_posts else '',
+        })
+    return jsonify({'ok': True, 'boards': boards})
+
+
+@app.route('/api/community/boards/<board_id>/threads')
+def api_community_threads(board_id):
+    """板块帖子列表（按发布时间倒序）。"""
+    if board_id not in {b['id'] for b in _COMMUNITY_BOARDS}:
+        return jsonify({'ok': False, 'error': '板块不存在'}), 404
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+    threads = [p for p in posts if p.get('board') == board_id]
+    return jsonify({'ok': True, 'threads': threads})
+
+
+@app.route('/api/community/posts/<int:post_id>')
+def api_community_post_detail(post_id):
+    """帖子详情（公开）。"""
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+    post = next((p for p in posts if p.get('id') == post_id), None)
+    if not post:
+        return jsonify({'ok': False, 'error': '帖子不存在'}), 404
+    board_name = post.get('board')
+    for b in _COMMUNITY_BOARDS:
+        if b['id'] == post.get('board'):
+            board_name = b['name']
+            break
+    return jsonify({'ok': True, 'post': {**post, 'boardName': board_name}})
+
+
+@app.route('/api/community/posts', methods=['POST'])
+def api_community_post():
+    """发布帖子（需登录）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    data = request.get_json(silent=True) or {}
+    board = (data.get('board') or '').strip()
+    title = (data.get('title') or '').strip()
+    content = (data.get('content') or '').strip()
+    images = data.get('images') or []
+    if not isinstance(images, list):
+        images = []
+    images = [str(i).strip()[:300] for i in images if str(i).strip()][:9]
+
+    if board not in {b['id'] for b in _COMMUNITY_BOARDS}:
+        return jsonify({'ok': False, 'error': '请选择板块'}), 400
+    if not title:
+        return jsonify({'ok': False, 'error': '请填写帖子标题'}), 400
+    if len(title) > 100:
+        return jsonify({'ok': False, 'error': '标题最多 100 字'}), 400
+    if not content:
+        return jsonify({'ok': False, 'error': '请填写帖子内容'}), 400
+    if len(content) > 5000:
+        return jsonify({'ok': False, 'error': '内容最多 5000 字'}), 400
+
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+        post = {
+            'id': max([p.get('id', 0) for p in posts], default=0) + 1,
+            'board': board,
+            'title': title,
+            'content': content,
+            'images': images,
+            'author': user.username,
+            'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+            'reply_count': 0,
+        }
+        posts.insert(0, post)
+        _save_json_file(_COMMUNITY_FILE, posts)
+
+    return jsonify({'ok': True, 'post': post})
+
+
+@app.route('/api/community/posts/<int:post_id>', methods=['DELETE'])
+def api_community_post_delete(post_id):
+    """删除帖子（仅作者本人或管理员）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+        post = next((p for p in posts if p.get('id') == post_id), None)
+        if not post:
+            return jsonify({'ok': False, 'error': '帖子不存在'}), 404
+        is_admin_user = bool(user.is_admin if user.is_admin is not None else False)
+        if post.get('author') != user.username and not is_admin_user:
+            return jsonify({'ok': False, 'error': '只能删除自己的帖子'}), 403
+        posts = [p for p in posts if p.get('id') != post_id]
+        _save_json_file(_COMMUNITY_FILE, posts)
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/workshop/items')
+def api_workshop_items():
+    """工坊列表：静态样例 + 真实投稿。"""
+    with _community_lock:
+        subs = _load_json_file(_WORKSHOP_FILE, [])
+    return jsonify({'ok': True, 'items': subs})
+
+
+def _make_comment(username: str, content: str, comments: list) -> dict:
+    """构造评论对象（id 递增）。"""
+    return {
+        'id': max([c.get('id', 0) for c in comments], default=0) + 1,
+        'username': username,
+        'content': content,
+        'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+def _comment_rate_check(username: str) -> str | None:
+    """评论防刷（同一用户 15 秒间隔），返回错误信息或 None。"""
+    now = _time.time()
+    last = _comment_rate.get(username, 0)
+    if now - last < COMMENT_RATE_SECONDS:
+        return '评论太频繁，请稍后再试'
+    _comment_rate[username] = now
+    return None
+
+
+@app.route('/api/community/posts/<int:post_id>/comments', methods=['POST'])
+def api_community_post_comment(post_id):
+    """帖子评论（需登录）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'ok': False, 'error': '评论内容不能为空'}), 400
+    if len(content) > 500:
+        return jsonify({'ok': False, 'error': '评论最多 500 字'}), 400
+
+    rate_err = _comment_rate_check(user.username)
+    if rate_err:
+        return jsonify({'ok': False, 'error': rate_err}), 429
+
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+        post = next((p for p in posts if p.get('id') == post_id), None)
+        if not post:
+            return jsonify({'ok': False, 'error': '帖子不存在'}), 404
+        comments = post.setdefault('comments', [])
+        comment = _make_comment(user.username, content, comments)
+        comments.append(comment)
+        _save_json_file(_COMMUNITY_FILE, posts)
+
+    return jsonify({'ok': True, 'comment': comment})
+
+
+@app.route('/api/community/posts/<int:post_id>/comments/<int:comment_id>', methods=['DELETE'])
+def api_community_post_comment_delete(post_id, comment_id):
+    """删除帖子评论（作者本人或管理员）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+        post = next((p for p in posts if p.get('id') == post_id), None)
+        if not post:
+            return jsonify({'ok': False, 'error': '帖子不存在'}), 404
+        comments = post.get('comments', [])
+        comment = next((c for c in comments if c.get('id') == comment_id), None)
+        if not comment:
+            return jsonify({'ok': False, 'error': '评论不存在'}), 404
+        is_admin_user = bool(user.is_admin if user.is_admin is not None else False)
+        if comment.get('username') != user.username and not is_admin_user:
+            return jsonify({'ok': False, 'error': '只能删除自己的评论'}), 403
+        post['comments'] = [c for c in comments if c.get('id') != comment_id]
+        _save_json_file(_COMMUNITY_FILE, posts)
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/workshop/items/<int:item_id>/comments', methods=['POST'])
+def api_workshop_item_comment(item_id):
+    """工坊投稿评论（需登录）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'ok': False, 'error': '评论内容不能为空'}), 400
+    if len(content) > 500:
+        return jsonify({'ok': False, 'error': '评论最多 500 字'}), 400
+
+    rate_err = _comment_rate_check(user.username)
+    if rate_err:
+        return jsonify({'ok': False, 'error': rate_err}), 429
+
+    with _community_lock:
+        items = _load_json_file(_WORKSHOP_FILE, [])
+        item = next((s for s in items if s.get('id') == item_id), None)
+        if not item:
+            return jsonify({'ok': False, 'error': '投稿不存在'}), 404
+        comments = item.setdefault('comments', [])
+        comment = _make_comment(user.username, content, comments)
+        comments.append(comment)
+        _save_json_file(_WORKSHOP_FILE, items)
+
+    return jsonify({'ok': True, 'comment': comment})
+
+
+@app.route('/api/workshop/items/<int:item_id>/comments/<int:comment_id>', methods=['DELETE'])
+def api_workshop_item_comment_delete(item_id, comment_id):
+    """删除工坊投稿评论（作者本人或管理员）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    with _community_lock:
+        items = _load_json_file(_WORKSHOP_FILE, [])
+        item = next((s for s in items if s.get('id') == item_id), None)
+        if not item:
+            return jsonify({'ok': False, 'error': '投稿不存在'}), 404
+        comments = item.get('comments', [])
+        comment = next((c for c in comments if c.get('id') == comment_id), None)
+        if not comment:
+            return jsonify({'ok': False, 'error': '评论不存在'}), 404
+        is_admin_user = bool(user.is_admin if user.is_admin is not None else False)
+        if comment.get('username') != user.username and not is_admin_user:
+            return jsonify({'ok': False, 'error': '只能删除自己的评论'}), 403
+        item['comments'] = [c for c in comments if c.get('id') != comment_id]
+        _save_json_file(_WORKSHOP_FILE, items)
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/workshop/items/<int:item_id>')
+def api_workshop_item_detail(item_id):
+    """工坊投稿详情（含评论，公开）。"""
+    with _community_lock:
+        items = _load_json_file(_WORKSHOP_FILE, [])
+    item = next((s for s in items if s.get('id') == item_id), None)
+    if not item:
+        return jsonify({'ok': False, 'error': '投稿不存在'}), 404
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/workshop/items', methods=['POST'])
+def api_workshop_submit():
+    """创意工坊投稿（需登录，文件可选上传）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    desc = (data.get('desc') or '').strip()
+    file_url = (data.get('file_url') or '').strip()
+
+    if not title:
+        return jsonify({'ok': False, 'error': '请填写主题名称'}), 400
+    if len(title) > 60:
+        return jsonify({'ok': False, 'error': '主题名称最多 60 字'}), 400
+    if not desc:
+        return jsonify({'ok': False, 'error': '请填写内容介绍'}), 400
+    if len(desc) > 2000:
+        return jsonify({'ok': False, 'error': '内容介绍最多 2000 字'}), 400
+
+    with _community_lock:
+        subs = _load_json_file(_WORKSHOP_FILE, [])
+        item = {
+            'id': max([s.get('id', 0) for s in subs], default=0) + 1,
+            'title': title,
+            'desc': desc,
+            'file_url': file_url,
+            'author': user.username,
+            'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+            'cat': 'user',
+        }
+        subs.insert(0, item)
+        _save_json_file(_WORKSHOP_FILE, subs)
+
+    return jsonify({'ok': True, 'item': item})
+
+
+@app.route('/api/workshop/items/<int:item_id>', methods=['DELETE'])
+def api_workshop_item_delete(item_id):
+    """删除工坊投稿（仅作者本人或管理员）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+
+    with _community_lock:
+        subs = _load_json_file(_WORKSHOP_FILE, [])
+        item = next((s for s in subs if s.get('id') == item_id), None)
+        if not item:
+            return jsonify({'ok': False, 'error': '投稿不存在'}), 404
+        is_admin_user = bool(user.is_admin if user.is_admin is not None else False)
+        if item.get('author') != user.username and not is_admin_user:
+            return jsonify({'ok': False, 'error': '只能删除自己的投稿'}), 403
+        subs = [s for s in subs if s.get('id') != item_id]
+        _save_json_file(_WORKSHOP_FILE, subs)
+
+    return jsonify({'ok': True})
 
 
 # ━━━ 资源删除 API ━━━
@@ -4279,6 +4863,69 @@ def _get_current_user() -> _UserModel | None:
     return None
 
 
+# ━━━ 全站在线状态 API（打开任意页面即在线，关闭全部页面才下线）━━━
+
+def _prune_online_sessions(now: float = None) -> None:
+    """清理心跳超时的在线会话（页面异常关闭/断网兜底）。"""
+    now = now or _time.time()
+    stale = [sid for sid, s in _online_sessions.items()
+             if now - s['last_seen'] > ONLINE_SESSION_TIMEOUT]
+    for sid in stale:
+        _online_sessions.pop(sid, None)
+
+
+@app.route('/api/online/heartbeat', methods=['POST'])
+def api_online_heartbeat():
+    """页面心跳：每 20 秒上报一次，表示该标签页仍打开。
+
+    仅登录用户计入在线；未登录心跳仅用于移除该会话。
+    """
+    data = request.get_json(silent=True) or {}
+    sid = (data.get('session_id') or '').strip()[:64]
+    page = (data.get('page') or '')[:100]
+    if not sid:
+        return jsonify({'ok': False, 'error': '缺少 session_id'}), 400
+
+    user = _get_current_user()
+    with _online_lock:
+        if user:
+            _online_sessions[sid] = {
+                'username': user.username,
+                'user_id': user.id,
+                'ip': request.remote_addr or '',
+                'page': page,
+                'last_seen': _time.time(),
+            }
+        else:
+            _online_sessions.pop(sid, None)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/online/leave', methods=['POST'])
+def api_online_leave():
+    """页面关闭：移除该标签页的在线会话。"""
+    data = request.get_json(silent=True) or {}
+    sid = (data.get('session_id') or '').strip()[:64]
+    if sid:
+        with _online_lock:
+            _online_sessions.pop(sid, None)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/online/users')
+def api_online_users():
+    """当前在线用户列表（按会话数降序）。"""
+    with _online_lock:
+        _prune_online_sessions()
+        users: dict[str, dict] = {}
+        for s in _online_sessions.values():
+            entry = users.setdefault(s['username'], {'sessions': 0, 'page': s['page']})
+            entry['sessions'] += 1
+        online = [{'username': name, 'sessions': v['sessions'], 'page': v['page']}
+                  for name, v in sorted(users.items(), key=lambda x: -x[1]['sessions'])]
+    return jsonify({'ok': True, 'online': online, 'count': len(online)})
+
+
 @app.route('/api/auth/register', methods=['POST'])
 def api_auth_register():
     """用户注册。用户ID由数据库自动分配（注册顺序），不可修改。用户名可在用户中心修改。"""
@@ -4292,6 +4939,9 @@ def api_auth_register():
         return jsonify({'ok': False, 'error': '请填写所有字段'}), 400
     if len(username) < 2 or len(username) > 30:
         return jsonify({'ok': False, 'error': '用户名需2-30个字符'}), 400
+    # 用户名白名单：字母/数字/下划线/连字符/中文，防 HTML/JS 注入与审计日志污染
+    if not _re.fullmatch(r'[\w一-龥-]{2,30}', username):
+        return jsonify({'ok': False, 'error': '用户名仅限中文、字母、数字、下划线、连字符'}), 400
     if len(password) < 9:
         return jsonify({'ok': False, 'error': '密码至少9位'}), 400
     if not (_re.search(r'[a-zA-Z]', password) and _re.search(r'\d', password)):
@@ -4333,12 +4983,15 @@ def api_auth_login():
     user = _UserModel.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
+    if not (user.is_active if user.is_active is not None else True):
+        return jsonify({'ok': False, 'error': '账号已被禁用，请联系管理员'}), 403
 
     _flask_session['user_id'] = user.id
     _flask_session['username'] = user.username
 
-    # 更新最后登录时间
+    # 更新最后登录时间与 IP
     user.last_login = datetime.utcnow()
+    user.last_login_ip = request.remote_addr or ''
     # 自动关联旧角色（created_by 匹配但 user_id 为空）
     from core.models import Character as _Char
     _Char.query.filter(
@@ -4374,6 +5027,9 @@ def api_auth_update_profile():
     if new_username and new_username != user.username:
         if len(new_username) < 2 or len(new_username) > 30:
             return jsonify({'ok': False, 'error': '用户名需2-30个字符'}), 400
+        # 用户名白名单：字母/数字/下划线/连字符/中文
+        if not _re.fullmatch(r'[\w一-龥-]{2,30}', new_username):
+            return jsonify({'ok': False, 'error': '用户名仅限中文、字母、数字、下划线、连字符'}), 400
         if _UserModel.query.filter_by(username=new_username).first():
             return jsonify({'ok': False, 'error': '用户名已存在'}), 409
         user.username = new_username
@@ -4383,8 +5039,12 @@ def api_auth_update_profile():
             return jsonify({'ok': False, 'error': '邮箱已被使用'}), 409
         user.email = new_email
     if phone:
+        if len(phone) > 50:
+            return jsonify({'ok': False, 'error': '手机号过长'}), 400
         user.phone = phone
     if bio:
+        if len(bio) > 500:
+            return jsonify({'ok': False, 'error': '简介过长（最多500字）'}), 400
         user.bio = bio
 
     db.session.commit()

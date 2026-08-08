@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}错误监控{% endblock %}
+{% block page_title %}🐛 错误监控{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>前端错误日志（最近 100 条）</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="error-count"></span>
+            <button class="btn btn-sm btn-secondary" onclick="loadErrors()">🔄 刷新</button>
+            <button class="btn btn-sm btn-danger" onclick="clearErrors()">清空日志</button>
+        </span>
+    </div>
+    <div class="table-container" style="max-height:600px;overflow-y:auto;">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>页面</th><th>错误信息</th><th>文件</th><th>行号</th><th>用户</th></tr>
+            </thead>
+            <tbody id="errors-tbody">
+                <tr><td colspan="6" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+<script>
+async function loadErrors() {
+    const tbody = document.getElementById('errors-tbody');
+    try {
+        const data = await Admin.get('/admin/api/frontend-errors?limit=100');
+        const errors = data.errors || [];
+        document.getElementById('error-count').textContent = `共 ${data.total || errors.length} 条`;
+
+        if (!errors.length) {
+            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">暂无错误，系统运行良好！</div></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = errors.map(e => `
+            <tr>
+                <td style="white-space:nowrap;font-size:12px;">${e.time || '-'}</td>
+                <td style="font-size:12px;">${Admin.escHtml(e.page || '-')}</td>
+                <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--danger);">${Admin.escHtml(e.message || '-')}</td>
+                <td style="font-size:11px;color:var(--text-muted);">${Admin.escHtml(e.source || '-')}</td>
+                <td style="font-size:11px;">${e.lineno || '-'}:${e.colno || '-'}</td>
+                <td style="font-size:12px;">${Admin.escHtml(e.username || '-')}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function clearErrors() {
+    const ok = await Admin.confirm('清空日志', '确定要清空所有前端错误日志吗？');
+    if (!ok) return;
+    try {
+        await Admin.del('/admin/api/frontend-errors');
+        Admin.toast('错误日志已清空', 'success');
+        loadErrors();
+    } catch (e) {}
+}
+
+loadErrors();
+</script>
+{% endblock %}

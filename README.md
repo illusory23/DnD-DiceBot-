@@ -2,7 +2,7 @@
 
 **Chronicles of Dust — Online TRPG Platform**
 
-> 版本：v5.0 | 更新日期：2026-08-04
+> 版本：v5.1 | 更新日期：2026-08-09
 
 一个集 D&D 5E 跑团工具、北境雪原探索玩法、官网门户于一体的综合性 TRPG 平台。基于 Python Flask 后端 + 原生 HTML/CSS/JS 前端构建。
 
@@ -51,15 +51,38 @@
 | 👥 用户系统 | 注册/登录/修改资料，scrypt密码哈希 |
 | ☁️ 云端存档 | 北境数据PostgreSQL持久化，跨设备恢复 |
 | 🔧 Mod 系统 | 外置接口，支持自定义扩展 |
+| 🔐 管理员后台 | `/admin` 独立后台：仪表盘/用户/角色/聊天/统计/错误/系统维护/内容/每周话题/社区/审计日志/数据备份 |
 
 ### 2.2 官网门户 (`/web/templates/portal`)
 
 | 功能 | 说明 |
 |------|------|
-| 🏠 首页 | 品牌展示 + 视频背景 + 雪地粒子特效 |
+| 🏠 首页 | 品牌展示 + 功能分区 + 平台统计（真实数据） |
 | 👥 用户系统 | 登录/注册/角色绑定 |
-| 🔗 功能导航 | 一键跳转各平台模块 |
+| 🔗 功能导航 | 左侧滑出式导航，一键跳转各平台模块 |
+| 📰 每周话题 | 管理员后台发布（标题/内容/图片），独立详情页 + 评论区 |
+| 💬 冒险者酒馆 | 5 大板块真实社区：发帖（多图上传）、图文详情、评论、删除 |
+| 🔧 创意工坊 | 真实投稿系统：介绍/附件上传（zip）、详情页、评论 |
+| 🟢 在线冒险者 | 真实在线统计（打开任意页面即在线，关闭全部页面下线） |
+| 📊 平台统计 | 主题/帖子/用户/投稿/投掷 全部真实数据，实时刷新 |
 | ❄️ 北境召唤卡 | 魔幻风格入口，直接进入北境雪原玩法 |
+
+### 2.3 管理员后台 (`/admin`)
+
+| 功能 | 说明 |
+|------|------|
+| 📊 系统总览 | 8 项实时指标（用户/角色/在线/存档/聊天/骰子/归档/错误）30 秒自动刷新 |
+| 👥 用户管理 | 搜索/分页/设管理员/禁用启用/重置密码/删除账号/登录 IP |
+| 🎭 角色管理 | 全局搜索筛选、职业/等级分布统计、管理员编辑关键字段、删除 |
+| 💬 聊天管理 | 消息查看/清空、聊天归档清理 |
+| 📈 统计中心 | 骰子排行榜、事件统计（聚合）、快照归档 |
+| 🐛 错误监控 | 前端错误日志查询/清空 |
+| 📜 审计日志 | 全部关键操作记录，按操作类型/用户/关键词筛选 |
+| 📰 每周话题 | 发布/编辑/删除话题（标题/HTML 内容/图片上传） |
+| 🧭 社区内容 | 酒馆帖子与工坊投稿全量管理与删除 |
+| ⚙️ 系统维护 | 运行环境、数据表统计、统计归档 |
+| 📦 内容管理 | 自定义法术/怪物/物品增删 |
+| 🗄️ 数据备份 | 一键备份（在线 sqlite 备份）、zip 下载、恢复（安全网）、日志清理 |
 
 ### 2.3 北境雪原 (`/north`)
 
@@ -88,18 +111,21 @@
 |------|--------|
 | **后端** | Python 3 + Flask |
 | | `web/app.py` — Flask 主应用，路由注册 |
+| | `web/admin.py` — 管理员后台 Blueprint（/admin/*） |
 | | `core/` — 核心引擎（骰子、角色、D&D 规则） |
-| | `utils/` — 工具（数据加载、CHM 搜索、Excel 导入） |
+| | `utils/` — 工具（数据加载、CHM 搜索、Excel 导入、日志） |
 | | `dnd_bot.py` — QQ 机器人指令适配 + 事件表定义 |
 | **前端** | 原生 HTML/CSS/JS（无框架依赖） |
 | | 3D 掷骰 — @3d-dice/dice-box (Three.js 物理引擎) |
 | | 确定性骰子引擎 — 自定义 Three.js 同步骰子系统 |
 | | 雪地特效 — Canvas 雪花 + 极光粒子 |
+| | 在线心跳 — `online-presence.js` 全站在线状态 |
 | | 事件驱动 — 原生事件委托 |
 | **数据** | SQLAlchemy ORM — 17张表，支持 PostgreSQL |
-| | JSON — 法术库、怪物库、物品表 |
+| | JSON — 法术库、怪物库、物品表、每周话题(topics)、酒馆帖子(community)、工坊投稿(workshop) |
 | | CHM 索引 — 离线 D&D 规则检索 |
 | | TXT — 随机事件表定义 |
+| **安全** | 用户名白名单校验、密码哈希、SECRET_KEY 随机持久化、审计日志 |
 
 ---
 
@@ -109,8 +135,10 @@
 骰娘/
 ├── web/                           # Web 应用
 │   ├── app.py                     # Flask 主程序（路由、API）
+│   ├── admin.py                   # 管理员后台 Blueprint（/admin/*）
 │   ├── templates/                 # HTML 模板
 │   │   ├── index.html             # 平台首页（事件表 + 角色卡）
+│   │   ├── topic_detail.html      # 每周话题独立页（含评论区）
 │   │   ├── north-expedition.html  # ★ 北境雪原主页面
 │   │   ├── dice3d.html            # 独立 3D 掷骰页
 │   │   ├── dice3d-e.html          # 增强版 3D 掷骰（带角色联动）
@@ -121,11 +149,14 @@
 │   │   ├── map.html               # 战斗地图
 │   │   ├── chat.html              # 聊天室
 │   │   ├── test4.html             # 备用测试页
+│   │   ├── admin/                 # 管理员后台模板（12 个页面）
 │   │   └── portal/                # 官网门户
-│   │       ├── index.html         # 官网首页
+│   │       ├── index.html         # 官网首页（社区/工坊/话题/在线）
 │   │       └── user.html          # 用户页
 │   └── static/                    # 静态资源
 │       ├── style.css              # 全局样式
+│       ├── online-presence.js     # 全站在线心跳脚本
+│       ├── admin/                 # 后台样式与脚本
 │       ├── dice-box/              # 3D 骰子引擎 (dice-box v1)
 │       ├── dice-v2/               # 3D 骰子引擎 (dice-box v2)
 │       ├── dice3d/                # 骰子桥接 + 自定义引擎
@@ -147,12 +178,16 @@
 │   └── excel_importer.py          # Excel 角色导入
 ├── data/                          # 数据文件
 │   ├── characters.db              # SQLite 角色数据库
+│   ├── topics.json                # 每周话题（含评论）
+│   ├── community.json             # 酒馆帖子（含评论）
+│   ├── workshop.json              # 工坊投稿（含评论）
+│   ├── secret_key                 # SECRET_KEY（首次启动自动生成）
 │   ├── spells_full.json           # 完整法术库
 │   ├── monsters_full.json         # 完整怪物库
 │   ├── DND5E物品表.xlsx           # 物品数据
 │   ├── chm_extracted/             # CHM 提取文本
 │   └── 随机事件表.txt             # 事件表原始定义
-├── backups/                       # 历史备份
+├── backups/                       # 历史备份 + 后台一键备份/恢复
 ├── 跑团存档/                      # 地图和北境存档
 ├── 更新日志/                      # 开发更新记录
 ├── dnd_bot.py                     # QQ 机器人主程序 + 事件表定义
@@ -218,6 +253,8 @@ python app.py
 | `/events` | `events.html` | 事件展示 |
 | `/portal/` | `portal/index.html` | 官网首页 |
 | `/portal/user` | `portal/user.html` | 用户页 |
+| `/topics/<id>` | `topic_detail.html` | 每周话题详情（含评论） |
+| `/admin` | `admin/*` | 管理员后台（12 个页面） |
 | `/_test_dice` | `_test_dice.html` | 骰子测试 |
 
 ---
@@ -314,6 +351,24 @@ python app.py
 | GET | `/api/spell?name=xxx` | 法术查询 |
 | GET | `/api/monster?name=xxx` | 怪物查询 |
 | GET | `/api/search_all?q=xxx` | CHM 全文检索 |
+| POST | `/api/online/heartbeat` | 在线心跳（打开页面即在线） |
+| POST | `/api/online/leave` | 页面关闭下线 |
+| GET | `/api/online/users` | 当前在线用户数 |
+| GET | `/api/stats/overview` | 平台统计（主题/帖子/用户/投稿/投掷） |
+| GET | `/api/topics` | 每周话题列表 |
+| GET | `/api/topics/<id>` | 话题详情（含评论） |
+| POST | `/api/topics/<id>/comments` | 发表话题评论 |
+| GET | `/api/community/boards` | 酒馆板块 + 真实统计 |
+| GET | `/api/community/boards/<id>/threads` | 板块帖子列表 |
+| POST | `/api/community/posts` | 发帖（图片真上传） |
+| GET | `/api/community/posts/<id>` | 帖子详情 |
+| POST | `/api/community/posts/<id>/comments` | 帖子评论 |
+| GET | `/api/workshop/items` | 工坊投稿列表 |
+| POST | `/api/workshop/items` | 工坊投稿（附件真上传） |
+| GET | `/api/workshop/items/<id>` | 投稿详情（含评论） |
+| POST | `/api/workshop/items/<id>/comments` | 投稿评论 |
+
+管理后台 API 统一挂载 `/admin/api/*`（全部需管理员鉴权，操作记审计日志）。
 
 ---
 
@@ -388,6 +443,16 @@ python app.py
 详见 `骰娘/更新日志/` 目录，每条更新一个独立 txt 文件。
 
 命名格式：`YYYY-MM-DD_序号_主题.txt`
+
+### 近期重要更新（2026-08-09）
+
+- **管理员后台**：/admin 完整后台（登录鉴权 + 12 大模块：仪表盘实时指标/用户管理/角色管理/聊天管理/统计中心/错误监控/审计日志/每周话题/社区内容/系统维护/内容管理/数据备份），操作全程审计
+- **官网社区真实化**：冒险者酒馆（5 板块发帖/多图上传/图文详情/评论）、创意工坊（投稿/附件 zip 上传/详情/评论）、每周话题（后台发布/独立详情页/评论）
+- **全站在线系统**：打开任意页面即在线，关闭全部页面下线（标签页心跳 + 超时兜底），官网在线冒险者与后台仪表盘实时人数
+- **平台统计真实化**：主题/帖子/用户/工坊投稿/投掷次数全部真实数据，官网与后台实时刷新
+- **安全加固**：SECRET_KEY 随机持久化、用户名白名单（防 XSS）、布尔解析防提权、分页边界、审计日志脱敏
+- **数据修复**：users 表补 is_admin 列（此前缺失导致用户查询异常）
+- 官网标题更名：尘封之卷·跑团平台
 
 ### 近期重要更新（2026-07-31 ~ 2026-08-02）
 

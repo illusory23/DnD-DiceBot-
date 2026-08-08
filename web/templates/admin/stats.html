@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}统计中心{% endblock %}
+{% block page_title %}📈 统计中心{% endblock %}
+
+{% block content %}
+<!-- 骰子统计排行榜 -->
+<div class="card">
+    <div class="card-header">
+        <span>🎲 骰子统计排行榜</span>
+        <span style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="loadDiceStats()">🔄 刷新</button>
+            <button class="btn btn-sm btn-danger" onclick="clearDiceStats()">清空统计</button>
+        </span>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>#</th><th>玩家</th><th>总投掷</th><th>暴击(20)</th><th>暴击率</th><th>大失败(1)</th><th>大失败率</th></tr>
+            </thead>
+            <tbody id="dice-tbody">
+                <tr><td colspan="7" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 事件统计 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>🗺️ 事件表使用统计</span>
+        <span style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="loadEventStats()">🔄 刷新</button>
+        </span>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>#</th><th>玩家</th><th>总触发</th><th>常用事件（前3）</th></tr>
+            </thead>
+            <tbody id="event-tbody">
+                <tr><td colspan="4" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 数据归档 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>💾 数据归档</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+        将当前的骰子统计和事件统计生成快照归档，然后重置计数器。
+    </p>
+    <button class="btn btn-primary" id="btn-archive" onclick="archiveStats()">📦 归档当前统计</button>
+    <span id="archive-result" style="margin-left:12px;font-size:13px;color:var(--text-muted);"></span>
+</div>
+
+<script>
+async function loadDiceStats() {
+    const tbody = document.getElementById('dice-tbody');
+    try {
+        const data = await Admin.get('/api/dice-stats');
+        const lb = data.leaderboard || [];
+        if (!lb.length) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-text">暂无骰子统计数据</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = lb.map((p, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${Admin.escHtml(p.name)}</td>
+                <td>${p.total}</td>
+                <td>${p.crit20}</td>
+                <td><span style="color:${p.rate20 > 10 ? 'var(--warning)' : 'var(--text-secondary)'};">${p.rate20}%</span></td>
+                <td>${p.crit1}</td>
+                <td><span style="color:${p.rate1 > 10 ? 'var(--danger)' : 'var(--text-secondary)'};">${p.rate1}%</span></td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function loadEventStats() {
+    const tbody = document.getElementById('event-tbody');
+    try {
+        const data = await Admin.get('/admin/api/event-stats');
+        const users = data.users || [];
+
+        if (!users.length) {
+            tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-text">暂无事件统计数据</div></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map((u, i) => {
+            const topEvents = (u.tables || []).slice(0, 2).flatMap(t =>
+                (t.events || []).sort((a, b) => b.count - a.count).slice(0, 3)
+                    .map(e => `${Admin.escHtml(t.table)}·${Admin.escHtml(e.event)}×${e.count}`)
+            ).slice(0, 3);
+            return `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${Admin.escHtml(u.name)}</td>
+                    <td>${u.total}</td>
+                    <td style="font-size:12px;color:var(--text-secondary);">${topEvents.length ? topEvents.join('、') : '-'}</td>
+                </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function clearDiceStats() {
+    const ok = await Admin.confirm('清空统计', '确定要清空所有骰子统计数据吗？');
+    if (!ok) return;
+    try {
+        await Admin.del('/api/dice-stats');
+        Admin.toast('骰子统计已清空', 'success');
+        loadDiceStats();
+    } catch (e) {}
+}
+
+async function archiveStats() {
+    const btn = document.getElementById('btn-archive');
+    btn.disabled = true;
+    btn.textContent = '归档中...';
+    try {
+        const data = await Admin.post('/admin/api/archive-stats');
+        const resultEl = document.getElementById('archive-result');
+        resultEl.textContent = `✅ 归档完成！快照时间: ${data.snapshot_time}，已归档: ${data.archived.join(', ')}`;
+        resultEl.style.color = 'var(--success)';
+        loadDiceStats();
+        loadEventStats();
+    } catch (e) {
+        document.getElementById('archive-result').textContent = '归档失败';
+        document.getElementById('archive-result').style.color = 'var(--danger)';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📦 归档当前统计';
+    }
+}
+
+loadDiceStats();
+loadEventStats();
+</script>
+{% endblock %}

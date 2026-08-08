@@ -23,8 +23,11 @@ class User(db.Model):
     phone = db.Column(db.String(20), default='')
     bio = db.Column(db.Text, default='')
     avatar_url = db.Column(db.Text, default='')
+    is_admin = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    last_login_ip = db.Column(db.String(64), default='')
 
     # 关系
     characters = db.relationship('Character', back_populates='owner', lazy='dynamic')
@@ -48,7 +51,11 @@ class User(db.Model):
         return {
             'id': self.id, 'username': self.username, 'email': self.email,
             'phone': self.phone, 'bio': self.bio, 'avatar_url': self.avatar_url,
+            'is_admin': self.is_admin,
+            'is_active': self.is_active if self.is_active is not None else True,
             'created_at': self.created_at.isoformat() if self.created_at else '',
+            'last_login': self.last_login.isoformat() if self.last_login else '',
+            'last_login_ip': self.last_login_ip or '',
             'character_count': linked + legacy,
         }
 

@@ -1,26 +1,6 @@
 [
   {
     "name": "系统",
-    "text": "🔴 厄内 退出房间",
-    "time": "21:50:25",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785937825.2928882,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 suroku 退出房间",
-    "time": "21:50:33",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785937833.498602,
-    "system": true
-  },
-  {
-    "name": "系统",
     "text": "🔴 凌羽 退出房间",
     "time": "21:50:51",
     "is_dm": false,
@@ -5072,5 +5052,25 @@
     "hidden": false,
     "ip": "system",
     "_ts": 1785949435.5126588
+  },
+  {
+    "name": "IllusoryActer",
+    "text": "进入了骰娘",
+    "time": "03:34:03",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1786217643.6709435
+  },
+  {
+    "name": "IllusoryActor",
+    "text": "进入了骰娘",
+    "time": "04:14:29",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1786220069.101495
   }
 ]
