@@ -1,0 +1,28 @@
+【2026-08-14_2】战斗界面血量修改不同步修复
+
+修改文件：
+- web/static/map.js
+- web/templates/map.html（仅缓存版本号 v=47 → v=48）
+
+问题：
+战斗面板对参战者施加伤害/治疗（💥/💚）后，只有战斗列表和伤害目标下拉更新了血量，
+其他显示血量的地方仍是旧值：
+1. 地图上已打开的 token 详情面板（❤️ hp 条）不刷新。
+2. 角色侧边栏的角色卡血量不刷新。
+3. 其他玩家/页面的战斗列表收不到 hp 变化（伤害/治疗未推送服务器战斗状态）。
+
+修复：
+1. syncCombatantHP 增强：写入角色数据库后重新拉取角色数据更新 charDataCache，
+   并调用新增的 refreshCharHpDisplay(charId) 刷新所有显示点：
+   - 已打开的 token 详情面板 → 重新渲染（显示最新 hp）。
+   - 已打开的角色侧边栏 → 重新加载角色卡列表（显示最新 hp）。
+2. mapApplyDamage / mapApplyHeal 增加 pushCombatState()：
+   伤害/治疗后的战斗状态（含 hp）推送到服务器，其他玩家的战斗列表
+   （3 秒轮询 /api/combat-state）同步更新。
+
+验证（CDP 浏览器实测）：
+- token 详情面板：修改前显示 80/100 → refresh 后立即显示 50/100 ✓
+- 角色卡渲染：数据驱动，重拉后显示最新 hp ✓
+- 战斗列表/伤害下拉：原有同步逻辑 ✓
+- 角色数据库：POST /api/character/{id}/hp 写入 ✓
+- map.js 语法检查通过

@@ -577,6 +577,416 @@ def _import_features_from_sheet(wb, result: dict) -> None:
 
 # ━━━ NekoWorks ver2.1 单元格映射 ━━━
 
+def _import_origin_sheet(wb, result: dict) -> None:
+    """DND5E24模板的「起源」sheet：补充年龄/性别/身高/体重/人物形象/
+    个性/理念/羁绊/缺陷/背景故事/故乡/背景。
+
+    起源表布局：标签在B:D合并区，值在E列（E3角色名/E4玩家/E5故乡/
+    E6背景/E8年龄/K8身高/E9性别/K9体重）；
+    人物形象值在B12起；个性/理念/羁绊/缺陷在S列（O列标签定位）；
+    背景故事在S17起。
+    """
+    origin_sheet = None
+    for name in wb.sheetnames:
+        if '起源' in name:
+            origin_sheet = name
+            break
+    if not origin_sheet:
+        return
+    ws = wb[origin_sheet]
+    cells = _build_cell_dict(ws, max_rows=40)
+
+    basic = result.get('basic', {})
+    if not isinstance(basic, dict):
+        basic = {}
+    bg = result.get('background', {})
+    if not isinstance(bg, dict):
+        bg = {}
+
+    # 基本信息
+    basic['age'] = cells.get('E8', basic.get('age', ''))
+    basic['gender'] = cells.get('E9', basic.get('gender', ''))
+    basic['height'] = cells.get('K8', basic.get('height', ''))
+    basic['weight'] = cells.get('K9', basic.get('weight', ''))
+    basic['hometown'] = cells.get('E5', '')
+    origin_bg = cells.get('E6', '')
+    if origin_bg and str(origin_bg).strip() not in ('背景', '自定义背景'):
+        bg['background_feature'] = f'背景：{str(origin_bg).strip()}'
+
+    # 人物形象（B11标签，值B12起）
+    appearance = []
+    for r in range(12, 20):
+        v = cells.get(f'B{r}')
+        if v and str(v).strip() and str(v).strip() != '人物形象':
+            appearance.append(str(v).strip())
+        elif appearance and not v:
+            break
+    if appearance:
+        bg['appearance'] = '\n'.join(appearance)
+
+    # 个性/理念/羁绊/缺陷（O列标签定位，S列取值）
+    label_rows = {}
+    for r in range(11, 22):
+        lbl = cells.get(f'O{r}')
+        if lbl and str(lbl).strip() in ('个性', '理念', '羁绊', '缺陷'):
+            label_rows[str(lbl).strip()] = r
+    sections = [('个性', 'personality_traits'), ('理念', 'ideals'),
+                ('羁绊', 'bonds'), ('缺陷', 'flaws')]
+    for i, (lbl, key) in enumerate(sections):
+        start = label_rows.get(lbl)
+        if not start:
+            continue
+        end = label_rows.get(sections[i + 1][0]) if i + 1 < len(sections) else start + 3
+        vals = []
+        for rr in range(start, end):
+            v = cells.get(f'S{rr}')
+            if v and str(v).strip() and str(v).strip() != lbl:
+                vals.append(str(v).strip())
+        if vals:
+            bg[key] = '\n'.join(vals)
+
+    # 背景故事（O17标签，S17起；故乡并入开头）
+    story = []
+    hometown = basic.get('hometown', '')
+    if hometown and str(hometown).strip():
+        story.append(f'故乡：{str(hometown).strip()}')
+    for r in range(17, 25):
+        v = cells.get(f'S{r}')
+        if v and str(v).strip() and str(v).strip() != '背景故事':
+            story.append(str(v).strip())
+    if story:
+        bg['backstory'] = '\n'.join(story)
+
+    result['basic'] = basic
+    result['background'] = bg
+
+
+def _import_dnd5e24(ws, cells: dict) -> dict:
+    """导入 DND 5E2024 人物卡（悲灵 v1.0.1 模板）
+
+    主要sheet布局（B列=标签，值在标签右侧）：
+      - B3=角色名标签,D3=角色名; E4=玩家; Q3=熟练标签,S3=熟练加值
+      - E5=主职标签,F5=主职; I5=子职标签,J5=子职; O6=等级
+      - B6=主职业标签,D6=主职业; B7/B8=兼职1/2
+      - R6-R9=种族/亚种/阵营/信仰标签,S6-S9=值; B9=经验值标签,D9=经验
+      - C13-C18=属性名,F13-F18=属性值
+      - 战斗: D22=先攻, M22=HP当前, Q22=HP最大, D23=AC, M23=HD骰数,
+        P23=HD骰面, N25=体型, T25=速度, D25=法术DC, F26=施法属性, F27=被动察觉
+      - 技能: B31-B53=熟练标记(X), C31-C53=技能名, I31-I53=总值
+      - 法术: E63-E71=1-9环法术位, K57=法术攻击骰, Q57+=无消耗法术(戏法),
+        Y57+=准备法术
+    """
+    result: dict = {}
+    basic: dict = {}
+    combat: dict = {}
+    abilities: dict = {}
+
+    # ━━ 基本信息（标签在B:D合并区，值在右侧合并区锚点）━━
+    basic['name'] = cells.get('E3') or cells.get('D3') or cells.get('C3') or '未命名'
+    basic['player'] = cells.get('E4', '')
+    basic['class'] = cells.get('E6', '')  # 主职业（B6:D6标签，E6:H6值）
+    basic['subclass'] = cells.get('I6', '')  # 子职（I5:N5标签，I6:N6值）
+    basic['level'] = _safe_int(cells.get('O6')) or 1  # O5=Lv标签，O6:P6=值
+    basic['race'] = cells.get('T6', '')  # R6:S6标签，T6:X6值
+    basic['subrace'] = cells.get('T7', '')  # R7:S7标签，T7:X7值
+    basic['alignment'] = cells.get('T8', '')  # R8:S8标签
+    basic['faith'] = cells.get('T9', '')  # R9:S9标签，T9:X9值
+    basic['xp'] = _safe_int(cells.get('E9')) or _safe_int(cells.get('D9')) or 0  # B9:D9标签，E9:N9值
+    basic['proficiency_bonus'] = _safe_int(cells.get('S3')) or 2  # Q3:R4标签，S3=值
+    # 兼职（B7:D7/B8:D8标签，E7:H7/E8:H8值）
+    multiclass = []
+    for mc in ('E7', 'E8'):
+        v = cells.get(mc, '')
+        if v and str(v).strip():
+            multiclass.append(str(v).strip())
+    basic['multiclass'] = '、'.join(multiclass)
+    result['basic'] = basic
+
+    # ━━ 属性 ━━
+    attr_rows = {13: 'str', 14: 'dex', 15: 'con', 16: 'int', 17: 'wis', 18: 'cha'}
+    for row_num, key in attr_rows.items():
+        score = _safe_int(cells.get(f'F{row_num}'))
+        abilities[key] = score if score is not None else 10
+    result['abilities'] = abilities
+
+    # ━━ 豁免：职业能力表（AX=名称列, BC=描述列）中"豁免熟练"行的
+    # 描述（如"智力与感知"）标记熟练属性；加值为属性修正+熟练（最终值）━━
+    prof_bonus = basic.get('proficiency_bonus', 2)
+    save_profs = {}
+    for key in ('str', 'dex', 'con', 'int', 'wis', 'cha'):
+        mod = (abilities.get(key, 10) - 10) // 2
+        save_profs[key] = {'is_proficient': False, 'save_bonus': mod}
+    _attr_cn_map = {'力量': 'str', '敏捷': 'dex', '体质': 'con',
+                    '智力': 'int', '感知': 'wis', '魅力': 'cha'}
+    for row_num in range(11, 32):
+        ax_val = cells.get(f'AX{row_num}')
+        if not ax_val or str(ax_val).strip() != '豁免熟练':
+            continue
+        bc_val = cells.get(f'BC{row_num}')
+        if not bc_val:
+            break
+        save_desc = str(bc_val).strip()
+        for cn_name, key in _attr_cn_map.items():
+            if cn_name in save_desc:
+                save_profs[key]['is_proficient'] = True
+                save_profs[key]['save_bonus'] = (abilities.get(key, 10) - 10) // 2 + prof_bonus
+        break
+    result['save_proficiencies'] = save_profs
+
+    # ━━ 技能 ━━
+    skill_profs = {}
+    skill_rows = [
+        (32, '运动'), (34, '特技'), (35, '巧手'), (36, '隐匿'),
+        (38, '调查'), (39, '奥秘'), (40, '历史'), (41, '自然'), (42, '宗教'),
+        (44, '察觉'), (45, '洞悉'), (46, '驯兽'), (47, '医药'), (48, '求生'),
+        (50, '游说'), (51, '欺瞒'), (52, '威吓'), (53, '表演'),
+    ]
+    # 标记含义（DND5E24模板）：X=无熟练，O=有熟练，🅞/2/E=双倍熟练（专精）
+    for row_num, skill_name in skill_rows:
+        prof_mark = cells.get(f'B{row_num}', '')
+        mark = str(prof_mark).strip() if prof_mark is not None else ''
+        is_exp = mark in ('🅞', '⒪', '㊀', '2', 'E', 'e', 'X2', 'x2')
+        is_prof = mark in ('O', 'o', '1', '🅞', '⒪', '㊀', '2', 'E', 'e', 'X2', 'x2')
+        if is_prof:
+            # 仅输出真正有熟练标记的技能
+            skill_profs[skill_name] = {
+                'is_proficient': True,
+                'is_expertise': is_exp,
+                'bonus': _safe_int(cells.get(f'I{row_num}')) or 0,
+            }
+    result['skill_proficiencies'] = skill_profs
+
+    # ━━ 战斗 ━━
+    combat['hp_max'] = _safe_int(cells.get('Q22')) or 10
+    combat['hp_current'] = _safe_int(cells.get('M22'))
+    if not combat['hp_current']:
+        combat['hp_current'] = combat['hp_max']
+    combat['ac'] = _safe_int(cells.get('D23')) or 10
+    combat['initiative_bonus'] = _safe_int(cells.get('D22')) or 0
+    combat['passive_perception'] = _safe_int(cells.get('F27')) or 10
+    # 速度：S25='速度'标签，W25:AA25=速度值
+    speed_raw = cells.get('W25') or cells.get('T25') or cells.get('S25') or ''
+    import re as _re
+    speed_match = _re.search(r'(\d+)', str(speed_raw))
+    combat['speed'] = int(speed_match.group(1)) if speed_match else 30
+    # HD：M23=骰数, P23=骰面
+    hd_count = _safe_int(cells.get('M23'))
+    combat['hd_count'] = hd_count if hd_count else 1
+    hd_die_raw = str(cells.get('P23') or '').strip()
+    if hd_die_raw and hd_die_raw.isdigit() and int(hd_die_raw) > 1:
+        combat['hit_dice'] = f'1d{hd_die_raw}'
+    else:
+        combat['hit_dice'] = '1d8'
+    result['combat'] = combat
+
+    # ━━ 法术信息 ━━
+    spell_ability = cells.get('F26', '') or ''
+    if spell_ability in ('属性', '特殊能力'):
+        spell_ability = ''
+    spell_attack = _parse_attack_bonus(str(cells.get('K57') or '')) if cells.get('K57') else None
+    spell_info = {
+        'spellcasting_ability': spell_ability,
+        'spell_ability': spell_ability,
+        'spell_save_dc': _safe_int(cells.get('D25')) or 10,
+        'spell_attack_bonus': spell_attack if spell_attack is not None else 0,
+        'prepared_spell_count': 0,
+    }
+    result['spell_info'] = spell_info
+
+    # ━━ 法术位（E63-E71 = 1-9环）━━
+    spell_slots = {}
+    for level in range(1, 10):
+        max_slots = _safe_int(cells.get(f'E{62 + level}'))
+        spell_slots[str(level)] = {'max': max_slots or 0, 'used': 0}
+    result['spell_slots'] = spell_slots
+
+    # ━━ 法术列表：Q57-Q66=无消耗法术(戏法), Y57-Y66=准备法术(X列=等级) ━━
+    prepared_spells = []
+    for row_num in range(57, 67):
+        # Q列 = 无消耗法术（戏法，0环）
+        q = cells.get(f'Q{row_num}')
+        if q and str(q).strip() and str(q).strip() not in ('法术名称', 'Lv', '无消耗法术'):
+            prepared_spells.append({'name': str(q).strip(), 'level': 0})
+        # Y列 = 准备法术，X列为环阶
+        y = cells.get(f'Y{row_num}')
+        if y and str(y).strip() and str(y).strip() not in ('法术名称', 'Lv', '准备法术'):
+            lv = _safe_int(cells.get(f'X{row_num}'))
+            prepared_spells.append({'name': str(y).strip(), 'level': lv or 0})
+    result['prepared_spells'] = prepared_spells
+
+    # ━━ 武器/装备（L列=物品名+类别标签, R列=部位/名称兜底）━━
+    weapons = []
+    inventory = []
+    armor_name = ''
+    _BODY_PARTS = {'颈部', '身体', '头部', '手部', '脚部', '腰部', '背部', '手指',
+                   '面部', '手臂', '腿部', '戒指', '护腕', '披风', '项链', '头盔',
+                   '手套', '靴子', '腰带', '斗篷', '指环'}
+    _SKIP_LABELS = {'装备', '名称', '部位', '同调', '加值', '武器名称', '武器',
+                    '护甲', '奇物', '背包1', '背包2', '——负重&财产——', '属性',
+                    '物品', '价格', '重量', '描述'}
+    melee_kw = ['剑', '斧', '锤', '棍', '矛', '戟', '匕首', '镰', '镐', '连枷',
+                '弯刀', '军刀', '细剑', '刺剑', '钉头锤', '拳套', '鞭']
+    ranged_kw = ['弓', '弩', '枪', '标枪', '飞镖', '投石', '矢', '弹']
+    current_cat = '装备'
+    for row_num in range(31, 48):
+        name_raw = cells.get(f'L{row_num}')
+        if name_raw and str(name_raw).strip() in ('护甲', '武器', '奇物'):
+            current_cat = str(name_raw).strip()  # 类别标签，切换当前类别
+            continue
+        if not name_raw or not str(name_raw).strip():
+            # L列空则尝试R列（部分模板用R列存名称）
+            name_raw = cells.get(f'R{row_num}')
+            if not name_raw or not str(name_raw).strip():
+                continue
+        name = str(name_raw).strip()
+        if name in _SKIP_LABELS or name in _BODY_PARTS:
+            continue
+        if len(name) > 40:
+            continue  # 疑似描述文本
+        is_weapon = (current_cat == '武器' or any(k in name for k in melee_kw + ranged_kw))
+        if is_weapon:
+            # 武器数据列：AF=攻击加值, AH=伤害骰, AL=伤害类型, V=特性
+            atk_raw = str(cells.get(f'AF{row_num}') or '')
+            atk_val = _parse_attack_bonus(atk_raw) if atk_raw else 0
+            dmg_dice = str(cells.get(f'AH{row_num}') or '').strip()
+            dmg_type = str(cells.get(f'AL{row_num}') or '').strip()
+            weapon_effect = str(cells.get(f'V{row_num}') or '').strip()
+            weapons.append({
+                'name': name,
+                'attack_bonus': atk_val or 0,
+                'damage_dice': dmg_dice,
+                'damage_type': dmg_type,
+                'ammo': '',
+                'is_proficient': True,
+                'weight': '',
+                'description': '',
+                'effect': weapon_effect,
+            })
+        else:
+            if current_cat == '护甲' and not armor_name:
+                armor_name = name
+            # 描述：T列=特性（奇物/装备的描述）
+            t_desc = str(cells.get(f'T{row_num}') or '').strip()
+            inventory.append({
+                'item_name': name,
+                'quantity': 1,
+                'description': t_desc,
+                'weight': 0,
+                'location': '背包',
+            })
+    result['weapons'] = weapons
+    result['inventory'] = inventory
+    if armor_name:
+        result['armor'] = {'armor_name': armor_name, 'armor_ac': 0, 'shield_name': '', 'shield_ac': 0}
+    else:
+        # ━━ 护甲（默认空）━━
+        result['armor'] = {'armor_name': '', 'armor_ac': 0, 'shield_name': '', 'shield_ac': 0}
+
+    # ━━ 钱币（AC50=钱包标签, AC51=数值, 视为金币；其余默认0）━━
+    result['coins'] = {'cp': 0, 'sp': 0, 'ep': 0, 'gp': _safe_int(cells.get('AC51')) or 0, 'pp': 0}
+
+    # ━━ 背景（模板背景sheet是参考表；背景名暂存backstory，详情留空）━━
+    bg_name = cells.get('E6') or cells.get('D6') or ''
+    if bg_name and str(bg_name).strip() not in ('背景', '自定义背景', '起源'):
+        bg_name = str(bg_name).strip()
+    else:
+        bg_name = ''
+    result['background'] = {
+        'personality_traits': '',
+        'ideals': '',
+        'bonds': '',
+        'flaws': '',
+        'background_feature': f'背景：{bg_name}' if bg_name else '',
+        'appearance': '',
+        'backstory': '',
+    }
+
+    result['key_abilities'] = spell_ability or ''
+
+    # ━━ 特性/种族特性/专长/职业能力（主要表右侧区域）━━
+    features = []
+    _feat_re = __import__('re')
+
+    # 种族特性：BT25='种族特性'标签，BT27起（名称/描述），跳过生物种类/体型/速度基础行
+    for row_num in range(27, 41):
+        name_cell = cells.get(f'BT{row_num}')
+        desc_cell = cells.get(f'BZ{row_num}')
+        if name_cell and str(name_cell).strip() in ('专长', '战斗风格专长', '特殊能力'):
+            break  # 下一区域开始
+        if not name_cell or not str(name_cell).strip():
+            continue
+        name_str = str(name_cell).strip()
+        desc_str = str(desc_cell).strip() if desc_cell else ''
+        if name_str in ('名称', '种族特性') or not desc_str:
+            continue
+        if name_str in ('生物种类', '体型', '速度'):
+            continue  # 基础信息，非特性
+        features.append({'name': name_str, 'category': '种族特性', 'description': desc_str})
+
+    # 专长：BT41='专长'标签，BT列=等级数字，BU列=名称，BZ列=描述
+    for row_num in range(43, 55):
+        desc_cell = cells.get(f'BZ{row_num}')
+        if not desc_cell or not str(desc_cell).strip():
+            continue
+        desc_str = str(desc_cell).strip()
+        name_cell = cells.get(f'BU{row_num}')
+        feat_name = ''
+        if name_cell and str(name_cell).strip() not in ('名称',):
+            feat_name = str(name_cell).strip()
+        else:
+            # 名称列缺失时从描述第二行中文提取
+            for line in desc_str.split('\n')[1:]:
+                m = _feat_re.match(r'^([一-鿿]{2,12})', line.strip())
+                if m:
+                    feat_name = m.group(1)
+                    break
+        features.append({'name': feat_name or '专长', 'category': '专长', 'description': desc_str})
+
+    # 战斗风格专长：BT55='战斗风格专长'标签，BT56=表头，数据57起
+    for row_num in range(57, 62):
+        name_cell = cells.get(f'BT{row_num}')
+        desc_cell = cells.get(f'BZ{row_num}')
+        if not name_cell or not str(name_cell).strip():
+            continue
+        name_str = str(name_cell).strip()
+        desc_str = str(desc_cell).strip() if desc_cell else ''
+        if name_str in ('名称', '战斗风格专长') or not desc_str:
+            continue
+        features.append({'name': name_str, 'category': '战斗风格专长', 'description': desc_str})
+
+    # 特殊能力：BT62='特殊能力'标签，数据63起
+    for row_num in range(63, 70):
+        name_cell = cells.get(f'BT{row_num}')
+        desc_cell = cells.get(f'BZ{row_num}')
+        if not name_cell or not str(name_cell).strip():
+            continue
+        name_str = str(name_cell).strip()
+        desc_str = str(desc_cell).strip() if desc_cell else ''
+        if name_str in ('名称', '特殊能力') or not desc_str:
+            continue
+        features.append({'name': name_str, 'category': '特殊能力', 'description': desc_str})
+
+    # 职业能力：AX列=名称列表（AX10='名称'表头, AX11起名称），
+    # BC列=对应描述（BC10='描述'表头, BC11起描述）
+    for row_num in range(11, 32):
+        ax_val = cells.get(f'AX{row_num}')
+        bc_val = cells.get(f'BC{row_num}')
+        if not bc_val or not str(bc_val).strip():
+            continue
+        desc_str = str(bc_val).strip()
+        if desc_str in ('描述',):
+            continue
+        name = str(ax_val).strip() if ax_val and str(ax_val).strip() not in ('名称',) else ''
+        if not name:
+            # 名称列缺失时从描述开头中文提取
+            m = _feat_re.match(r'^([一-鿿]{2,10})', desc_str)
+            name = m.group(1) if m else '职业能力'
+        features.append({'name': name, 'category': '职业能力', 'description': desc_str})
+
+    result['features'] = features
+    return result
+
+
 def _import_nekox21(ws, cells: dict) -> dict:
     """导入 NekoWorks ver2.1 格式的角色卡
 
@@ -874,6 +1284,11 @@ def _import_nekox21(ws, cells: dict) -> dict:
 
 def _detect_version(ws) -> str:
     """检测Excel模板版本"""
+    # DND 5E2024 人物卡（悲灵版）：A1 含 5E2024 / 5E 2024 标识
+    a1 = str(ws.cell(1, 1).value or '')  # A1
+    if '5E2024' in a1.upper() or '5E 2024' in a1.upper() or 'DND5E24' in a1.upper():
+        print(f'[excel-import] 版本检测结果: dnd5e24 (A1="{a1[:30]}")')
+        return 'dnd5e24'
     # 检查 O1 单元格
     o1 = str(ws.cell(1, 15).value or '')  # O1
     if 'v4.4' in o1 or 'New Edition' in o1:
@@ -899,7 +1314,7 @@ def _build_cell_dict(ws, max_rows: int = 200) -> dict:
     """构建单元格值字典"""
     cells = {}
     for row in ws.iter_rows(min_row=1, max_row=min(max_rows, ws.max_row),
-                            max_col=min(60, ws.max_column)):
+                            max_col=min(95, ws.max_column)):
         for cell in row:
             if cell.value is not None:
                 cells[cell.coordinate] = cell.value
@@ -1069,8 +1484,39 @@ def _import_inventory_sheet(wb) -> list[dict]:
     ws = wb[inv_sheet_name]
     cells = _build_cell_dict(ws, max_rows=250)
 
+    # 检测 DND5E24 布局：背包sheet 用 Y列=物品名 / AC列=描述 / AP列=重量 / AS列=数量
+    use_dnd5e24_layout = (
+        str(cells.get('Y4', '')).strip() == '名称' or
+        str(cells.get('Y3', '')).strip() in ('背包1', '背包2') or
+        str(cells.get('Y5', '')).strip() not in ('', None)
+    )
+    if use_dnd5e24_layout:
+        items = []
+        for row_num in range(5, min(ws.max_row + 1, 80)):
+            name = cells.get(f'Y{row_num}')
+            if not name or not str(name).strip():
+                continue
+            name_str = str(name).strip()
+            # 跳过表头行（名称/描述/lb/数量）与纯数字
+            if name_str in ('名称', '描述', 'lb', '数量', '价格', '项目', '明细', '合计结余'):
+                continue
+            if name_str.isdigit():
+                continue
+            desc = str(cells.get(f'AC{row_num}', '')).strip() if cells.get(f'AC{row_num}') else ''
+            qty = _safe_int(cells.get(f'AS{row_num}')) or 1
+            wt = _safe_int(cells.get(f'AP{row_num}')) or 0
+            items.append({
+                'item_name': name_str,
+                'quantity': qty,
+                'weight': wt,
+                'location': '背包',
+                'description': desc,
+                'effect': '',
+            })
+        return items
+
     # 跳过关键词
-    skip_exact = {'名称', '背包', '描述', 'Inventory'}
+    skip_exact = {'名称', '背包', '描述', 'Inventory', '冒险装备', '工具', '速查'}
 
     for row_num in range(4, min(ws.max_row + 1, 250)):
         name = cells.get(f'B{row_num}', '')
@@ -1094,13 +1540,19 @@ def _import_inventory_sheet(wb) -> list[dict]:
         if '负重' in name_str:
             continue
 
-        desc = str(cells.get(f'I{row_num}', '')) if cells.get(f'I{row_num}') else ''
+        # 描述列：NekoWorks用I列，DND5E24模板用F列
+        desc = ''
+        for dcol in ('I', 'F'):
+            dv = cells.get(f'{dcol}{row_num}')
+            if dv and str(dv).strip():
+                desc = str(dv).strip()
+                break
         items.append({
             'item_name': name_str,
             'quantity': 1,
             'weight': 0,
             'location': '背包',
-            'description': desc.strip(),
+            'description': desc,
             'effect': '',
         })
 
@@ -1247,22 +1699,34 @@ def import_character_from_excel(filepath: str | Path) -> dict:
     # 按版本解析
     if version == 'v440':
         result = _import_v440(ws, cells)
+    elif version == 'dnd5e24':
+        result = _import_dnd5e24(ws, cells)
+        # DND5E24模板补充：起源sheet（年龄/性别/身高/体重/形象/个性等）
+        _import_origin_sheet(wb, result)
     else:
         result = _import_nekox21(ws, cells)
 
-    # 读取背景
-    _import_background_sheet(wb, result)
+    # 读取背景（DND5E24模板的背景sheet是参考表，主sheet已解析）
+    if version != 'dnd5e24':
+        _import_background_sheet(wb, result)
 
     # 读取特性/专长（优先专用 sheet,主 sheet 已在版本解析器中提取）
-    _import_features_from_sheet(wb, result)
+    # DND5E24模板的「专长与据点」sheet是专长参考表，跳过避免误抓
+    if version != 'dnd5e24':
+        _import_features_from_sheet(wb, result)
 
-    # 读取物品/背包
+    # 读取物品/背包（与主要表装备区的物品合并，去重）
     inventory_items = _import_inventory_sheet(wb)
     if inventory_items:
-        result['inventory'] = inventory_items
+        existing = result.get('inventory', [])
+        seen = {str(i.get('item_name', '')) for i in existing}
+        for it in inventory_items:
+            if str(it.get('item_name', '')) not in seen:
+                existing.append(it)
+        result['inventory'] = existing
 
-    # 读取装备物品表（补充武器描述）
-    eq_data = _import_equipment_sheet(wb)
+    # 读取装备物品表（补充武器描述；DND5E24的「装备」表是物品价格参考表，跳过）
+    eq_data = _import_equipment_sheet(wb) if version != 'dnd5e24' else {}
     if eq_data.get('weapon_descriptions'):
         # 用装备物品表的属性描述补充武器信息
         wp_descs = eq_data['weapon_descriptions']

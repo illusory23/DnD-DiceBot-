@@ -1,0 +1,27 @@
+2026-08-14 第18次更新：DND5E24 人物卡导入兼容性修复
+
+【问题】
+导入 DND5E24 模板文件（鸟窝v2 等）时报错：
+- TypeError: string indices must be integers, not 'str'
+- KeyError: 'item_name'
+- ValueError: could not convert string to float: ''
+
+【原因】
+1. prepared_spells 法术列表输出为字符串，导入函数期望 dict（{name, level}）
+2. inventory 物品使用 name 键，导入/预览函数期望 item_name 键
+3. inventory 的 weight 输出空字符串，float() 转换失败
+4. 装备解析只读 R 列，鸟窝v2 模板的物品名在 L 列（R列为部位/名称）
+5. 装备部位标签（颈部/身体等）被误认为物品
+
+【修复】（utils/excel_importer.py + core/character.py）
+1. prepared_spells 输出 dict 列表：Q列=无消耗法术(0环)，Y列=准备法术(X列=环阶)
+2. inventory 元素统一 item_name 键
+3. weight 输出数字 0；import_from_excel_data 的 float 转换加异常兜底
+4. 装备解析改为 L 列扫描（护甲/武器/奇物类别标签切换）+ R 列兜底，
+   武器名（匕首/长棍等）正确识别，部位标签（颈部/身体等）过滤
+5. armor 赋值修复（不再被默认空覆盖）
+
+【验证】（端到端实测）
+- 鸟窝v2 文件（Ea · Virmoris）：属性(cha16/int17)、技能、武器(匕首×2/长棍)、
+  物品(褪色丝带/饱经磨损的长袍)、法术(睡眠术/魔法飞弹等) 全部正确 ✅
+- 悲灵模板：正常导入 ✅

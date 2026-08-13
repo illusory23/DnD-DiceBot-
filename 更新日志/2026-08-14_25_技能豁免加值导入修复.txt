@@ -1,0 +1,21 @@
+2026-08-14 第25次更新：技能加值/豁免加值导入修复
+
+【问题】
+技能数量（加值）与豁免的对应属性加值没有导入：
+- 熟练技能显示加值 0（模板 I 列有总值，未写入）
+- 豁免熟练显示加值 0（应为对应属性修正，如 int=17 → +3）
+
+【根因】
+import_from_excel_data 写入 SkillProficiency/SaveProficiency 时
+只保存了 is_proficient，没有保存 bonus/save_bonus 字段
+（模型有字段，复制角色逻辑也保存，但导入路径遗漏）。
+
+【修改】（core/character.py import_from_excel_data）
+- SkillProficiency 写入补充：is_expertise、bonus（模板 I 列技能总值）
+- SaveProficiency 写入补充：save_bonus（对应属性修正）
+
+【验证】（端到端实测 Ea · Virmoris 文件）
+- 熟练技能 14 个，加值正确：
+  医药+3/威吓+3/察觉+3（感知16→+3）、巧手+0（敏捷11→0）、
+  欺瞒+3（魅力16→+3）✅
+- 豁免加值：int +3（17）、wis +3（16）✅

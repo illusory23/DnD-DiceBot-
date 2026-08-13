@@ -160,7 +160,54 @@
         }
         .mention-toast .mention-close:hover { color: var(--red); }
         .cm-text .mention { color: var(--gold); font-weight: bold; background: rgba(255,215,0,0.1); padding: 0 2px; border-radius: 2px; }
-    
+
+        /* ━━ DM 事件系统 ━━ */
+        .dm-event-btn {
+            padding: 5px 12px; background: var(--gold); color: #000; border: none;
+            border-radius: 3px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+        }
+        .dm-event-btn:hover { opacity: 0.85; }
+        .chat-msg.event {
+            background: linear-gradient(135deg, rgba(255,215,0,0.14), rgba(255,215,0,0.04));
+            border: 1px solid var(--gold);
+        }
+        .chat-msg.event .cm-event-title { color: var(--gold); font-weight: bold; font-size: 0.85rem; }
+        .chat-msg.event .cm-event-text { color: var(--text); margin-top: 4px; white-space: pre-line; }
+        .dm-modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9000;
+            background: rgba(10,10,20,0.7); display: flex; align-items: center; justify-content: center;
+        }
+        .dm-modal-card {
+            background: var(--surface); border: 1px solid var(--gold); border-radius: 8px;
+            padding: 22px 24px; max-width: 460px; width: 90%; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 0 30px rgba(255,215,0,0.2);
+        }
+        .dm-modal-card h3 { color: var(--gold); margin: 0 0 14px; font-size: 1rem; }
+        .dm-modal-card label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px; }
+        .dm-modal-card input[type="text"], .dm-modal-card textarea {
+            width: 100%; box-sizing: border-box; padding: 8px 10px; margin-bottom: 12px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); font-size: 0.85rem; resize: vertical;
+        }
+        .dm-modal-card input:focus, .dm-modal-card textarea:focus { border-color: var(--accent); outline: none; }
+        .dm-modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .dm-modal-btns button {
+            padding: 7px 16px; background: #444; border: none; border-radius: 3px;
+            color: #fff; cursor: pointer; font-size: 0.8rem;
+        }
+        .dm-modal-btns button:hover { opacity: 0.85; }
+        .dm-modal-btns button.primary { background: var(--gold); color: #000; font-weight: 600; }
+        .dm-modal-btns button.cancel { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+        .dm-modal-err { color: var(--red); font-size: 0.78rem; margin-top: 8px; min-height: 16px; text-align: right; }
+        .event-list-item { border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; }
+        .event-list-item .eli-title { color: var(--gold); font-weight: bold; font-size: 0.85rem; }
+        .event-list-item .eli-content { color: var(--text-dim); font-size: 0.78rem; margin-top: 3px; white-space: pre-line; max-height: 60px; overflow-y: auto; }
+        .event-list-item .eli-btns { display: flex; gap: 6px; margin-top: 8px; }
+        .event-list-item .eli-btns button { padding: 4px 12px; font-size: 0.72rem; border: none; border-radius: 3px; cursor: pointer; }
+        .event-list-item .eli-btns .pub { background: var(--gold); color: #000; font-weight: 600; }
+        .event-list-item .eli-btns .del { background: transparent; border: 1px solid #ff6b6b; color: #ff6b6b; }
+        .event-list-empty { color: var(--text-dim); font-size: 0.8rem; text-align: center; padding: 20px 0; }
+
 </style>
     <style>
         #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,10,20,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -186,6 +233,7 @@
     
 </style>
   <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
 </head>
 <body>
 <div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
@@ -204,6 +252,35 @@
         </div>
     </nav>
 
+    <!-- DM 发布事件编辑弹窗 -->
+    <div class="dm-modal-overlay" id="event-editor-overlay" style="display:none;">
+        <div class="dm-modal-card">
+            <h3>📜 发布事件</h3>
+            <label>事件标题</label>
+            <input type="text" id="event-title-input" maxlength="100" placeholder="输入事件标题" enterkeyhint="done">
+            <label>事件内容</label>
+            <textarea id="event-content-input" maxlength="2000" rows="6" placeholder="输入事件内容"></textarea>
+            <div class="dm-modal-btns">
+                <button onclick="saveEventToDraft()" title="保存到事件列表，玩家不可见">💾 保存到事件列表</button>
+                <button class="primary" onclick="publishEvent()">📢 发布</button>
+                <button class="cancel" onclick="closeEventEditor()">取消</button>
+            </div>
+            <div class="dm-modal-err" id="event-editor-err"></div>
+        </div>
+    </div>
+
+    <!-- DM 事件列表弹窗（仅DM可见） -->
+    <div class="dm-modal-overlay" id="event-list-overlay" style="display:none;">
+        <div class="dm-modal-card">
+            <h3>📋 事件列表（仅DM可见）</h3>
+            <div id="event-list-body"></div>
+            <div class="dm-modal-btns" style="margin-top:6px;">
+                <button class="primary" onclick="openEventEditor()">✏️ 新建事件</button>
+                <button class="cancel" onclick="closeEventList()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- @提及通知弹窗 -->
     <div class="mention-toast" id="mention-toast" onclick="dismissMention()">
         <span class="mention-icon">🔔</span>
@@ -220,6 +297,8 @@
             <div class="chat-header">
                 <b>💬 聊天室</b>
                 <span class="online-badge" id="online-badge">0 人在线</span>
+                <button class="dm-event-btn" id="dm-event-btn" style="display:none;" onclick="openEventEditor()" title="发布事件到所有玩家界面">📜 发布事件</button>
+                <button class="dm-event-btn" id="dm-event-list-btn" style="display:none;" onclick="openEventList()" title="查看已保存的事件">📋 事件列表</button>
             </div>
 
             <!-- 加入行 -->
@@ -344,41 +423,46 @@
                 } catch(e) {}
             }
 
-            // 检测DM状态
-            fetch('/api/dm-status').then(r => r.json()).then(data => {
+            // 检测DM状态（带name精确判断，避免PL被本地IP兜底误判为DM）
+            // 检测完成后再加入房间，确保join携带正确的角色，避免身份来回切换
+            fetch('/api/dm-status?name=' + encodeURIComponent(name)).then(r => r.json()).then(data => {
                 isDM = data.is_dm;
                 window._dmName = data.dm_name || '';
                 if (isDM) userRole = 'DM';
                 renderOnlineUsers();
+                showDmEventBtns(isDM);
                 if (isDM) {
                     addSystemMsg('👑 你是主持人 (DM)');
                 }
-            });
+                doJoinRoom();
+            }).catch(() => doJoinRoom());
 
-            // 改名时先离开旧名
-            if (oldName && oldName !== name) {
-                fetch('/api/room/leave', {
+            function doJoinRoom() {
+                // 改名时先离开旧名
+                if (oldName && oldName !== name) {
+                    fetch('/api/room/leave', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name: oldName})
+                    });
+                }
+
+                // 加入房间（角色已由DM检测结果确定）
+                const joinColor = chatColor;
+                fetch('/api/room/join', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: oldName})
+                    body: JSON.stringify({name: name, color: joinColor, role: userRole || 'PL'})
                 });
+
+                // 更新sessionStorage
+                try {
+                    sessionStorage.setItem('dnd_joined_room', JSON.stringify({name: name, color: chatColor, is_dm: isDM, role: userRole || 'PL'}));
+                } catch(e) {}
+
+                addSystemMsg(oldName ? '✅ 已改名为「' + name + '」' : '✅ 你已以「' + name + '」加入聊天室');
+
+                // 首次加入时启动心跳
+                if (!oldName) startHeartbeat();
             }
-
-            // 加入房间
-            const joinColor = chatColor;
-            fetch('/api/room/join', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: name, color: joinColor, role: userRole || 'PL'})
-            });
-
-            // 更新sessionStorage
-            try {
-                sessionStorage.setItem('dnd_joined_room', JSON.stringify({name: name, color: chatColor, is_dm: isDM, role: userRole || 'PL'}));
-            } catch(e) {}
-
-            addSystemMsg(oldName ? '✅ 已改名为「' + name + '」' : '✅ 你已以「' + name + '」加入聊天室');
-
-            // 首次加入时启动心跳
-            if (!oldName) startHeartbeat();
         };
 
         // ━━━ 发送消息 ━━━
@@ -408,6 +492,17 @@
         function renderMsg(msg) {
             const msgs = document.getElementById('chat-msgs');
             const div = document.createElement('div');
+            if (msg.event) {
+                // 事件消息：独立显示，非DM名义
+                const esc = function(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                div.className = 'chat-msg event';
+                div.innerHTML = '<span class="cm-time">[' + msg.time + ']</span>' +
+                    '<div class="cm-event-title">📜 事件：' + esc(msg.event_title) + '</div>' +
+                    '<div class="cm-event-text">' + esc(msg.event_content) + '</div>';
+                msgs.appendChild(div);
+                msgs.scrollTop = msgs.scrollHeight;
+                return;
+            }
             if (msg.system) {
                 div.className = 'chat-msg system';
                 div.textContent = msg.text;
@@ -455,16 +550,29 @@
             if (heartbeatTimer) clearInterval(heartbeatTimer);
             heartbeatTimer = setInterval(() => {
                 if (!chatUser) return;
+                // 定期刷新DM身份：切换角色后回到本页面可自动更新按钮/标识
+                fetch('/api/dm-status?name=' + encodeURIComponent(chatUser)).then(r => r.json()).then(d => {
+                    if (d && typeof d.is_dm === 'boolean') {
+                        // 无条件刷新按钮状态（防止页面实例状态与服务端不一致）
+                        showDmEventBtns(d.is_dm);
+                        if (d.is_dm !== isDM) {
+                            isDM = d.is_dm;
+                            if (isDM) userRole = 'DM';
+                            document.getElementById('chat-color-btn').style.background = isDM ? '#ffd700' : chatColor;
+                            addSystemMsg(isDM ? '👑 你已成为主持人 (DM)' : '🎭 你已切换为玩家 (PL)');
+                        }
+                    }
+                }).catch(() => {});
                 fetch('/api/room/heartbeat', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL'})
                 }).then(r => r.json()).then(data => {
                     if (data.need_rejoin) {
-                        // 用户被服务端清理（超时/重启），自动重新加入
+                        // 用户被服务端清理（超时/重启），自动重新加入（auto标记：不触碰DM身份）
                         var _uid=null; try{var _s=JSON.parse(sessionStorage.getItem('dnd_joined_room')); _uid=_s?(_s.user_id||null):null;}catch(e){}
                         fetch('/api/room/join', {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL', user_id: _uid})
+                            body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL', user_id: _uid, auto: true})
                         }).catch(() => {});
                     }
                     if (data.ok && data.online_users) {
@@ -561,6 +669,138 @@
             setTimeout(() => showNextMention(), 500);
         };
 
+        // ━━━ DM 事件系统 ━━━
+        function showDmEventBtns(show) {
+            document.getElementById('dm-event-btn').style.display = show ? '' : 'none';
+            document.getElementById('dm-event-list-btn').style.display = show ? '' : 'none';
+        }
+
+        function setEventEditorErr(text) {
+            document.getElementById('event-editor-err').textContent = text || '';
+        }
+
+        window.openEventEditor = function() {
+            closeEventList();
+            setEventEditorErr('');
+            document.getElementById('event-editor-overlay').style.display = 'flex';
+            document.getElementById('event-title-input').focus();
+        };
+
+        window.closeEventEditor = function() {
+            document.getElementById('event-editor-overlay').style.display = 'none';
+            setEventEditorErr('');
+        };
+
+        // 发布事件：广播全平台弹窗 + 聊天室同步显示
+        window.publishEvent = function() {
+            if (!chatUser) { setEventEditorErr('请先加入聊天'); return; }
+            const title = document.getElementById('event-title-input').value.trim();
+            const content = document.getElementById('event-content-input').value.trim();
+            if (!title) { setEventEditorErr('请输入事件标题'); return; }
+            if (!content) { setEventEditorErr('请输入事件内容'); return; }
+            setEventEditorErr('');
+            fetch('/api/dm/event-publish', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser, title: title, content: content})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) {
+                    closeEventEditor();
+                    document.getElementById('event-title-input').value = '';
+                    document.getElementById('event-content-input').value = '';
+                    addSystemMsg('📜 事件已发布');
+                } else {
+                    setEventEditorErr(d.error || '发布失败');
+                }
+            }).catch(() => setEventEditorErr('网络错误'));
+        };
+
+        // 保存到事件列表（仅DM可见，持久化）
+        window.saveEventToDraft = function() {
+            if (!chatUser) { setEventEditorErr('请先加入聊天'); return; }
+            const title = document.getElementById('event-title-input').value.trim();
+            const content = document.getElementById('event-content-input').value.trim();
+            if (!title) { setEventEditorErr('请输入事件标题'); return; }
+            if (!content) { setEventEditorErr('请输入事件内容'); return; }
+            setEventEditorErr('');
+            fetch('/api/dm/events', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser, title: title, content: content})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) {
+                    setEventEditorErr('✅ 已保存到事件列表');
+                    document.getElementById('event-title-input').value = '';
+                    document.getElementById('event-content-input').value = '';
+                } else {
+                    setEventEditorErr(d.error || '保存失败');
+                }
+            }).catch(() => setEventEditorErr('网络错误'));
+        };
+
+        // 事件列表弹窗
+        window.openEventList = function() {
+            closeEventEditor();
+            const body = document.getElementById('event-list-body');
+            body.innerHTML = '<div class="event-list-empty">加载中...</div>';
+            document.getElementById('event-list-overlay').style.display = 'flex';
+            fetch('/api/dm/events?name=' + encodeURIComponent(chatUser))
+                .then(r => r.json()).then(d => {
+                    if (!d.ok) { body.innerHTML = '<div class="event-list-empty">' + (d.error || '加载失败') + '</div>'; return; }
+                    if (!d.events || d.events.length === 0) {
+                        body.innerHTML = '<div class="event-list-empty">暂无保存的事件</div>';
+                        return;
+                    }
+                    const esc = function(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                    body.innerHTML = d.events.map(ev =>
+                        '<div class="event-list-item">' +
+                            '<div class="eli-title">📜 ' + esc(ev.title) + '</div>' +
+                            '<div class="eli-content">' + esc(ev.content) + '</div>' +
+                            '<div class="eli-btns">' +
+                                '<button class="pub" onclick="publishSavedEvent(' + ev.id + ')">📢 发布</button>' +
+                                '<button class="del" onclick="deleteSavedEvent(' + ev.id + ')">🗑 删除</button>' +
+                            '</div>' +
+                        '</div>'
+                    ).join('');
+                }).catch(() => {
+                    body.innerHTML = '<div class="event-list-empty">网络错误</div>';
+                });
+        };
+
+        window.closeEventList = function() {
+            document.getElementById('event-list-overlay').style.display = 'none';
+        };
+
+        // 从事件列表发布保存的事件
+        window.publishSavedEvent = function(id) {
+            fetch('/api/dm/events?name=' + encodeURIComponent(chatUser))
+                .then(r => r.json()).then(d => {
+                    if (!d.ok) return;
+                    const ev = (d.events || []).find(e => e.id === id);
+                    if (!ev) return;
+                    fetch('/api/dm/event-publish', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name: chatUser, title: ev.title, content: ev.content})
+                    }).then(r => r.json()).then(res => {
+                        if (res.ok) {
+                            closeEventList();
+                            addSystemMsg('📜 事件已发布');
+                        } else {
+                            alert(res.error || '发布失败');
+                        }
+                    });
+                });
+        };
+
+        // 删除事件列表中的事件
+        window.deleteSavedEvent = function(id) {
+            if (!confirm('确定删除该事件？')) return;
+            fetch('/api/dm/events/' + id, {
+                method: 'DELETE', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) openEventList(); else alert(d.error || '删除失败');
+            });
+        };
+
         // ━━━ 自动恢复心跳（如果已通过加入覆盖层登录）━━
         function autoRestoreSession() {
             try {
@@ -578,11 +818,12 @@
                     document.getElementById('join-row').style.display = 'none';
                     document.getElementById('chat-color-btn').style.background = chatColor;
                     startHeartbeat();
-                    fetch('/api/dm-status').then(r => r.json()).then(data => {
+                    fetch('/api/dm-status?name=' + encodeURIComponent(chatUser)).then(r => r.json()).then(data => {
                         isDM = data.is_dm;
                         window._dmName = data.dm_name || '';
                         if (isDM) userRole = 'DM';
                         renderOnlineUsers();
+                        showDmEventBtns(isDM);
                         if (isDM) {
                         document.getElementById('chat-color-btn').style.background = '#ffd700';
                     }
@@ -592,8 +833,25 @@
             } catch(e) {}
         }
 
+        // 覆盖层登录后同步会话到聊天室（DM事件功能立即可用）
+        window._syncJoinedRoom = function(name, color, isDm, role) {
+            chatUser = name;
+            chatColor = color || '#00bcd4';
+            userRole = role || 'PL';
+            isDM = !!isDm;
+            document.getElementById('chat-color-btn').style.background = chatColor;
+            showDmEventBtns(isDM);
+            if (isDM) addSystemMsg('👑 你是主持人 (DM)');
+            addSystemMsg('✅ 你已以「' + name + '」加入聊天室');
+            // 隐藏顶部加入行，避免重复加入导致身份来回切换
+            const jr = document.getElementById('join-row');
+            if (jr) jr.style.display = 'none';
+            startHeartbeat();  // 覆盖层加入也启动心跳（含DM状态定期刷新）
+        };
+
         // ━━━ 初始化 ━━━
         function init() {
+            // 平台内（有会话）自动恢复；从外部进入（无会话）由覆盖层重新验证
             autoRestoreSession();
             // 回车发送
             const chatInput = document.getElementById('chat-input');
@@ -619,7 +877,9 @@
             setInterval(pollMentions, 2000);
 
             // 页面离开
-            window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
+            // 延迟离开：刷新/页面内导航销毁页面后定时器失效（不发送leave），
+            // 避免切换页面导致DM身份被清除；真正关闭时由服务端心跳超时清理
+            window.addEventListener('pagehide', () => { setTimeout(leaveRoom, 1500); });
         }
 
         init();
@@ -627,7 +887,7 @@
 <script>
 (function(){
 window._portalUserId=null;fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById("join-username").value=d.user.username;}}).catch(function(){});var K='dnd_joined_room';
-var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-username').value=_d.name;document.getElementById('join-overlay').classList.add('hidden');if(typeof window._chatUser!=='undefined')window._chatUser=_d.name;var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
 var C='#00bcd4';
 var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
 function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
@@ -636,7 +896,7 @@ window.toggleJoinColorPalette=function(){B();document.getElementById('join-color
 window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
 fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
 document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
-window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){if(d.role_downgraded){document.getElementById('join-error').textContent='⚠️ 另有DM：'+(d.dm_name||'')+'，你将以PL身份进入';}sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(window._syncJoinedRoom)window._syncJoinedRoom(n,C,d.is_dm,document.querySelector('input[name=\"join-role\"]:checked').value);fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
 document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
 })();
 </script>

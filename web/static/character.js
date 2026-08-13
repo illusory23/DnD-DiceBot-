@@ -499,7 +499,8 @@
                 else if (isProf) { cls = 'proficient'; }
                 const ab = char.ability_mods || {};
                 const amod = ab[skMap[s]] || 0;
-                const totalBonus = amod + (isExp ? (char.proficiency_bonus||2)*2 : (isProf ? (char.proficiency_bonus||2) : 0)) + rawBonus;
+                // 熟练技能显示存储总值（已含修正+熟练），未熟练显示属性修正
+                const totalBonus = isProf ? rawBonus : amod;
                 return `<span class="skill-tag${cls ? ' ' + cls : ''}" title="${toggleTitle}" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.15rem;">
                     <span onclick="toggleSkill(${char.id}, '${s}', ${!isProf || isExp})">${s}</span>
                     <span class="editable-field" onclick="event.stopPropagation();editSkillBonus(${char.id}, '${s}', ${rawBonus}, ${isProf||false}, ${isExp||false})" title="点击修改加值(当前额外加值:${rawBonus>=0?'+':''}${rawBonus})" style="font-size:0.75rem;">${totalBonus>=0?'+':''}${totalBonus}</span>
@@ -699,12 +700,14 @@
             const saveProfs = char.save_proficiencies || {};
             const saveAbbr = ['力量','敏捷','体质','智力','感知','魅力'];
             const saveTags = saveAbbr.map(s => {
-                const prof = saveProfs[s] || {};
+                const akey = {力量:'str',敏捷:'dex',体质:'con',智力:'int',感知:'wis',魅力:'cha'}[s];
+                // API 返回的 save_proficiencies 键为英文（str/dex/...），兼容旧中文键数据
+                const prof = saveProfs[akey] || saveProfs[s] || {};
                 const isProf = prof.is_proficient;
                 const rawBonus = prof.save_bonus || 0;
-                const akey = {力量:'str',敏捷:'dex',体质:'con',智力:'int',感知:'wis',魅力:'cha'}[s];
                 const amod = mods[akey] || 0;
-                const totalBonus = amod + (isProf ? (char.proficiency_bonus||2) : 0) + rawBonus;
+                // 熟练豁免显示存储总值（含熟练），未熟练显示属性修正
+                const totalBonus = isProf ? rawBonus : amod;
                 const toggleTitle = `点击切换豁免熟练 (当前: ${isProf?'熟练':'非熟练'})`;
                 return `<span class="skill-tag${isProf ? ' proficient' : ''}" title="${toggleTitle}" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.15rem;">
                     <span onclick="toggleSaveProf(${char.id}, '${s}', ${!isProf})">${s}</span>
@@ -1421,11 +1424,21 @@
         }
 
         async function toggleSkill(charId, skillName, makeProficient) {
-            // 保留现有加的加值和专精状态
+            // 保留现有加值和专精状态；切换时重算加值（熟练=修正+熟练，非熟练=修正）
             const profs = currentChar && currentChar.skill_proficiencies || {};
             const existing = profs[skillName] || {};
             const isExp = makeProficient && existing.is_expertise;
-            const bonus = existing.bonus || 0;
+            const skAttr = {运动:'str',特技:'dex',巧手:'dex',隐匿:'dex',调查:'int',奥秘:'int',
+                           历史:'int',自然:'wis',宗教:'int',察觉:'wis',洞悉:'wis',驯兽:'wis',
+                           医药:'wis',求生:'wis',游说:'cha',欺瞒:'cha',威吓:'cha',表演:'cha'};
+            const amod = (currentChar.ability_mods || {})[skAttr[skillName]] || 0;
+            const profB = currentChar.proficiency_bonus || 2;
+            let bonus = existing.bonus || 0;
+            if (makeProficient && !existing.is_proficient) {
+                bonus = amod + (isExp ? profB * 2 : profB);  // 新熟练：总值
+            } else if (!makeProficient && existing.is_proficient) {
+                bonus = amod;  // 取消熟练：仅修正
+            }
             try {
                 const resp = await fetch(`/api/character/${charId}/skill`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1439,12 +1452,15 @@
 
         async function toggleSaveProf(charId, abilityName, makeProficient) {
             const profs = currentChar && currentChar.save_proficiencies || {};
-            const existing = profs[abilityName] || {};
-            const saveBonus = existing.save_bonus || 0;
+            const akey = {力量:'str',敏捷:'dex',体质:'con',智力:'int',感知:'wis',魅力:'cha'}[abilityName] || abilityName;
+            const existing = profs[akey] || profs[abilityName] || {};
+            // 切换时重算加值（熟练=属性修正+熟练，非熟练=属性修正）
+            const amod = (currentChar.ability_mods || {})[akey] || 0;
+            const saveBonus = makeProficient ? (amod + (currentChar.proficiency_bonus || 2)) : amod;
             try {
                 const resp = await fetch(`/api/character/${charId}/save-prof`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ability: abilityName, proficient: makeProficient, save_bonus: saveBonus})
+                    body: JSON.stringify({ability: akey, proficient: makeProficient, save_bonus: saveBonus})
                 });
                 const data = await resp.json();
                 if (data.error) { alert(data.error); return; }

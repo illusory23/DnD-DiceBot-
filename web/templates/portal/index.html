@@ -373,7 +373,7 @@ function hEscape(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").
 function showModal(t){S("modal-"+t).classList.add("show");}
 function hideModal(t){S("modal-"+t).classList.remove("show");}
 document.querySelectorAll(".modal-overlay").forEach(function(m){m.addEventListener("click",function(e){if(e.target===m)m.classList.remove("show");});});
-function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;var err=S("login-error");if(!u||!p){err.textContent="请填写用户名和密码";return;}err.textContent="登录中...";fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error+(d.error.indexOf("用户名或密码")>=0?" — 还没有账号？点下方立即注册":"");return;}err.textContent="";hideModal("login");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
+function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;var err=S("login-error");if(!u||!p){err.textContent="请填写账号（用户名或邮箱）和密码";return;}err.textContent="登录中...";fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error+(d.error.indexOf("用户名或密码")>=0?" — 还没有账号？点下方立即注册":"");return;}err.textContent="";hideModal("login");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
 function doRegister(){var u=S("reg-user").value.trim();var e=S("reg-email").value.trim();var p=S("reg-pass").value;var p2=S("reg-pass2").value;var err=S("reg-error");if(!u||!e||!p){err.textContent="请填写所有字段";return;}if(p.length<9){err.textContent="密码至少9位";return;}if(!/[a-zA-Z]/.test(p)||!/\d/.test(p)){err.textContent="密码必须包含英文和数字";return;}if(p!==p2){err.textContent="两次密码不一致";return;}err.textContent="注册中...";fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,email:e,password:p,confirm_password:p2})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error;return;}err.textContent="";hideModal("register");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
 function updateUserUI(name,userData){S("side-username").textContent="👤 "+name;var extra=userData?('<div style=font-size:0.68rem;color:var(--text-dim);>'+ (userData.character_count||0) +' 个角色</div>'):'';S("side-user").querySelector(".side-body").innerHTML="<div style='font-size:0.85rem;color:var(--accent);'><b>"+name+"</b></div>"+extra+"<button class='btn' onclick='doLogout()' style='font-size:0.72rem;margin-top:8px;width:100%;'>退出</button>";document.getElementById("header-actions").innerHTML="<a href='#' style='color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:8px;'>帮助</a><a href='/user' class='user-info' style='text-decoration:none;cursor:pointer;'>"+name+"</a><button class='btn' onclick='doLogout()'>退出</button>";}
 function doLogout(){fetch("/api/auth/logout",{method:"POST"}).then(function(){location.reload();}).catch(function(){location.reload();});}
@@ -612,5 +612,9 @@ setInterval(loadTopics, 60000);
 </div>
 
 <button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
+<script>
+// 离开跑团平台：清除跑团会话，重新进入时需重新选择身份
+(function(){try{sessionStorage.removeItem('dnd_joined_room');}catch(e){}})();
+</script>
 </body>
 </html>

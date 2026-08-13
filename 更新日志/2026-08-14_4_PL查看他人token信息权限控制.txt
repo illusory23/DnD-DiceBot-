@@ -1,0 +1,27 @@
+【2026-08-14_4】PL 无法查看非自己角色的 token 信息
+
+修改文件：
+- web/static/map.js
+- web/templates/map.html（仅缓存版本号 v=49 → v=50）
+
+问题：
+PL（玩家）点击地图上任意角色的头像 token，都会在左上角弹出完整角色信息面板
+（血量、属性、装备、AC 等）——可以查看非自己角色的所有信息，信息越权。
+
+修复：
+1. token 记录放置者：createMapTokenElement 新增 owner 字段（放置时记录当前玩家名字）。
+2. 同步/恢复携带 owner：tokenNetData 同步消息、远程合并（mergeRemoteTokens）、
+   存档恢复均带 owner 字段（旧数据无 owner 自动补当前身份/留空）。
+3. 权限判定 canViewCharInfo(token, charData)：
+   - DM：可查看全部 token 信息。
+   - PL：仅当 token.owner = 我的名字，或角色 created_by = 我的名字，
+     或角色名与我的名字一致时，才显示信息面板；否则不显示。
+4. showTokenInfoPanel 入口统一拦截（点击 token、刷新面板、侧边栏 📋 按钮均生效），
+   PL 被拦截时 Toast 轻提示"无法查看其他玩家的角色信息"。
+
+验证（CDP 浏览器实测）：
+- PL 点击自己的 token → 面板正常显示 ✓
+- PL 点击他人 token（owner=DM）→ 面板不显示 ✓
+- 权限矩阵 6 项全部正确：owner 匹配/created_by 匹配/角色名匹配 → 可看；
+  无归属不匹配/无数据 → 拒绝 ✓
+- DM 视角不受限，可查看全部 ✓

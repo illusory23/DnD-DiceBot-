@@ -348,13 +348,21 @@
       fetch('/api/room/leave', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: data}).catch(function(){});
     }
   }
-  // 页面关闭/刷新时自动离开
-  window.addEventListener('beforeunload', _leaveRoom);
-  // 切换标签页时：隐藏时立即心跳告知离线，显示时立即心跳告知在线
-  document.addEventListener('visibilitychange', function() {
-    if (document.hidden) {
+  // 延迟离开：刷新/页面内导航会销毁页面使定时器失效（不发送leave），
+  // 真正关闭页面时由服务端心跳超时（10秒）清理离线状态
+  var _leaveTimer = null;
+  function _scheduleLeave() {
+    if (_leaveTimer) return;
+    _leaveTimer = setTimeout(function() {
+      _leaveTimer = null;
       _leaveRoom();
-    } else {
+    }, 1500);
+  }
+  window.addEventListener('beforeunload', _scheduleLeave);
+  // 切换标签页不再触发离开（避免多标签页操作导致在线身份丢失），
+  // 重新可见时快速心跳确认在线即可
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
       _hasLeft = false;
       // 重新上线：快速心跳
       var name = '';

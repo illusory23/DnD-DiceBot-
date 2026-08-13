@@ -146,13 +146,17 @@
         const drawCtx = drawCanvas.getContext('2d');
         const fogCanvas = document.getElementById('fog-canvas');
         const fogCtx = fogCanvas.getContext('2d');
+        // 离屏迷雾 mask：所有雾形状画成不透明黑，用于 destination-in 单层合成（重叠不加深）
+        const fogMaskCanvas = document.createElement('canvas');
+        const fogMaskCtx = fogMaskCanvas.getContext('2d');
         const overlay = document.getElementById('map-overlay');
 
-        let fogLayers = [];        // [{id, name, polygons: [{points,closed}], visible: true}]
-        let fogLayerIdCounter = 0;
-        let activeFogLayerId = null;  // 当前绘制的目标图层
-        let currentFogPoints = null;  // 正在绘制的迷雾多边形
-        let fogVisible = true;        // 迷雾总开关（全局可见性）
+        let fogStrokes = [];      // [{points: [{x,y}...], closed}] 迷雾轨迹（画笔式绘制，不自动闭合；closed=true 为旧存档闭合面）
+        let fogErasures = [];     // [{points: [{x,y}...]}] 橡皮擦挖洞轨迹（destination-out 挖洞，雾不分裂）
+        let fogTool = 'draw';     // 'draw' 绘制迷雾 | 'erase' 擦除迷雾（橡皮式）
+        let currentFogStroke = null;  // 正在绘制的迷雾轨迹（画笔式）
+        let fogErasePoints = [];  // 正在擦除的轨迹点（橡皮式）
+        let fogVisible = true;    // 迷雾总开关（全局可见性）
 
         let currentTool = 'select';
         let selectMode = 'single';    // 'single' | 'box'
@@ -189,7 +193,7 @@
         let groupDragging = false, groupDragOffsets = [];
         let _justDropped = false;  // 防止 HTML5 拖放后合成 mousedown 粘住 token
 
-        canvas.width = 5000; canvas.height = 5000; drawCanvas.width = 5000; drawCanvas.height = 5000; fogCanvas.width = 5000; fogCanvas.height = 5000;
+        canvas.width = 5000; canvas.height = 5000; drawCanvas.width = 5000; drawCanvas.height = 5000; fogCanvas.width = 5000; fogCanvas.height = 5000; fogMaskCanvas.width = 5000; fogMaskCanvas.height = 5000;
 
         // ━━━ 状态持久化 (localStorage + IndexedDB) ━━━
         const STORAGE_KEY = 'dnd_map_state';
@@ -278,11 +282,9 @@
                 canvasWidth: canvas.width, canvasHeight: canvas.height,
                 scale, offsetX, offsetY,
                 layers: mapLayers.map(l => ({id:l.id, name:l.name, dataURL:l.dataURL, url:l.url||'', visible:l.visible, offsetX:l.offsetX||0, offsetY:l.offsetY||0, scale:l.scale||1})),
-                fogLayers: fogLayers.map(l => ({
-                    id: l.id, name: l.name, visible: l.visible,
-                    polygons: l.polygons.map(p => ({points: p.points, closed: p.closed}))
-                })),
-                fogLayerIdCounter, activeFogLayerId, fogVisible,
+                fogStrokes: fogStrokes.map(s => ({points: s.points, closed: s.closed === true, width: s.width})),
+                fogErasures: fogErasures.map(e => ({points: e.points})),
+                fogVisible,
                 layerIdCounter, activeLayerId,
                 mapCombatants: mapCombatants.map(c => ({...c})),
                 mapRound: document.getElementById('map-round-info')?.textContent || '',
@@ -298,6 +300,7 @@
                 canvas.height = state.canvasHeight || 5000;
                 drawCanvas.width = canvas.width; drawCanvas.height = canvas.height;
                 fogCanvas.width = canvas.width; fogCanvas.height = canvas.height;
+                fogMaskCanvas.width = canvas.width; fogMaskCanvas.height = canvas.height;
                 fillBaseImage = new Image(); fillBaseDataURL = '';  // 尺寸变更后清除填充缓存
                 // Canvas 尺寸变更后上下文状态全部重置，恢复绘制属性
                 drawCtx.globalCompositeOperation = 'source-over';
@@ -409,30 +412,31 @@
                     mapTokens = [];
                     tokenIdCounter = state.tokenIdCounter || 0;
                     for (const t of (state.mapTokens || [])) {
-                        const token = createMapTokenElement(t.id, t.charId, t.name, t.portraitUrl, t.x, t.y, t.size, t.rotation||0);
+                        const token = createMapTokenElement(t.id, t.charId, t.name, t.portraitUrl, t.x, t.y, t.size, t.rotation||0, t.owner);
                         mapTokens.push(token);
                         if (t.charId) {
                             fetchCharData(t.charId);  // 预加载角色数据到缓存
                         }
                     }
 
-                    // 恢复迷雾（兼容旧格式）
-                    if (state.fogLayers) {
-                        fogLayers = state.fogLayers.map(l => ({
-                            id: l.id, name: l.name, visible: l.visible !== false,
-                            polygons: (l.polygons || []).map(p => ({points: p.points, closed: p.closed}))
-                        }));
-                        fogLayerIdCounter = state.fogLayerIdCounter || 0;
-                        activeFogLayerId = state.activeFogLayerId || null;
+                    // 恢复迷雾（兼容旧格式：旧闭合面 fogPolygons / 多图层 fogLayers 原样保留，仍按面显示）
+                    if (state.fogStrokes) {
+                        fogStrokes = state.fogStrokes.map(s => ({points: s.points, closed: s.closed === true, width: s.width}));
+                        fogErasures = (state.fogErasures || []).map(e => ({points: e.points}));
                     } else if (state.fogPolygons) {
-                        // 旧格式迁移：所有多边形归入一个默认图层
-                        const id = ++fogLayerIdCounter;
-                        fogLayers = [{ id, name: '迷雾 1', polygons: state.fogPolygons.map(p => ({points: p.points, closed: p.closed})), visible: true }];
-                        activeFogLayerId = id;
+                        fogStrokes = state.fogPolygons.map(p => ({points: p.points, closed: p.closed === true}));
+                        fogErasures = [];
+                    } else if (state.fogLayers) {
+                        fogStrokes = [];
+                        for (const l of state.fogLayers) {
+                            for (const p of (l.polygons || [])) {
+                                fogStrokes.push({points: p.points, closed: p.closed === true});
+                            }
+                        }
+                        fogErasures = [];
                     } else {
-                        fogLayers = [];
-                        fogLayerIdCounter = 0;
-                        activeFogLayerId = null;
+                        fogStrokes = [];
+                        fogErasures = [];
                     }
                     fogVisible = state.fogVisible !== false;
                     document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
@@ -1031,7 +1035,7 @@
             if (tool === 'select') mapArea.classList.add('cursor-grab');
             if (tool === 'text') mapArea.classList.add('cursor-text');
             if (tool === 'brush' || tool === 'eraser' || tool === 'fill') mapArea.classList.add('cursor-brush');
-            if (tool === 'fog') { if (window._isDM !== true) { alert('⚠ 只有DM可以使用战争迷雾'); return; } mapArea.classList.add('cursor-brush'); currentFogPoints = null; redrawFogCanvas(); }
+            if (tool === 'fog') { if (window._isDM !== true) { alert('⚠ 只有DM可以使用战争迷雾'); return; } mapArea.classList.add('cursor-brush'); currentFogStroke = null; fogErasePoints = []; redrawFogCanvas(); }
             if (tool !== 'select') { deselectAll(); clearMultiSelect(); }
             // 非选择工具时隐藏下拉菜单
             if (tool !== 'select') {
@@ -1306,36 +1310,14 @@
                 }
                 if (currentTool === 'fog') {
                     if (window._isDM !== true) return;
-                    if (e.shiftKey && currentFogPoints && currentFogPoints.length >= 3) {
-                        // Shift+点击 → 闭合当前多边形
-                        currentFogPoints.push(currentFogPoints[0]); // 闭合
-                        getActiveFogLayer().polygons.push({points: currentFogPoints, closed: true});
-                        currentFogPoints = null;
-                        activeFogLayerId = null;  // 下次绘制自动创建新图层
-                        renumberFogLayers();
-                        renderLayerList();
-                        debouncedSave();
-                        window._markDirty('fog');
-                    } else if (currentFogPoints === null) {
-                        // 开始新多边形 → 自动创建独立图层（一处迷雾一个图层）
-                        const newId = ++fogLayerIdCounter;
-                        fogLayers.push({ id: newId, name: '迷雾 ' + newId, polygons: [], visible: true });
-                        activeFogLayerId = newId;
-                        currentFogPoints = [screenToCanvas(e.clientX, e.clientY)];
+                    if (fogTool === 'erase') {
+                        // 擦除模式：记录起点轨迹（橡皮式）
+                        fogErasePoints = [screenToCanvas(e.clientX, e.clientY)];
                     } else {
-                        // 添加顶点
-                        currentFogPoints.push(screenToCanvas(e.clientX, e.clientY));
+                        // 绘制模式：开始新轨迹（画笔式，松开自动闭合）
+                        currentFogStroke = { points: [screenToCanvas(e.clientX, e.clientY)] };
                     }
                     redrawFogCanvas();
-                    // 绘制当前未闭合多边形
-                    if (currentFogPoints && currentFogPoints.length >= 2) {
-                        fogCtx.strokeStyle = 'rgba(255,255,255,0.6)';
-                        fogCtx.lineWidth = 2; fogCtx.setLineDash([5,5]);
-                        fogCtx.beginPath(); fogCtx.moveTo(currentFogPoints[0].x, currentFogPoints[0].y);
-                        for (let i = 1; i < currentFogPoints.length; i++) fogCtx.lineTo(currentFogPoints[i].x, currentFogPoints[i].y);
-                        fogCtx.stroke(); fogCtx.setLineDash([]);
-                    }
-                    if (currentFogPoints === null) debouncedSave();
                     e.preventDefault();
                 }
             }
@@ -1388,6 +1370,16 @@
                 drawCtx.stroke();
                 drawCtx.globalCompositeOperation = 'source-over';
             }
+            // 迷雾绘制（画笔式轨迹）/ 擦除（橡皮式轨迹）
+            if (currentTool === 'fog') {
+                if (currentFogStroke) {
+                    currentFogStroke.points.push(screenToCanvas(e.clientX, e.clientY));
+                    redrawFogCanvas();
+                } else if (fogErasePoints.length > 0) {
+                    fogErasePoints.push(screenToCanvas(e.clientX, e.clientY));
+                    redrawFogCanvas();
+                }
+            }
             // 群组拖拽
             if (groupDragging) {
                 const pt = screenToCanvas(e.clientX, e.clientY);
@@ -1436,6 +1428,23 @@
                 if (currentStroke.points.length > 0) { brushStrokes.push(currentStroke); window._wsBroadcastStroke(currentStroke); window._markDirty('strokes'); }
                 currentStroke = null; redrawCanvas();
                 saveState();
+            }
+            // 迷雾完成：绘制 → 涂抹轨迹即迷雾（不闭合）；擦除 → 删除轨迹命中的迷雾
+            if (currentTool === 'fog' && window._isDM === true) {
+                if (currentFogStroke) {
+                    if (currentFogStroke.points.length >= 1) {
+                        // 记录绘制时的线宽：之后切换画笔粗细不影响这笔雾的显示与擦除判定
+                        fogStrokes.push({points: currentFogStroke.points, closed: false, width: fogLineWidth()});
+                        window._markDirty('fog');
+                        debouncedSave();
+                    }
+                    currentFogStroke = null;
+                    redrawFogCanvas();
+                } else if (fogErasePoints.length > 0) {
+                    removeFogByErasePath();
+                    fogErasePoints = [];
+                    redrawFogCanvas();
+                }
             }
             // 框选结束
             if (boxSelecting) {
@@ -1530,88 +1539,153 @@
             multiSelected = [];
         }
 
-        // ━━━ 战争迷雾（多图层）━━━━
-        function ensureFogLayer() {
-            if (fogLayers.length === 0) {
-                const id = ++fogLayerIdCounter;
-                fogLayers.push({ id, name: '迷雾 ' + id, polygons: [], visible: true });
-                activeFogLayerId = id;
-                renderLayerList();
-            }
-            if (!activeFogLayerId || !fogLayers.find(l => l.id === activeFogLayerId)) {
-                activeFogLayerId = fogLayers[0].id;
-            }
+        // ━━━ 战争迷雾（画笔式涂抹轨迹即迷雾 / 橡皮式擦除）━━━━
+        // 迷雾线宽（随画笔粗细联动，至少 16px）
+        function fogLineWidth() {
+            return Math.max(16, (brushSize || 3) * 3);
         }
-
-        function getActiveFogLayer() {
-            ensureFogLayer();
-            return fogLayers.find(l => l.id === activeFogLayerId);
+        // 每笔雾保存自己绘制时的线宽（stroke.width），旧数据无 width 时退回当前默认
+        function fogStrokeWidth(stroke) {
+            return (stroke.width > 0) ? stroke.width : fogLineWidth();
         }
 
         function clearAllFogLayers() {
-            fogLayers = [];
-            fogLayerIdCounter = 0;
-            activeFogLayerId = null;
-            currentFogPoints = null;
+            fogStrokes = [];
+            fogErasures = [];
+            currentFogStroke = null;
+            fogErasePoints = [];
             updateAllFogCoverage();
             renderLayerList();
         }
+
+        // 点 P 到线段 AB 的最短距离
+        function fogPointSegDist(px, py, ax, ay, bx, by) {
+            const dx = bx - ax, dy = by - ay;
+            const len2 = dx * dx + dy * dy;
+            let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            const cx = ax + t * dx, cy = ay + t * dy;
+            return Math.hypot(px - cx, py - cy);
+        }
+
+        // ━━ 橡皮擦（像素级挖洞：洞宽 = 橡皮直径，走到哪擦到哪，不按雾的粗细整条消失）━━
+        // 擦除半径（橡皮圆盘半径，随画笔粗细联动）
+        function eraserRadius() {
+            return Math.max(8, (brushSize || 3) * 1.5);
+        }
+        // 点在任一擦除圆盘内（进行中轨迹也计入）
+        function fogPointInEraseDisk(x, y) {
+            if (fogErasures.length === 0 && fogErasePoints.length === 0) return false;
+            const r = eraserRadius();
+            const all = fogErasures;
+            const live = fogErasePoints;
+            for (let k = 0; k < all.length + (live.length >= 1 ? 1 : 0); k++) {
+                const pts = k < all.length ? all[k].points : live;
+                for (let i = 0; i < pts.length - 1; i++) {
+                    if (fogPointSegDist(x, y, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y) <= r) return true;
+                }
+                if (pts.length === 1 && Math.hypot(x - pts[0].x, y - pts[0].y) <= r) return true;
+            }
+            return false;
+        }
+        // 擦除完成：记录擦除轨迹（渲染时 destination-out 挖洞，仅橡皮扫过的部分消失）
+        function removeFogByErasePath() {
+            if (fogErasePoints.length === 0) return;
+            fogErasures.push({points: fogErasePoints.slice()});
+            window._markDirty('fog');
+            debouncedSave();
+        }
+        // 擦除完成：记录擦除轨迹（版本化缓存自动增量判定），仅经过路径的部分消失
+        function removeFogByErasePath() {
+            if (fogErasePoints.length === 0) return;
+            fogErasures.push({points: fogErasePoints.slice()});
+            window._markDirty('fog');
+            debouncedSave();
+        }
+
+        // 在指定 ctx 上绘制雾形状几何（颜色由调用方设置，mask 用黑色、正常绘制用雾色）
+        function drawFogShapeTo(ctx, stroke, lineWidth) {
+            const pts = stroke.points;
+            if (pts.length < 1) return;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            if (stroke.closed === true && pts.length >= 3) {
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (pts.length === 1) {
+                // 单点涂抹：画圆点
+                ctx.beginPath();
+                ctx.arc(pts[0].x, pts[0].y, lineWidth / 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.lineWidth = lineWidth;
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.stroke();
+            }
+        }
+
+        // 绘制一条迷雾轨迹（闭合面用实心填充，涂抹轨迹用粗线）
+        function traceFogStroke(stroke, lineWidth, fillColor, strokeColor, isHover) {
+            fogCtx.fillStyle = fillColor;
+            fogCtx.strokeStyle = strokeColor;
+            drawFogShapeTo(fogCtx, stroke, lineWidth);
+        }
+
+        // 点是否位于橡皮挖出的洞里（洞半径 = 擦除半径，与渲染挖洞一致；涂抹轨迹与旧闭合面共用）
+        function isPointInFogHole(x, y) {
+            return fogPointInEraseDisk(x, y);
+        }
+
         function redrawFogCanvas() {
             updateAllFogCoverage();
             if (!fogVisible) return;
-            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
             var isPL = window._isDM !== true;
+            // DM：半透明（能看到迷雾下的地图/token）；PL：不透明（迷雾下的东西不可见）
             var fillColor = isPL ? 'rgba(30,30,30,1)' : 'rgba(40,40,40,0.85)';
-            var strokeColor = isPL ? 'rgba(200,200,200,0.7)' : 'rgba(180,180,180,0.9)';
-            var fogLW = isPL ? 1 : 2;
+            var fw = fogLineWidth();
 
-            for (const layer of fogLayers) {
-                if (!layer.visible) continue;
-                for (let pi = 0; pi < layer.polygons.length; pi++) {
-                    const poly = layer.polygons[pi];
-                    if (poly.points.length < 2) continue;
-                    fogCtx.fillStyle = fillColor;
-                    fogCtx.strokeStyle = strokeColor;
-                    fogCtx.lineWidth = fogLW;
-                    fogCtx.beginPath();
-                    fogCtx.moveTo(poly.points[0].x, poly.points[0].y);
-                    for (let i = 1; i < poly.points.length; i++) {
-                        fogCtx.lineTo(poly.points[i].x, poly.points[i].y);
-                    }
-                    if (poly.closed) {
-                        fogCtx.closePath();
-                        fogCtx.fill();
-                        fogCtx.stroke();
-                        // DM 可见：在多边形内部绘制图层序号
-                        if (!isPL && poly.points.length >= 3) {
-                            // 计算重心，如果不在多边形内则螺旋搜索内部点
-                            var cx = 0, cy = 0;
-                            for (const p of poly.points) { cx += p.x; cy += p.y; }
-                            cx /= poly.points.length; cy /= poly.points.length;
-                            if (!isPointInFogPolygon(cx, cy, poly)) {
-                                // 螺旋搜索多边形内部点（步长 20px，最多 200 步）
-                                for (var step = 1; step < 200; step++) {
-                                    var angle = step * 0.5;
-                                    var r = step * 20;
-                                    var tx = cx + r * Math.cos(angle);
-                                    var ty = cy + r * Math.sin(angle);
-                                    if (isPointInFogPolygon(tx, ty, poly)) { cx = tx; cy = ty; break; }
-                                }
-                            }
-                            fogCtx.save();
-                            fogCtx.shadowColor = 'rgba(0,0,0,0.9)';
-                            fogCtx.shadowBlur = 12;
-                            fogCtx.fillStyle = '#ffffff';
-                            fogCtx.font = 'bold 56px sans-serif';
-                            fogCtx.textAlign = 'center';
-                            fogCtx.textBaseline = 'middle';
-                            fogCtx.fillText(layer.name, cx, cy);
-                            fogCtx.restore();
-                        }
-                    } else {
-                        fogCtx.stroke();
-                    }
-                }
+            // 1. 离屏 mask：先画全部雾（每笔用自己绘制时的线宽），再按橡皮直径像素级挖洞——
+            //    橡皮扫过的地方只消失橡皮大小的部分（不按雾的粗细整条消失），轨迹没到的地方保持原样
+            fogMaskCtx.clearRect(0, 0, fogMaskCanvas.width, fogMaskCanvas.height);
+            fogMaskCtx.globalCompositeOperation = 'source-over';
+            fogMaskCtx.fillStyle = '#000';
+            fogMaskCtx.strokeStyle = '#000';
+            for (const stroke of fogStrokes) {
+                drawFogShapeTo(fogMaskCtx, stroke, fogStrokeWidth(stroke));
+            }
+            // 绘制预览也进 mask（与最终效果一致）
+            if (currentFogStroke && currentFogStroke.points.length >= 1) drawFogShapeTo(fogMaskCtx, currentFogStroke, fogLineWidth());
+            // 橡皮挖洞（destination-out 像素级）：洞宽 = 橡皮直径，含进行中的擦除轨迹（所见即所得）
+            fogMaskCtx.globalCompositeOperation = 'destination-out';
+            for (const er of fogErasures) drawFogShapeTo(fogMaskCtx, er, eraserRadius() * 2);
+            if (fogErasePoints.length >= 1) drawFogShapeTo(fogMaskCtx, {points: fogErasePoints, closed: false}, eraserRadius() * 2);
+            fogMaskCtx.globalCompositeOperation = 'source-over';
+
+            // 2. 合成：整层铺雾色 → destination-in 按 mask 裁剪 → 多层重叠透明度不变
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            fogCtx.globalCompositeOperation = 'source-over';
+            fogCtx.fillStyle = fillColor;
+            fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+            fogCtx.globalCompositeOperation = 'destination-in';
+            fogCtx.drawImage(fogMaskCanvas, 0, 0);
+            fogCtx.globalCompositeOperation = 'source-over';
+
+            // 3. 擦除预览：红色半透明粗线显示橡皮轨迹（参考画笔预览样式）
+            if (fogErasePoints.length > 0) {
+                traceFogStroke({points: fogErasePoints, closed: false}, eraserRadius() * 2, 'rgba(255,60,60,0.3)', 'rgba(255,60,60,0.75)', false);
+                // 擦除轨迹光标圈
+                const last = fogErasePoints[fogErasePoints.length - 1];
+                fogCtx.strokeStyle = 'rgba(255,60,60,0.7)';
+                fogCtx.lineWidth = 1.5;
+                fogCtx.beginPath();
+                fogCtx.arc(last.x, last.y, eraserRadius(), 0, Math.PI * 2);
+                fogCtx.stroke();
             }
         }
 
@@ -1633,14 +1707,30 @@
         function isUnderFog(item) {
             const cx = item.x + (item.size || 50) / 2;
             const cy = item.y + (item.size || 24) / 2;
-            for (const layer of fogLayers) {
-                if (!layer.visible) continue;
-                for (const poly of layer.polygons) {
-                    if (isPointInFogPolygon(cx, cy, poly)) return true;
-                    if (isPointInFogPolygon(item.x, item.y, poly)) return true;
-                    if (isPointInFogPolygon(item.x + (item.size || 50), item.y, poly)) return true;
-                    if (isPointInFogPolygon(item.x, item.y + (item.size || 24), poly)) return true;
-                    if (isPointInFogPolygon(item.x + (item.size || 50), item.y + (item.size || 24), poly)) return true;
+            const probes = [
+                [cx, cy],
+                [item.x, item.y],
+                [item.x + (item.size || 50), item.y],
+                [item.x, item.y + (item.size || 24)],
+                [item.x + (item.size || 50), item.y + (item.size || 24)],
+            ];
+            for (const stroke of fogStrokes) {
+                const pts = stroke.points;
+                if (stroke.closed === true && pts.length >= 3) {
+                    // 旧闭合面：点内检测（且不在擦除洞内）
+                    for (const [px, py] of probes) {
+                        if (!isPointInFogHole(px, py) && isPointInFogPolygon(px, py, stroke)) return true;
+                    }
+                    continue;
+                }
+                // 涂抹轨迹：探针点距轨迹 ≤ 该笔雾线宽一半 → 被迷雾遮盖（位于橡皮洞内的不算，与渲染挖洞一致）
+                const sw = fogStrokeWidth(stroke) / 2;
+                for (const [px, py] of probes) {
+                    if (fogPointInEraseDisk(px, py)) continue;
+                    for (let i = 0; i < pts.length - 1; i++) {
+                        if (fogPointSegDist(px, py, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y) <= sw) return true;
+                    }
+                    if (pts.length === 1 && Math.hypot(px - pts[0].x, py - pts[0].y) <= sw) return true;
                 }
             }
             return false;
@@ -1922,9 +2012,29 @@
             }
         }
 
+        // PL 查看 token 角色信息的权限：DM 可看全部；PL 只能看自己的角色
+        function canViewCharInfo(token, charData) {
+            if (window._isDM === true) return true;
+            if (!token || !charData) return false;
+            const identity = (typeof getIdentity === 'function') ? getIdentity() : {name: ''};
+            const myName = identity.name || '';
+            if (!myName) return false;
+            if (token.owner === myName) return true;            // 自己放置的 token
+            if (charData.created_by === myName) return true;    // 自己创建的角色
+            if (charData.name === myName) return true;          // 兜底：角色名与玩家名一致
+            return false;
+        }
+
         function showTokenInfoPanel(token) {
             const charData = charDataCache[token.charId];
             if (!charData) { return; }
+            // PL 点击非自己角色的 token 时不显示信息面板
+            if (!canViewCharInfo(token, charData)) {
+                if (window._isDM !== true && typeof Toast !== 'undefined') {
+                    Toast.info('无法查看其他玩家的角色信息');
+                }
+                return;
+            }
 
             const ab = charData.abilities || {};
             const mods = charData.ability_mods || {};
@@ -2019,8 +2129,14 @@
         }
 
         // ━━━ 地图标记（角色头像）━━
-        function createMapTokenElement(id, charId, name, portraitUrl, x, y, size, rotation) {
-            const token = { id, charId, name, portraitUrl, x, y, size, rotation: rotation || 0, selected: false };
+        function createMapTokenElement(id, charId, name, portraitUrl, x, y, size, rotation, owner) {
+            // owner：放置者身份（用于 PL 查看权限控制）；远程/存档恢复时用数据中的 owner
+            let _tokOwner = owner || '';
+            if (!_tokOwner && typeof getIdentity === 'function') {
+                const _ident = getIdentity();
+                _tokOwner = _ident.name || '';
+            }
+            const token = { id, charId, name, portraitUrl, x, y, size, rotation: rotation || 0, selected: false, owner: _tokOwner };
             const el = document.createElement('div');
             el.className = 'map-token';
             el.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
@@ -2362,38 +2478,16 @@
             let html = '';
             const isPL = window._isDM !== true;
 
-            // ━━ 迷雾图层列表（独立管理，仅DM可见完整控制）━━
-            ensureFogLayer();
-            if (isPL) {
-                // PL 只看到迷雾总开关
-                html += '<div class="layer-item" style="border-color:rgba(180,180,180,0.5);">';
-                html += '<span style="font-size:0.8rem;">🌫</span>';
-                html += '<span class="layer-name" style="color:#aaa;">战争迷雾</span>';
-                html += '<span style="font-size:0.6rem;color:var(--text-dim);flex-shrink:0;">' + (fogVisible ? '可见' : '隐藏') + '</span>';
-                html += '</div>';
-            } else {
-                // DM 看到各迷雾图层（仅显示有内容的图层，空图层不展示）
-                const activeLayers = fogLayers.filter(l => l.polygons.length > 0);
-                if (activeLayers.length > 0) {
-                    html += '<div style="font-size:0.7rem;color:var(--gold);padding:0.2rem 0.3rem;border-bottom:1px solid var(--border);margin-bottom:0.2rem;">🌫 迷雾图层</div>';
-                }
-                for (const layer of fogLayers) {
-                    if (layer.polygons.length === 0) continue;  // 跳过空图层
-                    const isActive = layer.id === activeFogLayerId;
-                    html += '<div class="layer-item' + (isActive ? ' active' : '') + '" style="border-color:rgba(180,180,180,0.5);">';
-                    html += '<button class="layer-btn" onclick="event.stopPropagation();toggleFogLayerVis(' + layer.id + ')" title="切换可见">' + (layer.visible ? '👁' : '🚫') + '</button>';
-                    html += '<span class="layer-name" style="color:#ccc;' + (isActive ? 'font-weight:bold;' : '') + '" title="' + (isActive ? '当前绘制目标' : '点击切换') + '" onclick="event.stopPropagation();switchFogLayer(' + layer.id + ')">' + layer.name + '</span>';
-                    if (fogLayers.length > 1) {
-                        html += '<button class="layer-btn" onclick="event.stopPropagation();deleteFogLayerById(' + layer.id + ')" title="删除此迷雾层" style="color:var(--red);">✕</button>';
-                    }
-                    html += '</div>';
-                }
-                // 新建迷雾层按钮
-                html += '<div style="padding:0.3rem;">';
-                html += '<button onclick="setFogMode(\'newlayer\')" style="width:100%;padding:0.2rem;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;font-size:0.7rem;">➕ 新建迷雾层</button>';
-                html += '</div>';
-                html += '<div style="border-top:1px solid var(--border);margin:0.3rem 0;"></div>';
+            // ━━ 战争迷雾总状态（单数据，无多图层）━━
+            html += '<div class="layer-item" style="border-color:rgba(180,180,180,0.5);">';
+            html += '<span style="font-size:0.8rem;">🌫</span>';
+            html += '<span class="layer-name" style="color:#aaa;">战争迷雾</span>';
+            html += '<span style="font-size:0.6rem;color:var(--text-dim);flex-shrink:0;">' + (fogVisible ? '可见' : '隐藏') + '</span>';
+            if (!isPL) {
+                html += '<button class="layer-btn" onclick="toggleFogVisibility()" title="显示/隐藏迷雾">' + (fogVisible ? '🚫' : '👁') + '</button>';
             }
+            html += '</div>';
+            html += '<div style="border-top:1px solid var(--border);margin:0.3rem 0;"></div>';
 
             if (!mapLayers.length) {
                 html += '<div style="color:var(--text-dim);text-align:center;padding:0.5rem;">暂无图层</div>';
@@ -2670,52 +2764,24 @@
         function deleteFogLayer() {
             setFogMode('delete');
         }
-        function toggleFogLayerVis(id) {
-            const layer = fogLayers.find(l => l.id === id);
-            if (layer) { layer.visible = !layer.visible; redrawFogCanvas(); debouncedSave(); renderLayerList(); window._markDirty('fog'); }
-        }
-        function switchFogLayer(id) {
-            if (fogLayers.find(l => l.id === id)) {
-                activeFogLayerId = id;
-                redrawFogCanvas();
-                renderLayerList();
-            }
-        }
-        function renumberFogLayers() {
-            // 将非空迷雾图层重新编号为 迷雾1, 迷雾2...
-            const active = fogLayers.filter(l => l.polygons.length > 0);
-            for (let i = 0; i < active.length; i++) {
-                active[i].name = '迷雾 ' + (i + 1);
-            }
-        }
-
-        function deleteFogLayerById(id) {
-            if (fogLayers.length <= 1) { alert('至少保留一个迷雾图层'); return; }
-            const layer = fogLayers.find(l => l.id === id);
-            if (!layer) return;
-            if (!confirm('删除 "' + layer.name + '"（含 ' + layer.polygons.length + ' 个迷雾区域）？')) return;
-            fogLayers = fogLayers.filter(l => l.id !== id);
-            if (activeFogLayerId === id) activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
-            currentFogPoints = null;
-            renumberFogLayers();
-            redrawFogCanvas();
-            debouncedSave();
-            renderLayerList();
-            window._markDirty('fog');
-        }
 
         function setFogMode(mode) {
             document.getElementById('fog-dropdown-menu').classList.remove('show');
             const fogCanvas = document.getElementById('fog-canvas');
-            ensureFogLayer();
 
             if (mode === 'draw') {
+                fogTool = 'draw';
+                setTool('fog');
+            } else if (mode === 'erase') {
+                if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
+                fogTool = 'erase';
                 setTool('fog');
             } else if (mode === 'show') {
                 fogVisible = true;
                 fogCanvas.style.display = 'block';
                 updateAllFogCoverage();
                 redrawFogCanvas();
+                renderLayerList();
                 debouncedSave();
                 window._markDirty('fog');
             } else if (mode === 'hide') {
@@ -2723,60 +2789,14 @@
                 fogCanvas.style.display = 'none';
                 updateAllFogCoverage();  // 显示所有被遮的 token
                 redrawFogCanvas();
+                renderLayerList();
                 debouncedSave();
                 window._markDirty('fog');
             } else if (mode === 'delete') {
                 if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
-                if (confirm('删除所有战争迷雾图层？此操作不可撤销。')) {
+                if (confirm('删除所有战争迷雾？此操作不可撤销。')) {
                     clearAllFogLayers();
                     redrawFogCanvas(); debouncedSave();
-                    window._markDirty('fog');
-                }
-            } else if (mode === 'newlayer') {
-                if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
-                const id = ++fogLayerIdCounter;
-                fogLayers.push({ id, name: '迷雾 ' + id, polygons: [], visible: true });
-                activeFogLayerId = id;
-                redrawFogCanvas();
-                debouncedSave();
-                window._markDirty('fog');
-            } else if (mode === 'nextlayer') {
-                if (window._isDM !== true) return;
-                const idx = fogLayers.findIndex(l => l.id === activeFogLayerId);
-                const nextIdx = (idx + 1) % fogLayers.length;
-                activeFogLayerId = fogLayers[nextIdx].id;
-                redrawFogCanvas();
-            } else if (mode === 'renamelayer') {
-                if (window._isDM !== true) return;
-                const layer = getActiveFogLayer();
-                const newName = prompt('输入迷雾层名称:', layer.name);
-                if (newName && newName.trim()) {
-                    layer.name = newName.trim();
-                    redrawFogCanvas();
-                    debouncedSave();
-                    window._markDirty('fog');
-                }
-            } else if (mode === 'togglevis') {
-                if (window._isDM !== true) return;
-                const layer = getActiveFogLayer();
-                layer.visible = !layer.visible;
-                redrawFogCanvas();
-                debouncedSave();
-                window._markDirty('fog');
-            } else if (mode === 'deletelayer') {
-                if (window._isDM !== true) { alert('⚠ 只有DM可以管理战争迷雾'); return; }
-                if (fogLayers.length <= 1) {
-                    alert('至少保留一个迷雾图层。如果要全部删除请选择"删除全部迷雾"。');
-                    return;
-                }
-                const layer = getActiveFogLayer();
-                if (confirm(`确定删除 "${layer.name}"（含 ${layer.polygons.length} 个迷雾区域）吗？`)) {
-                    fogLayers = fogLayers.filter(l => l.id !== activeFogLayerId);
-                    activeFogLayerId = fogLayers[0].id;
-                    currentFogPoints = null;
-                    renumberFogLayers();
-                    redrawFogCanvas();
-                    debouncedSave();
                     window._markDirty('fog');
                 }
             }
@@ -3148,7 +3168,7 @@
             mapTokens.forEach(t => { if(t.el) t.el.remove(); }); mapTokens = [];
             selectedElement = null; clearMultiSelect(); mapLayers = []; activeLayerId = null;
             clearAllFogLayers(); redrawFogCanvas();
-            canvas.width = 5000; canvas.height = 5000; drawCanvas.width = 5000; drawCanvas.height = 5000; fogCanvas.width = 5000; fogCanvas.height = 5000;
+            canvas.width = 5000; canvas.height = 5000; drawCanvas.width = 5000; drawCanvas.height = 5000; fogCanvas.width = 5000; fogCanvas.height = 5000; fogMaskCanvas.width = 5000; fogMaskCanvas.height = 5000;
             renderLayerList();
             setActiveSave(null, null);
             var reg = getSlotRegistry(); reg.activeSlotId = null; saveSlotRegistry(reg);
@@ -3436,6 +3456,7 @@
             document.getElementById('map-dmg-amount').value = '';
             // 同步到角色数据库和地图标记
             await syncCombatantHP(c);
+            pushCombatState();  // 推送战斗状态（其他玩家战斗列表同步 hp）
             alert(`${c.name} 受到 ${amount} 点伤害，剩余 HP: ${c.hp}/${c.hpMax}${status}`);
         }
 
@@ -3454,6 +3475,7 @@
             document.getElementById('map-dmg-amount').value = '';
             // 同步到角色数据库和地图标记
             await syncCombatantHP(c);
+            pushCombatState();  // 推送战斗状态（其他玩家战斗列表同步 hp）
             alert(`${c.name} 恢复 ${amount} 点HP，剩余 HP: ${c.hp}/${c.hpMax}`);
         }
 
@@ -3465,9 +3487,31 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({amount: c.hp, setAbsolute: true})
                 });
-                // 清除API缓存让下次查询获取最新数据
-                delete charDataCache[c.charId];
             } catch(e) {}
+            // 重新拉取角色数据更新缓存，并刷新所有显示血量的地方
+            try {
+                const resp = await fetch(`/api/character/${c.charId}`);
+                const data = await resp.json();
+                if (data && !data.error) {
+                    charDataCache[c.charId] = data;
+                    refreshCharHpDisplay(c.charId);
+                } else {
+                    delete charDataCache[c.charId];
+                }
+            } catch(e) { delete charDataCache[c.charId]; }
+        }
+
+        // 刷新所有显示该角色血量的界面（token 详情面板、角色侧边栏角色卡）
+        function refreshCharHpDisplay(charId) {
+            // 1. 已打开的 token 详情面板
+            if (selectedElement && selectedElement.type === 'token' &&
+                selectedElement.ref.charId === charId && charDataCache[charId]) {
+                showTokenInfoPanel(selectedElement.ref);
+            }
+            // 2. 已打开的角色侧边栏（角色卡上的血量）
+            if (sidebarOpen && typeof loadCharTokens === 'function') {
+                loadCharTokens();
+            }
         }
 
         function mapRemoveCombatant(index) {
@@ -4100,7 +4144,7 @@ applyRoleRestrictions();
                             var _uid=null; try{var _s=JSON.parse(sessionStorage.getItem('dnd_joined_room')); _uid=_s?(_s.user_id||null):null;}catch(e){}
                             fetch('/api/room/join', {
                                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({name: _cu, color: chatColor, role: userRole || 'PL', user_id: _uid})
+                                body: JSON.stringify({name: _cu, color: chatColor, role: userRole || 'PL', user_id: _uid, auto: true})
                             }).catch(() => {});
                         }
                         if (data.ok && data.online_users) {
@@ -4137,7 +4181,7 @@ applyRoleRestrictions();
                 wsSend({type: 'layers_update', data: mapLayers.map(layerNetData)});
                 wsSend({type: 'tokens_update', data: s.mapTokens});
                 wsSend({type: 'texts_update', data: s.textBoxes});
-                wsSend({type: 'fog_update', data: {layers: s.fogLayers, visible: s.fogVisible}});
+                wsSend({type: 'fog_update', data: {strokes: s.fogStrokes, erasures: s.fogErasures, visible: s.fogVisible}});
             }
 
             function onWsOpen() {
@@ -4234,7 +4278,7 @@ applyRoleRestrictions();
                             // 差量合并（带拖拽保护）；服务端为空时保留本地内容（等待 DM 推送）
                             if (state.tokens && state.tokens.length > 0) mergeRemoteTokens(state.tokens, [], true);
                             if (state.texts && state.texts.length > 0) mergeRemoteTexts(state.texts, [], true);
-                            if (state.fog && (state.fog.layers !== undefined || state.fog.length > 0)) applyRemoteFog(state.fog);
+                            if (state.fog && (state.fog.strokes !== undefined || state.fog.erasures !== undefined || state.fog.polygons !== undefined || state.fog.layers !== undefined || (Array.isArray(state.fog) && state.fog.length > 0))) applyRemoteFog(state.fog);
                             if (state.layers && state.layers.length > 0) mergeRemoteLayers(state.layers, true);
                             redrawCanvas();
                             renderLayerList();
@@ -4658,7 +4702,9 @@ applyRoleRestrictions();
             }
 
             // ━━━ 页面离开时通知退房 ━━━
-            window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
+            // 延迟离开：刷新/页面内导航销毁页面后定时器失效（不发送leave），
+            // 避免切换页面导致DM身份被清除；真正关闭时由服务端心跳超时清理
+            window.addEventListener('pagehide', () => { setTimeout(leaveRoom, 1500); });
 
             // ━━━ 动作驱动画布同步（WS 实时为主，HTTP 轮询降级）━━
             let sharedCanvasTs = 0;
@@ -4705,7 +4751,7 @@ applyRoleRestrictions();
 
         function tokenNetData(t) {
             return {id:t.id, charId:t.charId, name:t.name, portraitUrl:t.portraitUrl,
-                    x:t.x, y:t.y, size:t.size||48, rotation:t.rotation||0};
+                    x:t.x, y:t.y, size:t.size||48, rotation:t.rotation||0, owner:t.owner||''};
         }
 
         function textNetData(b) {
@@ -4784,7 +4830,7 @@ applyRoleRestrictions();
                     if (_dirtyFlags.layers) { wsSend({type:'layers_update', data: mapLayers.map(layerNetData)}); _dirtyFlags.layers = false; }
                     if (_dirtyFlags.tokens) { wsSend({type:'tokens_update', data: s.mapTokens}); _dirtyFlags.tokens = false; }
                     if (_dirtyFlags.texts)  { wsSend({type:'texts_update', data: s.textBoxes}); _dirtyFlags.texts = false; }
-                    if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: {layers: s.fogLayers, visible: s.fogVisible}}); _dirtyFlags.fog = false; }
+                    if (_dirtyFlags.fog)    { wsSend({type:'fog_update', data: {strokes: s.fogStrokes, erasures: s.fogErasures, visible: s.fogVisible}}); _dirtyFlags.fog = false; }
                     // 本地状态已推送至服务器，可以恢复正常的服务端同步
                     window._localStateRestored = false;
                     return;
@@ -4796,7 +4842,7 @@ applyRoleRestrictions();
                 if (_dirtyFlags.layers) { body.layers = mapLayers.map(layerNetData); _dirtyFlags.layers = false; }
                 if (_dirtyFlags.tokens) { body.tokens = s.mapTokens; _dirtyFlags.tokens = false; }
                 if (_dirtyFlags.texts) { body.texts = s.textBoxes; _dirtyFlags.texts = false; }
-                if (_dirtyFlags.fog) { body.fog = s.fogLayers; _dirtyFlags.fog = false; }
+                if (_dirtyFlags.fog) { body.fog = {strokes: s.fogStrokes, erasures: s.fogErasures, visible: s.fogVisible}; _dirtyFlags.fog = false; }
 
                 fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
                     body: JSON.stringify(body)
@@ -4858,7 +4904,7 @@ applyRoleRestrictions();
                     var td = incoming[t.id];
                     if (td) {
                         t.x = td.x; t.y = td.y; t.size = td.size||48; t.rotation = td.rotation||0;
-                        t.name = td.name;
+                        t.name = td.name; t.owner = td.owner || t.owner;
                         if (t.el) {
                             t.el.style.left = td.x + 'px'; t.el.style.top = td.y + 'px';
                             t.el.style.width = t.size + 'px'; t.el.style.height = t.size + 'px';
@@ -4872,7 +4918,7 @@ applyRoleRestrictions();
                 Object.keys(incoming).forEach(function(id) {
                     var td = incoming[id];
                     if (removeMissing && isRecentLocalRemove('tokens', td.id)) return;
-                    mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0));
+                    mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0, td.owner));
                 });
                 mapTokens.forEach(function(t){ maxId = Math.max(maxId, t.id||0); });
                 tokenIdCounter = Math.max(tokenIdCounter, maxId);
@@ -4968,25 +5014,42 @@ applyRoleRestrictions();
             }
 
             function applyRemoteFog(fd) {
-                // 兼容新格式 {layers, visible} 和旧格式（纯数组）
-                var layers = fd;
-                if (fd && typeof fd.layers !== 'undefined') {
-                    layers = fd.layers;
-                    if (typeof fd.visible !== 'undefined') {
-                        fogVisible = !!fd.visible;
-                        document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
+                // 新格式 {strokes, erasures, visible}；兼容旧格式 {polygons, visible} / {layers, visible} / 纯数组
+                var strokes = fd;
+                var erasures = [];
+                if (fd && typeof fd === 'object') {
+                    if (typeof fd.strokes !== 'undefined') {
+                        strokes = fd.strokes;
+                        erasures = fd.erasures || [];
+                        if (typeof fd.visible !== 'undefined') {
+                            fogVisible = !!fd.visible;
+                            document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
+                        }
+                    } else if (typeof fd.polygons !== 'undefined') {
+                        strokes = fd.polygons;
+                        if (typeof fd.visible !== 'undefined') {
+                            fogVisible = !!fd.visible;
+                            document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
+                        }
+                    } else if (typeof fd.layers !== 'undefined') {
+                        strokes = fd.layers;
+                        if (typeof fd.visible !== 'undefined') {
+                            fogVisible = !!fd.visible;
+                            document.getElementById('fog-canvas').style.display = fogVisible ? 'block' : 'none';
+                        }
                     }
                 }
-                layers = layers || [];
-                if (layers.length > 0 && layers[0].polygons !== undefined) {
-                    fogLayers = layers.map(function(l) { return {id:l.id,name:l.name,visible:l.visible!==false,polygons:(l.polygons||[]).map(function(p){return{points:p.points,closed:p.closed};})}; });
-                } else if (layers.length > 0) {
-                    fogLayers = [{id:1,name:'迷雾 1',visible:true,polygons:layers.map(function(p){return{points:p.points,closed:p.closed};})}];
+                strokes = strokes || [];
+                if (strokes.length > 0 && strokes[0].polygons !== undefined) {
+                    // 旧多图层格式 → 展平为单数组
+                    fogStrokes = [];
+                    strokes.forEach(function(l) {
+                        (l.polygons || []).forEach(function(p) { fogStrokes.push({points:p.points, closed:p.closed === true}); });
+                    });
                 } else {
-                    fogLayers = [];
+                    fogStrokes = strokes.map(function(p) { return {points:p.points, closed:p.closed === true, width:p.width}; });
                 }
-                fogLayerIdCounter = fogLayers.length;
-                activeFogLayerId = fogLayers[0] ? fogLayers[0].id : null;
+                fogErasures = erasures.map(function(e) { return {points:e.points}; });
                 redrawFogCanvas();
             }
 

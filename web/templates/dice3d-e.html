@@ -116,6 +116,7 @@ body.embed .wrap{top:0;}
 
 </style>
   <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
 </head>
 <body>
 <!-- ━━ 加入房间覆盖层 ━━ -->
@@ -519,8 +520,16 @@ function renderChat(msgs){
   msgs.forEach(function(m){
     if(m.id<=_chatLastId)return;_chatLastId=m.id;
     var div=document.createElement('div');
-    var isSys=m.name==='系统'||m.name==='system';
-    if(isSys){div.className='chat-msg system';div.textContent=m.text;}
+    var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+    if(m.event){
+      // 事件消息：独立显示，非DM名义
+      div.className='chat-msg event';
+      div.style.cssText='background:linear-gradient(135deg,rgba(255,215,0,0.14),rgba(255,215,0,0.04));border:1px solid #ffd700;';
+      div.innerHTML='<span class="cm-time">'+formatTime(m.time)+'</span>'+
+        '<div style="color:#ffd700;font-weight:bold;font-size:0.85rem;">📜 事件：'+esc(m.event_title)+'</div>'+
+        '<div style="color:var(--text,#ddd);margin-top:4px;white-space:pre-line;">'+esc(m.event_content)+'</div>';
+    }
+    else if(m.name==='系统'||m.name==='system'){div.className='chat-msg system';div.textContent=m.text;}
     else{
       div.className='chat-msg';
       var nameColor=m.color||'#00bcd4';if(m.is_dm)nameColor='#ffd700';

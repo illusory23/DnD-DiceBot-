@@ -1,0 +1,22 @@
+【2026-08-14_7】登录支持邮箱作为账号
+
+修改文件：
+- web/app.py（api_auth_login）
+- web/templates/portal/index.html（登录空值提示文案）
+
+问题：
+登录接口只用 username 字段查询数据库，输入邮箱时查不到用户（邮箱已注册但无法
+用邮箱登录），只能使用用户名登录。前端登录框 placeholder 已是"用户名或邮箱"，
+但后端未实现邮箱匹配。
+
+修复：
+1. api_auth_login：先按用户名查询，查不到再按邮箱查询（邮箱不区分大小写，
+   与注册时统一小写存储一致）。
+2. 登录空值提示更新为"请填写账号（用户名或邮箱）和密码"（前端 + 后端一致）。
+
+验证（curl 实测全通过）：
+- 注册用户（emailtest@example.com）✓
+- 邮箱小写登录 emailtest@example.com ✓
+- 邮箱原大小写登录 EmailTest@Example.COM ✓（不区分大小写）
+- 用户名登录 ✓
+- 错误密码正确拒绝 ✓

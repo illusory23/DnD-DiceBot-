@@ -204,10 +204,44 @@ def _char_to_dict(char: Character) -> dict:
         d['appearance'] = bg.appearance or ''; d['backstory'] = bg.backstory or ''
         d['origin'] = bg.origin or ''; d['languages'] = bg.languages or ''
         d['tool_proficiencies'] = bg.tool_proficiencies or ''
-    # features — 专长/职业能力/种族特性/特殊能力
-    d['features'] = [{'id': f.id, 'category': f.category, 'feature_name': f.name,
-                       'description': f.description, 'sort_order': f.sort_order}
-                      for f in char.features]
+        # 前端期望 char.background 为字典格式
+        d['background'] = {
+            'personality_traits': bg.personality_traits or '',
+            'personality_traits_ext': bg.personality_traits_ext or '',
+            'ideals': bg.ideals or '',
+            'bonds': bg.bonds or '',
+            'flaws': bg.flaws or '',
+            'background_feature': bg.background_feature or '',
+            'appearance': bg.appearance or '',
+            'origin': bg.origin or '',
+            'languages': bg.languages or '',
+            'tool_proficiencies': bg.tool_proficiencies or '',
+            'backstory': bg.backstory or '',
+        }
+    else:
+        d['background'] = {}
+    # features — 按分类分组（前端期望 {category: [feats]}，分类键为英文）
+    _feat_cat_map = (
+        ('class_feature', ('职业能力', '职业特性', '职业能力')),
+        ('feat', ('专长',)),
+        ('racial_trait', ('种族特性', '种族特质')),
+        ('special_ability', ('特殊能力',)),
+    )
+    feature_groups = {'class_feature': [], 'feat': [], 'racial_trait': [],
+                      'special_ability': [], 'other': []}
+    for f in char.features:
+        cat = f.category or ''
+        key = 'other'
+        for group_key, names in _feat_cat_map:
+            if cat in names:
+                key = group_key
+                break
+        feature_groups[key].append({
+            'id': f.id, 'category': f.category, 'feature_name': f.name,
+            'name': f.name,  # 前端编辑标题用 name 字段
+            'description': f.description, 'sort_order': f.sort_order,
+        })
+    d['features'] = feature_groups
     # spell_slots — 法术位（前端期望 {slot_level: {max, used}} 格式）
     spell_slots = {}
     for s in char.spell_slots:
@@ -505,7 +539,7 @@ def long_rest(char_id: int) -> dict:
     char.hp_current = char.hp_max
     char.temp_hp = 0
     for slot in char.spell_slots:
-        slot.used_slots = 0
+        slot.used_slots = slot.max_slots  # used=当前拥有数量，长休恢复全满
     char.hd_count = int(char.hit_dice.split('d')[1]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
     if char.death_saves:
         char.death_saves.successes = 0
@@ -590,7 +624,7 @@ def init_spell_slots(char_id: int, slots: dict[str, int]) -> bool:
         if count > 0:
             db.session.add(SpellSlot(
                 character_id=char_id, slot_level=str(level),
-                max_slots=count, used_slots=0))
+                max_slots=count, used_slots=count))  # used=当前拥有数量，初始全满
     _save()
     return True
 
@@ -602,15 +636,15 @@ def init_spell_slots_by_level(char_id: int, class_level: int) -> bool:
 
 
 def use_spell_slot(char_id: int, level: str) -> dict:
-    """消耗法术位"""
+    """消耗法术位（used=当前拥有数量，施法后减少）"""
     slot = SpellSlot.query.filter_by(character_id=char_id, slot_level=str(level)).first()
     if not slot:
         return {'ok': False, 'error': f'没有{level}环法术位'}
-    if slot.used_slots >= slot.max_slots:
+    if slot.used_slots <= 0:
         return {'ok': False, 'error': f'{level}环法术位已用完'}
-    slot.used_slots += 1
+    slot.used_slots -= 1
     _save()
-    return {'ok': True, 'remaining': slot.max_slots - slot.used_slots}
+    return {'ok': True, 'remaining': slot.used_slots}
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -987,30 +1021,37 @@ def import_from_excel_data(data: dict, source_file: str = '',
     db.session.add(Armor(character_id=char.id, **armor_data) if armor_data
                    else Armor(character_id=char.id))
 
-    # 背景
+    # 背景（仅透传模型支持的字段，避免Excel解析器输出多余键导致报错）
     bg_data = data.get('background_data', data.get('background', {}))
     if isinstance(bg_data, str):
         try:
             bg_data = _json.loads(bg_data)
         except Exception:
             bg_data = {}
+    if isinstance(bg_data, dict):
+        bg_fields = ('personality_traits', 'personality_traits_ext', 'ideals',
+                     'bonds', 'flaws', 'background_feature', 'appearance', 'backstory')
+        bg_data = {k: v for k, v in bg_data.items() if k in bg_fields}
     db.session.add(BackgroundDetail(character_id=char.id, **bg_data) if bg_data
                    else BackgroundDetail(character_id=char.id))
 
     # 死亡豁免
     db.session.add(DeathSave(character_id=char.id))
 
-    # 技能熟练
+    # 技能熟练（含加值/专精）
     for skill_name, prof in data.get('skill_proficiencies', {}).items():
-        if prof:
+        if prof and prof.get('is_proficient'):
             db.session.add(SkillProficiency(
-                character_id=char.id, skill_name=skill_name, is_proficient=True))
+                character_id=char.id, skill_name=skill_name, is_proficient=True,
+                is_expertise=prof.get('is_expertise', False),
+                bonus=prof.get('bonus', 0)))
 
-    # 豁免熟练
+    # 豁免熟练（含对应属性加值）
     for ability_name, prof in data.get('save_proficiencies', {}).items():
-        if prof:
+        if prof and prof.get('is_proficient'):
             db.session.add(SaveProficiency(
-                character_id=char.id, ability_name=ability_name, is_proficient=True))
+                character_id=char.id, ability_name=ability_name, is_proficient=True,
+                save_bonus=prof.get('save_bonus', 0)))
 
     # 武器
     for w in data.get('weapons', []):
@@ -1030,13 +1071,30 @@ def import_from_excel_data(data: dict, source_file: str = '',
     # 物品/背包
     for item in data.get('inventory', []):
         if item and item.get('item_name'):
+            try:
+                item_weight = float(item.get('weight', 0) or 0)
+            except (TypeError, ValueError):
+                item_weight = 0
             db.session.add(InventoryItem(
                 character_id=char.id,
                 item_name=item.get('item_name', ''),
                 quantity=item.get('quantity', 1),
-                weight=float(item.get('weight', 0)),
+                weight=item_weight,
                 location=item.get('location', '背包'),
                 notes=str(item.get('description', '')),
+                description=str(item.get('description', '')),
+                effect=str(item.get('effect', '')),
+            ))
+
+    # 法术位（Excel导入携带的环位数据；used=当前拥有数量，导入时全满）
+    for level, slot_info in data.get('spell_slots', {}).items():
+        if slot_info and slot_info.get('max'):
+            max_slots = slot_info.get('max', 0)
+            db.session.add(SpellSlot(
+                character_id=char.id,
+                slot_level=int(level),
+                max_slots=max_slots,
+                used_slots=max_slots,
             ))
 
     # 已准备法术

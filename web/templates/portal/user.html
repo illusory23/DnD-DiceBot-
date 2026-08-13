@@ -255,5 +255,9 @@ function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('da
 </script>
 
 <button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
+<script>
+// 离开跑团平台：清除跑团会话，重新进入时需重新选择身份
+(function(){try{sessionStorage.removeItem('dnd_joined_room');}catch(e){}})();
+</script>
 </body>
 </html>

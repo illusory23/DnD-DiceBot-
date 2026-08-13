@@ -10,7 +10,7 @@ import builtins
 import re as _re
 from pathlib import Path as _Path
 
-from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, session as _flask_session
+from flask import Flask, render_template, request, jsonify, send_file, abort, redirect, make_response as _make_response, session as _flask_session
 from datetime import datetime
 from core.database import db
 from utils.logger import (
@@ -326,6 +326,32 @@ ONLINE_SESSION_TIMEOUT = 60  # 心跳超时秒数（异常关闭页面兜底清�
 # ━━━ @提及通知系统 ━━━
 _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
 MAX_MENTIONS = 100
+
+# ━━━ DM 事件系统（聊天室发布事件 / 全平台弹窗 / DM事件列表）━━━
+_DM_EVENT_LIST_FILE = _Path(__file__).parent / 'dm_event_list.json'
+_dm_event_list: list[dict] = []  # [{id, title, content, created_at}] 仅DM可见，持久化
+_event_notifications: list[dict] = []  # [{title, content, time, _ts}] 发布时广播，供各页面轮询弹窗
+MAX_EVENT_NOTIFICATIONS = 50
+
+def _load_dm_event_list():
+    """启动时从磁盘加载DM事件列表"""
+    global _dm_event_list
+    try:
+        if _DM_EVENT_LIST_FILE.exists():
+            with open(_DM_EVENT_LIST_FILE, 'r', encoding='utf-8') as f:
+                _dm_event_list = _json.load(f)
+    except Exception:
+        _dm_event_list = []
+
+def _save_dm_event_list():
+    """保存DM事件列表到磁盘"""
+    try:
+        with open(_DM_EVENT_LIST_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(_dm_event_list, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+_load_dm_event_list()
 
 # ━━━ 共享画布状态（WebSocket 实时为主 + HTTP 轮询降级）━━
 from .shared_state import (
@@ -732,8 +758,12 @@ def events_page():
 
 @app.route('/chat')
 def chat_page():
-    """聊天室"""
-    return render_template('chat.html')
+    """聊天室（禁用缓存，避免页面/脚本更新后浏览器仍渲染旧版）"""
+    resp = _make_response(render_template('chat.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 
 @app.route('/dice3d')
@@ -3317,8 +3347,9 @@ def api_chat_send():
     client_ip = request.remote_addr or 'unknown'
     is_dm_ip = _is_dm_ip(client_ip)
 
-    # 只有第一个localhost用户是DM，锁定后不更改
-    if is_dm_ip and _dm_name is None:
+    # 只有第一个以DM身份发言的localhost用户是DM，锁定后不更改
+    # （PL角色发言不触发自动注册，避免PL被误识别为DM）
+    if is_dm_ip and _dm_name is None and role == 'DM':
         _dm_name = name
         _dm_ip = client_ip
 
@@ -3431,6 +3462,156 @@ def api_tavern_chat_messages():
 
 # ━━━ DM 状态 API ━━━
 
+def _is_dm_request(name: str, client_ip: str, user_id=None) -> bool:
+    """判断请求者是否为DM。优先级：user_id > name > IP（与 api_dm_status 逻辑一致）。"""
+    global _dm_name, _dm_ip, _dm_user_id
+    if _dm_name is not None:
+        if user_id is not None and _dm_user_id is not None:
+            return user_id == _dm_user_id
+        if name:
+            return name == _dm_name
+        return _is_dm_ip(client_ip) and client_ip == _dm_ip
+    return _is_dm_ip(client_ip)
+
+
+# ━━━ DM 事件系统 API（发布事件 / 全平台弹窗通知 / DM事件列表）━━━
+
+@app.route('/api/dm/event-publish', methods=['POST'])
+def api_dm_event_publish():
+    """DM 发布事件：聊天室同步显示事件消息 + 广播全平台弹窗通知。"""
+    global _event_notifications
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    client_ip = request.remote_addr or 'unknown'
+
+    if not name:
+        return jsonify({'ok': False, 'error': 'Name required'})
+    if not _is_dm_request(name, client_ip):
+        return jsonify({'ok': False, 'error': '只有DM可以发布事件'})
+    if not title:
+        return jsonify({'ok': False, 'error': '事件标题不能为空'})
+    if not content:
+        return jsonify({'ok': False, 'error': '事件内容不能为空'})
+    if len(title) > 100:
+        return jsonify({'ok': False, 'error': '事件标题过长（最多100字）'})
+    if len(content) > 2000:
+        return jsonify({'ok': False, 'error': '事件内容过长（最多2000字）'})
+
+    ts = _time.time()
+
+    # 1. 聊天室同步显示（独立事件样式，非DM名义）
+    _chat_messages.append({
+        'name': '事件',
+        'text': title + '\n' + content,
+        'time': _time.strftime('%H:%M:%S'),
+        'is_dm': False,
+        'color': '#ffd700',
+        'event': True,
+        'event_title': title,
+        'event_content': content,
+        'ip': 'system',
+        '_ts': ts,
+    })
+    _trim_and_archive_chat()
+    _threading.Thread(target=_save_chat_log, daemon=True).start()
+
+    # 2. 全平台弹窗通知广播（各页面 event-popup.js 轮询拉取）
+    _event_notifications.append({
+        'title': title,
+        'content': content,
+        'time': _time.strftime('%H:%M:%S'),
+        '_ts': ts,
+    })
+    while len(_event_notifications) > MAX_EVENT_NOTIFICATIONS:
+        _event_notifications.pop(0)
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/events/notifications', methods=['GET'])
+def api_event_notifications():
+    """各页面轮询：获取该用户需要弹窗显示的新事件。仅已加入房间的用户返回事件。"""
+    name = request.args.get('name', '').strip()
+    since_str = request.args.get('since', '')
+    if not name or name not in _online_users:
+        return jsonify({'ok': True, 'events': []})
+    since_ts = 0.0
+    if since_str:
+        try:
+            since_ts = float(since_str)
+        except ValueError:
+            pass
+    events = [e for e in _event_notifications if e.get('_ts', 0) > since_ts]
+    return jsonify({'ok': True, 'events': events})
+
+
+@app.route('/api/dm/events', methods=['GET'])
+def api_dm_events_list():
+    """获取DM事件列表（仅DM可见）。"""
+    name = request.args.get('name', '').strip()
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以查看事件列表'})
+    return jsonify({'ok': True, 'events': _dm_event_list})
+
+
+@app.route('/api/dm/events', methods=['POST'])
+def api_dm_events_save():
+    """DM 保存事件到事件列表（带 id 则更新，否则新增）。玩家不可见。"""
+    global _dm_event_list
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    title = data.get('title', '').strip()
+    content = data.get('content', '').strip()
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以保存事件'})
+    if not title:
+        return jsonify({'ok': False, 'error': '事件标题不能为空'})
+    if not content:
+        return jsonify({'ok': False, 'error': '事件内容不能为空'})
+    if len(title) > 100 or len(content) > 2000:
+        return jsonify({'ok': False, 'error': '标题或内容过长'})
+
+    eid = data.get('id')
+    if eid is not None:
+        # 更新已有事件
+        for ev in _dm_event_list:
+            if ev.get('id') == int(eid):
+                ev['title'] = title
+                ev['content'] = content
+                _save_dm_event_list()
+                return jsonify({'ok': True, 'event': ev})
+        return jsonify({'ok': False, 'error': '事件不存在'})
+
+    # 新增
+    new_id = max([ev.get('id', 0) for ev in _dm_event_list], default=0) + 1
+    ev = {
+        'id': new_id,
+        'title': title,
+        'content': content,
+        'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    _dm_event_list.append(ev)
+    _save_dm_event_list()
+    return jsonify({'ok': True, 'event': ev})
+
+
+@app.route('/api/dm/events/<int:eid>', methods=['DELETE'])
+def api_dm_events_delete(eid):
+    """DM 删除事件列表中的事件。"""
+    global _dm_event_list
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or request.args.get('name') or '').strip()
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以删除事件'})
+    for i, ev in enumerate(_dm_event_list):
+        if ev.get('id') == eid:
+            _dm_event_list.pop(i)
+            _save_dm_event_list()
+            return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': '事件不存在'})
+
 # ━━━ 骰点广播到聊天室 ━━━
 
 @app.route('/api/dice-broadcast', methods=['POST'])
@@ -3525,7 +3706,12 @@ def api_dm_status():
             is_dm = (name == _dm_name)
         else:
             is_dm = _is_dm_ip(client_ip) and (client_ip == _dm_ip)
+    elif name or user_id_str:
+        # 带身份信息的请求：未注册DM前一律按非DM处理，
+        # 身份由加入房间时选择的角色决定（PL不会被误判为DM）
+        is_dm = False
     else:
+        # 无身份信息（如覆盖层未加入时）：保留本地IP兜底体验
         is_dm = _is_dm_ip(client_ip)
 
     return jsonify({
@@ -3543,11 +3729,9 @@ def _prune_stale_users():
     _now = _time.time()
     stale_names = [n for n, u in _online_users.items() if _now - u.get('last_heartbeat', 0) > 10]
     for n in stale_names:
-        # DM离线时清除DM身份
-        if _dm_name and n == _dm_name:
-            _dm_name = None
-            _dm_ip = None
-            _dm_user_id = None
+        # 注意：DM身份不随离线清除（只清除在线记录），
+        # 避免短暂离开（切页面/关标签页）导致身份丢失来回切换；
+        # DM身份仅在显式选择PL身份或服务重启时重置
         del _online_users[n]
         # 发送退出消息（与 api_room_leave 保持一致）
         if _dm_name and n != _dm_name:
@@ -3597,10 +3781,22 @@ def api_room_join():
         except (ValueError, TypeError):
             user_id = None
 
+    # 心跳自动重连（auto=true）：不触碰DM身份、不改变在线角色，
+    # 避免多标签页/短暂离线导致的身份波动
+    auto = bool(data.get('auto', False))
+    if auto and name in _online_users:
+        role = _online_users[name].get('role', role)
+
     # DM 身份判定：优先通过 user_id 识别，其次通过 _dm_name
     # 同一 user_id 改名后仍保持 DM 身份
-    if role == 'DM':
+    if role == 'DM' and not auto:
         if _dm_name is None:
+            _dm_name = name
+            _dm_ip = client_ip
+            _dm_user_id = user_id
+        elif _dm_ip is not None and client_ip == _dm_ip:
+            # 同一DM（同IP）改名/重新选择DM身份：接管并更新名字，
+            # 避免标签页会话名不一致导致被静默降级为PL
             _dm_name = name
             _dm_ip = client_ip
             _dm_user_id = user_id
@@ -3610,6 +3806,11 @@ def api_room_join():
             _dm_ip = client_ip
         elif _dm_name != name:
             role = 'PL'  # 另有其人已是DM
+    elif role == 'PL' and not auto and _dm_name == name:
+        # 用户显式选择PL身份：放弃DM身份（防止PL被误判为DM）
+        _dm_name = None
+        _dm_ip = None
+        _dm_user_id = None
 
     _online_users[name] = {
         'ip': client_ip,
@@ -3641,6 +3842,8 @@ def api_room_join():
         'is_dm': (name == _dm_name),  # 只有实际DM才返回true
         'dm_name': _dm_name,
         'online_count': len(_online_users),
+        # 选择了DM但被降级为PL时提示（另有其人已是DM）
+        'role_downgraded': (data.get('role', 'PL') == 'DM' and role == 'PL'),
     })
 
 
@@ -3693,11 +3896,7 @@ def api_room_leave():
         return jsonify({'ok': False, 'error': 'Name required'})
 
     if name in _online_users:
-        # DM离开时清除DM身份
-        if _dm_name and name == _dm_name:
-            _dm_name = None
-            _dm_ip = None
-            _dm_user_id = None
+        # DM身份不随离开清除（只移除在线记录），避免切换页面导致身份丢失
         del _online_users[name]
 
         if _dm_name and name != _dm_name:
@@ -4972,15 +5171,18 @@ def api_auth_register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_auth_login():
-    """用户登录"""
+    """用户登录（支持用户名或邮箱作为账号）"""
     data = request.get_json(silent=True) or {}
-    username = (data.get('username') or '').strip()
+    account = (data.get('username') or '').strip()
     password = (data.get('password') or '').strip()
 
-    if not username or not password:
-        return jsonify({'ok': False, 'error': '请填写用户名和密码'}), 400
+    if not account or not password:
+        return jsonify({'ok': False, 'error': '请填写账号（用户名或邮箱）和密码'}), 400
 
-    user = _UserModel.query.filter_by(username=username).first()
+    # 先按用户名查，查不到再按邮箱查（邮箱不区分大小写）
+    user = _UserModel.query.filter_by(username=account).first()
+    if not user:
+        user = _UserModel.query.filter_by(email=account.lower()).first()
     if not user or not user.check_password(password):
         return jsonify({'ok': False, 'error': '用户名或密码错误'}), 401
     if not (user.is_active if user.is_active is not None else True):

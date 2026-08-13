@@ -707,6 +707,7 @@
         .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
     </style>
   <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
 </head>
 <body>
 <div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="DM" id="join-role-dm"> 👑 DM</label><label style="color:var(--text);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="PL" id="join-role-pl" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
@@ -735,6 +736,7 @@
                     </button>
                     <div class="select-dropdown-menu" id="fog-dropdown-menu" style="left:auto;right:0;">
                         <div class="menu-item" data-mode="draw" onclick="setFogMode('draw')">✏️ 绘制迷雾</div>
+                        <div class="menu-item" data-mode="erase" onclick="setFogMode('erase')">🧽 擦除迷雾</div>
                         <div class="menu-item" data-mode="show" onclick="setFogMode('show')">👁 启用迷雾</div>
                         <div class="menu-item" data-mode="hide" onclick="setFogMode('hide')">🚫 隐藏迷雾</div>
                         <div class="menu-item" data-mode="delete" onclick="setFogMode('delete')">🗑 删除迷雾</div>
@@ -1070,11 +1072,11 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map.js?v=38"></script>
+    <script src="/static/map.js?v=52"></script>
 <script>
 (function(){
 var K='dnd_joined_room';
-var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},3000);var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');var _cu=document.getElementById('chat-username');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;if(_cu)_cu.value=_d.name;window._chatUser=_d.name;return;}}catch(e){}}
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-username').value=_d.name;document.getElementById('join-overlay').classList.add('hidden');if(typeof window._chatUser!=='undefined')window._chatUser=_d.name;var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
 var C='#00bcd4';
 var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
 function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}

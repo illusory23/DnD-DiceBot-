@@ -1,0 +1,19 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5010
+Press CTRL+C to quit
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/room/join HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/room/join HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/dm/event-publish HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/dm/events HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/dm/events?name=≤‚ ‘DM HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/dm/events?name=≤‚ ‘PL HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/dm/event-publish HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/events/notifications?name=≤‚ ‘PL&since=0 HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/events/notifications?name=¬∑»À&since=0 HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/chat/messages HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/dm/events?name=≤‚ ‘DM HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/dm/events HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "DELETE /api/dm/events/1 HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/dm/events?name=≤‚ ‘DM HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "POST /api/dm/event-publish HTTP/1.1" 200 -
+127.0.0.1 - - [14/Aug/2026 02:55:43] "GET /api/events/notifications?name=≤‚ ‘PL&since=9999999999 HTTP/1.1" 200 -
