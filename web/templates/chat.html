@@ -206,7 +206,15 @@
         .event-list-item .eli-btns button { padding: 4px 12px; font-size: 0.72rem; border: none; border-radius: 3px; cursor: pointer; }
         .event-list-item .eli-btns .pub { background: var(--gold); color: #000; font-weight: 600; }
         .event-list-item .eli-btns .del { background: transparent; border: 1px solid #ff6b6b; color: #ff6b6b; }
+        .event-list-item .eli-btns .recall { background: transparent; border: 1px solid #ff9f43; color: #ff9f43; }
+        .event-list-item .eli-btns .pin { background: transparent; border: 1px solid #4dc9f6; color: #4dc9f6; }
         .event-list-empty { color: var(--text-dim); font-size: 0.8rem; text-align: center; padding: 20px 0; }
+        .event-list-section { font-size: 0.78rem; color: var(--gold); margin: 10px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .event-list-item.recalled { opacity: 0.55; }
+        .event-list-item.pinned { border-color: rgba(77, 201, 246, 0.5); }
+        .eli-status { font-size: 0.65rem; margin-left: 6px; padding: 1px 6px; border-radius: 8px; font-weight: normal; }
+        .eli-status.st-pinned { background: rgba(77,201,246,0.18); color: #4dc9f6; }
+        .eli-status.st-recalled { background: rgba(255,159,67,0.15); color: #ff9f43; }
 
 </style>
     <style>
@@ -269,10 +277,10 @@
         </div>
     </div>
 
-    <!-- DM 事件列表弹窗（仅DM可见） -->
+    <!-- DM 事件管理弹窗（仅DM可见）：已发布事件（撤回/置顶）+ 保存的事件（发布/删除） -->
     <div class="dm-modal-overlay" id="event-list-overlay" style="display:none;">
         <div class="dm-modal-card">
-            <h3>📋 事件列表（仅DM可见）</h3>
+            <h3>📋 事件管理（仅DM可见）</h3>
             <div id="event-list-body"></div>
             <div class="dm-modal-btns" style="margin-top:6px;">
                 <button class="primary" onclick="openEventEditor()">✏️ 新建事件</button>
@@ -495,7 +503,17 @@
             if (msg.event) {
                 // 事件消息：独立显示，非DM名义
                 const esc = function(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                if (msg._recalled) {
+                    // 已被DM撤回：从聊天界面移除该事件消息（若已显示），撤回后完全不可见
+                    const eid = msg.event_id;
+                    if (eid) {
+                        const existing = document.querySelector('#chat-msgs [data-event-id="' + eid + '"]');
+                        if (existing) existing.remove();
+                    }
+                    return;
+                }
                 div.className = 'chat-msg event';
+                div.setAttribute('data-event-id', msg.event_id || '');
                 div.innerHTML = '<span class="cm-time">[' + msg.time + ']</span>' +
                     '<div class="cm-event-title">📜 事件：' + esc(msg.event_title) + '</div>' +
                     '<div class="cm-event-text">' + esc(msg.event_content) + '</div>';
@@ -736,21 +754,50 @@
             }).catch(() => setEventEditorErr('网络错误'));
         };
 
-        // 事件列表弹窗
+        // 事件管理弹窗：已发布事件（撤回/置顶）+ 保存的事件（发布/删除）
         window.openEventList = function() {
             closeEventEditor();
             const body = document.getElementById('event-list-body');
             body.innerHTML = '<div class="event-list-empty">加载中...</div>';
             document.getElementById('event-list-overlay').style.display = 'flex';
-            fetch('/api/dm/events?name=' + encodeURIComponent(chatUser))
-                .then(r => r.json()).then(d => {
-                    if (!d.ok) { body.innerHTML = '<div class="event-list-empty">' + (d.error || '加载失败') + '</div>'; return; }
-                    if (!d.events || d.events.length === 0) {
-                        body.innerHTML = '<div class="event-list-empty">暂无保存的事件</div>';
-                        return;
-                    }
-                    const esc = function(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
-                    body.innerHTML = d.events.map(ev =>
+            Promise.all([
+                fetch('/api/dm/published-events?name=' + encodeURIComponent(chatUser)).then(r => r.json()),
+                fetch('/api/dm/events?name=' + encodeURIComponent(chatUser)).then(r => r.json())
+            ]).then(([pub, saved]) => {
+                const esc = function(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+                let html = '';
+                // ── 分区1：已发布事件（撤回/置顶）──
+                html += '<div class="event-list-section">📢 已发布事件（' + (pub.ok ? (pub.events || []).length : '—') + '）</div>';
+                if (!pub.ok) {
+                    html += '<div class="event-list-empty">' + esc(pub.error || '加载失败') + '</div>';
+                } else if (!pub.events || pub.events.length === 0) {
+                    html += '<div class="event-list-empty">暂无已发布的事件</div>';
+                } else {
+                    html += pub.events.map(ev => {
+                        const recalled = !!ev.recalled_at;
+                        const pinned = !!ev.pinned;
+                        return '<div class="event-list-item' + (recalled ? ' recalled' : '') + (pinned ? ' pinned' : '') + '">' +
+                            '<div class="eli-title">📜 ' + esc(ev.title) +
+                                (pinned ? ' <span class="eli-status st-pinned">📌 置顶中</span>' : '') +
+                                (recalled ? ' <span class="eli-status st-recalled">↩ 已撤回</span>' : '') +
+                            '</div>' +
+                            '<div class="eli-content">' + esc(ev.content) + '</div>' +
+                            '<div style="font-size:0.65rem;color:var(--text-dim);margin-top:3px;">🕐 ' + esc(ev.published_at || '') + '</div>' +
+                            '<div class="eli-btns">' +
+                                (recalled ? '' : '<button class="recall" onclick="recallPublishedEvent(' + ev.id + ')">↩ 撤回</button>') +
+                                (recalled ? '' : '<button class="pin" onclick="pinPublishedEvent(' + ev.id + ',' + pinned + ')">' + (pinned ? '🚫 取消置顶' : '📌 置顶') + '</button>') +
+                            '</div>' +
+                        '</div>';
+                    }).join('');
+                }
+                // ── 分区2：保存的事件（草稿）──
+                html += '<div class="event-list-section">📥 保存的事件（' + (saved.ok ? (saved.events || []).length : '—') + '）</div>';
+                if (!saved.ok) {
+                    html += '<div class="event-list-empty">' + esc(saved.error || '加载失败') + '</div>';
+                } else if (!saved.events || saved.events.length === 0) {
+                    html += '<div class="event-list-empty">暂无保存的事件</div>';
+                } else {
+                    html += saved.events.map(ev =>
                         '<div class="event-list-item">' +
                             '<div class="eli-title">📜 ' + esc(ev.title) + '</div>' +
                             '<div class="eli-content">' + esc(ev.content) + '</div>' +
@@ -760,9 +807,45 @@
                             '</div>' +
                         '</div>'
                     ).join('');
-                }).catch(() => {
-                    body.innerHTML = '<div class="event-list-empty">网络错误</div>';
-                });
+                }
+                body.innerHTML = html;
+            }).catch(() => {
+                body.innerHTML = '<div class="event-list-empty">网络错误</div>';
+            });
+        };
+
+        // 撤回已发布事件
+        window.recallPublishedEvent = function(pid) {
+            if (!confirm('确定撤回该事件？撤回后玩家端将不再显示该事件，聊天室标记为已撤回。')) return;
+            fetch('/api/dm/events/' + pid + '/recall', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) {
+                    addSystemMsg('↩ 事件已撤回');
+                    openEventList();
+                } else {
+                    alert(d.error || '撤回失败');
+                }
+            }).catch(() => alert('网络错误'));
+        };
+
+        // 置顶/取消置顶已发布事件（isPinned: 当前置顶状态）
+        window.pinPublishedEvent = function(pid, isPinned) {
+            const wantPin = !isPinned;
+            if (wantPin && !confirm('确定置顶该事件？置顶期间所有玩家将反复收到该事件公告（玩家可手动关闭）。')) return;
+            if (!wantPin && !confirm('确定取消置顶？')) return;
+            fetch('/api/dm/events/' + pid + '/pin', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser, pinned: wantPin})
+            }).then(r => r.json()).then(d => {
+                if (d.ok) {
+                    addSystemMsg(wantPin ? '📌 事件已置顶，玩家端将作为公告展示' : '📌 已取消置顶');
+                    openEventList();
+                } else {
+                    alert(d.error || '操作失败');
+                }
+            }).catch(() => alert('网络错误'));
         };
 
         window.closeEventList = function() {

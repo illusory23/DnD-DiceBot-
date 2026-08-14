@@ -1,26 +1,6 @@
 [
   {
     "name": "系统",
-    "text": "🔴 凌羽 退出房间",
-    "time": "23:04:46",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785942286.7094326,
-    "system": true
-  },
-  {
-    "name": "系统",
-    "text": "🔴 suroku 退出房间",
-    "time": "23:05:14",
-    "is_dm": false,
-    "color": "#888888",
-    "ip": "system",
-    "_ts": 1785942314.9223328,
-    "system": true
-  },
-  {
-    "name": "系统",
     "text": "🔴 厄内 退出房间",
     "time": "23:05:16",
     "is_dm": false,
@@ -5132,5 +5112,29 @@
     "role": "DM",
     "ip": "127.0.0.1",
     "_ts": 1786651551.5766778
+  },
+  {
+    "name": "事件",
+    "text": "1\n1",
+    "time": "20:28:01",
+    "is_dm": false,
+    "color": "#ffd700",
+    "event": true,
+    "event_title": "1",
+    "event_content": "1",
+    "event_id": 1,
+    "ip": "system",
+    "_ts": 1786710487.4489222,
+    "_recalled": true
+  },
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "23:48:13",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "::1",
+    "_ts": 1786722493.5991209
   }
 ]

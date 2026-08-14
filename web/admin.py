@@ -260,6 +260,13 @@ def content_page():
     return render_template('content.html')
 
 
+@admin_bp.route('/announcements')
+@admin_required
+def announcements_page():
+    """平台公告管理（发布/启停/删除，前端调用 /api/admin/announcements 与 /api/announcements）"""
+    return render_template('admin/announcements.html')
+
+
 # ═══════════════════════════════════════════════════════════════════
 # API — 仪表盘
 # ═══════════════════════════════════════════════════════════════════

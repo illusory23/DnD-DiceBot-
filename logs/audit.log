@@ -581,3 +581,36 @@
 [2026-08-14 04:30:48] [character.delete] user=Ea · Virmoris/埃亚 · 维尔莫瑞斯 ip=127.0.0.1 删除角色 id=147 name=Ea · Virmoris/埃亚 · 维尔莫瑞斯
 [2026-08-14 04:30:51] [character.delete] user=Ea · Virmoris/埃亚 · 维尔莫瑞斯 ip=127.0.0.1 删除角色 id=148 name=Ea · Virmoris/埃亚 · 维尔莫瑞斯
 [2026-08-14 04:30:55] [character.delete] user=测试角色甲 ip=127.0.0.1 删除角色 id=145 name=测试角色甲
+[2026-08-14 20:07:01] [map.save] user=测试DM ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:18:03] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:18:27] [map.save] user=辰天星 ip=127.0.0.1 保存地图存档: _autosave (2.8MB)
+[2026-08-14 20:18:34] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (2.7MB)
+[2026-08-14 20:19:28] [map.save] user=辰天星 ip=127.0.0.1 保存地图存档: _autosave (2.8MB)
+[2026-08-14 20:19:42] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (0.3MB)
+[2026-08-14 20:20:02] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (0.3MB)
+[2026-08-14 20:20:08] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (2.5MB)
+[2026-08-14 20:20:19] [map.save] user=辰天星 ip=127.0.0.1 保存地图存档: _autosave (2.8MB)
+[2026-08-14 20:20:27] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (2.7MB)
+[2026-08-14 20:34:06] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (2.7MB)
+[2026-08-14 20:36:51] [map.save] user= ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:37:38] [map.save] user= ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:38:23] [map.save] user= ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:45:26] [map.save] user= ip=127.0.0.1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 20:49:12] [map.save] user= ip=::1 保存地图存档: _autosave (0.0MB)
+[2026-08-14 23:39:59] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:40:05] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:40:13] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:42:03] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:42:12] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:42:50] [character.delete] user=待删角色1786722168772 ip=::1 删除角色 id=178 name=待删角色1786722168772
+[2026-08-14 23:43:27] [character.delete] user=待删角色1786722205256 ip=::1 删除角色 id=179 name=待删角色1786722205256
+[2026-08-14 23:44:46] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:44:59] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:49:37] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:50:21] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:50:50] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:51:24] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:51:31] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:52:50] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-14 23:58:09] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-15 00:00:10] [admin.login] user=IllusoryActor ip=::1 管理员登录

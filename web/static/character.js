@@ -445,6 +445,8 @@
 
         async function deleteCharFromList(id, name) {
             if (!confirm(`确认删除角色 "${name}"？此操作不可撤销！`)) return;
+            // 记录滚动位置：删除后列表重渲染，保持当前浏览位置不回顶
+            const savedScroll = window.scrollY;
             try {
                 const resp = await fetch(`/api/character/${id}`, { method: 'DELETE' });
                 const data = await resp.json();
@@ -456,7 +458,8 @@
                         <div class="card-header">📋 角色详情</div>
                         <div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>`;
                 }
-                loadCharList();
+                await loadCharList();
+                if (window.scrollY === 0 && savedScroll > 0) window.scrollTo(0, savedScroll);
             } catch(e) { alert('删除失败: ' + e.message); }
         }
 
@@ -970,18 +973,21 @@
         async function deleteCharModal(id, name) {
             if (!confirm(`确认删除角色 "${name}"？\n此操作不可撤销，将永久删除该角色及其所有数据。`)) return;
 
+            // 记录滚动位置：删除后重渲染保持当前位置不回顶
+            const savedScroll = window.scrollY;
             try {
                 const resp = await fetch(`/api/character/${id}`, { method: 'DELETE' });
                 const data = await resp.json();
                 if (data.error) { alert('删除失败: ' + data.error); return; }
                 alert(`已删除角色: ${data.name}`);
                 currentChar = null;
-                loadCharList();
+                await loadCharList();
                 document.getElementById('char-detail').innerHTML = `
                     <div class="card-header">📋 角色详情</div>
                     <div style="color:var(--text-dim);text-align:center;padding:2rem;">
                         请创建或选择一个角色
                     </div>`;
+                if (window.scrollY === 0 && savedScroll > 0) window.scrollTo(0, savedScroll);
             } catch(e) {
                 alert('删除失败: ' + e.message);
             }

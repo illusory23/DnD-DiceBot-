@@ -161,6 +161,7 @@ def _ensure_user_columns():
         _app_logger.warning(f'补列 users 表失败: {_e}')
 
 # ━━━ 静态文件缓存 ━━━
+from werkzeug.serving import make_server
 # 本地工具场景优先保证代码改动立即可见：JS/CSS 不做长缓存，避免浏览器沿用旧版脚本
 # 导致功能（如3D掷骰）异常；如后续需要性能可改为带版本号的资源引用。
 @app.after_request
@@ -330,7 +331,9 @@ MAX_MENTIONS = 100
 # ━━━ DM 事件系统（聊天室发布事件 / 全平台弹窗 / DM事件列表）━━━
 _DM_EVENT_LIST_FILE = _Path(__file__).parent / 'dm_event_list.json'
 _dm_event_list: list[dict] = []  # [{id, title, content, created_at}] 仅DM可见，持久化
-_event_notifications: list[dict] = []  # [{title, content, time, _ts}] 发布时广播，供各页面轮询弹窗
+_DM_PUBLISHED_FILE = _Path(__file__).parent / 'dm_published_events.json'
+_dm_published_events: list[dict] = []  # [{id, title, content, published_at, recalled_at, pinned}] 发布历史，持久化
+_event_notifications: list[dict] = []  # [{event_id, title, content, time, _ts, recalled, pinned}] 发布时广播，供各页面轮询弹窗
 MAX_EVENT_NOTIFICATIONS = 50
 
 def _load_dm_event_list():
@@ -352,6 +355,26 @@ def _save_dm_event_list():
         pass
 
 _load_dm_event_list()
+
+def _load_dm_published_events():
+    """启动时从磁盘加载DM已发布事件历史"""
+    global _dm_published_events
+    try:
+        if _DM_PUBLISHED_FILE.exists():
+            with open(_DM_PUBLISHED_FILE, 'r', encoding='utf-8') as f:
+                _dm_published_events = _json.load(f)
+    except Exception:
+        _dm_published_events = []
+
+def _save_dm_published_events():
+    """保存DM已发布事件历史到磁盘"""
+    try:
+        with open(_DM_PUBLISHED_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(_dm_published_events, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+_load_dm_published_events()
 
 # ━━━ 共享画布状态（WebSocket 实时为主 + HTTP 轮询降级）━━
 from .shared_state import (
@@ -3501,6 +3524,19 @@ def api_dm_event_publish():
 
     ts = _time.time()
 
+    # 0. 创建发布历史记录（供 DM 管理页撤回/置顶）
+    pub_id = max([e.get('id', 0) for e in _dm_published_events], default=0) + 1
+    pub_record = {
+        'id': pub_id,
+        'title': title,
+        'content': content,
+        'published_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+        'recalled_at': None,
+        'pinned': False,
+    }
+    _dm_published_events.append(pub_record)
+    _save_dm_published_events()
+
     # 1. 聊天室同步显示（独立事件样式，非DM名义）
     _chat_messages.append({
         'name': '事件',
@@ -3511,6 +3547,7 @@ def api_dm_event_publish():
         'event': True,
         'event_title': title,
         'event_content': content,
+        'event_id': pub_id,
         'ip': 'system',
         '_ts': ts,
     })
@@ -3519,15 +3556,18 @@ def api_dm_event_publish():
 
     # 2. 全平台弹窗通知广播（各页面 event-popup.js 轮询拉取）
     _event_notifications.append({
+        'event_id': pub_id,
         'title': title,
         'content': content,
         'time': _time.strftime('%H:%M:%S'),
         '_ts': ts,
+        'recalled': False,
+        'pinned': False,
     })
     while len(_event_notifications) > MAX_EVENT_NOTIFICATIONS:
         _event_notifications.pop(0)
 
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'event': pub_record})
 
 
 @app.route('/api/events/notifications', methods=['GET'])
@@ -3543,7 +3583,22 @@ def api_event_notifications():
             since_ts = float(since_str)
         except ValueError:
             pass
-    events = [e for e in _event_notifications if e.get('_ts', 0) > since_ts]
+    # 过滤已撤回的；未撤回事件仅返回新发布的
+    events = [e for e in _event_notifications
+              if e.get('_ts', 0) > since_ts and not e.get('recalled', False)]
+    # 追加当前置顶中的事件（_is_pinned 标记，前端关闭后记录已读，不再重复弹）
+    for ev in _dm_published_events:
+        if ev.get('pinned') and not ev.get('recalled_at'):
+            events.append({
+                'event_id': ev['id'],
+                'title': ev['title'],
+                'content': ev['content'],
+                'time': ev.get('published_at', '')[-8:],
+                '_ts': 0,
+                '_is_pinned': True,
+                'recalled': False,
+                'pinned': True,
+            })
     return jsonify({'ok': True, 'events': events})
 
 
@@ -3611,6 +3666,118 @@ def api_dm_events_delete(eid):
             _save_dm_event_list()
             return jsonify({'ok': True})
     return jsonify({'ok': False, 'error': '事件不存在'})
+
+
+# ━━━ DM 已发布事件管理（撤回 / 置顶 / 发布历史）━━━
+
+@app.route('/api/dm/published-events', methods=['GET'])
+def api_dm_published_events():
+    """DM 获取已发布事件历史（含撤回/置顶状态）。仅DM可见。"""
+    name = request.args.get('name', '').strip()
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以查看发布历史'})
+    return jsonify({'ok': True, 'events': list(reversed(_dm_published_events))})
+
+
+@app.route('/api/dm/events/<int:pid>/recall', methods=['POST'])
+def api_dm_event_recall(pid):
+    """DM 撤回已发布事件：标记撤回，聊天室对应消息显示"已撤回"，全平台弹窗不再推送。"""
+    global _chat_messages, _event_notifications
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or request.args.get('name') or '').strip()
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以撤回事件'})
+
+    pub = None
+    for ev in _dm_published_events:
+        if ev.get('id') == pid:
+            pub = ev
+            break
+    if not pub:
+        return jsonify({'ok': False, 'error': '事件不存在'})
+    if pub.get('recalled_at'):
+        return jsonify({'ok': False, 'error': '该事件已撤回'})
+
+    pub['recalled_at'] = _time.strftime('%Y-%m-%d %H:%M:%S')
+    pub['pinned'] = False
+    _save_dm_published_events()
+
+    # 聊天室对应消息标记撤回（内存 + 磁盘存档 + 归档文件）。
+    # 同时刷新 _ts：已打开聊天页的玩家通过增量轮询收到该消息，
+    # 前端据此把界面上的事件消息移除（撤回后完全不可见）。
+    recall_ts = _time.time()
+    for msg in _chat_messages:
+        if msg.get('event_id') == pid:
+            msg['_recalled'] = True
+            msg['_ts'] = recall_ts
+    _threading.Thread(target=_save_chat_log, daemon=True).start()
+    try:
+        if _CHAT_LOG_FILE.exists():
+            log = _json.loads(_CHAT_LOG_FILE.read_text(encoding='utf-8')) if _CHAT_LOG_FILE.exists() else []
+            changed = False
+            for msg in log:
+                if msg.get('event_id') == pid:
+                    if not msg.get('_recalled'):
+                        msg['_recalled'] = True
+                        changed = True
+                    msg['_ts'] = recall_ts
+            if changed:
+                _CHAT_LOG_FILE.write_text(
+                    _json.dumps(log, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception:
+        pass
+    # 归档文件中的对应消息同步标记（历史回放不再显示）
+    try:
+        if _CHAT_ARCHIVE_DIR.exists():
+            for af in _CHAT_ARCHIVE_DIR.glob('*.json'):
+                try:
+                    amsgs = _json.loads(af.read_text(encoding='utf-8'))
+                    a_changed = False
+                    for msg in amsgs:
+                        if msg.get('event_id') == pid and not msg.get('_recalled'):
+                            msg['_recalled'] = True
+                            a_changed = True
+                    if a_changed:
+                        af.write_text(_json.dumps(amsgs, ensure_ascii=False, indent=2), encoding='utf-8')
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    # 弹窗通知标记撤回（轮询端已过滤 recalled）
+    for nt in _event_notifications:
+        if nt.get('event_id') == pid:
+            nt['recalled'] = True
+            nt['pinned'] = False
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/dm/events/<int:pid>/pin', methods=['POST'])
+def api_dm_event_pin(pid):
+    """DM 置顶/取消置顶已发布事件：置顶期间全平台轮询持续返回该事件（公告式展示）。"""
+    global _event_notifications
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or request.args.get('name') or '').strip()
+    pinned = bool(data.get('pinned'))
+    if not name or not _is_dm_request(name, request.remote_addr or 'unknown'):
+        return jsonify({'ok': False, 'error': '只有DM可以置顶事件'})
+
+    pub = None
+    for ev in _dm_published_events:
+        if ev.get('id') == pid:
+            pub = ev
+            break
+    if not pub:
+        return jsonify({'ok': False, 'error': '事件不存在'})
+    if pub.get('recalled_at'):
+        return jsonify({'ok': False, 'error': '已撤回的事件无法置顶'})
+    pub['pinned'] = pinned
+    _save_dm_published_events()
+    for nt in _event_notifications:
+        if nt.get('event_id') == pid:
+            nt['pinned'] = pinned
+    return jsonify({'ok': True, 'pinned': pinned})
 
 # ━━━ 骰点广播到聊天室 ━━━
 
@@ -4064,6 +4231,102 @@ _TOPICS_FILE = _Path(__file__).parent.parent / 'data' / 'topics.json'
 _topics_lock = _threading.Lock()
 _comment_rate: dict[str, float] = {}  # 评论防刷: {username: 最近评论时间}
 COMMENT_RATE_SECONDS = 15  # 同一用户两次评论最小间隔
+
+# ━━━ 平台公告（管理员发布 → 平台页面顶部横幅）━━━
+_ANNOUNCEMENTS_FILE = _Path(__file__).parent.parent / 'data' / 'announcements.json'
+_announcements_lock = _threading.Lock()
+
+
+def _load_announcements() -> dict:
+    """加载公告数据: {"announcements": [{id, title, content, created_at, active}]}"""
+    try:
+        if _ANNOUNCEMENTS_FILE.exists():
+            with open(_ANNOUNCEMENTS_FILE, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and 'announcements' in data:
+                return data
+    except Exception:
+        pass
+    return {'announcements': []}
+
+
+def _save_announcements(data: dict):
+    try:
+        with open(_ANNOUNCEMENTS_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+@app.route('/api/announcements')
+def api_announcements():
+    """公开接口：返回启用中的公告（最新 3 条，供各页面顶部横幅展示）。"""
+    with _announcements_lock:
+        data = _load_announcements()
+    anns = [a for a in data.get('announcements', []) if a.get('active', True)]
+    anns.sort(key=lambda a: a.get('id', 0), reverse=True)
+    return jsonify({'ok': True, 'announcements': anns[:3]})
+
+
+@app.route('/api/admin/announcements', methods=['GET'])
+def api_admin_announcements_list():
+    """管理员读取全部公告（含已停用），按 id 倒序。"""
+    user = _get_current_user()
+    if not user or not (user.is_admin if user.is_admin is not None else False):
+        return jsonify({'ok': False, 'error': '需要管理员权限'}), 403
+    with _announcements_lock:
+        data = _load_announcements()
+    anns = sorted(data.get('announcements', []), key=lambda a: a.get('id', 0), reverse=True)
+    return jsonify({'ok': True, 'announcements': anns})
+
+
+@app.route('/api/admin/announcements', methods=['POST'])
+def api_admin_announcements():
+    """管理员发布/更新/启停/删除公告。
+    请求: {action: 'add'|'toggle'|'delete', title, content, id}
+    """
+    user = _get_current_user()
+    if not user or not (user.is_admin if user.is_admin is not None else False):
+        return jsonify({'ok': False, 'error': '需要管理员权限'}), 403
+    data = request.get_json(silent=True) or {}
+    action = data.get('action', '')
+    with _announcements_lock:
+        store = _load_announcements()
+        anns = store.setdefault('announcements', [])
+        if action == 'add':
+            title = (data.get('title') or '').strip()
+            content = (data.get('content') or '').strip()
+            if not title or not content:
+                return jsonify({'ok': False, 'error': '标题与内容不能为空'})
+            if len(title) > 60 or len(content) > 500:
+                return jsonify({'ok': False, 'error': '标题最多60字，内容最多500字'})
+            new_id = max([a.get('id', 0) for a in anns], default=0) + 1
+            anns.append({
+                'id': new_id,
+                'title': title,
+                'content': content,
+                'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+                'active': True,
+            })
+            _save_announcements(store)
+            return jsonify({'ok': True, 'announcement': anns[-1]})
+        if action == 'toggle':
+            ann_id = data.get('id')
+            for a in anns:
+                if a.get('id') == ann_id:
+                    a['active'] = not a.get('active', True)
+                    _save_announcements(store)
+                    return jsonify({'ok': True, 'active': a['active']})
+            return jsonify({'ok': False, 'error': '公告不存在'})
+        if action == 'delete':
+            ann_id = data.get('id')
+            before = len(anns)
+            anns[:] = [a for a in anns if a.get('id') != ann_id]
+            if len(anns) != before:
+                _save_announcements(store)
+                return jsonify({'ok': True})
+            return jsonify({'ok': False, 'error': '公告不存在'})
+    return jsonify({'ok': False, 'error': '未知操作'})
 
 
 def _load_topics() -> dict:
@@ -5062,6 +5325,144 @@ def _get_current_user() -> _UserModel | None:
     return None
 
 
+# ━━━ 用户收藏（酒馆帖子 / 工坊）与我的评论 ━━━
+_FAVORITES_FILE = _Path(__file__).parent.parent / 'data' / 'favorites.json'
+_favorites_lock = _threading.Lock()
+
+
+def _load_favorites() -> dict:
+    """{"favorites": [{user_id, type: 'post'|'workshop', item_id, created_at}]}"""
+    try:
+        if _FAVORITES_FILE.exists():
+            with open(_FAVORITES_FILE, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and 'favorites' in data:
+                return data
+    except Exception:
+        pass
+    return {'favorites': []}
+
+
+def _save_favorites(data: dict):
+    try:
+        with open(_FAVORITES_FILE, 'w', encoding='utf-8') as f:
+            _json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _favorite_title(fav: dict) -> str:
+    """补全收藏项的标题/作者（用于我的收藏展示）"""
+    try:
+        if fav.get('type') == 'post':
+            with open(_COMMUNITY_FILE, 'r', encoding='utf-8') as f:
+                posts = _json.load(f)
+            for p in posts:
+                if p.get('id') == fav.get('item_id'):
+                    return {'title': p.get('title', ''), 'author': p.get('author', '')}
+        elif fav.get('type') == 'workshop':
+            with open(_WORKSHOP_FILE, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            items = data.get('items', data) if isinstance(data, dict) else data
+            for it in items:
+                if it.get('id') == fav.get('item_id'):
+                    return {'title': it.get('title', ''), 'author': it.get('author', '')}
+    except Exception:
+        pass
+    return {'title': '', 'author': ''}
+
+
+@app.route('/api/favorites', methods=['GET'])
+def api_my_favorites():
+    """我的收藏列表（登录）：含标题/作者，最新在前。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    with _favorites_lock:
+        favs = [f for f in _load_favorites().get('favorites', []) if f.get('user_id') == user.id]
+    favs.sort(key=lambda f: f.get('created_at', ''), reverse=True)
+    out = []
+    for f in favs:
+        info = _favorite_title(f)
+        if info['title']:
+            out.append({
+                'type': f.get('type'),
+                'item_id': f.get('item_id'),
+                'title': info['title'],
+                'author': info['author'],
+                'created_at': f.get('created_at', ''),
+            })
+    return jsonify({'ok': True, 'favorites': out})
+
+
+@app.route('/api/favorites', methods=['POST'])
+def api_toggle_favorite():
+    """收藏/取消收藏。请求: {type: 'post'|'workshop', id}"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    data = request.get_json(silent=True) or {}
+    fav_type = data.get('type', '')
+    item_id = data.get('id')
+    if fav_type not in ('post', 'workshop') or item_id is None:
+        return jsonify({'ok': False, 'error': '参数错误'}), 400
+    with _favorites_lock:
+        store = _load_favorites()
+        favs = store.setdefault('favorites', [])
+        exists = next((f for f in favs if f.get('user_id') == user.id
+                       and f.get('type') == fav_type and f.get('item_id') == item_id), None)
+        if exists:
+            favs.remove(exists)
+            _save_favorites(store)
+            return jsonify({'ok': True, 'favorited': False})
+        favs.append({
+            'user_id': user.id,
+            'type': fav_type,
+            'item_id': item_id,
+            'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
+        })
+        _save_favorites(store)
+        return jsonify({'ok': True, 'favorited': True})
+
+
+@app.route('/api/my/comments')
+def api_my_comments():
+    """我的评论（登录）：遍历酒馆帖子与工坊评论，最新在前。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    out = []
+    try:
+        with open(_COMMUNITY_FILE, 'r', encoding='utf-8') as f:
+            posts = _json.load(f)
+        for p in posts:
+            for c in (p.get('comments') or []):
+                if c.get('username') == user.username:
+                    out.append({
+                        'type': 'post', 'parent_id': p.get('id'),
+                        'parent_title': p.get('title', ''), 'content': c.get('content', ''),
+                        'created_at': c.get('created_at', ''),
+                    })
+    except Exception:
+        pass
+    try:
+        with open(_WORKSHOP_FILE, 'r', encoding='utf-8') as f:
+            wdata = _json.load(f)
+        items = wdata.get('items', wdata) if isinstance(wdata, dict) else wdata
+        for it in items:
+            for c in (it.get('comments') or []):
+                if c.get('username') == user.username:
+                    out.append({
+                        'type': 'workshop', 'parent_id': it.get('id'),
+                        'parent_title': it.get('title', ''), 'content': c.get('content', ''),
+                        'created_at': c.get('created_at', ''),
+                    })
+    except Exception:
+        pass
+    out.sort(key=lambda c: c.get('created_at', ''), reverse=True)
+    return jsonify({'ok': True, 'comments': out[:100]})
+
+
 # ━━━ 全站在线状态 API（打开任意页面即在线，关闭全部页面才下线）━━━
 
 def _prune_online_sessions(now: float = None) -> None:
@@ -5383,7 +5784,20 @@ def run_server():
     # Flask-Sock + simple-websocket 自动处理 /ws 路径的 WebSocket 升级
     # debug=False：生产使用；避免 Werkzeug 调试器暴露远程执行入口
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+    # IPv4 主监听（0.0.0.0：本机与局域网均可访问）
+    server = make_server('0.0.0.0', 5000, app, threaded=True)
+    # IPv6 ::1 副监听（同端口、不同地址族可共存）：
+    # 浏览器访问 localhost 会先尝试 IPv6，若 ::1 无监听则被防火墙静默丢弃、
+    # 超时后再回退 IPv4（每个连接约 300ms，页面多个资源叠加导致切换明显变慢）。
+    # 增加 ::1 监听后浏览器直连成功，无回退等待。
+    try:
+        server_v6 = make_server('::1', 5000, app, threaded=True)
+        _threading.Thread(target=server_v6.serve_forever, daemon=True).start()
+        _app_logger.info('已监听 IPv6 ::1（加速 localhost 访问）')
+    except Exception as _e:
+        _app_logger.warning(f'IPv6 ::1 监听失败（不影响 IPv4 访问）: {_e}')
+    server.serve_forever()
 
 
 if __name__ == '__main__':

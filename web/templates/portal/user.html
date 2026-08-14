@@ -150,6 +150,26 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
       </div>
     </div>
   </div>
+
+  <!-- ━━ 我的收藏 ━━ -->
+  <div class="card">
+    <div class="card-header">⭐ 我的收藏</div>
+    <div class="card-body">
+      <div class="item-list" id="fav-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 我的评论 ━━ -->
+  <div class="card">
+    <div class="card-header">💬 我的评论</div>
+    <div class="card-body">
+      <div class="item-list" id="mycmt-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ━━ 编辑资料弹窗 ━━ -->
@@ -209,6 +229,46 @@ function renderUser(user){
   document.getElementById('edit-email').value = user.email || '';
   document.getElementById('edit-phone').value = user.phone || '';
   document.getElementById('edit-bio').value = user.bio || '';
+
+  loadMyFavorites();
+  loadMyComments();
+}
+
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 我的收藏
+function loadMyFavorites(){
+  fetch('/api/favorites').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('fav-list');
+    if (!el) return;
+    if (!d.ok || !d.favorites || !d.favorites.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无收藏</div>';
+      return;
+    }
+    el.innerHTML = d.favorites.map(function(f){
+      var icon = f.type === 'post' ? '💬' : '📦';
+      var link = 'javascript:void(0)'; // 收藏项仅展示（酒馆帖子详情弹窗在首页）
+      return '<div class="item-row"><span>'+icon+'</span><a href="'+link+'" style="color:var(--cyan);flex:1;">'+escH(f.title)+'</a><span style="color:var(--text-dim);font-size:0.72rem;">'+(f.author||'')+' · '+(f.created_at||'').slice(0,10)+'</span></div>';
+    }).join('');
+  }).catch(function(){});
+}
+
+// 我的评论
+function loadMyComments(){
+  fetch('/api/my/comments').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('mycmt-list');
+    if (!el) return;
+    if (!d.ok || !d.comments || !d.comments.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无评论</div>';
+      return;
+    }
+    el.innerHTML = d.comments.map(function(c){
+      var icon = c.type === 'post' ? '💬' : '📦';
+      return '<div class="item-row" style="flex-direction:column;align-items:flex-start;gap:4px;">' +
+        '<div style="display:flex;width:100%;gap:8px;"><span>'+icon+'</span><span style="color:var(--cyan);flex:1;font-size:0.8rem;">'+escH(c.parent_title)+'</span><span style="color:var(--text-dim);font-size:0.7rem;">'+(c.created_at||'').slice(0,16)+'</span></div>' +
+        '<div style="color:var(--text-dim);font-size:0.78rem;padding-left:24px;">'+escH(c.content)+'</div></div>';
+    }).join('');
+  }).catch(function(){});
 }
 
 function setValue(id, val, emptyText){
@@ -259,5 +319,6 @@ function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('da
 // 离开跑团平台：清除跑团会话，重新进入时需重新选择身份
 (function(){try{sessionStorage.removeItem('dnd_joined_room');}catch(e){}})();
 </script>
+    <script src="/static/announcement-banner.js"></script>
 </body>
 </html>

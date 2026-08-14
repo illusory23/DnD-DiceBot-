@@ -20,6 +20,12 @@
         } catch (e) { return null; }
     }
 
+    // 玩家已手动关闭过的置顶事件 id（本次会话内不再重复弹窗）
+    var dismissedPins = {};
+    try {
+        dismissedPins = JSON.parse(sessionStorage.getItem('dnd_dismissed_pins') || '{}');
+    } catch (e) {}
+
     function poll() {
         var s = getSession();
         if (!s) { setTimeout(poll, POLL_MS); return; }
@@ -29,6 +35,8 @@
                 if (d.ok && d.events && d.events.length > 0) {
                     d.events.forEach(function (ev) {
                         if (ev._ts > lastEventTs) lastEventTs = ev._ts;
+                        // 置顶事件：已被玩家关闭过的不再弹
+                        if (ev._is_pinned && dismissedPins[ev.event_id]) return;
                         queue.push(ev);
                     });
                     if (!showing) showNext();
@@ -49,12 +57,14 @@
             'display:flex;align-items:center;justify-content:center;',
             'background:rgba(5,5,15,0.55);backdrop-filter:blur(3px);',
         ].join('');
+        // 置顶事件：公告样式（📌 标记 + 蓝金色边框）
+        var isPin = !!ev._is_pinned;
         var card = document.createElement('div');
         card.className = 'event-popup-card';
         card.style.cssText = [
             'position:relative;max-width:480px;width:90%;max-height:70vh;overflow-y:auto;',
-            'background:var(--surface,#1c1c2e);border:2px solid var(--gold,#ffd700);border-radius:10px;',
-            'padding:24px 26px;box-shadow:0 0 40px rgba(255,215,0,0.25);',
+            'background:var(--surface,#1c1c2e);border:2px solid ' + (isPin ? '#4dc9f6' : 'var(--gold,#ffd700)') + ';border-radius:10px;',
+            'padding:24px 26px;box-shadow:0 0 40px ' + (isPin ? 'rgba(77,201,246,0.25)' : 'rgba(255,215,0,0.25)') + ';',
             'color:var(--text,#ddd);animation:eventPopupIn 0.25s ease;',
         ].join('');
         var closeBtn = document.createElement('button');
@@ -69,9 +79,10 @@
         closeBtn.onmouseout = function () { closeBtn.style.color = 'var(--text-dim,#888)'; };
         var title = document.createElement('div');
         title.className = 'event-popup-title';
-        title.textContent = '📜 事件：' + (ev.title || '');
+        title.textContent = (isPin ? '📌 置顶事件：' : '📜 事件：') + (ev.title || '');
         title.style.cssText = [
-            'color:var(--gold,#ffd700);font-weight:bold;font-size:1.05rem;',
+            isPin ? 'color:#4dc9f6;' : 'color:var(--gold,#ffd700);',
+            'font-weight:bold;font-size:1.05rem;',
             'padding-right:28px;margin-bottom:12px;white-space:pre-line;',
         ].join('');
         var content = document.createElement('div');
@@ -90,7 +101,14 @@
             'padding:8px 28px;background:var(--gold,#ffd700);color:#000;border:none;',
             'border-radius:4px;cursor:pointer;font-size:0.9rem;font-weight:600;',
         ].join('');
-        okBtn.onclick = function () { closePopup(ov); };
+        okBtn.onclick = function () {
+            // 置顶事件关闭后记录已读，避免每次轮询重复弹出
+            if (ev._is_pinned && ev.event_id) {
+                dismissedPins[ev.event_id] = 1;
+                try { sessionStorage.setItem('dnd_dismissed_pins', JSON.stringify(dismissedPins)); } catch (e) {}
+            }
+            closePopup(ov);
+        };
         okBtn.onmouseover = function () { okBtn.style.opacity = '0.85'; };
         okBtn.onmouseout = function () { okBtn.style.opacity = '1'; };
 

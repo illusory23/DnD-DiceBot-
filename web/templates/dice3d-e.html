@@ -522,8 +522,17 @@ function renderChat(msgs){
     var div=document.createElement('div');
     var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
     if(m.event){
+      // 已被DM撤回：从界面移除该事件消息（若已显示），撤回后完全不可见
+      if(m._recalled){
+        if(m.event_id){
+          var ex=document.querySelector('#chat-msgs [data-event-id="'+m.event_id+'"]');
+          if(ex)ex.remove();
+        }
+        return;
+      }
       // 事件消息：独立显示，非DM名义
       div.className='chat-msg event';
+      div.setAttribute('data-event-id',m.event_id||'');
       div.style.cssText='background:linear-gradient(135deg,rgba(255,215,0,0.14),rgba(255,215,0,0.04));border:1px solid #ffd700;';
       div.innerHTML='<span class="cm-time">'+formatTime(m.time)+'</span>'+
         '<div style="color:#ffd700;font-weight:bold;font-size:0.85rem;">📜 事件：'+esc(m.event_title)+'</div>'+
