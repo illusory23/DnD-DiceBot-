@@ -1,0 +1,24 @@
+[
+  {
+    "name": "白枫",
+    "text": "🎲 1d6+1 = [4]",
+    "time": "21:09:20",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935360.4312165
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "21:10:06",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935406.939578,
+    "system": true
+  }
+]

@@ -10,12 +10,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 
 # ━━━ 数据库 ━━━
-# 默认使用 SQLite，设置 DATABASE_URL 环境变量可切换到 PostgreSQL
-#   SQLite:      sqlite:///data/characters.db
+# 2026-08-15 已全量迁移 PostgreSQL；DATABASE_URL 环境变量仍可覆盖
 #   PostgreSQL:  postgresql://user:pass@localhost:5432/dicebot
+#   SQLite(回滚): sqlite:///data/characters.db
 DATABASE_URL = os.getenv(
     'DATABASE_URL',
-    f'sqlite:///{BASE_DIR / "data" / "characters.db"}'
+    'postgresql+psycopg2://postgres:asd204402@localhost:5432/dicebot'
 )
 
 # ━━━ 服务器 ━━━

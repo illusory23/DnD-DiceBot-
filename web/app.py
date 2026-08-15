@@ -15,20 +15,19 @@ from datetime import datetime
 from core.database import db
 from utils.logger import (
     get_logger, setup_request_logging,
-    log_frontend_error, get_frontend_errors,
+    log_frontend_error,
     audit_log,
 )
-from core.dice_engine import roll, generate_ability_scores, roll_ability_check
+from core.dice_engine import roll, roll_ability_check
 from core.dnd5e_rules import (
     ability_modifier, get_ability_for_skill, normalize_ability,
     normalize_skill, ABILITY_ORDER, SKILL_TO_ABILITY,
-    proficiency_bonus, get_spell_slots_for_level,
 )
 from core.character import (
     create_character, get_character, list_characters,
-    set_ability, adjust_hp, init_spell_slots, use_spell_slot,
-    long_rest, set_skill_proficiency, set_save_proficiency,
-    update_character, delete_character, death_save,
+    set_ability, adjust_hp, use_spell_slot,
+    long_rest,
+    update_character, delete_character,
     resolve_portrait_path,
     list_character_groups, create_character_group,
     update_character_group, delete_character_group,
@@ -36,16 +35,12 @@ from core.character import (
 )
 from utils.data_loader import search_spell, search_monster, load_conditions
 from core.chm_search import (
-    search_spell as chm_search_spell,
     search_monster as chm_search_monster,
-    search_all as chm_search_all,
     get_monster_detail as chm_get_monster_detail,
     get_spell_detail as chm_get_spell_detail,
 )
 from utils.formatter import (
-    format_dice_result, format_character_sheet, format_spell_slots,
-    format_initiative_list, format_spell_info, format_monster_info,
-    bold, color_red, color_green, color_cyan, color_yellow,
+    format_dice_result, format_character_sheet,
 )
 from utils.excel_importer import import_character_from_excel, import_and_print_summary
 from core.character import import_from_excel_data
@@ -139,7 +134,7 @@ _init_orm_db(app)  # 创建所有数据库表（含 users 表）
 
 
 def _ensure_user_columns():
-    """旧库补列：users.is_admin / is_active / last_login_ip（幂等）。
+    """旧库补列：users.is_admin / is_active / last_login_ip / avatar_url（幂等）。
 
     已有 users 表不会因 create_all 加列，这里手动 ALTER TABLE 补齐。
     is_admin 曾缺失导致任何 User 查询报错，必须最先补上。
@@ -157,6 +152,9 @@ def _ensure_user_columns():
             if 'last_login_ip' not in cols:
                 conn.exec_driver_sql(
                     "ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(64) NOT NULL DEFAULT ''")
+            if 'avatar_url' not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''")
     except Exception as _e:
         _app_logger.warning(f'补列 users 表失败: {_e}')
 
@@ -184,56 +182,69 @@ import time as _time
 import json as _json
 import threading as _threading
 
-_CHAT_LOG_FILE = _Path(__file__).parent / 'chat_log.json'
-_CHAT_ARCHIVE_DIR = _Path(__file__).parent / 'chat_archive'
 _chat_messages: list[dict] = []  # [{name, text, time, is_dm, ip, color}]
 MAX_CHAT_MSGS = 500  # 最多保留500条消息
 
 # ━━━ 酒馆聊天系统（独立于主聊天室）━━━
-_TAVERN_CHAT_LOG_FILE = _Path(__file__).parent / 'tavern_chat_log.json'
-_TAVERN_CHAT_ARCHIVE_DIR = _Path(__file__).parent / 'tavern_chat_archive'
 _tavern_messages: list[dict] = []
 MAX_TAVERN_CHAT_MSGS = 500
 
 def _load_chat_log():
-    """从磁盘加载聊天记录"""
+    """从 PostgreSQL 加载聊天记录（2026-08-15 迁移，原 chat_log.json）"""
     global _chat_messages
     try:
-        if _CHAT_LOG_FILE.exists():
-            with open(_CHAT_LOG_FILE, 'r', encoding='utf-8') as f:
-                _chat_messages = _json.load(f)
+        from core.models import ChatMessage as _CM
+        rows = _CM.query.filter_by(channel='chat').order_by(_CM.id).all()
+        _chat_messages = [r.data if isinstance(r.data, dict) else {
+            'name': r.name, 'text': r.text, 'time': r.time, 'is_dm': r.is_dm,
+            'color': r.color, 'role': r.role, 'ip': r.ip, '_ts': r.ts,
+        } for r in rows]
     except Exception:
         _chat_messages = []
 
 def _save_chat_log():
-    """保存聊天记录到磁盘"""
+    """保存聊天记录到 PostgreSQL（全删全插保留 id 语义）。
+
+    异步线程调用时无 Flask context，函数内自建 app context。
+    """
     try:
-        with open(_CHAT_LOG_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(_chat_messages[-MAX_CHAT_MSGS:], f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        with app.app_context():
+            from core.models import ChatMessage as _CM
+            msgs = _chat_messages[-MAX_CHAT_MSGS:]
+            with db.engine.begin() as conn:
+                conn.execute(_CM.__table__.delete().where(_CM.channel == 'chat'))
+                for m in msgs:
+                    conn.execute(_CM.__table__.insert().values(
+                        channel='chat', name=m.get('name', ''), text=m.get('text', ''),
+                        time=m.get('time', ''), is_dm=bool(m.get('is_dm')),
+                        color=m.get('color', ''), role=m.get('role', ''), ip=m.get('ip', ''),
+                        ts=m.get('_ts', 0) or 0, event_id=m.get('event_id'),
+                        recalled=bool(m.get('_recalled')), data=m))
+    except Exception as _e:
+        _app_logger.warning(f'_save_chat_log 失败: {_e}')
 
 def _archive_chat_messages(msgs_to_archive: list[dict]):
-    """将超出限制的旧消息归档到 chat_archive/ 目录。
+    """将超出限制的旧消息归档到 chat_archives 表（原 chat_archive/ 目录）。
 
-    每次归档生成一个带时间戳的 JSON 文件。
-    自动清理超过30天的归档文件。
+    每次归档插入一行（filename 带时间戳），并清理30天前的归档行。
     """
     if not msgs_to_archive:
         return
     try:
-        _CHAT_ARCHIVE_DIR.mkdir(exist_ok=True)
-        ts = _time.strftime('%Y%m%d_%H%M%S')
-        archive_file = _CHAT_ARCHIVE_DIR / f'chat_{ts}.json'
-        with open(archive_file, 'w', encoding='utf-8') as f:
-            _json.dump(msgs_to_archive, f, ensure_ascii=False, indent=2)
-        # 清理30天前的归档
-        cutoff = _time.time() - 30 * 86400
-        for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-            if f.stat().st_mtime < cutoff:
-                f.unlink(missing_ok=True)
-    except Exception:
-        pass
+        with app.app_context():
+            from core.models import ChatArchive as _CA
+            ts = _time.strftime('%Y%m%d_%H%M%S')
+            created = _time.strftime('%Y-%m-%d %H:%M:%S')
+            with db.engine.begin() as conn:
+                conn.execute(_CA.__table__.insert().values(
+                    channel='chat', filename=f'chat_{ts}.json',
+                    messages=msgs_to_archive, created_at=created))
+                # 清理30天前的归档行
+                cutoff = (_time.time() - 30 * 86400)
+                cutoff_str = _time.strftime('%Y-%m-%d %H:%M:%S', _time.localtime(cutoff))
+                conn.execute(_CA.__table__.delete().where(_CA.channel == 'chat', _CA.created_at < cutoff_str))
+    except Exception as _e:
+        _app_logger.warning(f'_archive_chat_messages 失败: {_e}')
 
 def _trim_and_archive_chat():
     """裁剪聊天消息：超过 MAX_CHAT_MSGS 时将旧消息归档。"""
@@ -248,44 +259,54 @@ def _trim_and_archive_chat():
 # ━━━ 酒馆聊天持久化 ━━━
 
 def _load_tavern_chat_log():
-    """从磁盘加载酒馆聊天记录"""
+    """从 PostgreSQL 加载酒馆聊天记录（原 tavern_chat_log.json）"""
     global _tavern_messages
     try:
-        if _TAVERN_CHAT_LOG_FILE.exists():
-            with open(_TAVERN_CHAT_LOG_FILE, 'r', encoding='utf-8') as f:
-                _tavern_messages = _json.load(f)
+        from core.models import ChatMessage as _CM
+        rows = _CM.query.filter_by(channel='tavern').order_by(_CM.id).all()
+        _tavern_messages = [r.data if isinstance(r.data, dict) else {
+            'name': r.name, 'text': r.text, 'time': r.time,
+            'color': r.color, 'role': r.role, '_ts': r.ts,
+        } for r in rows]
     except Exception:
         _tavern_messages = []
 
 def _save_tavern_chat_log():
-    """保存酒馆聊天记录到磁盘"""
+    """保存酒馆聊天记录到 PostgreSQL（异步线程调用，函数内自建 app context）"""
     try:
-        with open(_TAVERN_CHAT_LOG_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(_tavern_messages[-MAX_TAVERN_CHAT_MSGS:], f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        with app.app_context():
+            from core.models import ChatMessage as _CM
+            msgs = _tavern_messages[-MAX_TAVERN_CHAT_MSGS:]
+            with db.engine.begin() as conn:
+                conn.execute(_CM.__table__.delete().where(_CM.channel == 'tavern'))
+                for m in msgs:
+                    conn.execute(_CM.__table__.insert().values(
+                        channel='tavern', name=m.get('name', ''), text=m.get('text', ''),
+                        time=m.get('time', ''), is_dm=bool(m.get('is_dm')),
+                        color=m.get('color', ''), role=m.get('role', ''), ip=m.get('ip', ''),
+                        ts=m.get('_ts', 0) or 0, event_id=m.get('event_id'),
+                        recalled=bool(m.get('_recalled')), data=m))
+    except Exception as _e:
+        _app_logger.warning(f'_save_tavern_chat_log 失败: {_e}')
 
 def _archive_tavern_chat_messages(msgs_to_archive: list[dict]):
-    """将超出限制的旧消息归档到 tavern_chat_archive/ 目录。
-
-    每次归档生成一个带时间戳的 JSON 文件。
-    自动清理超过30天的归档文件。
-    """
+    """将超出限制的酒馆旧消息归档到 chat_archives 表（原 tavern_chat_archive/ 目录）。"""
     if not msgs_to_archive:
         return
     try:
-        _TAVERN_CHAT_ARCHIVE_DIR.mkdir(exist_ok=True)
-        ts = _time.strftime('%Y%m%d_%H%M%S')
-        archive_file = _TAVERN_CHAT_ARCHIVE_DIR / f'tavern_{ts}.json'
-        with open(archive_file, 'w', encoding='utf-8') as f:
-            _json.dump(msgs_to_archive, f, ensure_ascii=False, indent=2)
-        # 清理30天前的归档
-        cutoff = _time.time() - 30 * 86400
-        for f in _TAVERN_CHAT_ARCHIVE_DIR.glob('tavern_*.json'):
-            if f.stat().st_mtime < cutoff:
-                f.unlink(missing_ok=True)
-    except Exception:
-        pass
+        with app.app_context():
+            from core.models import ChatArchive as _CA
+            ts = _time.strftime('%Y%m%d_%H%M%S')
+            created = _time.strftime('%Y-%m-%d %H:%M:%S')
+            with db.engine.begin() as conn:
+                conn.execute(_CA.__table__.insert().values(
+                    channel='tavern', filename=f'tavern_{ts}.json',
+                    messages=msgs_to_archive, created_at=created))
+                cutoff = (_time.time() - 30 * 86400)
+                cutoff_str = _time.strftime('%Y-%m-%d %H:%M:%S', _time.localtime(cutoff))
+                conn.execute(_CA.__table__.delete().where(_CA.channel == 'tavern', _CA.created_at < cutoff_str))
+    except Exception as _e:
+        _app_logger.warning(f'_archive_tavern_chat_messages 失败: {_e}')
 
 def _trim_and_archive_tavern_chat():
     """裁剪酒馆聊天消息：超过 MAX_TAVERN_CHAT_MSGS 时将旧消息归档。"""
@@ -297,9 +318,10 @@ def _trim_and_archive_tavern_chat():
         # 异步归档旧消息
         _threading.Thread(target=_archive_tavern_chat_messages, args=(to_archive,), daemon=True).start()
 
-# 启动时加载
-_load_chat_log()
-_load_tavern_chat_log()
+# 启动时加载（ORM 查询需要 Flask app context）
+with app.app_context():
+    _load_chat_log()
+    _load_tavern_chat_log()
 
 # ━━━ 日志系统初始化 ━━━
 _app_logger = get_logger('dicebot')
@@ -329,52 +351,66 @@ _mentions: list[dict] = []  # [{target_name, from_name, text, time, _ts}]
 MAX_MENTIONS = 100
 
 # ━━━ DM 事件系统（聊天室发布事件 / 全平台弹窗 / DM事件列表）━━━
-_DM_EVENT_LIST_FILE = _Path(__file__).parent / 'dm_event_list.json'
 _dm_event_list: list[dict] = []  # [{id, title, content, created_at}] 仅DM可见，持久化
-_DM_PUBLISHED_FILE = _Path(__file__).parent / 'dm_published_events.json'
 _dm_published_events: list[dict] = []  # [{id, title, content, published_at, recalled_at, pinned}] 发布历史，持久化
 _event_notifications: list[dict] = []  # [{event_id, title, content, time, _ts, recalled, pinned}] 发布时广播，供各页面轮询弹窗
 MAX_EVENT_NOTIFICATIONS = 50
 
 def _load_dm_event_list():
-    """启动时从磁盘加载DM事件列表"""
+    """启动时从 PostgreSQL 加载DM事件列表（原 dm_event_list.json）"""
     global _dm_event_list
     try:
-        if _DM_EVENT_LIST_FILE.exists():
-            with open(_DM_EVENT_LIST_FILE, 'r', encoding='utf-8') as f:
-                _dm_event_list = _json.load(f)
+        from core.models import DmEvent as _DE
+        rows = _DE.query.order_by(_DE.id).all()
+        _dm_event_list = [{'id': r.id, 'title': r.title, 'content': r.content,
+                           'created_at': r.created_at} for r in rows]
     except Exception:
         _dm_event_list = []
 
 def _save_dm_event_list():
-    """保存DM事件列表到磁盘"""
+    """保存DM事件列表到 PostgreSQL（全删全插保留 id）"""
     try:
-        with open(_DM_EVENT_LIST_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(_dm_event_list, f, ensure_ascii=False, indent=2)
+        from core.models import DmEvent as _DE
+        with db.engine.begin() as conn:
+            conn.execute(_DE.__table__.delete())
+            for e in _dm_event_list:
+                conn.execute(_DE.__table__.insert().values(
+                    id=e.get('id'), title=e.get('title', ''),
+                    content=e.get('content', ''), created_at=e.get('created_at', '')))
     except Exception:
         pass
 
-_load_dm_event_list()
+with app.app_context():
+    _load_dm_event_list()
 
 def _load_dm_published_events():
-    """启动时从磁盘加载DM已发布事件历史"""
+    """启动时从 PostgreSQL 加载DM已发布事件历史（原 dm_published_events.json）"""
     global _dm_published_events
     try:
-        if _DM_PUBLISHED_FILE.exists():
-            with open(_DM_PUBLISHED_FILE, 'r', encoding='utf-8') as f:
-                _dm_published_events = _json.load(f)
+        from core.models import PublishedDmEvent as _PE
+        rows = _PE.query.order_by(_PE.id).all()
+        _dm_published_events = [{'id': r.id, 'title': r.title, 'content': r.content,
+                                 'published_at': r.published_at, 'recalled_at': r.recalled_at,
+                                 'pinned': bool(r.pinned)} for r in rows]
     except Exception:
         _dm_published_events = []
 
 def _save_dm_published_events():
-    """保存DM已发布事件历史到磁盘"""
+    """保存DM已发布事件历史到 PostgreSQL"""
     try:
-        with open(_DM_PUBLISHED_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(_dm_published_events, f, ensure_ascii=False, indent=2)
+        from core.models import PublishedDmEvent as _PE
+        with db.engine.begin() as conn:
+            conn.execute(_PE.__table__.delete())
+            for e in _dm_published_events:
+                conn.execute(_PE.__table__.insert().values(
+                    id=e.get('id'), title=e.get('title', ''),
+                    content=e.get('content', ''), published_at=e.get('published_at', ''),
+                    recalled_at=e.get('recalled_at'), pinned=bool(e.get('pinned'))))
     except Exception:
         pass
 
-_load_dm_published_events()
+with app.app_context():
+    _load_dm_published_events()
 
 # ━━━ 共享画布状态（WebSocket 实时为主 + HTTP 轮询降级）━━
 from .shared_state import (
@@ -1310,13 +1346,9 @@ def api_remove_prepared_spell(name_or_id, spell_id):
     if not char:
         return jsonify({'error': '角色不存在'}), 404
 
-    import sqlite3
-    from core.character import get_db
-    conn = get_db()
-    conn.execute("DELETE FROM prepared_spells WHERE id = ? AND character_id = ?",
-                 (spell_id, char['id']))
-    conn.commit()
-    conn.close()
+    from core.models import PreparedSpell as _PS
+    _PS.query.filter(_PS.id == spell_id, _PS.character_id == char['id']).delete()
+    db.session.commit()
     return jsonify({'success': True})
 
 
@@ -1452,21 +1484,17 @@ def api_update_weapon(name_or_id, weapon_id):
     if field not in allowed:
         return jsonify({'error': f'不允许修改字段: {field}'}), 400
 
-    from core.character import get_db
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            f"UPDATE weapons SET {field} = ? WHERE id = ? AND character_id = ?",
-            (value, weapon_id, char['id'])
-        )
-        conn.commit()
-        if cursor.rowcount == 0:
-            return jsonify({'error': '武器不存在或不属于该角色'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        conn.close()
+    from core.models import Weapon as _WP
+    # 字段名与模型列名映射（damage → damage_dice 等）
+    col_map = {'name': 'name', 'attack_bonus': 'attack_bonus', 'damage': 'damage_dice',
+               'damage_type': 'damage_type', 'description': 'description', 'effect': 'effect'}
+    col = col_map.get(field)
+    if col is None:
+        return jsonify({'error': f'不允许修改字段: {field}'}), 400
+    n = _WP.query.filter(_WP.id == weapon_id, _WP.character_id == char['id']).update({col: value})
+    db.session.commit()
+    if n == 0:
+        return jsonify({'error': '武器不存在或不属于该角色'}), 404
     return jsonify({'success': True})
 
 
@@ -1524,27 +1552,18 @@ def api_update_item(name_or_id, item_id):
     field = data.get('field', '')
     value = data.get('value')
 
-    from core.character import update_item_quantity as _update_qty, remove_item as _remove_item, get_db
+    from core.character import update_item_quantity as _update_qty, remove_item as _remove_item
 
     # 字段编辑模式
     if field:
         allowed = ['item_name', 'quantity', 'location', 'weight', 'description', 'effect']
         if field not in allowed:
             return jsonify({'error': f'不允许修改字段: {field}'}), 400
-        conn = get_db()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                f"UPDATE inventory SET {field} = ? WHERE id = ? AND character_id = ?",
-                (value, item_id, char['id'])
-            )
-            conn.commit()
-            if cursor.rowcount == 0:
-                return jsonify({'error': '物品不存在'}), 404
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-        finally:
-            conn.close()
+        from core.models import InventoryItem as _II
+        n = _II.query.filter(_II.id == item_id, _II.character_id == char['id']).update({field: value})
+        db.session.commit()
+        if n == 0:
+            return jsonify({'error': '物品不存在'}), 404
         return jsonify({'success': True})
 
     # 数量模式（兼容旧接口）
@@ -1711,10 +1730,8 @@ def api_update_spell_slots(name_or_id):
     data = request.get_json(silent=True) or {}
     slots = data.get('slots', {})  # {'1': {'max': 4, 'used': 2}, '2': {...}}
 
-    conn = get_db_conn()
-    cursor = conn.cursor()
-
-    # 确保所有1-9环都存在（先删后插，兼容旧表无唯一约束）
+    from core.models import SpellSlot as _SS
+    # 确保所有1-9环都存在（存在则更新，不存在则插入）
     for level in range(1, 10):
         level_str = str(level)
         slot_data = slots.get(level_str, {})
@@ -1722,33 +1739,15 @@ def api_update_spell_slots(name_or_id):
         used_slots = int(slot_data.get('used', 0))
         used_slots = max(0, min(used_slots, max_slots))  # x不能超过y
 
-        # 检查是否存在
-        cursor.execute(
-            "SELECT id FROM spell_slots WHERE character_id = ? AND slot_level = ?",
-            (char['id'], level_str))
-        existing = cursor.fetchone()
+        existing = _SS.query.filter_by(character_id=char['id'], slot_level=level_str).first()
         if existing:
-            cursor.execute(
-                "UPDATE spell_slots SET max_slots = ?, used_slots = ? WHERE id = ?",
-                (max_slots, used_slots, existing['id']))
+            existing.max_slots = max_slots
+            existing.used_slots = used_slots
         else:
-            cursor.execute(
-                "INSERT INTO spell_slots (character_id, slot_level, max_slots, used_slots) VALUES (?, ?, ?, ?)",
-                (char['id'], level_str, max_slots, used_slots))
-
-    conn.commit()
-    conn.close()
+            db.session.add(_SS(character_id=char['id'], slot_level=level_str,
+                               max_slots=max_slots, used_slots=used_slots))
+    db.session.commit()
     return jsonify({'success': True})
-
-
-def get_db_conn():
-    """获取数据库连接（用于直接SQL操作）"""
-    import sqlite3
-    from pathlib import Path
-    db_path = Path(__file__).parent.parent / "data" / "characters.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 @app.route('/api/character/<name_or_id>/portrait', methods=['GET'])
@@ -2748,26 +2747,27 @@ def api_list_events():
 # ━━━ 事件统计数据 ━━━
 # 数据模型: {用户名: {表名: {事件内容: 次数}}}
 # 例如: {"张三": {"随机环境": {"雪坑（需要过被动察觉...）": 3, "暴风雪...": 2}}}
-_EVENT_STATS_FILE = _Path(__file__).parent / 'event_stats.json'
 _event_stats_lock = _threading.Lock()
 
 
 def _load_event_stats() -> dict:
-    """加载所有用户的事件统计数据"""
+    """从 PostgreSQL 加载所有用户的事件统计数据（原 event_stats.json）"""
     try:
-        if _EVENT_STATS_FILE.exists():
-            with open(_EVENT_STATS_FILE, 'r', encoding='utf-8') as f:
-                return _json.load(f)
+        from core.models import EventStat as _ES
+        rows = _ES.query.all()
+        return {r.username: (r.data if isinstance(r.data, dict) else {}) for r in rows}
     except Exception:
-        pass
-    return {}
+        return {}
 
 
 def _save_event_stats(stats: dict):
-    """保存事件统计数据到文件"""
+    """保存事件统计数据到 PostgreSQL"""
     try:
-        with open(_EVENT_STATS_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(stats, f, ensure_ascii=False, indent=2)
+        from core.models import EventStat as _ES
+        with db.engine.begin() as conn:
+            conn.execute(_ES.__table__.delete())
+            for uname, data in (stats or {}).items():
+                conn.execute(_ES.__table__.insert().values(username=uname, data=data))
     except Exception:
         pass
 
@@ -3711,36 +3711,20 @@ def api_dm_event_recall(pid):
             msg['_recalled'] = True
             msg['_ts'] = recall_ts
     _threading.Thread(target=_save_chat_log, daemon=True).start()
+    # 归档表中的对应消息同步标记（历史回放不再显示）
     try:
-        if _CHAT_LOG_FILE.exists():
-            log = _json.loads(_CHAT_LOG_FILE.read_text(encoding='utf-8')) if _CHAT_LOG_FILE.exists() else []
-            changed = False
-            for msg in log:
-                if msg.get('event_id') == pid:
-                    if not msg.get('_recalled'):
+        from core.models import ChatArchive as _CA
+        with db.engine.begin() as conn:
+            rows = conn.execute(_CA.__table__.select().where(_CA.channel == 'chat')).fetchall()
+            for r in rows:
+                amsgs = r.messages if isinstance(r.messages, list) else []
+                a_changed = False
+                for msg in amsgs:
+                    if msg.get('event_id') == pid and not msg.get('_recalled'):
                         msg['_recalled'] = True
-                        changed = True
-                    msg['_ts'] = recall_ts
-            if changed:
-                _CHAT_LOG_FILE.write_text(
-                    _json.dumps(log, ensure_ascii=False, indent=2), encoding='utf-8')
-    except Exception:
-        pass
-    # 归档文件中的对应消息同步标记（历史回放不再显示）
-    try:
-        if _CHAT_ARCHIVE_DIR.exists():
-            for af in _CHAT_ARCHIVE_DIR.glob('*.json'):
-                try:
-                    amsgs = _json.loads(af.read_text(encoding='utf-8'))
-                    a_changed = False
-                    for msg in amsgs:
-                        if msg.get('event_id') == pid and not msg.get('_recalled'):
-                            msg['_recalled'] = True
-                            a_changed = True
-                    if a_changed:
-                        af.write_text(_json.dumps(amsgs, ensure_ascii=False, indent=2), encoding='utf-8')
-                except Exception:
-                    continue
+                        a_changed = True
+                if a_changed:
+                    conn.execute(_CA.__table__.update().where(_CA.id == r.id).values(messages=amsgs))
     except Exception:
         pass
 
@@ -4083,38 +4067,38 @@ def api_room_leave():
 
 # ━━━ 战斗状态同步 API（带磁盘持久化）━━
 
-_COMBAT_SAVE_FILE = _Path(__file__).parent / 'combat_state.json'
-
-
 def _load_combat_state():
-    """启动时从磁盘恢复战斗状态，防止重启丢失和控制台 404 刷屏。"""
+    """启动时从 PostgreSQL 恢复战斗状态（原 combat_state.json）。"""
     try:
-        if _COMBAT_SAVE_FILE.exists():
-            with open(_COMBAT_SAVE_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, dict) and data.get('combatants') is not None:
-                return data, data.get('_ts', 0.0)
+        from core.models import CombatState as _CS
+        row = _CS.query.filter_by(id=1).first()
+        if row and isinstance(row.data, dict) and row.data.get('combatants') is not None:
+            return row.data, row.ts or 0.0
     except Exception:
         pass
     return {'combatants': [], 'round': ''}, 0.0
 
 
 def _save_combat_state():
-    """保存战斗状态到磁盘。"""
+    """保存战斗状态到 PostgreSQL（单行 upsert）。"""
     global _combat_state, _combat_state_ts
     try:
+        from core.models import CombatState as _CS
         data = dict(_combat_state) if _combat_state else {'combatants': [], 'round': ''}
         data['_ts'] = _combat_state_ts
-        tmp = _COMBAT_SAVE_FILE.with_suffix('.tmp')
-        with open(tmp, 'w', encoding='utf-8') as f:
-            _json.dump(data, f, ensure_ascii=False)
-        tmp.replace(_COMBAT_SAVE_FILE)
+        with db.engine.begin() as conn:
+            exists = conn.execute(_CS.__table__.select().where(_CS.id == 1)).first()
+            if exists:
+                conn.execute(_CS.__table__.update().where(_CS.id == 1).values(data=data, ts=_combat_state_ts))
+            else:
+                conn.execute(_CS.__table__.insert().values(id=1, data=data, ts=_combat_state_ts))
     except Exception as e:
         print(f'[combat-state] 保存失败: {e}')
 
 
-# 模块加载时恢复战斗状态
-_combat_state, _combat_state_ts = _load_combat_state()
+# 模块加载时恢复战斗状态（ORM 查询需要 Flask app context）
+with app.app_context():
+    _combat_state, _combat_state_ts = _load_combat_state()
 if _combat_state.get('combatants'):
     print(f'[combat-state] 已从磁盘恢复战斗状态 ({len(_combat_state["combatants"])} 名参战者)')
 
@@ -4227,33 +4211,38 @@ def api_upload_resource():
 # 数据文件 data/topics.json: {"topics": [{id, title, content, images[], author, created_at, updated_at}]}
 # 内容由管理员在后台发布，content 支持 HTML（含图片标签）
 
-_TOPICS_FILE = _Path(__file__).parent.parent / 'data' / 'topics.json'
 _topics_lock = _threading.Lock()
 _comment_rate: dict[str, float] = {}  # 评论防刷: {username: 最近评论时间}
 COMMENT_RATE_SECONDS = 15  # 同一用户两次评论最小间隔
 
 # ━━━ 平台公告（管理员发布 → 平台页面顶部横幅）━━━
-_ANNOUNCEMENTS_FILE = _Path(__file__).parent.parent / 'data' / 'announcements.json'
 _announcements_lock = _threading.Lock()
 
 
 def _load_announcements() -> dict:
-    """加载公告数据: {"announcements": [{id, title, content, created_at, active}]}"""
+    """从 PostgreSQL 加载公告数据（原 data/announcements.json）。"""
     try:
-        if _ANNOUNCEMENTS_FILE.exists():
-            with open(_ANNOUNCEMENTS_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, dict) and 'announcements' in data:
-                return data
+        from core.models import Announcement as _AN
+        rows = _AN.query.order_by(_AN.id).all()
+        return {'announcements': [{'id': r.id, 'title': r.title, 'content': r.content,
+                                   'created_at': r.created_at, 'active': bool(r.active)}
+                                  for r in rows]}
     except Exception:
-        pass
-    return {'announcements': []}
+        return {'announcements': []}
 
 
 def _save_announcements(data: dict):
+    """保存公告数据到 PostgreSQL（全删全插保留 id）。"""
     try:
-        with open(_ANNOUNCEMENTS_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(data, f, ensure_ascii=False, indent=2)
+        from core.models import Announcement as _AN
+        anns = data.get('announcements', []) if isinstance(data, dict) else []
+        with db.engine.begin() as conn:
+            conn.execute(_AN.__table__.delete())
+            for a in anns:
+                conn.execute(_AN.__table__.insert().values(
+                    id=a.get('id'), title=a.get('title', ''),
+                    content=a.get('content', ''), created_at=a.get('created_at', ''),
+                    active=bool(a.get('active', True))))
     except Exception:
         pass
 
@@ -4266,6 +4255,40 @@ def api_announcements():
     anns = [a for a in data.get('announcements', []) if a.get('active', True)]
     anns.sort(key=lambda a: a.get('id', 0), reverse=True)
     return jsonify({'ok': True, 'announcements': anns[:3]})
+
+
+@app.route('/api/announcements/history')
+def api_announcements_history():
+    """公开接口：返回全部启用中的公告（按 id 倒序），供历史公告页展示。"""
+    with _announcements_lock:
+        data = _load_announcements()
+    anns = [a for a in data.get('announcements', []) if a.get('active', True)]
+    anns.sort(key=lambda a: a.get('id', 0), reverse=True)
+    return jsonify({'ok': True, 'announcements': anns})
+
+
+@app.route('/announcements')
+def announcements_page():
+    """官网历史公告页。"""
+    return render_template('portal/announcements.html')
+
+
+@app.route('/post/<int:post_id>')
+def post_detail_page(post_id):
+    """酒馆帖子独立详情页（收藏/列表跳转用）。"""
+    return render_template('portal/post_detail.html', post_id=post_id)
+
+
+@app.route('/workshop/<int:item_id>')
+def workshop_detail_page(item_id):
+    """工坊投稿独立详情页（收藏/列表跳转用）。"""
+    return render_template('portal/workshop_detail.html', item_id=item_id)
+
+
+@app.route('/notifications')
+def notifications_page():
+    """消息通知独立页（被评论/被点赞/@提及提醒）。"""
+    return render_template('portal/notifications.html')
 
 
 @app.route('/api/admin/announcements', methods=['GET'])
@@ -4330,21 +4353,33 @@ def api_admin_announcements():
 
 
 def _load_topics() -> dict:
+    """从 PostgreSQL 加载每周话题（原 data/topics.json）。"""
     try:
-        if _TOPICS_FILE.exists():
-            with open(_TOPICS_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, dict) and 'topics' in data:
-                return data
+        from core.models import Topic as _TP
+        rows = _TP.query.order_by(_TP.id).all()
+        return {'topics': [{'id': r.id, 'title': r.title, 'content': r.content,
+                            'images': r.images or [], 'author': r.author or '',
+                            'created_at': r.created_at or '', 'updated_at': r.updated_at or '',
+                            'comments': r.comments or []} for r in rows]}
     except Exception:
-        pass
-    return {'topics': []}
+        return {'topics': []}
 
 
 def _save_topics(data: dict):
-    _TOPICS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(_TOPICS_FILE, 'w', encoding='utf-8') as f:
-        _json.dump(data, f, ensure_ascii=False, indent=2)
+    """保存每周话题到 PostgreSQL（全删全插保留 id）。"""
+    try:
+        from core.models import Topic as _TP
+        topics = data.get('topics', []) if isinstance(data, dict) else []
+        with db.engine.begin() as conn:
+            conn.execute(_TP.__table__.delete())
+            for t in topics:
+                conn.execute(_TP.__table__.insert().values(
+                    id=t.get('id'), title=t.get('title', ''), content=t.get('content', ''),
+                    images=t.get('images') or [], author=t.get('author', ''),
+                    created_at=t.get('created_at', ''), updated_at=t.get('updated_at', ''),
+                    comments=t.get('comments') or []))
+    except Exception:
+        pass
 
 
 @app.route('/api/stats/overview')
@@ -4504,21 +4539,56 @@ _COMMUNITY_BOARDS = [
 
 
 def _load_json_file(path: _Path, default: list) -> list:
+    """加载酒馆帖子/工坊投稿（2026-08-15 起从 PostgreSQL 读取）。
+
+    path 参数保留兼容（_COMMUNITY_FILE/_WORKSHOP_FILE 识别来源）。
+    """
     try:
-        if path.exists():
-            with open(path, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, list):
-                return data
+        if path == _COMMUNITY_FILE:
+            from core.models import CommunityPost as _CP
+            rows = _CP.query.order_by(_CP.id).all()
+            return [{'id': r.id, 'board': r.board, 'title': r.title, 'content': r.content,
+                     'images': r.images or [], 'author': r.author or '',
+                     'created_at': r.created_at or '', 'reply_count': r.reply_count or 0,
+                     'comments': r.comments or [], 'likes': r.likes or []} for r in rows]
+        if path == _WORKSHOP_FILE:
+            from core.models import WorkshopItem as _WI
+            rows = _WI.query.order_by(_WI.id).all()
+            return [{'id': r.id, 'title': r.title, 'desc': r.desc, 'file_url': r.file_url or '',
+                     'author': r.author or '', 'created_at': r.created_at or '',
+                     'cat': r.cat or 'user', 'comments': r.comments or [], 'likes': r.likes or []}
+                    for r in rows]
     except Exception:
         pass
     return default
 
 
 def _save_json_file(path: _Path, data: list):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
-        _json.dump(data, f, ensure_ascii=False, indent=2)
+    """保存酒馆帖子/工坊投稿到 PostgreSQL（全删全插保留 id）。"""
+    try:
+        if path == _COMMUNITY_FILE:
+            from core.models import CommunityPost as _CP
+            with db.engine.begin() as conn:
+                conn.execute(_CP.__table__.delete())
+                for p in data:
+                    conn.execute(_CP.__table__.insert().values(
+                        id=p.get('id'), board=p.get('board', 'discuss'),
+                        title=p.get('title', ''), content=p.get('content', ''),
+                        images=p.get('images') or [], author=p.get('author', ''),
+                        created_at=p.get('created_at', ''), reply_count=p.get('reply_count', 0),
+                        comments=p.get('comments') or [], likes=p.get('likes') or []))
+        elif path == _WORKSHOP_FILE:
+            from core.models import WorkshopItem as _WI
+            with db.engine.begin() as conn:
+                conn.execute(_WI.__table__.delete())
+                for s in data:
+                    conn.execute(_WI.__table__.insert().values(
+                        id=s.get('id'), title=s.get('title', ''), desc=s.get('desc', ''),
+                        file_url=s.get('file_url', ''), author=s.get('author', ''),
+                        created_at=s.get('created_at', ''), cat=s.get('cat', 'user'),
+                        comments=s.get('comments') or [], likes=s.get('likes') or []))
+    except Exception:
+        pass
 
 
 @app.route('/api/community/boards')
@@ -4541,20 +4611,223 @@ def api_community_boards():
     return jsonify({'ok': True, 'boards': boards})
 
 
+def _fav_count_map() -> dict:
+    """favorites.json → {(type, item_id): 收藏数}，供帖子/工坊列表统计。"""
+    with _favorites_lock:
+        store = _load_favorites()
+    all_favs = store.get('favorites', [])
+    cnt: dict = {}
+    for fv in all_favs:
+        key = (fv.get('type'), fv.get('item_id'))
+        cnt[key] = cnt.get(key, 0) + 1
+    return cnt
+
+
+def _enrich_post(p: dict, fav_map: dict, user) -> dict:
+    """帖子附加 like_count / fav_count / liked / author_avatar。"""
+    likes = p.get('likes') or []
+    if not isinstance(likes, list):
+        likes = []
+    return {
+        **p,
+        'like_count': len(likes),
+        'fav_count': fav_map.get(('post', p.get('id')), 0),
+        'liked': (user.username in likes) if user else False,
+        'author_avatar': _user_avatar(p.get('author')),
+    }
+
+
+def _enrich_workshop_item(it: dict, fav_map: dict, user) -> dict:
+    """工坊投稿附加 like_count / fav_count / liked / author_avatar。"""
+    likes = it.get('likes') or []
+    if not isinstance(likes, list):
+        likes = []
+    return {
+        **it,
+        'like_count': len(likes),
+        'fav_count': fav_map.get(('workshop', it.get('id')), 0),
+        'liked': (user.username in likes) if user else False,
+        'author_avatar': _user_avatar(it.get('author')),
+    }
+
+
+def _user_avatar(username: str) -> str:
+    """按用户名查头像 URL（查不到返回空串，前端显示默认占位）。"""
+    if not username:
+        return ''
+    u = _UserModel.query.filter_by(username=username).first()
+    return (u.avatar_url or '') if u else ''
+
+
 @app.route('/api/community/boards/<board_id>/threads')
 def api_community_threads(board_id):
-    """板块帖子列表（按发布时间倒序）。"""
+    """板块帖子列表（按发布时间倒序）。
+
+    支持搜索与分页：?q=关键词&page=1&page_size=20
+    q 匹配标题/内容/作者（忽略大小写）；不传 page 时返回全部（兼容旧调用）。
+    每帖附带 like_count / fav_count / liked / author_avatar。
+    """
     if board_id not in {b['id'] for b in _COMMUNITY_BOARDS}:
         return jsonify({'ok': False, 'error': '板块不存在'}), 404
+    q = (request.args.get('q') or '').strip().lower()
+    page = request.args.get('page', type=int)
+    page_size = min(request.args.get('page_size', type=int) or 20, 100)
+    user = _get_current_user()
     with _community_lock:
         posts = _load_json_file(_COMMUNITY_FILE, [])
     threads = [p for p in posts if p.get('board') == board_id]
-    return jsonify({'ok': True, 'threads': threads})
+    if q:
+        threads = [p for p in threads
+                   if q in (p.get('title') or '').lower()
+                   or q in (p.get('content') or '').lower()
+                   or q in (p.get('author') or '').lower()]
+    total = len(threads)
+    has_more = False
+    if page is not None:
+        page = max(page, 1)
+        page_size = max(page_size, 1)
+        start = (page - 1) * page_size
+        threads = threads[start:start + page_size]
+        has_more = start + len(threads) < total
+    fav_map = _fav_count_map()
+    out = [_enrich_post(p, fav_map, user) for p in threads]
+    return jsonify({'ok': True, 'threads': out, 'total': total, 'page': page, 'has_more': has_more})
+
+
+def _notify(user_id, ntype: str, actor: str, content: str, link: str, group_key: str = ''):
+    """写入消息通知（接收者/操作者/动作文本/跳转链接/聚合键）。失败静默不影响主流程。
+
+    content 为动作文本（不含 actor）；同 group_key 未读通知自动聚合（count+1，
+    展示时 "N 人"+content）。兼容旧调用（无 group_key）。
+    """
+    try:
+        from core.models import Notification as _NT
+        now = _time.strftime('%Y-%m-%d %H:%M:%S')
+        if group_key:
+            existing = _NT.query.filter_by(user_id=user_id, group_key=group_key, read=False).first()
+            if existing:
+                existing.count = (existing.count or 1) + 1
+                existing.actor = actor
+                existing.created_at = now
+                db.session.commit()
+                return
+        db.session.add(_NT(user_id=user_id, type=ntype, actor=actor, content=content,
+                           link=link, read=False, group_key=group_key, count=1,
+                           created_at=now))
+        db.session.commit()
+    except Exception:
+        pass
+
+
+def _notify_author(author_name: str, ntype: str, actor: str, content: str, link: str,
+                   group_key: str = ''):
+    """按作者用户名通知（作者无官网账号或为自己操作时跳过）。"""
+    if not author_name:
+        return
+    author = _UserModel.query.filter_by(username=author_name).first()
+    if author and author.username != actor:
+        _notify(author.id, ntype, actor, content, link, group_key)
+
+
+_MENTION_RE = _re.compile(r'@([\w一-龥-]{2,30})')
+
+
+def _notify_mentions(text: str, actor: str, parent_title: str, link: str):
+    """解析评论内容中的 @用户名 定向通知（排除自己；被提及者无账号跳过）。"""
+    try:
+        seen = set()
+        for m in _MENTION_RE.finditer(text or ''):
+            uname = m.group(1)
+            if uname in seen:
+                continue
+            seen.add(uname)
+            target = _UserModel.query.filter_by(username=uname).first()
+            if target and target.username != actor:
+                _notify(target.id, 'mention', actor,
+                        f'在评论中提及了你：《{parent_title[:30]}》',
+                        link, group_key=f'mention:{link}')
+    except Exception:
+        pass
+
+
+@app.route('/api/notifications')
+def api_my_notifications():
+    """我的消息通知列表（登录，最新 50 条）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    from core.models import Notification as _NT
+    rows = _NT.query.filter_by(user_id=user.id).order_by(_NT.id.desc()).limit(50).all()
+    return jsonify({'ok': True, 'notifications': [{
+        'id': r.id, 'type': r.type, 'actor': r.actor, 'content': r.content,
+        'link': r.link, 'read': bool(r.read), 'count': r.count or 1,
+        'created_at': r.created_at or '',
+    } for r in rows]})
+
+
+@app.route('/api/notifications/unread-count')
+def api_notifications_unread_count():
+    """未读通知数（用户中心红点）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': True, 'count': 0})
+    from core.models import Notification as _NT
+    count = _NT.query.filter_by(user_id=user.id, read=False).count()
+    return jsonify({'ok': True, 'count': count})
+
+
+@app.route('/api/notifications/read', methods=['POST'])
+def api_notifications_mark_read():
+    """标记已读：{id} 单条或 {all: true} 全部。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    from core.models import Notification as _NT
+    data = request.get_json(silent=True) or {}
+    if data.get('all'):
+        _NT.query.filter_by(user_id=user.id, read=False).update({'read': True})
+        db.session.commit()
+        return jsonify({'ok': True})
+    nid = data.get('id')
+    if nid is not None:
+        _NT.query.filter_by(id=nid, user_id=user.id).update({'read': True})
+        db.session.commit()
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': '参数错误'}), 400
+
+
+@app.route('/api/community/posts/<int:post_id>/like', methods=['POST'])
+def api_post_like(post_id):
+    """点赞/取消点赞帖子（需登录）。点赞人存 posts 对象 likes 数组。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+        post = next((p for p in posts if p.get('id') == post_id), None)
+        if not post:
+            return jsonify({'ok': False, 'error': '帖子不存在'}), 404
+        likes = post.get('likes')
+        if not isinstance(likes, list):
+            likes = []
+            post['likes'] = likes
+        if user.username in likes:
+            likes.remove(user.username)
+            liked = False
+        else:
+            likes.append(user.username)
+            liked = True
+            # 被点赞通知（自己点赞自己不通知；同帖聚合）
+            _notify_author(post.get('author'), 'post_like', user.username,
+                           f'点赞了你的帖子《{post.get("title", "")[:30]}》',
+                           f'/post/{post_id}', group_key=f'post_like:{post_id}')
+        _save_json_file(_COMMUNITY_FILE, posts)
+    return jsonify({'ok': True, 'liked': liked, 'like_count': len(likes)})
 
 
 @app.route('/api/community/posts/<int:post_id>')
 def api_community_post_detail(post_id):
-    """帖子详情（公开）。"""
+    """帖子详情（公开）。附带点赞数/收藏数/当前用户点赞态/作者头像。"""
     with _community_lock:
         posts = _load_json_file(_COMMUNITY_FILE, [])
     post = next((p for p in posts if p.get('id') == post_id), None)
@@ -4565,7 +4838,10 @@ def api_community_post_detail(post_id):
         if b['id'] == post.get('board'):
             board_name = b['name']
             break
-    return jsonify({'ok': True, 'post': {**post, 'boardName': board_name}})
+    user = _get_current_user()
+    fav_map = _fav_count_map()
+    enriched = _enrich_post(post, fav_map, user)
+    return jsonify({'ok': True, 'post': {**enriched, 'boardName': board_name}})
 
 
 @app.route('/api/community/posts', methods=['POST'])
@@ -4636,10 +4912,34 @@ def api_community_post_delete(post_id):
 
 @app.route('/api/workshop/items')
 def api_workshop_items():
-    """工坊列表：静态样例 + 真实投稿。"""
+    """工坊列表（真实投稿）。
+
+    支持搜索与分页：?q=关键词&page=1&page_size=12
+    q 匹配标题/介绍/作者（忽略大小写）；不传 page 时返回全部（兼容旧调用）。
+    每项附带 like_count / fav_count / liked / author_avatar。
+    """
+    q = (request.args.get('q') or '').strip().lower()
+    page = request.args.get('page', type=int)
+    page_size = min(request.args.get('page_size', type=int) or 12, 100)
+    user = _get_current_user()
     with _community_lock:
         subs = _load_json_file(_WORKSHOP_FILE, [])
-    return jsonify({'ok': True, 'items': subs})
+    if q:
+        subs = [s for s in subs
+                if q in (s.get('title') or '').lower()
+                or q in (s.get('desc') or '').lower()
+                or q in (s.get('author') or '').lower()]
+    total = len(subs)
+    has_more = False
+    if page is not None:
+        page = max(page, 1)
+        page_size = max(page_size, 1)
+        start = (page - 1) * page_size
+        subs = subs[start:start + page_size]
+        has_more = start + len(subs) < total
+    fav_map = _fav_count_map()
+    out = [_enrich_workshop_item(s, fav_map, user) for s in subs]
+    return jsonify({'ok': True, 'items': out, 'total': total, 'page': page, 'has_more': has_more})
 
 
 def _make_comment(username: str, content: str, comments: list) -> dict:
@@ -4689,6 +4989,12 @@ def api_community_post_comment(post_id):
         comment = _make_comment(user.username, content, comments)
         comments.append(comment)
         _save_json_file(_COMMUNITY_FILE, posts)
+        # 被评论通知（评论自己的帖子不通知；同帖聚合）
+        _notify_author(post.get('author'), 'post_comment', user.username,
+                       f'评论了你的帖子《{post.get("title", "")[:30]}》',
+                       f'/post/{post_id}', group_key=f'post_comment:{post_id}')
+        # @提及提醒
+        _notify_mentions(content, user.username, post.get('title', ''), f'/post/{post_id}')
 
     return jsonify({'ok': True, 'comment': comment})
 
@@ -4745,6 +5051,12 @@ def api_workshop_item_comment(item_id):
         comment = _make_comment(user.username, content, comments)
         comments.append(comment)
         _save_json_file(_WORKSHOP_FILE, items)
+        # 被评论通知（评论自己的投稿不通知；同投稿聚合）
+        _notify_author(item.get('author'), 'workshop_comment', user.username,
+                       f'评论了你的投稿《{item.get("title", "")[:30]}》',
+                       f'/workshop/{item_id}', group_key=f'workshop_comment:{item_id}')
+        # @提及提醒
+        _notify_mentions(content, user.username, item.get('title', ''), f'/workshop/{item_id}')
 
     return jsonify({'ok': True, 'comment': comment})
 
@@ -4776,13 +5088,44 @@ def api_workshop_item_comment_delete(item_id, comment_id):
 
 @app.route('/api/workshop/items/<int:item_id>')
 def api_workshop_item_detail(item_id):
-    """工坊投稿详情（含评论，公开）。"""
+    """工坊投稿详情（含评论，公开）。附带点赞数/收藏数/当前用户点赞态/作者头像。"""
     with _community_lock:
         items = _load_json_file(_WORKSHOP_FILE, [])
     item = next((s for s in items if s.get('id') == item_id), None)
     if not item:
         return jsonify({'ok': False, 'error': '投稿不存在'}), 404
-    return jsonify({'ok': True, 'item': item})
+    user = _get_current_user()
+    fav_map = _fav_count_map()
+    return jsonify({'ok': True, 'item': _enrich_workshop_item(item, fav_map, user)})
+
+
+@app.route('/api/workshop/items/<int:item_id>/like', methods=['POST'])
+def api_workshop_item_like(item_id):
+    """点赞/取消点赞工坊投稿（需登录）。点赞人存投稿对象 likes 数组。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    with _community_lock:
+        items = _load_json_file(_WORKSHOP_FILE, [])
+        item = next((s for s in items if s.get('id') == item_id), None)
+        if not item:
+            return jsonify({'ok': False, 'error': '投稿不存在'}), 404
+        likes = item.get('likes')
+        if not isinstance(likes, list):
+            likes = []
+            item['likes'] = likes
+        if user.username in likes:
+            likes.remove(user.username)
+            liked = False
+        else:
+            likes.append(user.username)
+            liked = True
+            # 被点赞通知（自己点赞自己不通知；同投稿聚合）
+            _notify_author(item.get('author'), 'workshop_like', user.username,
+                           f'点赞了你的投稿《{item.get("title", "")[:30]}》',
+                           f'/workshop/{item_id}', group_key=f'workshop_like:{item_id}')
+        _save_json_file(_WORKSHOP_FILE, items)
+    return jsonify({'ok': True, 'liked': liked, 'like_count': len(likes)})
 
 
 @app.route('/api/workshop/items', methods=['POST'])
@@ -4936,22 +5279,27 @@ def mods_page():
 
 # ━━━ 骰子数据统计 API ━━━
 import os as _os
-_STATS_FILE = _Path(__file__).parent / 'dice_stats.json'
 _stats_lock = _threading.Lock()
 
 def _load_stats():
+    """从 PostgreSQL 加载骰子统计（原 dice_stats.json）"""
     try:
-        if _STATS_FILE.exists():
-            with open(_STATS_FILE, 'r', encoding='utf-8') as f:
-                return _json.load(f)
+        from core.models import DiceStat as _DS
+        rows = _DS.query.all()
+        return {r.username: {'total': r.total, 'crit20': r.crit20, 'crit1': r.crit1} for r in rows}
     except Exception:
-        pass
-    return {}
+        return {}
 
 def _save_stats(stats):
+    """保存骰子统计到 PostgreSQL"""
     try:
-        with open(_STATS_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(stats, f, ensure_ascii=False)
+        from core.models import DiceStat as _DS
+        with db.engine.begin() as conn:
+            conn.execute(_DS.__table__.delete())
+            for uname, data in (stats or {}).items():
+                conn.execute(_DS.__table__.insert().values(
+                    username=uname, total=data.get('total', 0),
+                    crit20=data.get('crit20', 0), crit1=data.get('crit1', 0)))
     except Exception:
         pass
 
@@ -5032,24 +5380,21 @@ def api_error_report():
 
 @app.route('/api/admin/chat-archives', methods=['GET'])
 def api_list_chat_archives():
-    """列出所有聊天归档文件 (按时间倒序，最近20个)。"""
+    """列出所有聊天归档行 (按时间倒序，最近20个)。"""
     archives = []
     try:
-        if _CHAT_ARCHIVE_DIR.exists():
-            for f in sorted(_CHAT_ARCHIVE_DIR.glob('chat_*.json'), reverse=True):
-                archives.append({
-                    'filename': f.name,
-                    'size': f.stat().st_size,
-                    'time': _time.strftime('%Y-%m-%d %H:%M:%S', _time.localtime(f.stat().st_mtime)),
-                })
+        from core.models import ChatArchive as _CA
+        rows = _CA.query.filter_by(channel='chat').order_by(_CA.id.desc()).limit(20).all()
+        archives = [{'filename': r.filename, 'size': 0,
+                     'time': r.created_at or ''} for r in rows]
     except Exception:
         pass
-    return jsonify({'ok': True, 'archives': archives[:20]})
+    return jsonify({'ok': True, 'archives': archives})
 
 
 @app.route('/api/admin/chat-archives', methods=['DELETE'])
 def api_clean_chat_archives():
-    """清理聊天归档 (保留最近 N 天，默认30天，最小7天)。
+    """清理聊天归档行 (保留最近 N 天，默认30天，最小7天)。
 
     URL参数: ?days=30
     """
@@ -5060,13 +5405,11 @@ def api_clean_chat_archives():
         days = 30
 
     cleaned = 0
-    cutoff = _time.time() - days * 86400
     try:
-        if _CHAT_ARCHIVE_DIR.exists():
-            for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-                if f.stat().st_mtime < cutoff:
-                    f.unlink(missing_ok=True)
-                    cleaned += 1
+        from core.models import ChatArchive as _CA
+        cutoff = _time.strftime('%Y-%m-%d %H:%M:%S', _time.localtime(_time.time() - days * 86400))
+        cleaned = _CA.query.filter(_CA.channel == 'chat', _CA.created_at < cutoff).delete()
+        db.session.commit()
     except Exception:
         pass
 
@@ -5153,13 +5496,14 @@ def api_stats_summary():
         if isinstance(s, dict)
     )
 
-    # 聊天归档数
+    # 聊天归档数（PostgreSQL chat_archives 行）
     archive_count = 0
     archive_size = 0
-    if _CHAT_ARCHIVE_DIR.exists():
-        for f in _CHAT_ARCHIVE_DIR.glob('chat_*.json'):
-            archive_count += 1
-            archive_size += f.stat().st_size
+    try:
+        from core.models import ChatArchive as _CA
+        archive_count = _CA.query.filter_by(channel='chat').count()
+    except Exception:
+        pass
 
     # 前端错误数（最近24小时）
     recent_errors = 0
@@ -5326,27 +5670,33 @@ def _get_current_user() -> _UserModel | None:
 
 
 # ━━━ 用户收藏（酒馆帖子 / 工坊）与我的评论 ━━━
-_FAVORITES_FILE = _Path(__file__).parent.parent / 'data' / 'favorites.json'
 _favorites_lock = _threading.Lock()
 
 
 def _load_favorites() -> dict:
-    """{"favorites": [{user_id, type: 'post'|'workshop', item_id, created_at}]}"""
+    """从 PostgreSQL 加载收藏（原 data/favorites.json）。"""
     try:
-        if _FAVORITES_FILE.exists():
-            with open(_FAVORITES_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            if isinstance(data, dict) and 'favorites' in data:
-                return data
+        from core.models import Favorite as _FV
+        rows = _FV.query.order_by(_FV.id).all()
+        return {'favorites': [{'user_id': r.user_id, 'type': r.type,
+                               'item_id': r.item_id, 'created_at': r.created_at or ''}
+                              for r in rows]}
     except Exception:
-        pass
-    return {'favorites': []}
+        return {'favorites': []}
 
 
 def _save_favorites(data: dict):
+    """保存收藏到 PostgreSQL（全删全插保留 id）。"""
     try:
-        with open(_FAVORITES_FILE, 'w', encoding='utf-8') as f:
-            _json.dump(data, f, ensure_ascii=False, indent=2)
+        from core.models import Favorite as _FV
+        favs = data.get('favorites', []) if isinstance(data, dict) else []
+        with db.engine.begin() as conn:
+            conn.execute(_FV.__table__.delete())
+            for i, f in enumerate(favs, start=1):
+                conn.execute(_FV.__table__.insert().values(
+                    id=f.get('id', i), user_id=f.get('user_id'),
+                    type=f.get('type', 'post'), item_id=f.get('item_id'),
+                    created_at=f.get('created_at', '')))
     except Exception:
         pass
 
@@ -5355,18 +5705,15 @@ def _favorite_title(fav: dict) -> str:
     """补全收藏项的标题/作者（用于我的收藏展示）"""
     try:
         if fav.get('type') == 'post':
-            with open(_COMMUNITY_FILE, 'r', encoding='utf-8') as f:
-                posts = _json.load(f)
-            for p in posts:
-                if p.get('id') == fav.get('item_id'):
-                    return {'title': p.get('title', ''), 'author': p.get('author', '')}
+            from core.models import CommunityPost as _CP
+            p = _CP.query.filter_by(id=fav.get('item_id')).first()
+            if p:
+                return {'title': p.title or '', 'author': p.author or ''}
         elif fav.get('type') == 'workshop':
-            with open(_WORKSHOP_FILE, 'r', encoding='utf-8') as f:
-                data = _json.load(f)
-            items = data.get('items', data) if isinstance(data, dict) else data
-            for it in items:
-                if it.get('id') == fav.get('item_id'):
-                    return {'title': it.get('title', ''), 'author': it.get('author', '')}
+            from core.models import WorkshopItem as _WI
+            it = _WI.query.filter_by(id=fav.get('item_id')).first()
+            if it:
+                return {'title': it.title or '', 'author': it.author or ''}
     except Exception:
         pass
     return {'title': '', 'author': ''}
@@ -5433,28 +5780,25 @@ def api_my_comments():
         return jsonify({'ok': False, 'error': '请先登录'}), 401
     out = []
     try:
-        with open(_COMMUNITY_FILE, 'r', encoding='utf-8') as f:
-            posts = _json.load(f)
-        for p in posts:
-            for c in (p.get('comments') or []):
+        from core.models import CommunityPost as _CP
+        for p in _CP.query.all():
+            for c in (p.comments or []):
                 if c.get('username') == user.username:
                     out.append({
-                        'type': 'post', 'parent_id': p.get('id'),
-                        'parent_title': p.get('title', ''), 'content': c.get('content', ''),
+                        'type': 'post', 'parent_id': p.id,
+                        'parent_title': p.title or '', 'content': c.get('content', ''),
                         'created_at': c.get('created_at', ''),
                     })
     except Exception:
         pass
     try:
-        with open(_WORKSHOP_FILE, 'r', encoding='utf-8') as f:
-            wdata = _json.load(f)
-        items = wdata.get('items', wdata) if isinstance(wdata, dict) else wdata
-        for it in items:
-            for c in (it.get('comments') or []):
+        from core.models import WorkshopItem as _WI
+        for it in _WI.query.all():
+            for c in (it.comments or []):
                 if c.get('username') == user.username:
                     out.append({
-                        'type': 'workshop', 'parent_id': it.get('id'),
-                        'parent_title': it.get('title', ''), 'content': c.get('content', ''),
+                        'type': 'workshop', 'parent_id': it.id,
+                        'parent_title': it.title or '', 'content': c.get('content', ''),
                         'created_at': c.get('created_at', ''),
                     })
     except Exception:
@@ -5684,6 +6028,85 @@ def api_auth_logout():
     return jsonify({'ok': True})
 
 
+# ━━━ 用户头像（上传 / 删除 / 批量查询）━━━
+# 头像存 web/static/avatars/u{user_id}.{ext}，经 /static/ 直接提供
+_AVATAR_DIR = _Path(__file__).parent / 'static' / 'avatars'
+_AVATAR_EXTS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
+_AVATAR_MAX = 2 * 1024 * 1024  # 2MB
+
+
+@app.route('/api/auth/avatar', methods=['POST'])
+def api_upload_avatar():
+    """上传用户头像（需登录）。multipart/form-data 字段 'avatar'。
+
+    自动删除同用户旧头像文件，avatar_url 指向 /static/avatars/ 下新文件。
+    """
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    if 'avatar' not in request.files:
+        return jsonify({'ok': False, 'error': '请选择图片文件'}), 400
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'ok': False, 'error': '未选择文件'}), 400
+
+    ext = _os.path.splitext(file.filename)[1].lower()
+    if ext not in _AVATAR_EXTS:
+        return jsonify({'ok': False, 'error': '仅支持图片格式: JPG/PNG/GIF/WEBP/BMP'}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > _AVATAR_MAX:
+        return jsonify({'ok': False, 'error': '图片过大（最大2MB）'}), 400
+
+    try:
+        _AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+        # 删除同用户旧头像（可能是其他扩展名）
+        for old in _AVATAR_DIR.glob(f'u{user.id}.*'):
+            try:
+                old.unlink()
+            except Exception:
+                pass
+        fname = f'u{user.id}{ext}'
+        file.save(str(_AVATAR_DIR / fname))
+    except Exception as _e:
+        return jsonify({'ok': False, 'error': f'头像保存失败: {_e}'}), 500
+
+    user.avatar_url = f'/static/avatars/{fname}'
+    db.session.commit()
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/auth/avatar', methods=['DELETE'])
+def api_delete_avatar():
+    """删除用户头像（恢复默认）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    if user.avatar_url:
+        try:
+            old = _Path(__file__).parent / user.avatar_url.lstrip('/')
+            if old.is_file():
+                old.unlink()
+        except Exception:
+            pass
+        user.avatar_url = ''
+        db.session.commit()
+    return jsonify({'ok': True, 'user': user.to_dict()})
+
+
+@app.route('/api/users/avatars')
+def api_users_avatars():
+    """批量查询用户名→头像映射。?names=a,b,c（官网帖子/评论/在线列表展示用）"""
+    names = [n.strip() for n in (request.args.get('names') or '').split(',') if n.strip()]
+    if not names:
+        return jsonify({'ok': True, 'avatars': {}})
+    users = _UserModel.query.filter(_UserModel.username.in_(names)).all()
+    avatars = {u.username: (u.avatar_url or '') for u in users}
+    return jsonify({'ok': True, 'avatars': avatars})
+
+
 # 注入到 Jinja2 模板全局变量
 @app.context_processor
 def _inject_user():
@@ -5802,3 +6225,4 @@ def run_server():
 
 if __name__ == '__main__':
     run_server()
+

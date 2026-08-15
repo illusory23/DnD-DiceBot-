@@ -56,6 +56,17 @@
         content.style.textOverflow = 'ellipsis';
         content.style.whiteSpace = 'nowrap';
         content.title = ann.content || '';
+        var allLink = document.createElement('a');
+        allLink.textContent = '查看全部公告 →';
+        allLink.href = '/announcements';
+        allLink.style.cssText = [
+            'color:#ffd700;font-size:0.72rem;text-decoration:none;white-space:nowrap;',
+            'flex-shrink:0;border-left:1px solid rgba(255,215,0,0.3);padding-left:10px;',
+            'transition:opacity 0.2s;',
+        ].join('');
+        allLink.onmouseover = function () { allLink.style.opacity = '0.75'; };
+        allLink.onmouseout = function () { allLink.style.opacity = '1'; };
+        banner.appendChild(allLink);
         var closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.textContent = '✕';

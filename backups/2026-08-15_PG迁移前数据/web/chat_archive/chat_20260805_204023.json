@@ -1,0 +1,88 @@
+[
+  {
+    "name": "天冥",
+    "text": "进入了骰娘",
+    "time": "17:09:03",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785229743.283846
+  },
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "17:09:14",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785229754.7893631
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d8 = [3]",
+    "time": "17:09:19",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785229759.487908
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20 = [3]",
+    "time": "17:09:21",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785229761.8828375
+  },
+  {
+    "name": "天冥",
+    "text": "还有人在吗",
+    "time": "17:11:22",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785229882.4596033
+  },
+  {
+    "name": "天冥",
+    "text": "@白枫",
+    "time": "17:11:27",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785229887.0874426
+  },
+  {
+    "name": "天冥",
+    "text": "怎么没人了",
+    "time": "17:14:44",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785230084.102547
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [4]",
+    "time": "17:15:29",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785230129.8592987
+  }
+]

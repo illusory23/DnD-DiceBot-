@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}平台公告管理{% endblock %}
+{% block page_title %}📢 平台公告管理{% endblock %}
+
+{% block content %}
+<style>
+    .ann-form { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+    .ann-form input, .ann-form textarea {
+        padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 4px; color: var(--text); font-size: 0.85rem; font-family: inherit;
+    }
+    .ann-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .ann-item .ann-title { font-weight: 600; color: var(--gold); font-size: 0.88rem; }
+    .ann-item .ann-content { color: var(--text-dim); font-size: 0.78rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ann-item .ann-time { color: var(--text-dim); font-size: 0.7rem; white-space: nowrap; }
+    .ann-item .ann-status { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .ann-item .ann-status.on { background: rgba(76,175,80,0.15); color: #6abf8a; }
+    .ann-item .ann-status.off { background: rgba(255,152,0,0.12); color: #ff9800; }
+</style>
+
+<div class="card">
+    <div class="card-header">
+        <span>📢 发布公告（显示在所有平台页面顶部横幅）</span>
+    </div>
+    <div class="card-body">
+        <div class="ann-form">
+            <input type="text" id="ann-title" placeholder="公告标题（最多 60 字）" maxlength="60">
+            <textarea id="ann-content" rows="3" placeholder="公告内容（最多 500 字）" maxlength="500"></textarea>
+            <div>
+                <button class="btn btn-primary" onclick="publishAnn()">📢 发布</button>
+                <span id="ann-msg" style="color:var(--green);font-size:0.8rem;margin-left:10px;"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>📋 公告列表</span>
+        <button class="btn btn-sm" onclick="loadAnns()">↻ 刷新</button>
+    </div>
+    <div class="card-body" id="ann-list">
+        <div class="loading">加载中...</div>
+    </div>
+</div>
+
+<script>
+    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function loadAnns() {
+        var el = document.getElementById('ann-list');
+        fetch('/api/admin/announcements').then(function(r){return r.json();}).then(function(d){
+            var anns = d.announcements || [];
+            if (!anns.length) { el.innerHTML = '<div style="color:var(--text-dim);padding:16px;">暂无公告</div>'; return; }
+            el.innerHTML = anns.map(function(a){
+                return '<div class="ann-item">' +
+                    '<div class="ann-title">📢 ' + esc(a.title) + '</div>' +
+                    '<div class="ann-content" title="' + esc(a.content) + '">' + esc(a.content) + '</div>' +
+                    '<div class="ann-time">' + esc(a.created_at || '') + '</div>' +
+                    '<span class="ann-status ' + (a.active ? 'on' : 'off') + '">' + (a.active ? '启用中' : '已停用') + '</span>' +
+                    '<button class="btn btn-sm" onclick="toggleAnn(' + a.id + ')">' + (a.active ? '停用' : '启用') + '</button>' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteAnn(' + a.id + ')">删除</button>' +
+                '</div>';
+            }).join('');
+        }).catch(function(){ el.innerHTML = '<div style="color:var(--red)">加载失败</div>'; });
+    }
+
+    function publishAnn() {
+        var title = document.getElementById('ann-title').value.trim();
+        var content = document.getElementById('ann-content').value.trim();
+        if (!title || !content) { alert('请填写标题与内容'); return; }
+        fetch('/api/admin/announcements', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'add', title: title, content: content})
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.ok) {
+                document.getElementById('ann-title').value = '';
+                document.getElementById('ann-content').value = '';
+                var msg = document.getElementById('ann-msg');
+                msg.textContent = '✅ 已发布';
+                setTimeout(function(){ msg.textContent = ''; }, 3000);
+                loadAnns();
+            } else { alert(d.error || '发布失败'); }
+        }).catch(function(){ alert('网络错误'); });
+    }
+
+    function toggleAnn(id) {
+        fetch('/api/admin/announcements', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'toggle', id: id})
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.ok) loadAnns(); else alert(d.error || '操作失败');
+        });
+    }
+
+    function deleteAnn(id) {
+        if (!confirm('确定删除该公告？')) return;
+        fetch('/api/admin/announcements', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: 'delete', id: id})
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.ok) loadAnns(); else alert(d.error || '删除失败');
+        });
+    }
+
+    loadAnns();
+</script>
+{% endblock %}

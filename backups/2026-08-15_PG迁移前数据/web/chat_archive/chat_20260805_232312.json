@@ -1,0 +1,62 @@
+[
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+6 = [19]",
+    "time": "02:00:03",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785434403.2395377
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+6 = [20]",
+    "time": "02:00:08",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785434408.492005
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+6 = [11]",
+    "time": "02:00:21",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785434421.350838
+  },
+  {
+    "name": "白芸",
+    "text": "🎲 1d20 = [2]",
+    "time": "21:14:53",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503693.1643908
+  },
+  {
+    "name": "白芸",
+    "text": "🎲 1d20! = [12]",
+    "time": "21:15:03",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503703.4450939
+  }
+]

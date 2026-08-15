@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}系统总览{% endblock %}
+{% block page_title %}📊 系统总览{% endblock %}
+
+{% block content %}
+<!-- 指标卡片 -->
+<div class="metric-grid">
+    <div class="metric-card">
+        <div class="metric-label">注册用户</div>
+        <div class="metric-value" id="m-users">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">角色卡总数</div>
+        <div class="metric-value" id="m-chars">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">当前在线</div>
+        <div class="metric-value" id="m-online">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">北境存档</div>
+        <div class="metric-value" id="m-saves">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">聊天消息</div>
+        <div class="metric-value" id="m-chat">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">骰子投掷总量</div>
+        <div class="metric-value" id="m-dice">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">聊天归档数</div>
+        <div class="metric-value" id="m-archive">-</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">24h 前端错误</div>
+        <div class="metric-value" id="m-errors">-</div>
+    </div>
+</div>
+
+<!-- 快捷入口 -->
+<div class="card">
+    <div class="card-header">🔗 快捷操作</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="/admin/users" class="btn btn-secondary">👥 用户管理</a>
+        <a href="/admin/characters" class="btn btn-secondary">🎭 角色管理</a>
+        <a href="/admin/chat" class="btn btn-secondary">💬 聊天管理</a>
+        <a href="/admin/stats" class="btn btn-secondary">📈 统计中心</a>
+        <a href="/admin/errors" class="btn btn-secondary">🐛 错误监控</a>
+        <a href="/admin/system" class="btn btn-secondary">⚙️ 系统维护</a>
+        <a href="/" class="btn btn-primary" target="_blank">🏠 打开前台</a>
+    </div>
+</div>
+
+<script>
+async function loadDashboard() {
+    try {
+        const data = await Admin.get('/admin/api/dashboard');
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        set('m-users', data.total_users);
+        set('m-chars', data.total_characters);
+        set('m-online', data.online_users);
+        set('m-saves', data.total_saves);
+        set('m-chat', data.chat_messages);
+        set('m-dice', data.dice_records);
+        set('m-archive', data.chat_archives);
+        set('m-errors', data.frontend_errors_24h);
+
+        // 错误数高亮
+        const errEl = document.getElementById('m-errors');
+        if (data.frontend_errors_24h > 10) {
+            errEl.style.color = 'var(--danger)';
+        } else if (data.frontend_errors_24h > 0) {
+            errEl.style.color = 'var(--warning)';
+        } else {
+            errEl.style.color = '';
+        }
+    } catch (e) {
+        document.querySelectorAll('.metric-value').forEach(el => el.textContent = '加载失败');
+    }
+}
+loadDashboard();
+setInterval(loadDashboard, 30000);  // 每 30 秒自动刷新指标
+</script>
+{% endblock %}

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}每周话题{% endblock %}
+{% block page_title %}📰 每周话题管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>话题列表（官网「每周话题」展示，按发布时间倒序）</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="total-display"></span>
+            <button class="btn btn-sm btn-primary" onclick="showEditor()">+ 发布话题</button>
+            <button class="btn btn-sm btn-secondary" onclick="loadTopics()">🔄 刷新</button>
+        </span>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>标题</th><th>作者</th><th>图片</th><th>发布时间</th><th>更新时间</th><th>操作</th></tr>
+            </thead>
+            <tbody id="topics-tbody">
+                <tr><td colspan="7" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 话题编辑器弹窗 -->
+<div class="modal-overlay" id="topic-modal" style="display:none;">
+    <div class="modal" style="max-width:760px;width:94%;max-height:92vh;overflow-y:auto;">
+        <h3 id="topic-modal-title">发布每周话题</h3>
+        <div style="margin-top:14px;">
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">标题 *</label>
+            <input type="text" id="topic-title" maxlength="100" placeholder="本周话题标题..."
+                   style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="margin-top:12px;">
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">
+                内容 *（支持 HTML，如 &lt;b&gt;加粗&lt;/b&gt;、&lt;img src="/resources/xxx.png"&gt; 等）
+            </label>
+            <textarea id="topic-content" rows="10" placeholder="话题详细内容..."
+                      style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+        </div>
+        <div style="margin-top:12px;">
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">图片</label>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <input type="text" id="topic-img-url" placeholder="图片 URL（如 /resources/xxx.png）或粘贴图片地址..."
+                       style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px;">
+                <button class="btn btn-secondary" onclick="addImgUrl()">➕ 添加 URL</button>
+                <label class="btn btn-primary" style="cursor:pointer;">
+                    📤 上传图片
+                    <input type="file" id="topic-img-file" accept="image/*" style="display:none;" onchange="uploadImg()">
+                </label>
+            </div>
+            <div id="topic-images" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+        </div>
+        <div class="modal-actions" style="margin-top:18px;">
+            <button class="btn btn-secondary" onclick="closeEditor()">取消</button>
+            <button class="btn btn-primary" id="btn-save-topic" onclick="saveTopic()">💾 保存话题</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let editingId = null;
+let topicImages = [];
+
+async function loadTopics() {
+    const tbody = document.getElementById('topics-tbody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">加载中...</td></tr>';
+    try {
+        const data = await Admin.get('/admin/api/topics');
+        document.getElementById('total-display').textContent = `共 ${data.topics.length} 个话题`;
+        if (!data.topics.length) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📰</div><div class="empty-text">暂无话题，点击「发布话题」创建</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.topics.map(t => `
+            <tr>
+                <td>${t.id}</td>
+                <td style="max-width:280px;"><a href="javascript:void(0)" onclick="previewTopic(${t.id}, '${Admin.escHtml(t.title)}')" style="color:var(--accent);text-decoration:none;">${Admin.escHtml(t.title)}</a></td>
+                <td>${Admin.escHtml(t.author || '-')}</td>
+                <td>${(t.images || []).length} 张</td>
+                <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(t.created_at || '-')}</td>
+                <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(t.updated_at || '-')}</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="showEditor(${t.id})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteTopic(${t.id}, '${Admin.escHtml(t.title)}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+function showEditor(topicId = null) {
+    editingId = topicId;
+    topicImages = [];
+    document.getElementById('topic-title').value = '';
+    document.getElementById('topic-content').value = '';
+    document.getElementById('topic-img-url').value = '';
+    document.getElementById('topic-modal-title').textContent = topicId ? '编辑每周话题' : '发布每周话题';
+
+    if (topicId) {
+        Admin.get('/api/topics/' + topicId).then(data => {
+            const t = data.topic;
+            document.getElementById('topic-title').value = t.title;
+            document.getElementById('topic-content').value = t.content;
+            topicImages = (t.images || []).slice();
+            renderImages();
+        });
+    } else {
+        renderImages();
+    }
+    document.getElementById('topic-modal').style.display = 'flex';
+}
+
+function closeEditor() {
+    document.getElementById('topic-modal').style.display = 'none';
+}
+
+function renderImages() {
+    const box = document.getElementById('topic-images');
+    if (!topicImages.length) {
+        box.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">暂无图片</span>';
+        return;
+    }
+    box.innerHTML = topicImages.map((url, i) => `
+        <div style="position:relative;">
+            <img src="${Admin.escHtml(url)}" style="width:110px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border-color);">
+            <button onclick="removeImg(${i})" style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:#fff;border:none;cursor:pointer;font-size:11px;line-height:20px;">✕</button>
+        </div>
+    `).join('');
+}
+
+function addImgUrl() {
+    const url = document.getElementById('topic-img-url').value.trim();
+    if (!url) { Admin.toast('请输入图片 URL', 'error'); return; }
+    topicImages.push(url);
+    document.getElementById('topic-img-url').value = '';
+    renderImages();
+}
+
+async function uploadImg() {
+    const input = document.getElementById('topic-img-file');
+    if (!input.files.length) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    try {
+        const resp = await fetch('/api/resources/upload', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            topicImages.push(data.url);
+            renderImages();
+            Admin.toast('图片已上传', 'success');
+        } else {
+            Admin.toast(data.error || '上传失败', 'error');
+        }
+    } catch (e) {
+        Admin.toast('上传失败', 'error');
+    }
+    input.value = '';
+}
+
+function removeImg(i) {
+    topicImages.splice(i, 1);
+    renderImages();
+}
+
+async function saveTopic() {
+    const title = document.getElementById('topic-title').value.trim();
+    const content = document.getElementById('topic-content').value.trim();
+    if (!title) { Admin.toast('标题不能为空', 'error'); return; }
+    if (!content) { Admin.toast('内容不能为空', 'error'); return; }
+    const body = { title, content, images: topicImages };
+    try {
+        if (editingId) {
+            await Admin.put(`/admin/api/topics/${editingId}`, body);
+            Admin.toast('话题已更新', 'success');
+        } else {
+            await Admin.post('/admin/api/topics', body);
+            Admin.toast('话题已发布', 'success');
+        }
+        closeEditor();
+        loadTopics();
+    } catch (e) {}
+}
+
+async function deleteTopic(id, title) {
+    const ok = await Admin.confirm('删除话题', `确定要删除话题「${title}」吗？`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/topics/${id}`);
+        Admin.toast('话题已删除', 'success');
+        loadTopics();
+    } catch (e) {}
+}
+
+// 官网同款预览弹窗
+function previewTopic(id, title) {
+    Admin.get('/api/topics/' + id).then(data => {
+        const t = data.topic;
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay show';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width:720px;width:94%;max-height:86vh;overflow-y:auto;">
+                <h3 style="color:var(--accent);">${Admin.escHtml(t.title)}</h3>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+                    作者: ${Admin.escHtml(t.author)} · 发布: ${Admin.escHtml(t.created_at)}
+                </div>
+                <div class="topic-content" style="font-size:14px;line-height:1.8;color:var(--text-primary);word-break:break-word;">
+                    ${t.content || ''}
+                </div>
+                ${(t.images || []).map(url => `
+                    <div style="margin-top:10px;"><img src="${Admin.escHtml(url)}" style="max-width:100%;border-radius:8px;border:1px solid var(--border-color);"></div>
+                `).join('')}
+                <div class="modal-actions" style="margin-top:16px;">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }).catch(() => Admin.toast('加载失败', 'error'));
+}
+
+loadTopics();
+</script>
+{% endblock %}

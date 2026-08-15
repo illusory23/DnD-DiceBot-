@@ -1,4 +1,2 @@
-[2026-08-14 04:16:38] [ERROR] dicebot: 服务端错误: [POST] /api/character/import → 500
-[2026-08-14 04:23:32] [ERROR] dicebot: 服务端错误: [POST] /api/character/import → 500
-[2026-08-14 04:25:20] [ERROR] dicebot: 服务端错误: [POST] /api/character/import → 500
-[2026-08-14 04:26:14] [ERROR] dicebot: 服务端错误: [POST] /api/character/import → 500
+[2026-08-16 02:18:10] [ERROR] dicebot: 服务端错误: [POST] /api/community/posts/3/like → 500
+[2026-08-16 02:19:00] [ERROR] dicebot: 服务端错误: [POST] /api/community/posts/3/like → 500

@@ -84,6 +84,7 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
 .theme-toggle:hover{transform:scale(1.1);}
 </style>
   <script src="/static/online-presence.js"></script>
+  <script src="/static/common-error-handler.js"></script>
 </head>
 <body>
 
@@ -94,7 +95,8 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
   </a>
   <div class="nav-links">
     <a href="/">首页</a>
-    <a href="user.html" class="active">用户中心</a>
+    <a href="/user" class="active">用户中心</a>
+    <a href="/notifications">消息通知</a>
     <a href="#" onclick="doLogout()">退出</a>
   </div>
 </nav>
@@ -106,6 +108,21 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
   <div class="card">
     <div class="card-header">📋 基本信息 <button class="btn btn-sm" onclick="showEditModal()" style="margin-left:auto;">✏️ 编辑</button></div>
     <div class="card-body">
+      <!-- 头像区域（holder 与 img 互斥显示，均占正常文档流，避免绝对定位塌陷遮挡下方信息） -->
+      <div style="display:flex;align-items:center;gap:20px;margin-bottom:18px;">
+        <div style="flex-shrink:0;">
+          <div id="avatar-holder" style="width:84px;height:84px;border-radius:50%;background:var(--bg);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:2.2rem;overflow:hidden;box-shadow:0 0 14px rgba(255,215,0,0.15);">⚔️</div>
+          <img id="info-avatar" alt="头像" onerror="avatarLoadError(this)" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);display:none;box-shadow:0 0 14px rgba(255,215,0,0.15);">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-sm" onclick="document.getElementById('avatar-file').click()">📷 更换头像</button>
+            <button class="btn btn-sm" id="avatar-del-btn" onclick="deleteAvatar()" style="display:none;border-color:var(--red);color:var(--red);">🗑 删除头像</button>
+            <input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="uploadAvatar(this)">
+          </div>
+          <span style="font-size:0.7rem;color:var(--text-dim);">支持 JPG/PNG/GIF/WEBP/BMP，最大 2MB。头像将展示在帖子、评论与酒馆中。</span>
+        </div>
+      </div>
       <div class="info-grid">
         <div class="info-item"><span class="info-label">用户 ID</span><span class="info-value" id="info-id">—</span></div>
         <div class="info-item"><span class="info-label">用户名</span><span class="info-value" id="info-username">—</span></div>
@@ -151,6 +168,18 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
     </div>
   </div>
 
+  <!-- ━━ 消息通知（被评论/被点赞提醒） ━━ -->
+  <div class="card">
+    <div class="card-header">🔔 消息通知 <span id="notify-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 8px;font-size:0.7rem;font-weight:normal;">0 未读</span>
+      <button class="btn btn-sm" onclick="markAllNotificationsRead()" style="margin-left:auto;">✓ 全部已读</button>
+    </div>
+    <div class="card-body">
+      <div class="item-list" id="notify-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ━━ 我的收藏 ━━ -->
   <div class="card">
     <div class="card-header">⭐ 我的收藏</div>
@@ -168,6 +197,26 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
       <div class="item-list" id="mycmt-list">
         <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━ 头像圆形裁剪弹窗 ━━ -->
+<div class="modal-overlay" id="crop-modal">
+  <div class="modal-card" style="max-width:460px;">
+    <button class="modal-close" onclick="closeCrop()">✕</button>
+    <h3>✂️ 裁剪头像</h3>
+    <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;">拖动图片调整位置，滑块缩放，将截取圆形区域。</p>
+    <div id="crop-stage" style="position:relative;width:300px;height:300px;margin:0 auto 12px;overflow:hidden;border-radius:50%;background:var(--bg);border:2px solid var(--gold);cursor:move;touch-action:none;">
+      <img id="crop-img" alt="" draggable="false" style="position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none;pointer-events:none;">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <span style="font-size:0.75rem;color:var(--text-dim);flex-shrink:0;">🔍 缩放</span>
+      <input type="range" id="crop-zoom" min="100" max="300" value="100" style="flex:1;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeCrop()">取消</button>
+      <button class="btn btn-primary" onclick="confirmCrop()">✓ 确认上传</button>
     </div>
   </div>
 </div>
@@ -209,6 +258,183 @@ function loadUserData(){
   });
 }
 
+function avatarLoadError(img){
+  // 头像文件缺失时回退默认占位（避免破图）
+  if (!img) return;
+  img.style.display = 'none';
+  var holder = document.getElementById('avatar-holder');
+  if (holder) holder.style.display = 'flex';
+  var delBtn = document.getElementById('avatar-del-btn');
+  if (delBtn) delBtn.style.display = 'none';
+}
+
+function renderAvatar(user){
+  var img = document.getElementById('info-avatar');
+  var holder = document.getElementById('avatar-holder');
+  var delBtn = document.getElementById('avatar-del-btn');
+  if (!img) return;
+  if (user && user.avatar_url) {
+    img.src = user.avatar_url;
+    img.style.display = 'block';
+    holder.style.display = 'none';
+    if (delBtn) delBtn.style.display = '';
+  } else {
+    img.style.display = 'none';
+    img.removeAttribute('src');
+    holder.style.display = 'flex';
+    if (delBtn) delBtn.style.display = 'none';
+  }
+}
+
+function uploadAvatar(input){
+  var f = input && input.files && input.files[0];
+  if (!f) return;
+  if (!f.type || f.type.indexOf('image/') !== 0) { Toast.show('请选择图片文件', 'error'); input.value = ''; return; }
+  if (f.size > 2 * 1024 * 1024) { Toast.show('图片过大（最大2MB）', 'error'); input.value = ''; return; }
+  openCrop(f, input);
+}
+
+/* ━━ 头像圆形裁剪 ━━ */
+var _crop = null; // {img, baseW, baseH, zoom, left, top, input}
+var CROP_SIZE = 300;   // 裁剪显示区（圆形）尺寸
+var EXPORT_SIZE = 512; // 导出尺寸
+
+function openCrop(file, input){
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var stage = document.getElementById('crop-stage');
+      var el = document.getElementById('crop-img');
+      // 初始：图片最小边铺满圆形区（cover）
+      var scale = CROP_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      var baseW = img.naturalWidth * scale;
+      var baseH = img.naturalHeight * scale;
+      _crop = { img: img, baseW: baseW, baseH: baseH, zoom: 100,
+                left: (CROP_SIZE - baseW) / 2, top: (CROP_SIZE - baseH) / 2, input: input };
+      el.src = e.target.result;
+      document.getElementById('crop-zoom').value = 100;
+      document.getElementById('crop-zoom').min = Math.ceil(CROP_SIZE / Math.min(baseW, baseH) * 100);
+      applyCropView();
+      document.getElementById('crop-modal').classList.add('show');
+      stage.style.visibility = 'hidden';
+      el.onload = function(){ stage.style.visibility = ''; };
+    };
+    img.onerror = function(){ Toast.show('图片加载失败，请换一张试试', 'error'); if (input) input.value = ''; };
+    img.src = e.target.result;
+  };
+  reader.onerror = function(){ Toast.show('图片读取失败', 'error'); if (input) input.value = ''; };
+  reader.readAsDataURL(file);
+}
+
+function applyCropView(){
+  if (!_crop) return;
+  var w = _crop.baseW * _crop.zoom / 100;
+  var h = _crop.baseH * _crop.zoom / 100;
+  var el = document.getElementById('crop-img');
+  el.style.width = w + 'px';
+  el.style.height = h + 'px';
+  el.style.left = _crop.left + 'px';
+  el.style.top = _crop.top + 'px';
+}
+
+function clampCropPos(){
+  if (!_crop) return;
+  var w = _crop.baseW * _crop.zoom / 100;
+  var h = _crop.baseH * _crop.zoom / 100;
+  // 图片必须完全覆盖圆形区
+  _crop.left = Math.min(0, Math.max(CROP_SIZE - w, _crop.left));
+  _crop.top = Math.min(0, Math.max(CROP_SIZE - h, _crop.top));
+}
+
+(function(){
+  var stage = document.getElementById('crop-stage');
+  if (!stage) return;
+  var dragging = null;
+  stage.addEventListener('pointerdown', function(e){
+    if (!_crop) return;
+    dragging = { x: e.clientX - _crop.left, y: e.clientY - _crop.top };
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    _crop.left = e.clientX - dragging.x;
+    _crop.top = e.clientY - dragging.y;
+    clampCropPos();
+    applyCropView();
+  });
+  stage.addEventListener('pointerup', function(){ dragging = null; });
+  stage.addEventListener('pointercancel', function(){ dragging = null; });
+  document.getElementById('crop-zoom').addEventListener('input', function(){
+    if (!_crop) return;
+    // 以圆心为锚点缩放
+    var oldW = _crop.baseW * _crop.zoom / 100;
+    var oldH = _crop.baseH * _crop.zoom / 100;
+    _crop.zoom = parseInt(this.value, 10);
+    var newW = _crop.baseW * _crop.zoom / 100;
+    var newH = _crop.baseH * _crop.zoom / 100;
+    _crop.left += (oldW - newW) / 2;
+    _crop.top += (oldH - newH) / 2;
+    clampCropPos();
+    applyCropView();
+  });
+})();
+
+function closeCrop(){
+  document.getElementById('crop-modal').classList.remove('show');
+  if (_crop && _crop.input) _crop.input.value = '';
+  _crop = null;
+}
+
+function confirmCrop(){
+  if (!_crop) return;
+  var img = _crop.img;
+  var w = _crop.baseW * _crop.zoom / 100;   // CSS 显示尺寸
+  var h = _crop.baseH * _crop.zoom / 100;
+  // CSS 坐标 → 原始像素坐标（drawImage 源坐标为图片原始尺寸）
+  var sx = -_crop.left * (img.naturalWidth / w);
+  var sy = -_crop.top * (img.naturalHeight / h);
+  var sw = CROP_SIZE * (img.naturalWidth / w);
+  var sh = CROP_SIZE * (img.naturalHeight / h);
+  var canvas = document.createElement('canvas');
+  canvas.width = EXPORT_SIZE;
+  canvas.height = EXPORT_SIZE;
+  var ctx = canvas.getContext('2d');
+  // 透明背景圆形裁剪
+  ctx.clearRect(0, 0, EXPORT_SIZE, EXPORT_SIZE);
+  ctx.beginPath();
+  ctx.arc(EXPORT_SIZE / 2, EXPORT_SIZE / 2, EXPORT_SIZE / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, EXPORT_SIZE, EXPORT_SIZE);
+  var input = _crop.input;
+  canvas.toBlob(function(blob){
+    if (!blob) { Toast.show('裁剪失败，请重试', 'error'); return; }
+    var fd = new FormData();
+    fd.append('avatar', blob, 'avatar.png');
+    fetch('/api/auth/avatar', {method:'POST', body: fd})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { Toast.show(d.error || '头像上传失败', 'error'); return; }
+        renderAvatar(d.user);
+        _currentUser = d.user;
+        closeCrop();
+      })
+      .catch(function(){ Toast.show('网络错误，上传失败', 'error'); });
+  }, 'image/png');
+}
+
+function deleteAvatar(){
+  if (!confirm('确定删除当前头像吗？')) return;
+  fetch('/api/auth/avatar', {method:'DELETE'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { Toast.show(d.error || '删除失败', 'error'); return; }
+      renderAvatar(d.user);
+      _currentUser = d.user;
+    })
+    .catch(function(){ Toast.show('网络错误，删除失败', 'error'); });
+}
+
 function renderUser(user){
   document.getElementById('info-id').textContent = user.id || '—';
   document.getElementById('info-username').textContent = user.username || '—';
@@ -217,6 +443,8 @@ function renderUser(user){
   document.getElementById('info-created').textContent = (user.created_at||'').slice(0,10) || '—';
   document.getElementById('info-login').textContent = (user.last_login||'').slice(0,16) || '—';
   setValue('info-bio', user.bio, '暂无简介');
+
+  renderAvatar(user);
 
   // 真实数据
   document.getElementById('stat-workshop').textContent = user.character_count || 0;
@@ -231,10 +459,60 @@ function renderUser(user){
   document.getElementById('edit-bio').value = user.bio || '';
 
   loadMyFavorites();
+  loadNotifications();
+  refreshUnreadCount();
   loadMyComments();
 }
 
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ━━ 消息通知（被评论/被点赞提醒） ━━ */
+var _notifySeen = false;  // 是否已加载过列表（未读红点独立轮询）
+function loadNotifications(){
+  fetch('/api/notifications').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('notify-list');
+    if (!el) return;
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">请先登录</div>'; return; }
+    var list = d.notifications || [];
+    if (!list.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无消息</div>'; return; }
+    el.innerHTML = list.map(function(n){
+      var unread = n.read ? '' : ' style="border-left:3px solid var(--red);"';
+      var count = n.count || 1;
+      var who = count > 1 ? '<b style="color:var(--gold);">' + count + ' 人</b>'
+                          : '<b style="color:var(--accent);">' + escH(n.actor || '') + '</b>';
+      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('like') >= 0 ? '👍' : '💬');
+      return '<div class="item-row"' + unread + ' style="flex-direction:column;align-items:flex-start;gap:4px;cursor:pointer;" onclick="openNotification(' + n.id + ',\'' + escH(n.link || '') + '\')">' +
+        '<div style="display:flex;width:100%;gap:8px;align-items:center;">' +
+          '<span>' + icon + '</span>' +
+          '<span style="color:var(--text);flex:1;font-size:0.8rem;">' + who + ' ' + escH(n.content) + '</span>' +
+          '<span style="color:var(--text-dim);font-size:0.7rem;white-space:nowrap;">' + escH((n.created_at||'').slice(5,16)) + '</span>' +
+        '</div>' +
+        (n.read ? '' : '<span style="font-size:0.68rem;color:var(--red);padding-left:28px;">未读</span>') +
+      '</div>';
+    }).join('');
+  }).catch(function(){});
+  _notifySeen = true;
+}
+function openNotification(id, link){
+  fetch('/api/notifications/read', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id})})
+    .then(function(){ refreshUnreadCount(); });
+  if (link) window.location.href = link;
+}
+function markAllNotificationsRead(){
+  fetch('/api/notifications/read', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({all: true})})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok) { loadNotifications(); refreshUnreadCount(); Toast.show('已全部标记为已读', 'success'); }
+    }).catch(function(){});
+}
+function refreshUnreadCount(){
+  fetch('/api/notifications/unread-count').then(function(r){ return r.json(); }).then(function(d){
+    var badge = document.getElementById('notify-badge');
+    if (!badge) return;
+    var c = (d.ok && d.count) ? d.count : 0;
+    if (c > 0) { badge.style.display = ''; badge.textContent = c + ' 未读'; }
+    else { badge.style.display = 'none'; }
+  }).catch(function(){});
+}
 
 // 我的收藏
 function loadMyFavorites(){
@@ -247,8 +525,8 @@ function loadMyFavorites(){
     }
     el.innerHTML = d.favorites.map(function(f){
       var icon = f.type === 'post' ? '💬' : '📦';
-      var link = 'javascript:void(0)'; // 收藏项仅展示（酒馆帖子详情弹窗在首页）
-      return '<div class="item-row"><span>'+icon+'</span><a href="'+link+'" style="color:var(--cyan);flex:1;">'+escH(f.title)+'</a><span style="color:var(--text-dim);font-size:0.72rem;">'+(f.author||'')+' · '+(f.created_at||'').slice(0,10)+'</span></div>';
+      var link = f.type === 'post' ? '/post/' + f.item_id : '/workshop/' + f.item_id;
+      return '<div class="item-row"><span>'+icon+'</span><a href="'+link+'" style="color:var(--cyan);flex:1;cursor:pointer;">'+escH(f.title)+'</a><span style="color:var(--text-dim);font-size:0.72rem;">'+(f.author||'')+' · '+(f.created_at||'').slice(0,10)+'</span></div>';
     }).join('');
   }).catch(function(){});
 }
@@ -295,10 +573,10 @@ function saveProfile(){
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data),
   }).then(function(r){ return r.json(); }).then(function(d){
-    if (!d.ok) { alert(d.error); return; }
+    if (!d.ok) { Toast.show(d.error, "error"); return; }
     hideEditModal();
     renderUser(d.user);
-  }).catch(function(e){ alert('保存失败: ' + e.message); });
+  }).catch(function(e){ Toast.show('保存失败: ' + e.message, 'error'); });
 }
 
 function doLogout(){
@@ -308,6 +586,8 @@ function doLogout(){
 }
 
 loadUserData();
+// 未读红点每 30 秒轮询
+setInterval(refreshUnreadCount, 30000);
 
 function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
 (function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();

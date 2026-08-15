@@ -1,0 +1,22 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:40:33",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933633.88373,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:40:34",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933634.1488276,
+    "system": true
+  }
+]

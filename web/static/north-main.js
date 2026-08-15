@@ -261,6 +261,24 @@
             let eventSubStats = {}; // 事件子结果统计 { "发现材料": { "松枝": 8, "药草": 5 }, ... }
             let campStorage = []; // 营地仓库独立存储（物品）
             let campStorageCoins = { gp: 0, sp: 0, cp: 0 }; // 营地仓库资金
+            // 营地仓库数据规范化：旧存档/异常数据可能把 campStorage 存成对象 {物品名: 数量}，
+            // 统一转回数组 [{name, qty}]，避免渲染时 (inv||[]).map 崩溃
+            // （定义在此层：collectNorthSaveData/loadNorthFromServer 等存档函数需调用）
+            function normalizeCampStorage(v) {
+                if (!v) return [];
+                if (Array.isArray(v)) return v;
+                if (typeof v === 'object') {
+                    var arr = [];
+                    Object.keys(v).forEach(function(k) {
+                        var val = v[k];
+                        var qty = (val && typeof val === 'object') ? (val.qty || val.quantity || 1) : val;
+                        qty = parseInt(qty) || 1;
+                        if (qty > 0) arr.push({ name: k, qty: qty, location: '仓库', weight: 1 });
+                    });
+                    return arr;
+                }
+                return [];
+            }
             let shopBpCollapsed = { supply: true, smith: true, alchemy: true }; // 背包折叠状态
             let shopFundsGP = 1000, shopFundsSP = 0, shopFundsCP = 0; // 商店资金
             let shopCurrentPrices = {};  // {物品名: {gp, sp}}
@@ -477,238 +495,6 @@
             // 四、生存系统函数
             // =========================================================================
 
-            function getColdDC() {
-                let dc = 12;
-                if (survival.isInShelter) dc = 10;
-                if (survival.isInBlizzard) dc = 15;
-                if (survival.difficulty === 'hardcore') dc = Math.min(dc + 2, 18);
-                if (survival.difficulty === 'light') dc = Math.max(dc - 2, 8);
-                return dc;
-            }
-
-            function getColdEffect() {
-                const level = survival.coldLevel;
-                if (level === 0) return '无效果';
-                if (level === 1) return '体质-1';
-                if (level === 2) return '体质-2';
-                return '体质-3，力竭1级';
-            }
-
-            function getColdBadge() {
-                if (survival.coldLevel >= 3) return 'danger';
-                if (survival.coldLevel >= 2) return 'warning';
-                return '';
-            }
-
-            function getSurvivalBadges() {
-                const badges = [];
-                if (survival.coldLevel >= 3) badges.push({text:'❄️ 危险'});
-                else if (survival.coldLevel >= 2) badges.push({text:'❄️ 严寒'});
-                else if (survival.coldLevel >= 1) badges.push({text:'❄️ 寒冷'});
-                if (survival.isStarving) badges.push({text:'🍖 断粮'});
-                if (survival.isLost) badges.push({text:'🧭 迷失'});
-                if (survival.evilFrostActive) badges.push({text:'👻 恶霜'});
-                if (survival.ravenProtection > 0) badges.push({text:'🪶 庇护'});
-                if (survival.torchChecks > 0) badges.push({text:'🔥 火把('+survival.torchChecks+')',cls:'success'});
-                if (survival.coldResist > 0) badges.push({text:'🧴 药膏('+survival.coldResist+')',cls:'success'});
-                if (badges.length === 0 && survival.totalEvents === 0) badges.push({text:'正常'});
-                else if (badges.length === 0) badges.push({text:'警戒'});
-                // 根据负面状态数量确定颜色：0=绿 1=黄 2+=红
-                const negCount = badges.filter(function(b) { return b.text !== '正常' && b.text !== '警戒'; }).length;
-                const cls = negCount >= 2 ? 'danger' : (negCount === 1 ? 'warning' : (badges[0].text === '警戒' ? 'success' : ''));
-                badges.forEach(function(b) { b.cls = cls; });
-                return badges;
-            }
-
-            // 检查严寒
-            function checkCold() {
-                survival.eventsSinceCold++;
-                if (survival.eventsSinceCold >= 3) {
-                    // 火把免疫：跳过严寒检定
-                    if (survival.torchChecks > 0) {
-                        survival.torchChecks--;
-                        survival.eventsSinceCold = 0;
-                        addSystemLog('🔥 火把庇护：跳过本次严寒检定（剩余' + survival.torchChecks + '次）', 'success');
-                        return;
-                    }
-                    survival.eventsSinceCold = 0;
-                    const dc = getColdDC();
-                    // 模拟体质豁免 (使用当前角色的体质)
-                    let bonus = 0;
-                    let profText = '';
-                    if (activeChar) {
-                        const conMod = abilityMod(activeChar.con);
-                        const saves = activeChar.saveProfs || {};
-                        const hasProf = saves['体质'] || 0;
-                        const prof = hasProf ? (activeChar.profBonus || 0) : 0;
-                        bonus = conMod + prof - survival.coldLevel;
-                        profText = hasProf ? `(熟练+${prof})` : '';
-                    }
-                    var d20 = rand(20);
-                    // 驱寒药膏：寒冷抵抗优势
-                    if (survival.coldResist > 0) {
-                        var d20b = rand(20);
-                        var advText = ' [优势' + d20 + '/' + d20b + ']';
-                        d20 = Math.max(d20, d20b);
-                    } else { var advText = ''; }
-                    const total = d20 + bonus;
-                    const success = total >= dc;
-
-                    let msg = `❄️ 严寒考验 (DC${dc})：d20=${d20} + ${bonus}${profText} = ${total}${advText||''}`;
-                    if (success) {
-                        addSystemLog(msg, 'success');
-                    } else {
-                        survival.coldLevel = Math.min(survival.coldLevel + 1, 3);
-                        // 严寒侵袭，损失生命
-                        let hpMsg = '';
-                        if (activeChar) {
-                            const dmg = rollDiceExpr('1d4');
-                            activeChar.hp = Math.max(0, activeChar.hp - dmg);
-                            renderCharDetail(activeCharId);
-                            hpMsg = `，失去 ${dmg} 点生命`;
-                            if (activeChar.hp <= 0) { checkHpZero(); }
-                        }
-                        addSystemLog(msg + hpMsg, 'danger');
-                        if (survival.coldLevel >= 3) {
-                            addSystemLog('⚠️ 严寒3级，陷入力竭1级！', 'danger');
-                        }
-                    }
-                    updateSurvivalUI();
-                    return { success, dc, d20, bonus };
-                }
-                return null;
-            }
-
-            // 检查口粮消耗
-            function checkRation() {
-                // 在安全地点不消耗，也不计数
-                if (survival.isInShelter) return null;
-                survival.eventsSinceRation++;
-
-                if (survival.eventsSinceRation >= 4) {
-                    survival.eventsSinceRation = 0;
-                    if (survival.rations > 0) {
-                        // 有口粮：只消耗口粮，不碰背包食物
-                        survival.rations--;
-                        let msg = `🍖 消耗1份口粮，剩余 ${survival.rations} 份`;
-                        addSystemLog(msg, 'system');
-                        // 如果在断粮中且有口粮了，解除断粮
-                        if (survival.isStarving) {
-                            survival.isStarving = false;
-                            survival.starvationCount = 0;
-                            addSystemLog('🍖 口粮已恢复，断粮状态解除', 'success');
-                        }
-                    } else {
-                        // 口粮已耗尽：进入断粮状态（口粮耗尽后才在下一次消耗时进入）
-                        if (!survival.isStarving) {
-                            survival.isStarving = true;
-                            survival.starvationCount = 0;
-                            addSystemLog('⚠️ 口粮耗尽！进入断粮状态！（体质豁免劣势，移速-10尺）', 'danger');
-                        }
-                        // 已在断粮中 → checkStarvation 处理食物消耗和掉血
-                    }
-                    updateSurvivalUI();
-                    return true;
-                }
-                return null;
-            }
-
-            // 断粮状态监测：每事件检查食物，积累到3次无食物则掉血
-            function checkStarvation() {
-                if (!survival.isStarving) return;
-
-                // 优先检查口粮是否已恢复（事件中获得）
-                if (survival.rations > 0) {
-                    survival.isStarving = false;
-                    survival.starvationCount = 0;
-                    addSystemLog('🍖 口粮已恢复，断粮状态解除', 'success');
-                    updateSurvivalUI();
-                    return;
-                }
-
-                // 尝试从背包消耗食物脱离断粮
-                if (activeChar && activeChar.inventory) {
-                    var foodItems = ['浆果/野菜','兽肉'];
-                    for (var fi = 0; fi < foodItems.length; fi++) {
-                        for (var si = 0; si < activeChar.inventory.length; si++) {
-                            if (activeChar.inventory[si].name === foodItems[fi] && activeChar.inventory[si].qty > 0) {
-                                activeChar.inventory[si].qty--;
-                                survival.isStarving = false;
-                                survival.starvationCount = 0;
-                                addSystemLog('🍖 消耗背包中的' + foodItems[fi] + '，断粮状态解除', 'success');
-                                if (activeChar.inventory[si].qty <= 0) activeChar.inventory.splice(si, 1);
-                                updateSurvivalUI();
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                // 无任何食物来源，累计断粮计数
-                survival.starvationCount++;
-                if (survival.starvationCount >= 3) {
-                    survival.starvationCount = 0;
-                    if (activeChar) {
-                        const dmg = rollDiceExpr('1d4');
-                        activeChar.hp = Math.max(0, activeChar.hp - dmg);
-                        renderCharDetail(activeCharId);
-                        addSystemLog(`💔 断粮导致 ${dmg} 点生命流失！`, 'danger');
-                        if (activeChar.hp <= 0) { checkHpZero(); }
-                    }
-                }
-            }
-
-            // 检查迷失
-            function checkOrient() {
-                survival.eventsSinceOrient++;
-                if (survival.eventsSinceOrient >= 5) {
-                    survival.eventsSinceOrient = 0;
-                    let dc = 12 + survival.lostDcPenalty;
-                    if (survival.difficulty === 'hardcore') dc += 2;
-                    if (survival.difficulty === 'light') dc = Math.max(dc - 2, 10);
-
-                    let bonus = 0;
-                    let profText = '';
-                    if (activeChar) {
-                        const wisMod = abilityMod(activeChar.wis);
-                        const skills = activeChar.skillProfs || {};
-                        const saves = activeChar.saveProfs || {};
-                        const hasProf = (skills['生存'] || saves['感知'] || 0);
-                        const prof = hasProf ? (activeChar.profBonus || 0) : 0;
-                        bonus = wisMod + prof;
-                        profText = hasProf ? `(熟练+${prof})` : '';
-                    }
-                    const d20o = rand(20);
-                    const totalO = d20o + bonus;
-                    const success = totalO >= dc;
-
-                    let msg = `🧭 方向感检定 (DC${dc})：d20=${d20o} + ${bonus}${profText} = ${totalO}`;
-                    if (success) {
-                        addSystemLog(msg, 'success');
-                    } else {
-                        survival.isLost = true;
-                        survival.lostEventsRemaining = 2;
-                        survival.lostDcPenalty = Math.min(3, survival.lostDcPenalty + 1);
-                        addSystemLog(msg, 'danger');
-                    }
-                    updateSurvivalUI();
-                    return { success, dc, d20o, bonus };
-                }
-                return null;
-            }
-
-            // 检查燃料消耗（庇护所内不消耗）
-            function checkFuel() {
-                if (survival.lightActive && !survival.isInShelter) {
-                    survival.lightRemaining--;
-                    if (survival.lightRemaining <= 0) {
-                        survival.lightActive = false;
-                        survival.lightType = null;
-                        addSystemLog('🔥 火源燃尽，陷入黑暗', 'warning');
-                        updateSurvivalUI();
-                    }
-                }
-            }
 
             // =========================================================================
             // 五、事件联动系统
@@ -792,108 +578,6 @@
             // 〇、冒险者等级系统（青羽→白羽 7 级，等级数据在 north-data.js）
             // 基准：statsData.total（累计事件数）；等级为队伍全局进度，存档兼容（charData.rank 字段保留不动）
             // =========================================================================
-            const RANK_LEVELS = window.NORTH_DATA.RANK_LEVELS;
-
-            // 根据累计事件数计算当前等级索引
-            function getRankIndex(totalEvents) {
-                let idx = 0;
-                for (let i = 0; i < RANK_LEVELS.length; i++) {
-                    if (totalEvents >= RANK_LEVELS[i].need) idx = i;
-                }
-                return idx;
-            }
-            function getCurrentRank() { return RANK_LEVELS[getRankIndex(statsData.total)]; }
-            // 下一等级（已满级返回 null）
-            function getNextRank() {
-                const idx = getRankIndex(statsData.total);
-                return idx < RANK_LEVELS.length - 1 ? RANK_LEVELS[idx + 1] : null;
-            }
-            // 晋升检查（事件完成后调用）；晋升奖励冒险者积分（数值见 RANK_LEVELS.reward）
-            function checkRankUp(oldTotal, newTotal) {
-                if (getRankIndex(newTotal) > getRankIndex(oldTotal)) {
-                    const idx = getRankIndex(newTotal);
-                    const r = RANK_LEVELS[idx];
-                    const reward = r.reward || 0;
-                    statsData.guildPoints = (statsData.guildPoints || 0) + reward;
-                    addSystemLog('✨✨ 冒险者等级晋升：' + r.rank + '！累计事件 ' + newTotal + ' 次，获得 ' + reward + ' 冒险者积分', 'success');
-                    updateRankUI();
-                    return true;
-                }
-                return false;
-            }
-
-            // ⚔️ 公会 · 等级与积分面板渲染
-            function renderGuild() {
-                const rank = getCurrentRank();
-                const next = getNextRank();
-                const points = statsData.guildPoints || 0;
-                const badge = document.getElementById('guildRankBadge');
-                if (badge) { badge.textContent = rank.rank; badge.style.color = rank.color; }
-                const nameEl = document.getElementById('guildRankName');
-                if (nameEl) nameEl.textContent = rank.rank + ' 冒险者';
-                const evEl = document.getElementById('guildStatEvents');
-                if (evEl) evEl.textContent = statsData.total;
-                const ptEl = document.getElementById('guildStatPoints');
-                if (ptEl) ptEl.textContent = points;
-                // 晋升进度条
-                const prog = document.getElementById('guildRankProgress');
-                if (prog && next) {
-                    prog.style.display = '';
-                    const nl = document.getElementById('guildRankNextLabel');
-                    if (nl) nl.textContent = '→ ' + next.rank;
-                    const nd = document.getElementById('guildRankNeed');
-                    if (nd) nd.textContent = '还需 ' + (next.need - statsData.total) + ' 次事件';
-                    const pct = Math.min(100, Math.round((statsData.total - rank.need) / Math.max(1, next.need - rank.need) * 100));
-                    const fill = document.getElementById('guildRankFill');
-                    if (fill) fill.style.width = pct + '%';
-                } else if (prog) {
-                    prog.style.display = 'none';
-                }
-                // 晋升之路 7 级阶梯
-                const ladder = document.getElementById('guildLadder');
-                if (ladder) {
-                    const idx = getRankIndex(statsData.total);
-                    ladder.innerHTML = RANK_LEVELS.map(function(r, i) {
-                        let cls = 'guild-ladder-step';
-                        if (i < idx) cls += ' done';
-                        else if (i === idx) cls += ' current';
-                        else cls += ' locked';
-                        return '<div class="' + cls + '" title="' + r.rank + '（' + r.need + ' 事件）">' +
-                            '<div class="gls-badge" style="color:' + r.color + ';">' + (i > idx ? '?' : r.rank) + '</div>' +
-                            '<div class="gls-name">' + r.rank + '</div>' +
-                            '<div class="gls-need">' + r.need + ' 事件</div>' +
-                            '<div class="gls-current-tag">⭐ 当前</div>' +
-                        '</div>';
-                    }).join('');
-                }
-            }
-
-            // ⚔️ 公会子标签切换（等级与积分 / 委托栏 / 积分商店）
-            window.guildSubTab = function(tab) {
-                document.querySelectorAll('.guild-subtab').forEach(function(b) {
-                    b.classList.toggle('active', b.dataset.gtab === tab);
-                });
-                document.getElementById('guildRankPanel').style.display = tab === 'rank' ? '' : 'none';
-                document.getElementById('guildQuestPanel').style.display = tab === 'quest' ? '' : 'none';
-                document.getElementById('guildShopPanel').style.display = tab === 'shop' ? '' : 'none';
-                if (tab === 'rank') renderGuild();
-            };
-
-            // 刷新等级 UI：冒险者徽章 + 营地徽章 + 进度条
-            // 更新头衔徽章（仅显示头衔；晋升进程可视化仅在公会界面 renderGuild 展示）
-            function updateRankUI() {
-                const r = getCurrentRank();
-                const next = getNextRank();
-                const tip = '累计事件 ' + statsData.total + ' 次' + (next ? '，距 ' + next.rank + ' 还需 ' + (next.need - statsData.total) + ' 次' : '，已达最高等级');
-                const st = document.getElementById('charStatus');
-                if (st) { st.textContent = r.rank; st.style.color = r.color; st.title = tip; }
-                const cs = document.getElementById('campCharStatus');
-                if (cs) { cs.textContent = r.rank; cs.style.color = r.color; cs.title = tip; }
-                // 公会界面若当前可见，同步刷新晋升进程可视化
-                // （刷新页面后存档异步加载完成时，阶梯会停留在初始青羽，需在此重渲染）
-                const gv = document.getElementById('guildView');
-                if (gv && gv.style.display !== 'none') renderGuild();
-            }
 
             function findItemAction(cmd, rollVal) {
                 const config = ITEM_ACTIONS[cmd];
@@ -1046,10 +730,10 @@
                         // 1. 检查是否"深入雪原"（纯文本事件，不触发消耗）
                         if (!effects.isContinue) {
                             // 触发生存检查
-                            checkCold();
-                            checkRation(); checkStarvation();
-                            checkOrient();
-                            checkFuel();
+                            window.NORTH_SURVIVAL.checkCold();
+                            window.NORTH_SURVIVAL.checkRation(); window.NORTH_SURVIVAL.checkStarvation();
+                            window.NORTH_SURVIVAL.checkOrient();
+                            window.NORTH_SURVIVAL.checkFuel();
                             // 驱寒药膏：每事件递减抵抗计数
                             if (survival.coldResist > 0) {
                                 survival.coldResist--;
@@ -1251,10 +935,10 @@
                     survival.exploreDepth++;
                     addSystemLog('⬇ 探索深度 ' + survival.exploreDepth, 'system');
                 } else {
-                    checkCold();
-                    checkRation(); checkStarvation();
-                    checkOrient();
-                    checkFuel();
+                    window.NORTH_SURVIVAL.checkCold();
+                    window.NORTH_SURVIVAL.checkRation(); window.NORTH_SURVIVAL.checkStarvation();
+                    window.NORTH_SURVIVAL.checkOrient();
+                    window.NORTH_SURVIVAL.checkFuel();
                     if (survival.coldResist > 0) {
                         survival.coldResist--;
                         if (survival.coldResist === 0) addSystemLog('🧴 驱寒药膏效果已消散', 'system');
@@ -1298,12 +982,12 @@
                 statsData.total += 1;
                 // 冒险者积分：每完成 1 次事件 +1（与等级统计同口径）
                 statsData.guildPoints = (statsData.guildPoints || 0) + 1;
-                checkRankUp(oldTotal, statsData.total);
-                updateRankUI();
+                window.NORTH_GUILD.checkRankUp(oldTotal, window.NORTH_CTX.statsData.total);
+                window.NORTH_GUILD.updateRankUI();
                 renderStats();
                 // 若公会面板当前可见，同步刷新积分/等级显示
                 const gv = document.getElementById('guildView');
-                if (gv && gv.style.display !== 'none') renderGuild();
+                if (gv && gv.style.display !== 'none') window.NORTH_GUILD.renderGuild();
             }
 
             function renderStats() {
@@ -1349,7 +1033,7 @@
                 activeChar = data;
                 activeCharId = id;
                 // 冒险者等级徽章：全局等级（青羽→白羽），charData.rank 字段保留兼容
-                updateRankUI();
+                window.NORTH_GUILD.updateRankUI();
                 /* charName now always shows username */
 
                 const mods = {
@@ -1489,7 +1173,7 @@
                     dot.classList.toggle('warning', survival.coldLevel === 2);
                 });
                 document.getElementById('coldDisplay').textContent = `${survival.coldLevel}/3`;
-                document.getElementById('coldEffect').textContent = getColdEffect();
+                document.getElementById('coldEffect').textContent = window.NORTH_SURVIVAL.getColdEffect();
 
                 // 口粮
                 document.getElementById('rationDisplay').textContent = `${survival.rations} 份`;
@@ -1551,7 +1235,7 @@
                 document.getElementById('weightDetail').textContent = weightPct > 100 ? '⚠️ 超重！移速-10尺' : `负载 ${weightPct}%`;
 
                 // 总览徽章（多状态排列）
-                const badges = getSurvivalBadges();
+                const badges = window.NORTH_SURVIVAL.getSurvivalBadges();
                 survivalBadge.className = 'badge badge-multi';
                 survivalBadge.innerHTML = badges.map(function(b) {
                     return `<span class="badge-flag ${b.cls}">${b.text}</span>`;
@@ -2343,12 +2027,24 @@
                 unlockEvents();
             };
 
-            function renderDisplayLog() {
+            let _displayRendered = 0;  // 已渲染条数（增量追加，避免整体重绘）
+            function renderDisplayLog(forceFull) {
                 if (displayLog.length === 0) {
                     outputEl.innerHTML = `<div class="empty-hint">❄️ 寒风低语，等待你的骰声……<br>点击下方事件卡开始冒险</div>`;
+                    _displayRendered = 0;
                     return;
                 }
-                outputEl.innerHTML = displayLog.map(e => e.html).join('');
+                // 存档恢复/导入后日志重建，强制全量重绘
+                if (forceFull || _displayRendered > displayLog.length) {
+                    outputEl.innerHTML = displayLog.map(e => e.html).join('');
+                    _displayRendered = displayLog.length;
+                } else {
+                    const fresh = displayLog.slice(_displayRendered);
+                    if (fresh.length === 0) return;
+                    if (_displayRendered === 0) outputEl.innerHTML = '';
+                    outputEl.insertAdjacentHTML('beforeend', fresh.map(e => e.html).join(''));
+                    _displayRendered = displayLog.length;
+                }
                 outputEl.scrollTop = outputEl.scrollHeight;
             }
 
@@ -2602,7 +2298,7 @@
                                         document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                                         survival.totalEvents++;
                                         advanceTime(1);
-                                        checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
+                                        window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkCold(); window.NORTH_SURVIVAL.checkRation(); window.NORTH_SURVIVAL.checkStarvation(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkOrient(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkFuel();
                                         updateSurvivalUI();
                                         unlockEvents();
                                     });
@@ -2677,7 +2373,7 @@
                                 survival.shelterType = null;
                                 addSystemLog('🏕️ 离开' + shelterName2 + '区域', 'system');
                             }
-                            checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
+                            window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkCold(); window.NORTH_SURVIVAL.checkRation(); window.NORTH_SURVIVAL.checkStarvation(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkOrient(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkFuel();
                             updateSurvivalUI();
                             unlockEvents();
                         }
@@ -2729,7 +2425,7 @@
                     wsBrewSlots: wsBrewSlots,
                     wsCraftResult: wsCraftResult,
                     wsBrewResult: wsBrewResult,
-                    campStorage: campStorage,
+                    campStorage: normalizeCampStorage(campStorage),
                     campStorageCoins: campStorageCoins,
                     // 商店状态
                     shopFundsGP: shopFundsGP,
@@ -2781,7 +2477,7 @@
                         if (saveData.wsBrewSlots) wsBrewSlots = saveData.wsBrewSlots;
                         if (saveData.wsCraftResult) wsCraftResult = saveData.wsCraftResult;
                         if (saveData.wsBrewResult) wsBrewResult = saveData.wsBrewResult;
-                        if (saveData.campStorage) campStorage = saveData.campStorage;
+                        if (saveData.campStorage) campStorage = normalizeCampStorage(saveData.campStorage);
                         if (saveData.campStorageCoins) campStorageCoins = saveData.campStorageCoins;
                         // 商店状态
                         if (saveData.shopFundsGP !== undefined) shopFundsGP = saveData.shopFundsGP;
@@ -2816,7 +2512,7 @@
                         }
                         if (saveData.bookPages) bookPages = saveData.bookPages;
                         if (saveData.statsData) statsData = saveData.statsData;
-                        updateRankUI(); // 等级随存档事件数恢复
+                        window.NORTH_GUILD.updateRankUI(); // 等级随存档事件数恢复
                         if (saveData.discoveredItems) discoveredItems = saveData.discoveredItems;
                         if (saveData.eventSubStats) eventSubStats = saveData.eventSubStats;
                         if (saveData.discoveredCreatures) discoveredCreatures = saveData.discoveredCreatures;
@@ -2851,10 +2547,10 @@
                             if (ccs) { ccs.value = activeCharId;
                                 ccs.dispatchEvent(new Event('change')); }
                         }
-                        // 刷新UI
-                        renderDisplayLog();
+                        // 刷新UI（存档恢复后强制全量重绘日志）
+                        renderDisplayLog(true);
                         updateSurvivalUI();
-                        updateRankUI();
+                        window.NORTH_GUILD.updateRankUI();
                         renderStats();
                         renderCharDetail(activeCharId);
                         if (typeof renderCampCharSheet === 'function') { try { renderCampCharSheet(); } catch(e) {} }
@@ -2946,17 +2642,22 @@
             // ━━━ 服务端持久化 ━━━
             var _northServerSyncTimer = null;
 
+            const MAX_SAVE_LOG = 500;  // 存档日志裁剪上限（v3：超出丢弃最旧，控制存档体积）
             function collectNorthSaveData() {
                 var cleanLog = fullLog.map(function(e) {
                     return { time: e.time, label: e.label, output: e.output, gains: e.gains };
                 });
+                // v3 日志裁剪：只保留最近 MAX_SAVE_LOG 条（事件越多存档不无限膨胀）
+                var trimmed = cleanLog.length > MAX_SAVE_LOG;
+                if (trimmed) cleanLog = cleanLog.slice(-MAX_SAVE_LOG);
                 return {
-                    version: 2,
+                    version: 3,
                     _northName: _northUsername,
                     charData: charData,
                     activeCharId: activeCharId,
                     survival: survival,
                     fullLog: cleanLog,
+                    logTrimmed: trimmed,
                     bookPages: bookPages,
                     currentPageIdx: currentPageIdx,
                     statsData: statsData,
@@ -2971,7 +2672,7 @@
                     wsBrewSlots: wsBrewSlots,
                     wsCraftResult: wsCraftResult,
                     wsBrewResult: wsBrewResult,
-                    campStorage: campStorage,
+                    campStorage: normalizeCampStorage(campStorage),
                     campStorageCoins: campStorageCoins,
                     shopFundsGP: shopFundsGP,
                     shopFundsSP: shopFundsSP,
@@ -2987,6 +2688,8 @@
                 };
             }
 
+            var _saveFailCount = 0;  // 连续保存失败计数（异常处理：提示+指数退避重试）
+            var _saveRetryTimer = null;
             function saveNorthToServer() {
                 if (!_northUserId) return;  // 未登录不同步
                 var data = collectNorthSaveData();
@@ -2994,7 +2697,31 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ save_name: 'auto', save_data: data }),
-                }).catch(function() {});
+                }).then(function(r) {
+                    if (r.ok) {
+                        if (_saveFailCount > 0) {
+                            addSystemLog('💾 存档已恢复同步', 'success');
+                            _saveFailCount = 0;
+                        }
+                    } else {
+                        throw new Error('HTTP ' + r.status);
+                    }
+                }).catch(function() {
+                    _saveFailCount += 1;
+                    if (_saveFailCount === 1) {
+                        addSystemLog('⚠️ 存档保存失败，正在自动重试…', 'error');
+                    } else if (_saveFailCount === 3) {
+                        addSystemLog('⚠️ 存档连续保存失败，请检查网络/服务器', 'error');
+                    }
+                    // 指数退避重试：10s / 30s / 60s（封顶 60s），失败期间不无限叠加
+                    if (_saveFailCount <= 3 && !_saveRetryTimer) {
+                        var waitMs = Math.min(10000 * Math.pow(3, _saveFailCount - 1), 60000);
+                        _saveRetryTimer = setTimeout(function() {
+                            _saveRetryTimer = null;
+                            saveNorthToServer();
+                        }, waitMs);
+                    }
+                });
             }
 
             function loadNorthFromServer() {
@@ -3034,7 +2761,7 @@
                         if (sd.wsBrewSlots) wsBrewSlots = sd.wsBrewSlots;
                         if (sd.wsCraftResult) wsCraftResult = sd.wsCraftResult;
                         if (sd.wsBrewResult) wsBrewResult = sd.wsBrewResult;
-                        if (sd.campStorage) campStorage = sd.campStorage;
+                        if (sd.campStorage) campStorage = normalizeCampStorage(sd.campStorage);
                         if (sd.campStorageCoins) campStorageCoins = sd.campStorageCoins;
                         if (sd.shopFundsGP !== undefined) shopFundsGP = sd.shopFundsGP;
                         if (sd.shopFundsSP !== undefined) shopFundsSP = sd.shopFundsSP;
@@ -3047,10 +2774,10 @@
                         if (sd.wsSmeltCoal !== undefined) wsSmeltCoal = sd.wsSmeltCoal;
                         if (sd.wsSmeltBars !== undefined) wsSmeltBars = sd.wsSmeltBars;
                         if (sd.wsSmeltIngot !== undefined) wsSmeltIngot = sd.wsSmeltIngot;
-                        // 刷新UI
-                        renderDisplayLog();
+                        // 刷新UI（存档恢复后强制全量重绘日志）
+                        renderDisplayLog(true);
                         updateSurvivalUI();
-                        updateRankUI();
+                        window.NORTH_GUILD.updateRankUI();
                         renderStats();
                         if (activeCharId && charData[activeCharId]) {
                             activeChar = charData[activeCharId];
@@ -3177,7 +2904,7 @@
                 if (!confirm('确认清空所有统计数据？')) return;
                 statsData = { total: 0, groups: {} };
                 eventSubStats = {};
-                updateRankUI(); // 清空统计后等级回落青羽
+                window.NORTH_GUILD.updateRankUI(); // 清空统计后等级回落青羽
                 renderStats();
             }
 
@@ -3439,7 +3166,7 @@
                 document.getElementById('rollCounter').textContent = `掷表 ${rollCount} 次`;
                 survival.totalEvents++;
                 advanceTime(1);
-                checkCold(); checkRation(); checkStarvation(); checkOrient(); checkFuel();
+                window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkCold(); window.NORTH_SURVIVAL.checkRation(); window.NORTH_SURVIVAL.checkStarvation(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkOrient(); window.NORTH_SURVIVAL.window.NORTH_SURVIVAL.checkFuel();
                 updateSurvivalUI();
             }
 
@@ -3734,8 +3461,8 @@
                 renderStats();
                 renderDisplayLog();
                 updateSurvivalUI();
-                initSnow();
-                initAurora();
+                // 公会标签：探索/营地头衔徽章初始渲染（等级基于存档 statsData，随登录账号恢复）
+                window.NORTH_GUILD.updateRankUI();
 
                 document.getElementById('clearOutputBtn').addEventListener('click', clearDisplay);
                 document.getElementById('exportSaveBtn').addEventListener('click', exportSave);
@@ -3855,7 +3582,7 @@
                     } else if (tabName === 'tavern') {
                         deactivateAll();
                         showNorthLoading('tavern',function(){
-                            tavernTab.classList.add('active'); tavernPanel.classList.add('active'); northTavernRefresh();
+                            tavernTab.classList.add('active'); tavernPanel.classList.add('active'); window.NORTH_TAVERN.refresh();
                             // 每次进入酒馆默认收拢左侧菜单
                             var tm = document.getElementById('tavernMenu');
                             if (tm) tm.classList.remove('open');
@@ -3867,7 +3594,7 @@
                         deactivateAll();
                         showNorthLoading('guild',function(){
                             guildTab.classList.add('active'); guildBg.style.display = ''; guildView.style.display = '';
-                            renderGuild();
+                            window.NORTH_GUILD.renderGuild();
                             sessionStorage.setItem('north_active_tab', tabName);
                         });
                     } else {
@@ -3887,56 +3614,6 @@
                     activateTab(savedTab);
                 }
 
-                // ━━ 酒馆聊天 ━━
-                var _tavernMessages = [];
-                var _tavernTimer = null;
-                window.northTavernSend = function() {
-                    var inp = document.getElementById('tavernInput');
-                    var text = (inp.value||'').trim();
-                    if (!text || !_northUsername) return;
-                    inp.value = '';
-                    fetch('/api/tavern/chat/send', {
-                        method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({name:_northUsername, text:text, color:'#d4a050', role:'PL'})
-                    }).then(function(r){return r.json();}).then(function(d){
-                        if(d.ok) northTavernRefresh();
-                    }).catch(function(){});
-                };
-                // 酒馆左侧菜单展开/收拢
-                window.toggleTavernMenu = function() {
-                    var tm = document.getElementById('tavernMenu');
-                    if (!tm) return;
-                    var open = tm.classList.toggle('open');
-                    // 展开时按钮移到菜单栏右上角，避免遮挡菜单内容
-                    var btn = document.getElementById('tavernMenuBtn');
-                    if (btn) btn.classList.toggle('in-menu', open);
-                };
-
-                function northTavernRefresh() {
-                    fetch('/api/tavern/chat/messages').then(function(r){return r.json();}).then(function(d){
-                        if (!d.ok) return;
-                        _tavernMessages = (d.messages || []).slice(-50);
-                        renderTavernMessages();
-                    }).catch(function(){});
-                }
-                function renderTavernMessages() {
-                    var el = document.getElementById('tavernMessages');
-                    if (!el) return;
-                    var html = '<div class=\"tavern-msg system\"><span class=\"tm-text\">🕯️ 炉火噼啪作响，酒馆老板娘擦拭着吧台...</span></div>';
-                    for (var i=0; i<_tavernMessages.length; i++) {
-                        var m = _tavernMessages[i];
-                        var name = (m.name||'');
-                        html += '<div class=\"tavern-msg'+(m.system?' system':'')+'\">';
-                        html += '<span class=\"tm-name\">'+name+'</span>';
-                        html += '<span class=\"tm-text\">'+m.text+'</span>';
-                        html += '<span class=\"tm-time\">'+m.time+'</span>';
-                        html += '</div>';
-                    }
-                    el.innerHTML = html;
-                    el.scrollTop = el.scrollHeight;
-                }
-                // 每5秒刷新酒馆消息
-                _tavernTimer = setInterval(northTavernRefresh, 2000);
 
                 // ━━ 营地底部标签（补给站 / 工作间 / 仓库）━━
                 // campStorage / shopBpCollapsed 已提升至全局作用域
@@ -3975,11 +3652,23 @@
                 });
 
                 // ━━ 共享背包渲染（补给站/铁匠/炼金）━━
+                // ━━ 背包渲染变化检测（无数据变化时跳过重绘，避免高频无谓 innerHTML 重建）━━
+                function _invRenderKey(inv, extra) {
+                    var k = (Array.isArray(inv) ? inv : []).map(function (it) {
+                        return (it.id || '') + ':' + (it.qty || it.quantity || 1) + ':' + (it.item_name || it.name || '');
+                    }).join('|');
+                    return k + '#' + (extra || '');
+                }
+                // 营地仓库数据规范化见顶部 normalizeCampStorage（存档层）
+
                 function renderShopBackpack(panelId) {
                     var bp = document.getElementById(panelId + 'Backpack');
                     var grid = document.getElementById(panelId + 'BackpackGrid');
                     if (!grid || !bp) return;
                     if (bp.classList.contains('collapsed')) return;
+                    var key = _invRenderKey(activeChar && activeChar.inventory);
+                    if (renderShopBackpack._lastKey === key) return;
+                    renderShopBackpack._lastKey = key;
                     if (!activeChar || !activeChar.inventory || activeChar.inventory.length === 0) {
                         var emptyHtml = '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
                         // 即使背包空也显示金币
@@ -4549,6 +4238,9 @@
                 function storageRenderStorage() {
                     var grid = document.getElementById('storageGrid');
                     if (!grid) return;
+                    var key = _invRenderKey(campStorage);
+                    if (storageRenderStorage._lastKey === key) return;
+                    storageRenderStorage._lastKey = key;
                     if (!campStorage || campStorage.length === 0) {
                         grid.innerHTML = '<div style="color:#6a5a4a;text-align:center;padding:1rem;grid-column:1/-1;">仓库空空如也…</div>';
                         return;
@@ -4566,6 +4258,10 @@
                 function storageRenderBackpack() {
                     var grid = document.getElementById('storageBackpackGrid');
                     if (!grid) return;
+                    var key = _invRenderKey(activeChar && activeChar.inventory,
+                                             activeChar && activeChar.coins ? JSON.stringify(activeChar.coins) : '');
+                    if (storageRenderBackpack._lastKey === key) return;
+                    storageRenderBackpack._lastKey = key;
                     if (!activeChar || !activeChar.inventory || activeChar.inventory.length === 0) {
                         var emptyHtml = '<div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>';
                         if (activeChar && activeChar.coins) emptyHtml += renderShopCoinsBar();
@@ -4733,9 +4429,13 @@
                 function wsRenderBackpack() {
                     var grid = document.getElementById('wsBackpackGrid');
                     if (!activeChar || !activeChar.inventory || activeChar.inventory.length === 0) {
+                        wsRenderBackpack._lastKey = '';
                         grid.innerHTML = '<div class="ws-empty-hint" style="grid-column:1/-1;">背包空空如也…</div>';
                         return;
                     }
+                    var key = _invRenderKey(activeChar.inventory);
+                    if (wsRenderBackpack._lastKey === key) return;
+                    wsRenderBackpack._lastKey = key;
                     var html = '';
                     activeChar.inventory.forEach(function(it, i) {
                         if (it.qty <= 0) return;
@@ -5643,7 +5343,7 @@
                     activeChar = data;
                     // 刷新所有工坊背包
                     if (typeof refreshAllShopBackpacks === 'function') refreshAllShopBackpacks();
-                    updateRankUI(); // 营地徽章：冒险者全局等级（青羽→白羽）
+                    window.NORTH_GUILD.updateRankUI(); // 营地徽章：冒险者全局等级（青羽→白羽）
                     /* campCharName now always shows username */
                     const mods = {};
                     ['str','dex','con','int','wis','cha'].forEach(k => { mods[k] = Math.floor((data[k]-10)/2); });
@@ -6082,86 +5782,6 @@
             // 十四、Canvas 动画
             // =========================================================================
 
-            function initSnow() {
-                const canvas = document.getElementById('snowCanvas');
-                const ctx = canvas.getContext('2d');
-                let w, h;
-
-                function resize() {
-                    w = canvas.width = window.innerWidth;
-                    h = canvas.height = window.innerHeight;
-                }
-                resize();
-                window.addEventListener('resize', resize);
-                const flakes = [];
-                for (let i = 0; i < 120; i++) {
-                    flakes.push({
-                        x: Math.random() * w,
-                        y: Math.random() * h,
-                        r: Math.random() * 2.5 + 0.5,
-                        speed: Math.random() * 0.6 + 0.2,
-                        wind: Math.random() * 0.3 - 0.15,
-                    });
-                }
-
-                function drawSnow() {
-                    ctx.clearRect(0, 0, w, h);
-                    for (const f of flakes) {
-                        f.y += f.speed;
-                        f.x += f.wind;
-                        if (f.y > h) { f.y = -5;
-                            f.x = Math.random() * w; }
-                        if (f.x > w) f.x = 0;
-                        if (f.x < 0) f.x = w;
-                        ctx.beginPath();
-                        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.3 + 0.2})`;
-                        ctx.fill();
-                    }
-                    requestAnimationFrame(drawSnow);
-                }
-                drawSnow();
-            }
-
-            function initAurora() {
-                const canvas = document.getElementById('auroraCanvas');
-                const ctx = canvas.getContext('2d');
-                let w, h;
-
-                function resize() {
-                    w = canvas.width = window.innerWidth;
-                    h = canvas.height = window.innerHeight;
-                }
-                resize();
-                window.addEventListener('resize', resize);
-                let phase = 0;
-
-                function drawAurora() {
-                    ctx.clearRect(0, 0, w, h);
-                    phase += 0.005;
-                    const layers = 4;
-                    for (let l = 0; l < layers; l++) {
-                        const baseY = h * 0.2 + l * 50 + Math.sin(phase + l) * 30;
-                        ctx.beginPath();
-                        ctx.moveTo(0, baseY + Math.sin(phase + l) * 20);
-                        for (let x = 0; x <= w; x += 6) {
-                            const y = baseY + Math.sin(x * 0.008 + phase * 1.2 + l * 1.5) * 40 +
-                                Math.sin(x * 0.02 + phase * 0.7 + l) * 15;
-                            ctx.lineTo(x, y);
-                        }
-                        const grad = ctx.createLinearGradient(0, baseY - 50, 0, baseY + 50);
-                        const alpha = 0.06 + l * 0.02;
-                        grad.addColorStop(0, `rgba(30, 180, 255, ${alpha})`);
-                        grad.addColorStop(0.5, `rgba(80, 80, 255, ${alpha * 0.7})`);
-                        grad.addColorStop(1, `rgba(180, 60, 255, ${alpha * 0.3})`);
-                        ctx.strokeStyle = grad;
-                        ctx.lineWidth = 60 + l * 20;
-                        ctx.stroke();
-                    }
-                    requestAnimationFrame(drawAurora);
-                }
-                drawAurora();
-            }
 
             document.addEventListener('DOMContentLoaded', init);
 
@@ -6169,6 +5789,12 @@
             // activeChar/activeCharId 会被重新赋值,必须用 getter 实时读取
             Object.defineProperty(window.NORTH_CTX, 'activeChar', { get: function () { return activeChar; }, configurable: true });
             Object.defineProperty(window.NORTH_CTX, 'activeCharId', { get: function () { return activeCharId; }, configurable: true });
+            Object.defineProperty(window.NORTH_CTX, 'username', { get: function () { return _northUsername; }, configurable: true });
+            Object.defineProperty(window.NORTH_CTX, 'statsData', { get: function () { return statsData; }, configurable: true });
+            window.NORTH_CTX.updateSurvivalUI = updateSurvivalUI;
+            window.NORTH_CTX.checkHpZero = checkHpZero;
+            window.NORTH_CTX.abilityMod = abilityMod;
+            window.NORTH_CTX.rand = rand;
             window.NORTH_CTX.survival = survival;
             window.NORTH_CTX.addSystemLog = addSystemLog;
             window.NORTH_CTX.runCheckChain = runCheckChain;
@@ -6177,3 +5803,6 @@
             window.NORTH_CTX.renderCharDetail = renderCharDetail;
 
         })();
+
+
+

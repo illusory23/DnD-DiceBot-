@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}内容管理{% endblock %}
+{% block page_title %}📦 内容管理{% endblock %}
+
+{% block content %}
+<!-- 自定义法术 -->
+<div class="card">
+    <div class="card-header">
+        <span>📖 自定义法术</span>
+        <button class="btn btn-sm btn-primary" onclick="showAddForm('spells')">+ 新增</button>
+    </div>
+    <div class="table-container" id="spells-table">
+        <div class="loading">加载中...</div>
+    </div>
+</div>
+
+<!-- 自定义怪物 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>👹 自定义怪物</span>
+        <button class="btn btn-sm btn-primary" onclick="showAddForm('monsters')">+ 新增</button>
+    </div>
+    <div class="table-container" id="monsters-table">
+        <div class="loading">加载中...</div>
+    </div>
+</div>
+
+<!-- 自定义物品 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>🎒 自定义物品</span>
+        <button class="btn btn-sm btn-primary" onclick="showAddForm('items')">+ 新增</button>
+    </div>
+    <div class="table-container" id="items-table">
+        <div class="loading">加载中...</div>
+    </div>
+</div>
+
+<script>
+async function loadCustom(kind, containerId) {
+    const container = document.getElementById(containerId);
+    try {
+        const data = await Admin.get(`/api/custom/${kind}`);
+        const items = data.results || [];
+        if (!items.length) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">暂无自定义条目</div></div>';
+            return;
+        }
+        container.innerHTML = `
+            <table>
+                <thead><tr><th>名称</th><th>${kind === 'spells' ? '环位' : kind === 'monsters' ? 'CR' : ''}</th><th>来源</th><th>操作</th></tr></thead>
+                <tbody>
+                    ${items.map(item => `
+                        <tr>
+                            <td>${Admin.escHtml(item.name)}</td>
+                            <td>${kind === 'spells' ? (item.level || '-') : kind === 'monsters' ? (item.cr || '-') : ''}</td>
+                            <td>${item.source || '自定义'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" onclick="deleteCustom('${kind}', '${Admin.escHtml(item.name)}')">删除</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>`;
+    } catch (e) {
+        container.innerHTML = '<div style="color:var(--danger);text-align:center;">加载失败</div>';
+    }
+}
+
+async function deleteCustom(kind, name) {
+    const ok = await Admin.confirm('删除条目', `确定要删除${kind === 'spells' ? '法术' : kind === 'monsters' ? '怪物' : '物品'}「${name}」吗？`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/api/custom/${kind}?name=${encodeURIComponent(name)}`);
+        Admin.toast(`已删除「${name}」`, 'success');
+        loadAll();
+    } catch (e) {}
+}
+
+function showAddForm(kind) {
+    const typeLabel = kind === 'spells' ? '法术' : kind === 'monsters' ? '怪物' : '物品';
+    const name = prompt(`请输入${typeLabel}名称:`);
+    if (!name || !name.trim()) return;
+
+    const body = { name: name.trim() };
+    if (kind === 'spells') {
+        body.level = prompt('环位 (0-9):', '0') || '0';
+        body.school = prompt('学派:', '') || '';
+        body.description = prompt('描述:', '') || '';
+    } else if (kind === 'monsters') {
+        body.cr = prompt('挑战等级 (CR):', '') || '';
+        body.size = prompt('体型:', '') || '';
+        body.type = prompt('类型:', '') || '';
+        body.detail_text = prompt('详细数据:', '') || '';
+    } else if (kind === 'items') {
+        body.description = prompt('描述:', '') || '';
+    }
+
+    (async () => {
+        try {
+            const resp = await fetch(`/api/custom/${kind}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                Admin.toast(`已添加「${data.name}」`, 'success');
+                loadAll();
+            } else {
+                Admin.toast(data.error || '添加失败', 'error');
+            }
+        } catch (e) {
+            Admin.toast('请求失败', 'error');
+        }
+    })();
+}
+
+function loadAll() {
+    loadCustom('spells', 'spells-table');
+    loadCustom('monsters', 'monsters-table');
+    loadCustom('items', 'items-table');
+}
+
+loadAll();
+</script>
+{% endblock %}

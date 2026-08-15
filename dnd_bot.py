@@ -1467,13 +1467,10 @@ def cmd_ss(args: str) -> tuple[str | None, str | None]:
     elif subcmd == 'restore':
         if len(parts) > 1:
             level = parts[1]
-            import sqlite3
-            from core.character import get_db
-            conn = get_db()
-            conn.execute("UPDATE spell_slots SET used_slots = 0 WHERE character_id = ? AND slot_level = ?",
-                        (char['id'], level))
-            conn.commit()
-            conn.close()
+            from core.database import db
+            from core.models import SpellSlot
+            SpellSlot.query.filter_by(character_id=char['id'], slot_level=level).update({'used_slots': 0})
+            db.session.commit()
             return f"✅ {level}环法术位已恢复", None
 
     return None, f"未知子命令: {subcmd}\n用法: .ss / .ss init / .ss use <环数>"

@@ -1,0 +1,46 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "21:18:16",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935896.0098448,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "21:18:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935919.76199,
+    "system": true
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 5d20 = [63]",
+    "time": "21:18:41",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935921.9944339
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 5d20k5 = [59]",
+    "time": "21:19:11",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935951.176866
+  }
+]

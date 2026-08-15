@@ -1,0 +1,24 @@
+[
+  {
+    "name": "iling",
+    "text": "🎲 1d20+4 = [18]",
+    "time": "22:19:13",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785939553.049111
+  },
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:19:30",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785939570.485785,
+    "system": true
+  }
+]

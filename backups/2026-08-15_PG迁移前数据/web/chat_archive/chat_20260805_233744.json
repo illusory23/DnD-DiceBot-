@@ -1,0 +1,22 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:29:41",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785932981.4987612,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:29:49",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785932989.0730407,
+    "system": true
+  }
+]

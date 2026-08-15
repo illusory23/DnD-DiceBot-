@@ -1,0 +1,262 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:00:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247239.9797647,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "22:00:40",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247240.9451659,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "22:00:45",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785247245.192951
+  },
+  {
+    "name": "初羽の屑",
+    "text": "进入了骰娘",
+    "time": "22:00:45",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785247245.9359007
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "22:02:02",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247322.4886904,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "22:05:15",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247515.895098,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:05:33",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247533.2248986,
+    "system": true
+  },
+  {
+    "name": "初羽の屑",
+    "text": "进入了骰娘",
+    "time": "22:05:42",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785247542.1681027
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [15]",
+    "time": "22:05:42",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247542.2388225
+  },
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:05:50",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247550.459428,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:06:05",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247565.8985035,
+    "system": true
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d8 = [2]",
+    "time": "22:06:12",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247572.2654908
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 d100 = [48]",
+    "time": "22:06:23",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247583.6459558
+  },
+  {
+    "name": "iling",
+    "text": "🎲 1d20 = [11]",
+    "time": "22:07:32",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247652.0932436
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+4 = [16]",
+    "time": "22:07:39",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247659.6180649
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20+4 = [18]",
+    "time": "22:07:40",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247660.4937887
+  },
+  {
+    "name": "凌羽",
+    "text": "🎲 1d20 = [20]",
+    "time": "22:07:49",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247669.5871305
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d20 = [6]",
+    "time": "22:07:54",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247674.540973
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "22:09:20",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247760.1979208,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "22:09:24",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247764.7410805,
+    "system": true
+  },
+  {
+    "name": "初羽の屑",
+    "text": "进入了骰娘",
+    "time": "22:09:29",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785247769.8324566
+  },
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:09:40",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247780.0500224,
+    "system": true
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 戈尔丹•伦纳海姆 d20 = [7]",
+    "time": "22:11:16",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247876.6316085
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20+4 = [6]",
+    "time": "22:11:24",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247884.7614803
+  }
+]

@@ -95,7 +95,7 @@ class Character(db.Model):
     class_ = db.Column('class', db.String(50), default='')
     race = db.Column(db.String(50), default='')
     subrace = db.Column(db.String(50), default='')
-    background_field = db.Column(db.String(100), default='')
+    background_field = db.Column(db.Text, default='')  # 实际存背景 JSON 全文, 需 Text
     alignment = db.Column(db.String(50), default='')
     faith = db.Column(db.String(100), default='')
     gender = db.Column(db.String(20), default='')
@@ -370,3 +370,193 @@ class NorthSave(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('north_saves', lazy='dynamic'))
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 18-31. 运行数据表（2026-08-15 PostgreSQL 全量迁移新增）
+# 原 JSON 文件存储 → PG 表；核心列 + data JSON 列兜底（保留原始 dict）
+# ═══════════════════════════════════════════════════════════════════
+
+
+class ChatMessage(db.Model):
+    """聊天室消息（原 web/chat_log.json + web/tavern_chat_log.json）。
+
+    channel: 'chat' | 'tavern'；data 保留完整原始 dict；
+    常用字段提列便于召回/裁剪/撤回标记。
+    """
+    __tablename__ = 'chat_messages'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    channel = db.Column(db.String(20), nullable=False, default='chat', index=True)
+    name = db.Column(db.String(100), default='')
+    text = db.Column(db.Text, default='')
+    time = db.Column(db.String(20), default='')
+    is_dm = db.Column(db.Boolean, default=False)
+    color = db.Column(db.String(20), default='')
+    role = db.Column(db.String(20), default='')
+    ip = db.Column(db.String(64), default='')
+    ts = db.Column(db.Float, default=0)          # _ts 时间戳
+    event_id = db.Column(db.Integer, index=True)  # 事件消息关联
+    recalled = db.Column(db.Boolean, default=False)  # _recalled 撤回标记
+    data = db.Column(db.JSON)  # 完整原始 dict
+
+
+class ChatArchive(db.Model):
+    """聊天归档（原 web/chat_archive/*.json、tavern_chat_archive/*.json）。"""
+    __tablename__ = 'chat_archives'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    channel = db.Column(db.String(20), nullable=False, default='chat', index=True)
+    filename = db.Column(db.String(200), default='')
+    messages = db.Column(db.JSON)  # 消息 dict 数组
+    created_at = db.Column(db.String(20), default='')  # YYYY-MM-DD HH:MM:SS
+
+
+class DmEvent(db.Model):
+    """DM 保存的事件（原 web/dm_event_list.json）。"""
+    __tablename__ = 'dm_events'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), default='')
+    content = db.Column(db.Text, default='')
+    created_at = db.Column(db.String(20), default='')
+
+
+class PublishedDmEvent(db.Model):
+    """DM 已发布事件历史（原 web/dm_published_events.json）。"""
+    __tablename__ = 'dm_published_events'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), default='')
+    content = db.Column(db.Text, default='')
+    published_at = db.Column(db.String(20), default='')
+    recalled_at = db.Column(db.String(20))  # None=未撤回
+    pinned = db.Column(db.Boolean, default=False)
+
+
+class EventStat(db.Model):
+    """事件统计（原 web/event_stats.json）：{用户名: {表名: {...}, '_clicks': n}}"""
+    __tablename__ = 'event_stats'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(100), nullable=False, index=True)
+    data = db.Column(db.JSON)  # 该用户的事件统计 dict
+
+
+class DiceStat(db.Model):
+    """骰子统计（原 web/dice_stats.json）：{用户名: {total, crit20, crit1}}"""
+    __tablename__ = 'dice_stats'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(100), nullable=False, index=True)
+    total = db.Column(db.Integer, default=0)
+    crit20 = db.Column(db.Integer, default=0)
+    crit1 = db.Column(db.Integer, default=0)
+
+
+class CombatState(db.Model):
+    """战斗状态（原 web/combat_state.json），单行 id=1。"""
+    __tablename__ = 'combat_state'
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.JSON)  # {combatants, round, ...}
+    ts = db.Column(db.Float, default=0)
+
+
+class SharedCanvas(db.Model):
+    """共享画布（原 web/shared_canvas.json），单行 id=1。"""
+    __tablename__ = 'shared_canvas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.JSON)  # {strokes, layers, tokens, texts, fog, ...}
+    ver = db.Column(db.Integer, default=0)   # _ver 版本号
+    ts = db.Column(db.Float, default=0)      # _ts 时间戳
+
+
+class Topic(db.Model):
+    """每周话题（原 data/topics.json）。content 为 HTML。"""
+    __tablename__ = 'topics'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), nullable=False, default='')
+    content = db.Column(db.Text, default='')
+    images = db.Column(db.JSON)  # 图片 URL 数组
+    author = db.Column(db.String(100), default='')
+    created_at = db.Column(db.String(20), default='')
+    updated_at = db.Column(db.String(20), default='')
+    comments = db.Column(db.JSON)  # [{id, username, content, created_at}]
+
+
+class Announcement(db.Model):
+    """平台公告（原 data/announcements.json）。"""
+    __tablename__ = 'announcements'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), nullable=False, default='')
+    content = db.Column(db.Text, default='')
+    created_at = db.Column(db.String(20), default='')
+    active = db.Column(db.Boolean, default=True)
+
+
+class CommunityPost(db.Model):
+    """酒馆帖子（原 data/community.json）。comments/likes 为 JSON 数组。"""
+    __tablename__ = 'community_posts'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    board = db.Column(db.String(30), nullable=False, default='discuss', index=True)
+    title = db.Column(db.String(200), default='')
+    content = db.Column(db.Text, default='')
+    images = db.Column(db.JSON)
+    author = db.Column(db.String(100), default='')
+    created_at = db.Column(db.String(20), default='')
+    reply_count = db.Column(db.Integer, default=0)
+    comments = db.Column(db.JSON)  # [{id, username, content, created_at}]
+    likes = db.Column(db.JSON)     # [username, ...]
+
+
+class WorkshopItem(db.Model):
+    """工坊投稿（原 data/workshop.json）。"""
+    __tablename__ = 'workshop_items'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(200), default='')
+    desc = db.Column(db.Text, default='')
+    file_url = db.Column(db.Text, default='')
+    author = db.Column(db.String(100), default='')
+    created_at = db.Column(db.String(20), default='')
+    cat = db.Column(db.String(30), default='user')
+    comments = db.Column(db.JSON)
+    likes = db.Column(db.JSON)
+
+
+class Favorite(db.Model):
+    """用户收藏（原 data/favorites.json）。"""
+    __tablename__ = 'favorites'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, index=True)
+    type = db.Column(db.String(20), nullable=False, default='post')  # post | workshop
+    item_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.String(20), default='')
+
+
+class Notification(db.Model):
+    """消息通知（2026-08-16 新增）：被评论/被点赞/被@提醒。
+
+    type: post_comment | workshop_comment | post_like | workshop_like | mention
+    link: 跳转详情页（/post/<id>、/workshop/<id>）
+    content: 动作文本（不含 actor，展示时 count>1 用 "N 人"+content，否则 actor+content）
+    group_key: 聚合去重键（如 post_comment:3），同 key 未读通知累加 count
+    """
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)  # 接收者
+    type = db.Column(db.String(30), nullable=False, default='post_comment')
+    actor = db.Column(db.String(100), default='')   # 操作者用户名（最近一次）
+    content = db.Column(db.Text, default='')        # 动作文本（不含 actor）
+    link = db.Column(db.String(200), default='')    # 跳转链接
+    read = db.Column(db.Boolean, default=False)
+    group_key = db.Column(db.String(100), default='', index=True)  # 聚合去重键
+    count = db.Column(db.Integer, default=1)        # 聚合人数
+    created_at = db.Column(db.String(20), default='')

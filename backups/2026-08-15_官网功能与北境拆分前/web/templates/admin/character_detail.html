@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}角色详情{% endblock %}
+{% block page_title %}🎭 角色详情{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2 id="page-heading">角色详情</h2>
+    <div style="display:flex;gap:8px;">
+        <a href="/admin/characters" class="btn btn-secondary">← 返回列表</a>
+        <button class="btn btn-primary" id="btn-edit">✏️ 编辑角色</button>
+        <button class="btn btn-danger" id="btn-delete">🗑 删除角色</button>
+    </div>
+</div>
+
+<div id="detail-area">
+    <div class="loading">加载中...</div>
+</div>
+
+<script>
+const charId = {{ target_char_id }};
+
+async function loadDetail() {
+    const area = document.getElementById('detail-area');
+    try {
+        const data = await Admin.get(`/admin/api/characters/${charId}`);
+        const c = data.character;
+
+        document.getElementById('page-heading').textContent = `🎭 ${c.name}`;
+
+        area.innerHTML = `
+            <div class="detail-grid">
+                <div class="detail-item"><div class="detail-label">ID</div><div class="detail-value">${c.id}</div></div>
+                <div class="detail-item"><div class="detail-label">名称</div><div class="detail-value">${Admin.escHtml(c.name)}</div></div>
+                <div class="detail-item"><div class="detail-label">创建者</div><div class="detail-value">${Admin.escHtml(c.created_by || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">玩家</div><div class="detail-value">${Admin.escHtml(c.player || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">等级</div><div class="detail-value">${c.level}</div></div>
+                <div class="detail-item"><div class="detail-label">职业</div><div class="detail-value">${Admin.escHtml(c.class_ || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">种族</div><div class="detail-value">${Admin.escHtml(c.race || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">子种族</div><div class="detail-value">${Admin.escHtml(c.subrace || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">阵营</div><div class="detail-value">${Admin.escHtml(c.alignment || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">信仰</div><div class="detail-value">${Admin.escHtml(c.faith || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">HP</div><div class="detail-value">${c.hp_current}/${c.hp_max}</div></div>
+                <div class="detail-item"><div class="detail-label">临时HP</div><div class="detail-value">${c.temp_hp || 0}</div></div>
+                <div class="detail-item"><div class="detail-label">AC</div><div class="detail-value">${c.ac}</div></div>
+                <div class="detail-item"><div class="detail-label">先攻加值</div><div class="detail-value">${c.initiative_bonus || 0}</div></div>
+                <div class="detail-item"><div class="detail-label">速度</div><div class="detail-value">${c.speed || 30} ft.</div></div>
+                <div class="detail-item"><div class="detail-label">熟练加值</div><div class="detail-value">+${c.proficiency_bonus || 2}</div></div>
+                <div class="detail-item"><div class="detail-label">生命骰</div><div class="detail-value">${c.hd_count || 1}${c.hit_dice || 'd8'}</div></div>
+                <div class="detail-item"><div class="detail-label">XP</div><div class="detail-value">${c.xp || 0}</div></div>
+                <div class="detail-item"><div class="detail-label">被动察觉</div><div class="detail-value">${c.passive_perception || 10}</div></div>
+                <div class="detail-item"><div class="detail-label">施法属性</div><div class="detail-value">${Admin.escHtml(c.spellcasting_ability || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">法术攻击加值</div><div class="detail-value">${c.spell_attack_bonus || 0}</div></div>
+                <div class="detail-item"><div class="detail-label">法术豁免 DC</div><div class="detail-value">${c.spell_save_dc || 10}</div></div>
+                <div class="detail-item"><div class="detail-label">抗力</div><div class="detail-value">${Admin.escHtml(c.resistances || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">创建时间</div><div class="detail-value">${Admin.formatDate(c.created_at)}</div></div>
+            </div>
+            <p style="margin-top:16px;font-size:12px;color:var(--text-muted);">💡 完整角色数据可在前台「角色管理」页面查看和编辑。</p>
+        `;
+    } catch (e) {
+        area.innerHTML = '<div class="empty-state"><div class="empty-text" style="color:var(--danger);">加载失败</div></div>';
+    }
+}
+
+document.getElementById('btn-delete').addEventListener('click', async () => {
+    const ok = await Admin.confirm('删除角色', `确定要删除角色「{{ target_char_name }}」吗？此操作不可恢复！`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/characters/${charId}`);
+        Admin.toast('角色已删除', 'success');
+        setTimeout(() => { window.location.href = '/admin/characters'; }, 800);
+    } catch (e) {}
+});
+
+// ━━ 编辑角色（管理员视角，白名单字段） ━━
+const EDITABLE_FIELDS = [
+    ['name', '名称', 'text'],
+    ['player', '玩家', 'text'],
+    ['class_', '职业', 'text'],
+    ['race', '种族', 'text'],
+    ['subrace', '子种族', 'text'],
+    ['alignment', '阵营', 'text'],
+    ['faith', '信仰', 'text'],
+    ['level', '等级', 'number'],
+    ['hp_max', 'HP 上限', 'number'],
+    ['hp_current', '当前 HP', 'number'],
+    ['temp_hp', '临时 HP', 'number'],
+    ['ac', 'AC', 'number'],
+    ['xp', 'XP', 'number'],
+    ['initiative_bonus', '先攻加值', 'number'],
+    ['speed', '速度', 'number'],
+    ['proficiency_bonus', '熟练加值', 'number'],
+    ['spell_save_dc', '法术豁免 DC', 'number'],
+    ['spell_attack_bonus', '法术攻击加值', 'number'],
+    ['passive_perception', '被动察觉', 'number'],
+    ['hit_dice', '生命骰', 'text'],
+    ['hd_count', '生命骰数', 'number'],
+    ['resistances', '抗力', 'text'],
+];
+
+let currentChar = null;
+
+document.getElementById('btn-edit').addEventListener('click', () => {
+    if (!currentChar) {
+        Admin.toast('请先加载角色详情', 'error');
+        return;
+    }
+    const area = document.getElementById('detail-area');
+    area.innerHTML = `
+        <div class="card">
+            <div class="card-header">✏️ 编辑「${Admin.escHtml(currentChar.name)}」</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:16px;">
+                ${EDITABLE_FIELDS.map(([field, label, type]) => {
+                    const value = currentChar[field] == null ? '' : currentChar[field];
+                    return `
+                        <div>
+                            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">${label}</label>
+                            <input type="${type}" id="edit-${field}" value="${Admin.escHtml(value)}"
+                                   style="width:100%;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:13px;">
+                        </div>`;
+                }).join('')}
+            </div>
+            <div style="padding:0 16px 16px;display:flex;gap:10px;">
+                <button class="btn btn-primary" id="btn-save-edit">💾 保存修改</button>
+                <button class="btn btn-secondary" id="btn-cancel-edit">取消</button>
+            </div>
+        </div>`;
+
+    document.getElementById('btn-save-edit').addEventListener('click', async () => {
+        const body = {};
+        EDITABLE_FIELDS.forEach(([field, label, fieldType]) => {
+            const el = document.getElementById(`edit-${field}`);
+            if (!el) return;
+            body[field] = fieldType === 'number' ? (el.value === '' ? null : Number(el.value)) : el.value;
+        });
+        try {
+            await Admin.put(`/admin/api/characters/${charId}`, body);
+            Admin.toast('角色已更新', 'success');
+            loadDetail();
+        } catch (e) {}
+    });
+    document.getElementById('btn-cancel-edit').addEventListener('click', loadDetail);
+});
+
+// 记录当前角色数据供编辑使用
+const _origLoadDetail = loadDetail;
+loadDetail = function() {
+    return _origLoadDetail().then(() => {
+        Admin.get(`/admin/api/characters/${charId}`).then(d => { currentChar = d.character; });
+    });
+};
+
+loadDetail();
+</script>
+{% endblock %}

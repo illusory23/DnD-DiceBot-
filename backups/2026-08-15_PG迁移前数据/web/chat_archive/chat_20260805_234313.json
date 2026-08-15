@@ -1,0 +1,22 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "20:35:25",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933325.5024588,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "20:35:31",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933331.060344,
+    "system": true
+  }
+]

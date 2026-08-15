@@ -614,3 +614,15 @@
 [2026-08-14 23:52:50] [admin.login] user=IllusoryActor ip=::1 管理员登录
 [2026-08-14 23:58:09] [admin.login] user=IllusoryActor ip=::1 管理员登录
 [2026-08-15 00:00:10] [admin.login] user=IllusoryActor ip=::1 管理员登录
+[2026-08-15 23:16:39] [user.register] user=AvatarTest0815 ip=::1 新用户注册 id=13
+[2026-08-15 23:50:26] [user.register] user=PgTest0815 ip=::1 新用户注册 id=13
+[2026-08-16 00:19:38] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-16 00:25:00] [user.register] user=FavLinkTest ip=::1 新用户注册 id=15
+[2026-08-16 02:17:58] [user.register] user=NotifyA0816 ip=::1 新用户注册 id=16
+[2026-08-16 02:17:58] [user.register] user=NotifyB0816 ip=::1 新用户注册 id=17
+[2026-08-16 02:43:21] [user.register] user=AggA0816 ip=::1 新用户注册 id=18
+[2026-08-16 02:43:21] [user.register] user=AggB0816 ip=::1 新用户注册 id=19
+[2026-08-16 02:43:21] [user.register] user=AggC0816 ip=::1 新用户注册 id=20
+[2026-08-16 02:44:32] [map.save] user= ip=::1 保存地图存档: _autosave (0.0MB)
+[2026-08-16 02:45:34] [map.save] user= ip=::1 保存地图存档: _autosave (0.2MB)
+[2026-08-16 03:12:58] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
