@@ -1,2 +1,23 @@
-[2026-08-16 02:18:10] [ERROR] dicebot: 服务端错误: [POST] /api/community/posts/3/like → 500
-[2026-08-16 02:19:00] [ERROR] dicebot: 服务端错误: [POST] /api/community/posts/3/like → 500
+[2026-08-17 02:06:02] [ERROR] dicebot: 服务端错误: [POST] /api/combat-state → 500
+[2026-08-17 02:06:02] [ERROR] dicebot: 服务端错误: [POST] /api/combat-state → 500
+[2026-08-17 02:06:02] [ERROR] dicebot: 服务端错误: [POST] /api/combat-state → 500
+[2026-08-17 15:57:25] [ERROR] dicebot: 地图存档保存失败: [Errno 22] Invalid argument: 'D:\\游戏\\尘封之卷-九子的注视\\骰娘\\跑团存档\\地图\\_autosave.json'
+[2026-08-17 15:57:25] [ERROR] dicebot: 服务端错误: [POST] /api/map-saves → 500
+[2026-08-17 15:58:23] [ERROR] dicebot: 地图存档保存失败: [Errno 22] Invalid argument: 'D:\\游戏\\尘封之卷-九子的注视\\骰娘\\跑团存档\\地图\\_autosave.json'
+[2026-08-17 15:58:23] [ERROR] dicebot: 服务端错误: [POST] /api/map-saves → 500
+[2026-08-17 17:53:53] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:11] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:26] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:27] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:28] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:33] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:33] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:34] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 17:54:34] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 18:07:42] [ERROR] dicebot: 服务端错误: [POST] /api/character/90/learned-spell → 500
+[2026-08-17 18:07:47] [ERROR] dicebot: 服务端错误: [POST] /api/character/90/learned-spell → 500
+[2026-08-17 18:08:02] [ERROR] dicebot: 服务端错误: [POST] /api/character/90/learned-spell → 500
+[2026-08-17 18:08:07] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 18:08:08] [ERROR] dicebot: 服务端错误: [POST] /api/character/226/learned-spell → 500
+[2026-08-17 18:09:20] [ERROR] dicebot: 服务端错误: [POST] /api/character/90/learned-spell → 500
+[2026-08-17 18:11:58] [ERROR] dicebot: 服务端错误: [POST] /api/character/90/learned-spell → 500

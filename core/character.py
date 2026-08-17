@@ -8,6 +8,7 @@
 import os
 import json as _json
 from pathlib import Path
+from sqlalchemy import or_
 from core.dnd5e_rules import (
     ability_modifier, proficiency_bonus, SKILL_TO_ABILITY,
     get_ability_for_skill, normalize_ability, normalize_skill,
@@ -122,6 +123,7 @@ def _char_to_dict(char: Character) -> dict:
     d = {
         'id': char.id, 'name': char.name, 'player': char.player,
         'created_by': char.created_by or '', 'level': char.level,
+        'is_public': bool(char.is_public),
         'class': char.class_, 'race': char.race, 'subrace': char.subrace or '',
         'background_field': char.background_field or '',
         'alignment': char.alignment or '', 'faith': char.faith or '',
@@ -295,11 +297,20 @@ def get_character(name_or_id: str | int) -> dict | None:
     return _char_to_dict(char) if char else None
 
 
-def list_characters(created_by: str | None = None) -> list[dict]:
-    """列出所有角色"""
+def list_characters(created_by: str | None = None,
+                    include_public: bool = False) -> list[dict]:
+    """列出角色。
+
+    - created_by: 仅列出该创建者（PL 用，DM 传 None 表示全部）
+    - include_public: 同时包含 DM 公开角色（is_public=true），供 PL 查看
+    """
     q = Character.query.order_by(Character.sort_order, Character.id)
     if created_by:
-        q = q.filter_by(created_by=created_by)
+        if include_public:
+            q = q.filter(or_(Character.created_by == created_by,
+                             Character.is_public.is_(True)))
+        else:
+            q = q.filter_by(created_by=created_by)
     return [_char_to_dict(c) for c in q.all()]
 
 
@@ -445,13 +456,17 @@ def set_ability(char_id: int, ability: str, score: int) -> bool:
     ability = normalize_ability(ability)
     if not ability:
         return False
+    # normalize_ability 返回中文名（如"力量"），转换为数据库列对应的英文键
+    _en_key = {'力量': 'str', '敏捷': 'dex', '体质': 'con',
+               '智力': 'int', '感知': 'wis', '魅力': 'cha'}
+    ability_en = _en_key.get(ability, ability)
     a = Ability.query.filter_by(character_id=char_id).first()
     if not a:
         a = Ability(character_id=char_id)
         db.session.add(a)
     field_map = {'str': 'str', 'dex': 'dex', 'con': 'con', 'int': 'int_score',
                  'wis': 'wis', 'cha': 'cha'}
-    setattr(a, field_map.get(ability, ability), score)
+    setattr(a, field_map.get(ability_en, ability_en), score)
     _save()
     return True
 
@@ -481,13 +496,22 @@ def set_save_proficiency(char_id: int, ability: str, is_proficient: bool = True,
     ability = normalize_ability(ability)
     if not ability:
         return False
-    sp = SaveProficiency.query.filter_by(character_id=char_id, ability_name=ability).first()
+    # 与 create_character 保持一致：ability_name 统一存英文键（str/dex/...）
+    _en_key = {'力量': 'str', '敏捷': 'dex', '体质': 'con',
+               '智力': 'int', '感知': 'wis', '魅力': 'cha'}
+    ability_key = _en_key.get(ability, ability)
+    # 兼容旧数据：历史记录可能存了中文键
+    sp = SaveProficiency.query.filter_by(character_id=char_id, ability_name=ability_key).first()
+    if not sp:
+        sp = SaveProficiency.query.filter_by(character_id=char_id, ability_name=ability).first()
     if sp:
+        if sp.ability_name != ability_key:
+            sp.ability_name = ability_key  # 旧中文键迁移为英文键
         sp.is_proficient = is_proficient
         sp.save_bonus = save_bonus
     else:
         db.session.add(SaveProficiency(
-            character_id=char_id, ability_name=ability,
+            character_id=char_id, ability_name=ability_key,
             is_proficient=is_proficient, save_bonus=save_bonus))
     _save()
     return True
@@ -522,7 +546,8 @@ def adjust_hp(char_id: int, amount: int) -> dict:
         temp_absorb = min(char.temp_hp, -amount)
         char.temp_hp -= temp_absorb
         amount += temp_absorb
-    char.hp_current = max(0, char.hp_current + amount)
+    # 限制在 [0, hp_max]：治疗不能超过上限，伤害不能低于 0
+    char.hp_current = max(0, min(char.hp_max, char.hp_current + amount))
     _save()
     return {
         'hp_current': char.hp_current, 'hp_max': char.hp_max,

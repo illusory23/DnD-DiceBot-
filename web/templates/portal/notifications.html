@@ -88,6 +88,7 @@ function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 function notifyIcon(type){
   if (type === 'mention') return '@️';
+  if (type.indexOf('fav') >= 0) return '⭐';
   if (type.indexOf('like') >= 0) return '👍';
   return '💬';
 }
@@ -140,7 +141,7 @@ function refreshBadges(){
 
 loadNotifications();
 refreshBadges();
-setInterval(refreshBadges, 30000);
+setInterval(function(){ refreshBadges(); loadNotifications(); }, 30000);
 </script>
 
 <button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>

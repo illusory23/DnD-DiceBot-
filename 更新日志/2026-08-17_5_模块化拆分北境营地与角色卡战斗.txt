@@ -1,0 +1,60 @@
+【2026-08-17_5】模块化拆分：北境营地系统 + 角色卡/战斗页面
+
+修改文件：
+- web/static/north-main.js（5838 → 4620 行）
+- web/static/north-camp.js（新，约 1300 行）
+- web/static/character.js（1895 → 1364 行）
+- web/static/character-monsters.js（新，156 行）
+- web/static/character-features.js（新，167 行）
+- web/static/character-inventory.js（新，229 行）
+- web/static/combat.js（590 → 496 行）
+- web/static/combat-monsters.js（新，103 行）
+- web/templates/north-expedition.html（引入 north-camp.js）
+- web/templates/character.html（引入 3 个新文件，v10 → v11）
+- web/templates/combat.html（引入 combat-monsters.js，v28 → v29）
+
+【备份】backups/2026-08-17_模块化拆分前/
+
+一、北境营地系统拆分（第五次拆分，优化清单"JS 体积治理"项）
+- 营地系统（商店/营地仓库/工作间/背包渲染，37 个函数、1191 行）
+  从 north-main.js 拆出为 north-camp.js：
+  - 依赖注入：main.js 内定义 window.NORTH_CAMP_CTX 桥
+    （27 个状态 getter/setter + 6 个函数引用）；
+  - camp.js 内全部桥引用为 window.NORTH_CAMP_CTX.xxx 运行时解析
+    （survival 模式，不缓存桥引用，加载顺序无关）；
+  - 顶层初始化（商店随机价格/商队/资金 + showPopup 包装钩子）
+    挂载 DOMContentLoaded 捕获阶段（先于 main.js 的 init 执行，
+    保证桥就绪；showPopup 钩子带 50ms 防御性重试）；
+  - 导出 window.NORTH_CAMP（36 个函数）；HTML onclick 的
+    window.wsDoCraft/wsDoSmelt/wsDoBrew/wsTakeResult 等 17 个
+    wrapper 随模块保留；
+  - main.js 块外调用点（activateTab/init 等 12 处）改写为
+    window.NORTH_CAMP.xxx。
+- 顺带修复：main.js 中 3 处 window.NORTH_CAMP. 双重前缀（本次拆分
+  脚本引入，已修复）+ 9 处历史遗留 window.NORTH_SURVIVAL. 双重前缀
+  （会运行时 TypeError 导致生存判定中断）。
+
+二、角色卡模块化（优化清单"模块化模式推广"项）
+- character.js 为顶层函数结构（全局可见），按功能拆出 3 个文件：
+  - character-monsters.js：怪物搜索/详情/从怪物创建角色（6 函数）
+  - character-features.js：特性区渲染与编辑（9 函数）
+  - character-inventory.js：武器/物品/钱币编辑 + 物品搜索（14 函数）
+- 顶层函数搬迁无需状态桥；HTML 引入顺序主文件在前。
+
+三、战斗页模块化
+- combat.js 拆出 combat-monsters.js：怪物搜索/详情/加入战斗（4 函数）。
+
+【验证】
+- node --check：6 个文件全部通过
+- 无头浏览器（Edge headless）实测：
+  - 北境页：NORTH_DATA/NORTH_CTX 注入正常、16 张事件表、关键元素齐、
+    无 JS 错误（仅历史 401 未登录提示）
+  - 营地专项：window.NORTH_CAMP 导出 36 函数；商店随机价格 8 项已填充、
+    商队计数初始化、showPopup 钩子已装；renderShop/storageRender/
+    wsRender* 等 7 个渲染函数调用无异常；商店网格 37 个商品项渲染；
+    桥状态读写一致（campStorageCoins 写入回读一致）；0 JS 异常
+  - 角色卡页：12 个迁移函数全局可见（loadCharList/renderCharDetail/
+    searchMonster/addWeapon/addItem/doItemSearch 等），0 JS 异常
+  - 战斗页：8 个迁移函数全局可见（addCombatant/searchMonster/
+    addMonsterToCombat 等），0 JS 异常
+- 原有回归：_verify_north_page 通过

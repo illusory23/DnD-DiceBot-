@@ -12,18 +12,27 @@
         let charListChars = [];
 
         function renderCharItem(c) {
+            const identity = getIdentity();
+            const isDM = identity.role === 'DM';
+            const isMine = isDM || (c.created_by === identity.name);
+            // PL 视角：非自己创建的角色（DM 公开角色）只读，隐藏复制/删除
+            const actions = isMine ? `
+                    <button class="btn btn-small" onclick="event.stopPropagation();copyCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="复制角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">📋</button>
+                    <button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="删除角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">🗑</button>` : `
+                    <span style="color:var(--cyan);font-size:0.65rem;border:1px solid var(--cyan);border-radius:3px;padding:0.05rem 0.3rem;flex-shrink:0;" title="DM 公开角色（只读）">🔓 公开</span>`;
+            const draggable = isMine ? 'true' : 'false';
+            const handleStyle = isMine ? '' : 'visibility:hidden;';
             return `
-                <div class="char-list-item" draggable="true"
+                <div class="char-list-item" draggable="${draggable}"
                      data-char-id="${c.id}" data-group-id="${c.group_id || ''}">
-                    <span class="drag-handle" title="拖动排序">⠿</span>
+                    <span class="drag-handle" title="拖动排序" style="${handleStyle}">⠿</span>
                     <img src="/api/character/${c.id}/portrait"
                          style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);"
                          onerror="this.style.display='none'"
                          loading="lazy">
                     <span style="flex:1;cursor:pointer;" onclick="selectChar(${c.id})">${c.name}</span>
                     <span style="color:var(--text-dim);font-size:0.75rem;">${c.level}级 ${c.class || '-'}</span>
-                    <button class="btn btn-small" onclick="event.stopPropagation();copyCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="复制角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">📋</button>
-                    <button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCharFromList(${c.id}, '${(c.name||'').replace(/'/g, "\\'")}')" title="删除角色" style="padding:0.1rem 0.3rem;font-size:0.65rem;">🗑</button>
+                    ${actions}
                 </div>`;
         }
 
@@ -469,6 +478,13 @@
                 el.innerHTML = '<div class="card-header">📋 角色详情</div><div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>';
                 return;
             }
+            // PL 打开非自己创建的公开角色：只读视图（不能编辑 DM 公开角色）
+            const identity = getIdentity();
+            const isDM = identity.role === 'DM';
+            const isMine = isDM || (char.created_by === identity.name);
+            if (!isMine) {
+                return renderCharReadonly(char);
+            }
 
             const abilities = char.abilities;
             const mods = char.ability_mods || {};
@@ -759,6 +775,17 @@
                                  class="char-portrait"
                                  onerror="this.style.display='none'">
                         </div>
+                        <!-- 头像上传/清除：紧跟头像，始终可见（不被压缩到列表底部） -->
+                        <div class="portrait-actions" style="display:flex;gap:0.4rem;align-items:center;margin:0.15rem 0 0.4rem;">
+                            <input type="file" id="portrait-file-input" accept="image/*" onchange="uploadPortrait(${char.id})" style="flex:1;min-width:0;padding:0.25rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.75rem;" title="上传/更换头像">
+                            <button class="btn btn-small btn-danger" onclick="clearPortrait(${char.id})" style="flex-shrink:0;padding:0.2rem 0.4rem;font-size:0.7rem;">🗑 清除</button>
+                        </div>
+                        <!-- DM：公开/私有切换（公开后全体玩家可见、只读） -->
+                        <div style="display:flex;align-items:center;justify-content:center;margin-bottom:0.35rem;">
+                            <button class="btn btn-small ${char.is_public ? '' : 'btn-primary'}" onclick="toggleCharVisibility(${char.id}, ${char.is_public ? 'false' : 'true'})" style="font-size:0.7rem;padding:0.15rem 0.45rem;" title="${char.is_public ? '当前公开：所有玩家可见（只读）。点击改为私有。' : '当前私有：仅 DM 可见。点击公开给所有玩家查看。'}">
+                                ${char.is_public ? '🔓 公开（全体可见）' : '🔒 私有（仅DM可见）'}
+                            </button>
+                        </div>
                         ${metaLine}
                         ${metaEditLine}
                         <!-- HP x/y + 临时HP + 关键属性 -->
@@ -811,12 +838,6 @@
                             <button class="btn btn-small btn-danger" onclick="deleteCharModal(${char.id}, '${char.name.replace(/'/g, "\\'")}')">🗑 删除</button>
                         </div>
 
-                        <div class="portrait-actions" style="margin-top:0.75rem;">
-                            <div style="display:flex;gap:0.5rem;align-items:center;">
-                                <input type="file" id="portrait-file-input" accept="image/*" onchange="uploadPortrait(${char.id})" style="flex:1;padding:0.3rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.8rem;">
-                                <button class="btn btn-small btn-danger" onclick="clearPortrait(${char.id})">清除</button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- 右：详细信息 -->
@@ -871,70 +892,137 @@
             `;
         }
 
+        // ━━━ DM 公开角色：PL 只读视图（不渲染任何编辑控件）━━━
+        function renderCharReadonly(char) {
+            const el = document.getElementById('char-detail');
+            const abilities = char.abilities || {};
+            const mods = char.ability_mods || {};
+            const abbr = {str:'力量', dex:'敏捷', con:'体质', int:'智力', wis:'感知', cha:'魅力'};
+            const portraitUrl = `/api/character/${char.id}/portrait`;
+
+            const abilityHtml = Object.entries(abbr).map(([key, label]) => {
+                const score = abilities[key] || 10;
+                const mod = mods[key] || 0;
+                return `<div class="ability-box">
+                    <div class="ability-name">${label}</div>
+                    <div class="ability-score">${score}</div>
+                    <div class="ability-mod">${mod >= 0 ? '+' : ''}${mod}</div>
+                </div>`;
+            }).join('');
+
+            const skillProfs = char.skill_proficiencies || {};
+            const skillNames = ['运动','特技','巧手','隐匿','奥秘','历史','调查','自然','宗教',
+                               '驯兽','洞悉','医药','察觉','生存','欺诈','威吓','表演','游说'];
+            const skMap = {运动:'str',特技:'dex',巧手:'dex',隐匿:'dex',奥秘:'int',历史:'int',调查:'int',自然:'int',宗教:'int',
+                          驯兽:'wis',洞悉:'wis',医药:'wis',察觉:'wis',生存:'wis',欺诈:'cha',威吓:'cha',表演:'cha',游说:'cha'};
+            const skillHtml = skillNames.map(s => {
+                const prof = skillProfs[s] || {};
+                const isProf = prof.is_proficient;
+                const rawBonus = prof.bonus || 0;
+                const amod = mods[skMap[s]] || 0;
+                const totalBonus = isProf ? rawBonus : amod;
+                return `<span class="skill-tag${isProf ? ' proficient' : ''}">${s} ${totalBonus>=0?'+':''}${totalBonus}</span>`;
+            }).join('');
+
+            const saveProfs = char.save_proficiencies || {};
+            const saveHtml = ['力量','敏捷','体质','智力','感知','魅力'].map(s => {
+                const akey = {力量:'str',敏捷:'dex',体质:'con',智力:'int',感知:'wis',魅力:'cha'}[s];
+                const prof = saveProfs[akey] || saveProfs[s] || {};
+                const isProf = prof.is_proficient;
+                const rawBonus = prof.save_bonus || 0;
+                const amod = mods[akey] || 0;
+                const totalBonus = isProf ? rawBonus : amod;
+                return `<span class="skill-tag${isProf ? ' proficient' : ''}">${s} ${totalBonus>=0?'+':''}${totalBonus}</span>`;
+            }).join('');
+
+            const weapons = char.weapons || [];
+            const weaponHtml = weapons.length
+                ? weapons.map(w => {
+                    const dmg = w.damage || w.damage_dice || '';
+                    return `<div class="detail-row">⚔️ ${w.name||w.weapon_name} <span class="detail-val">命中+${w.attack_bonus||0}${dmg ? ' 伤害 ' + dmg : ''}</span></div>`;
+                  }).join('')
+                : '<div class="detail-row" style="color:var(--text-dim);">暂无武器</div>';
+
+            const inventory = char.inventory || [];
+            const invHtml = inventory.length
+                ? inventory.map(item => `<div class="detail-row">🎒 ${item.item_name||item.name} <span class="detail-val">x${item.quantity||1}${item.location ? ' · ' + item.location : ''}</span></div>`).join('')
+                : '<div class="detail-row" style="color:var(--text-dim);">暂无物品</div>';
+
+            const bg = char.background || {};
+            const bgRows = [
+                ['个性', bg.personality_traits], ['理念', bg.ideals], ['羁绊', bg.bonds],
+                ['缺陷', bg.flaws], ['背景故事', bg.backstory], ['外貌', bg.appearance],
+            ].filter(([, v]) => v).map(([k, v]) => `<div class="detail-row"><span class="detail-label">${k}:</span> <span class="detail-val">${v}</span></div>`).join('') || '<div class="detail-row" style="color:var(--text-dim);">暂无背景信息</div>';
+
+            el.innerHTML = `
+                <div class="card-header">📋 ${char.name || ''} — ${char.level || 1}级 ${char.class || '未知'} ${char.race || ''}
+                    <span style="color:var(--cyan);font-size:0.7rem;border:1px solid var(--cyan);border-radius:3px;padding:0.05rem 0.35rem;margin-left:0.4rem;">🔓 DM 公开角色 · 只读</span>
+                </div>
+                <div class="char-detail-grid">
+                    <div class="char-detail-left">
+                        <div class="portrait-container">
+                            <img src="${portraitUrl}" alt="${char.name}头像" class="char-portrait" onerror="this.style.display='none'">
+                        </div>
+                        <div style="font-size:0.8rem;text-align:center;margin-bottom:0.4rem;">
+                            ❤️ ${char.hp_current||0}/${char.hp_max||10} &nbsp; 🛡️ AC ${char.ac||10} &nbsp; ⭐ +${char.proficiency_bonus||2}
+                        </div>
+                        <div class="ability-grid">${abilityHtml}</div>
+                        <div style="font-size:0.75rem;color:var(--text-dim);text-align:center;margin-top:0.5rem;">
+                            ${char.alignment||''}${char.alignment&&char.faith?' | ':''}${char.faith||''}${char.gender?' | '+char.gender:''}
+                        </div>
+                    </div>
+                    <div class="char-detail-right">
+                        <details class="char-section" open>
+                            <summary class="char-section-header">🎯 技能熟练 & 豁免</summary>
+                            <div class="char-section-body">
+                                <div class="detail-label-sm">技能</div>
+                                <div class="skill-tag-cloud">${skillHtml}</div>
+                                <div class="detail-label-sm" style="margin-top:0.5rem;">豁免</div>
+                                <div class="skill-tag-cloud">${saveHtml}</div>
+                            </div>
+                        </details>
+                        <details class="char-section">
+                            <summary class="char-section-header">⚔️ 武器装备</summary>
+                            <div class="char-section-body">${weaponHtml}</div>
+                        </details>
+                        <details class="char-section">
+                            <summary class="char-section-header">🎒 背包物品</summary>
+                            <div class="char-section-body">${invHtml}</div>
+                        </details>
+                        <details class="char-section">
+                            <summary class="char-section-header">📖 法术</summary>
+                            <div class="char-section-body">
+                                ${(char.prepared_spells||[]).map(s => `<span class="skill-tag proficient">${s.spell_name||s.name||'?'}</span>`).join('') || '<div style="color:var(--text-dim);">暂无已准备法术</div>'}
+                            </div>
+                        </details>
+                        <details class="char-section">
+                            <summary class="char-section-header">📝 背景信息</summary>
+                            <div class="char-section-body">${bgRows}</div>
+                        </details>
+                    </div>
+                </div>`;
+        }
+
+        // ━━━ DM 切换角色公开/私有 ━━━
+        async function toggleCharVisibility(charId, isPublic) {
+            const identity = getIdentity();
+            if (identity.role !== 'DM') { alert('仅 DM 可以设置角色可见性'); return; }
+            try {
+                const resp = await fetch(`/api/character/${charId}/visibility?role=${encodeURIComponent(identity.role)}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({is_public: isPublic})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                alert(isPublic ? '✅ 角色已公开，所有玩家现在可以看到（只读）' : '🔒 角色已恢复私有，仅 DM 可见');
+                loadCharList();
+                selectChar(charId);
+            } catch(e) { alert('操作失败: ' + e.message); }
+        }
+
         // 缓存特性数据，避免重复生成HTML
         let _featureCache = {};
 
-        function renderFeatureSection(char, category, title) {
-            const features = (char.features && char.features[category]) || [];
-            const catId = category.replace(/_/g, '-');
-            const cacheKey = `${char.id}-${category}`;
-            // 缓存特性数据
-            _featureCache[cacheKey] = { features, charId: char.id, category, catId, title };
-            // 渲染最小HTML（仅标题和占位）
-            return `<details class="char-section" data-feature-key="${cacheKey}" ontoggle="loadFeatureContent(this)">
-                <summary class="char-section-header">${title} (${features.length})</summary>
-                <div class="char-section-body" data-loaded="0">
-                    <div style="color:var(--text-dim);font-size:0.75rem;text-align:center;padding:0.3rem;">展开查看...</div>
-                </div>
-            </details>`;
-        }
-
-        function loadFeatureContent(detailsEl) {
-            if (!detailsEl.open) return; // 只处理展开
-            const body = detailsEl.querySelector('.char-section-body');
-            if (!body || body.getAttribute('data-loaded') === '1') return;
-            body.setAttribute('data-loaded', '1');
-
-            const cacheKey = detailsEl.getAttribute('data-feature-key');
-            const cached = _featureCache[cacheKey];
-            if (!cached) return;
-
-            const { features, charId, category, catId } = cached;
-            if (features.length > 0) {
-                body.innerHTML = features.map(f => `
-                    <div style="display:flex;align-items:flex-start;gap:0.3rem;margin-bottom:0.25rem;padding:0.3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;">
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-weight:bold;color:var(--gold);font-size:0.8rem;cursor:pointer;"
-                                 onclick="editFeatureName(${charId}, ${f.id}, this.getAttribute('data-val'))"
-                                 data-val="${(f.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"
-                                 title="点击修改名称">${f.name}</div>
-                            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.15rem;cursor:pointer;min-height:0.5rem;word-break:break-all;"
-                                 onclick="editFeatureDesc(${charId}, ${f.id}, this.getAttribute('data-val'))"
-                                 data-val="${(f.description || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"
-                                 title="点击修改描述">${f.description || '<span style="color:var(--text-dim);font-style:italic;">点击添加描述...</span>'}</div>
-                        </div>
-                        <button class="btn btn-small btn-danger" onclick="deleteFeature(${charId}, ${f.id}, '${catId}')" style="padding:0.1rem 0.3rem;font-size:0.65rem;flex-shrink:0;" title="删除">✕</button>
-                    </div>
-                `).join('');
-            } else {
-                body.innerHTML = '<div style="color:var(--text-dim);font-size:0.75rem;text-align:center;padding:0.3rem;">暂无</div>';
-            }
-            body.innerHTML += `<button class="btn btn-small btn-success" onclick="addFeature(${charId}, '${category}', '${catId}')" style="margin-top:0.3rem;width:100%;">+ 添加</button>`;
-        }
-
-        // 特性增删后刷新对应区域
-        function refreshFeatureSection(charId, category) {
-            const cacheKey = `${charId}-${category}`;
-            const detailsEl = document.querySelector(`details[data-feature-key="${cacheKey}"]`);
-            if (detailsEl && detailsEl.open) {
-                const body = detailsEl.querySelector('.char-section-body');
-                if (body) body.setAttribute('data-loaded', '0');
-                loadFeatureContent(detailsEl);
-            }
-        }
-
-        // 兼容旧调用
-        function lazyLoadFeatures(detailsEl, charId, category, catId, title) {}
 
         async function adjustHpModal(charId) {
             if (!currentChar) return;
@@ -1029,12 +1117,13 @@
             // 成功：刷新头像图片
             const img = document.querySelector('.char-portrait');
             if (img) {
-                img.src = `/api/character/${charId}/portrait`;
+                // 加时间戳避免浏览器缓存旧头像
+                img.src = `/api/character/${charId}/portrait?t=${Date.now()}`;
                 img.style.display = '';
             }
             // 同步更新角色列表中的缩略图
             const thumbs = document.querySelectorAll(`#char-list img[src*=\"/api/character/${charId}/portrait\"]`);
-            thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait`; t.style.display = ''; });
+            thumbs.forEach(t => { t.src = `/api/character/${charId}/portrait?t=${Date.now()}`; t.style.display = ''; });
             alert('✅ 头像已上传');
         }
 
@@ -1053,156 +1142,6 @@
         // ━━━ 怪物搜索（参考界面风格）━━━
         let monsterSearchResults = [];
 
-        async function searchMonster() {
-            const query = document.getElementById('monster-search').value.trim();
-            if (query.length < 2) { alert('至少输入2个字'); return; }
-
-            const resultsEl = document.getElementById('search-results');
-            const infoEl = document.getElementById('monster-info');
-            infoEl.innerHTML = '';
-            resultsEl.innerHTML = '<div style="color:var(--cyan);font-size:0.85rem;padding:0.25rem;">搜索中...</div>';
-
-            try {
-                // 短关键词(<=2字) → 直接列列表
-                if (query.length <= 2) {
-                    const listResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(query)}`);
-                    const listData = await listResp.json();
-                    if (listData.results && listData.results.length) {
-                        monsterSearchResults = listData.results;
-                        renderMonsterList(resultsEl, monsterSearchResults, query);
-                        return;
-                    }
-                }
-
-                // 1. 先尝试精确匹配
-                const resp = await fetch(`/api/monster/${encodeURIComponent(query)}`);
-                const data = await resp.json();
-                if (!data.error) {
-                    // 检查是否有多个匹配
-                    const listResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(query)}`);
-                    const listData = await listResp.json();
-                    if (listData.results && listData.results.length > 1) {
-                        monsterSearchResults = listData.results;
-                        renderMonsterList(resultsEl, monsterSearchResults, query);
-                    } else {
-                        resultsEl.innerHTML = '';
-                        showMonsterInfo(data);
-                    }
-                    return;
-                }
-
-                // 2. 精确匹配失败，模糊搜索
-                const searchResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(query)}`);
-                const searchData = await searchResp.json();
-                const monsters = (searchData.results || []);
-
-                if (!monsters.length) {
-                    resultsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">未找到匹配的生物</div>';
-                    return;
-                }
-                monsterSearchResults = monsters;
-                renderMonsterList(resultsEl, monsters, query);
-            } catch(e) {
-                resultsEl.innerHTML = `<div style="color:var(--red);">搜索失败</div>`;
-            }
-        }
-
-        function renderMonsterList(el, monsters, queryName) {
-            const needCollapse = monsters.length > 6;
-            const listId = 'monster-result-list';
-            const toggleId = 'monster-toggle-btn';
-
-            el.innerHTML = `
-                <div class="monster-result-count">找到 ${monsters.length} 个匹配 "${queryName.replace(/"/g, '&quot;')}" 的生物（点击查看详情）</div>
-                <div id="${listId}" class="${needCollapse ? 'search-collapsed' : ''}">${monsters.map(m => `
-                <div class="monster-result-row" onclick="selectMonsterResult('${m.name.replace(/'/g, "\\'")}')">
-                    <span style="font-weight:bold;color:var(--gold);">👹 ${m.name}</span>
-                    <span style="font-size:0.8rem;color:var(--text-dim);">CR:${m.cr || '?'} | ${m.size || ''} ${m.type || ''}</span>
-                </div>
-                `).join('')}</div>
-                ${needCollapse ? `<button class="search-toggle-btn" id="${toggleId}" onclick="toggleMonsterList('${listId}', '${toggleId}', ${monsters.length})">▼ 展开全部 (${monsters.length}条)</button>` : ''}
-            `;
-        }
-
-        function toggleMonsterList(listId, toggleId, total) {
-            const list = document.getElementById(listId);
-            const btn = document.getElementById(toggleId);
-            if (!list || !btn) return;
-            if (list.classList.contains('search-collapsed')) {
-                list.classList.remove('search-collapsed');
-                btn.textContent = '▲ 收起列表';
-            } else {
-                list.classList.add('search-collapsed');
-                btn.textContent = `▼ 展开全部 (${total}条)`;
-            }
-        }
-
-        async function selectMonsterResult(name) {
-            document.getElementById('monster-search').value = name;
-            const resultsEl = document.getElementById('search-results');
-            resultsEl.innerHTML = '<div style="color:var(--cyan);font-size:0.85rem;padding:0.25rem;">加载详情...</div>';
-
-            const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
-            const data = await resp.json();
-            if (!data.error) {
-                resultsEl.innerHTML = '';
-                showMonsterInfo(data);
-            } else {
-                resultsEl.innerHTML = '<div style="color:var(--red);">加载失败</div>';
-            }
-        }
-
-        function showMonsterInfo(monster) {
-            // 保存在全局变量中以便后续操作
-            window._selectedMonster = monster;
-
-            const el = document.getElementById('monster-info');
-            el.innerHTML = `
-                <div style="background:var(--bg);border:1px solid var(--accent);border-radius:8px;
-                            padding:0.75rem;margin-top:0.5rem;">
-                    <div style="color:var(--accent);font-weight:bold;margin-bottom:0.35rem;">
-                        👹 ${monster.name}
-                        ${monster.name_en ? `<small style="color:var(--text-dim);font-weight:normal;">${monster.name_en}</small>` : ''}
-                    </div>
-                    <div style="color:var(--gold);font-size:0.85rem;margin-bottom:0.5rem;">
-                        CR: ${monster.cr || '?'} | ${monster.size || '?'} ${monster.type || '?'}
-                        ${monster.legendary ? ' | 传奇: ' + monster.legendary : ''}
-                    </div>
-                    ${monster.detail_text ? `<div style="font-size:0.8rem;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;max-height:250px;overflow-y:auto;">${monster.detail_text}</div>` : '<div style="font-size:0.8rem;color:var(--text-dim);">（无详细描述数据）</div>'}
-                    <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.35rem;">📚 ${monster.source || '未知'}</div>
-                    <button class="btn btn-primary btn-small" onclick="createCharFromMonster()" style="margin-top:0.5rem;">📋 创建为角色</button>
-                </div>`;
-        }
-
-        async function createCharFromMonster() {
-            const monster = window._selectedMonster;
-            if (!monster) { alert('请先搜索生物'); return; }
-
-            try {
-                const identity = getIdentity();
-                const resp = await fetch('/api/character/from-monster', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        name: monster.name,
-                        cr: monster.cr || '0',
-                        size: monster.size || '',
-                        type: monster.type || '',
-                        detail_text: monster.detail_text || '',
-                        source: monster.source || '',
-                        legendary: monster.legendary || '',
-                        created_by: identity.name || '',
-                    })
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                alert(`✅ 角色 "${monster.name}" 已创建！\nHP: ${data.hp_current}/${data.hp_max} | AC: ${data.ac}`);
-                loadCharList();
-                selectChar(data.id);  // 获取完整角色数据
-            } catch(e) {
-                alert('创建失败: ' + e.message);
-            }
-        }
 
         // ━━━ 字段编辑 ━━━
         async function editCharField(charId, field, currentVal) {
@@ -1260,105 +1199,6 @@
         }
 
         // ━━━ 特性管理 ━━━
-        async function addFeature(charId, category, catId) {
-            const name = prompt('输入特性名称:');
-            if (!name || !name.trim()) return;
-            const desc = prompt('输入描述（可选）:', '') || '';
-            try {
-                const resp = await fetch(`/api/character/${charId}/features/${category}`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: name.trim(), description: desc})
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                // 局部刷新：重新加载角色数据后刷新该区域
-                const resp2 = await fetch(`/api/character/${charId}`);
-                const char = await resp2.json();
-                currentChar = char;
-                const cacheKey = `${charId}-${category}`;
-                _featureCache[cacheKey] = { features: (char.features && char.features[category]) || [], charId, category, catId, title: '' };
-                refreshFeatureSection(charId, category);
-                // 更新section标题中的计数
-                updateFeatureCount(charId, category);
-            } catch(e) { alert('添加失败: ' + e.message); }
-        }
-
-        async function deleteFeature(charId, featureId, catId) {
-            if (!confirm('删除此特性？')) return;
-            try {
-                const resp = await fetch(`/api/character/${charId}/features/${featureId}`, { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                const category = catId.replace(/-/g, '_');
-                const resp2 = await fetch(`/api/character/${charId}`);
-                const char = await resp2.json();
-                currentChar = char;
-                const cacheKey = `${charId}-${category}`;
-                _featureCache[cacheKey] = { features: (char.features && char.features[category]) || [], charId, category, catId, title: '' };
-                refreshFeatureSection(charId, category);
-                updateFeatureCount(charId, category);
-            } catch(e) { alert('删除失败: ' + e.message); }
-        }
-
-        async function editFeatureName(charId, featureId, currentName) {
-            const name = prompt('修改特性名称:', currentName);
-            if (!name || !name.trim()) return;
-            try {
-                await fetch(`/api/character/${charId}/features/${featureId}`, {
-                    method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: name.trim()})
-                });
-                // 局部刷新：重新获取角色数据
-                const resp2 = await fetch(`/api/character/${charId}`);
-                const char = await resp2.json();
-                currentChar = char;
-                // 找到feature所属的category并刷新
-                for (const cat of ['class_feature','feat','racial_trait','special_ability','other']) {
-                    const feats = (char.features && char.features[cat]) || [];
-                    if (feats.some(f => f.id === featureId)) {
-                        const cacheKey = `${charId}-${cat}`;
-                        _featureCache[cacheKey] = { features: feats, charId, category: cat, catId: cat.replace(/_/g,'-'), title: '' };
-                        refreshFeatureSection(charId, cat);
-                        break;
-                    }
-                }
-            } catch(e) { alert('修改失败: ' + e.message); }
-        }
-
-        async function editFeatureDesc(charId, featureId, currentDesc) {
-            const desc = prompt('修改描述:', currentDesc || '');
-            if (desc === null) return;
-            try {
-                await fetch(`/api/character/${charId}/features/${featureId}`, {
-                    method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({description: desc})
-                });
-                const resp2 = await fetch(`/api/character/${charId}`);
-                const char = await resp2.json();
-                currentChar = char;
-                for (const cat of ['class_feature','feat','racial_trait','special_ability','other']) {
-                    const feats = (char.features && char.features[cat]) || [];
-                    if (feats.some(f => f.id === featureId)) {
-                        const cacheKey = `${charId}-${cat}`;
-                        _featureCache[cacheKey] = { features: feats, charId, category: cat, catId: cat.replace(/_/g,'-'), title: '' };
-                        refreshFeatureSection(charId, cat);
-                        break;
-                    }
-                }
-            } catch(e) { alert('修改失败: ' + e.message); }
-        }
-
-        function updateFeatureCount(charId, category) {
-            const cacheKey = `${charId}-${category}`;
-            const detailsEl = document.querySelector(`details[data-feature-key="${cacheKey}"]`);
-            if (detailsEl) {
-                const summary = detailsEl.querySelector('.char-section-header');
-                const cached = _featureCache[cacheKey];
-                if (summary && cached) {
-                    summary.textContent = summary.textContent.replace(/\(\d+\)/, `(${cached.features.length})`);
-                }
-            }
-        }
 
         async function saveSpellSlots(charId) {
             const slots = {};
@@ -1475,124 +1315,6 @@
         }
 
         // ━━━ 武器装备管理 ━━━
-        async function updateWeapon(charId, weaponId, field, value) {
-            try {
-                const resp = await fetch(`/api/character/${charId}/weapon/${weaponId}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({field, value})
-                });
-                if (!resp.ok) { const d = await resp.json(); if (d.error) { alert(d.error); selectChar(charId); } }
-            } catch(e) { /* silent */ }
-        }
-        async function addWeapon(charId) {
-            const name = document.getElementById(`new-weapon-name-${charId}`).value.trim();
-            if (!name) { alert('请输入武器名'); return; }
-            const atk = parseInt(document.getElementById(`new-weapon-atk-${charId}`).value) || 0;
-            const dmg = document.getElementById(`new-weapon-dmg-${charId}`).value.trim() || '1d6';
-            const dtype = document.getElementById(`new-weapon-type-${charId}`).value.trim() || '挥砍';
-
-            try {
-                const resp = await fetch(`/api/character/${charId}/weapon`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name, attack_bonus: atk, damage: dmg, damage_type: dtype})
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('添加失败: ' + e.message); }
-        }
-
-        async function removeWeapon(charId, weaponId, name) {
-            if (!confirm(`确认删除武器 "${name}"？`)) return;
-            try {
-                const resp = await fetch(`/api/character/${charId}/weapon/${weaponId}`, { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('删除失败: ' + e.message); }
-        }
-
-        // ━━━ 物品管理 ━━━
-        async function addItem(charId) {
-            const name = document.getElementById(`new-item-name-${charId}`).value.trim();
-            if (!name) { alert('请输入物品名'); return; }
-            const qty = parseInt(document.getElementById(`new-item-qty-${charId}`).value) || 1;
-            const loc = document.getElementById(`new-item-loc-${charId}`).value.trim() || '背包';
-
-            try {
-                const resp = await fetch(`/api/character/${charId}/item`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name, quantity: qty, location: loc})
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('添加失败: ' + e.message); }
-        }
-
-        async function updateItem(charId, itemId, field, value) {
-            try {
-                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({field, value})
-                });
-                if (!resp.ok) { const d = await resp.json(); if (d.error) { alert(d.error); selectChar(charId); } }
-            } catch(e) { /* silent */ }
-        }
-        async function adjItemQty(charId, itemId, newQty) {
-            if (newQty < 0) return;
-            try {
-                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, {
-                    method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({quantity: newQty})
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('更新失败: ' + e.message); }
-        }
-
-        async function removeItem(charId, itemId, name) {
-            if (!confirm(`确认删除物品 "${name}"？`)) return;
-            try {
-                const resp = await fetch(`/api/character/${charId}/item/${itemId}`, { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('删除失败: ' + e.message); }
-        }
-
-        async function stackInventory(charId) {
-            try {
-                const resp = await fetch(`/api/character/${charId}/inventory/stack`, { method: 'POST' });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                alert(`已合并 ${data.merged} 个重复物品`);
-                selectChar(charId);
-            } catch(e) { alert('合并失败: ' + e.message); }
-        }
-
-        // ━━━ 钱币管理 ━━━
-        async function adjCoin(charId, coinType, amount) {
-            try {
-                const resp = await fetch(`/api/character/${charId}/coin`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({coin_type: coinType, amount})
-                });
-                const data = await resp.json();
-                if (data.error) { alert(data.error); return; }
-                selectChar(charId);
-            } catch(e) { alert('调整失败: ' + e.message); }
-        }
-
-        async function adjCoinInput(charId) {
-            const type = document.getElementById(`coin-type-${charId}`).value;
-            const amount = parseInt(document.getElementById(`coin-amount-${charId}`).value) || 0;
-            if (amount === 0) { alert('请输入调整金额（正数增加，负数减少）'); return; }
-            await adjCoin(charId, type, amount);
-        }
 
         // ━━━ 文件导入 ━━━
         async function handleCharFileImport(event) {
@@ -1636,110 +1358,6 @@
         // ━━━ 物品搜索 ━━━
         let itemSearchResults = [];
 
-        async function doItemSearch() {
-            const q = document.getElementById('item-search-input').value.trim();
-            if (!q) return;
-            const el = document.getElementById('item-search-results');
-            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.25rem;">搜索中...</div>';
-            try {
-                // 先查物品表
-                const resp1 = await fetch(`/api/items/search?q=${encodeURIComponent(q)}`);
-                const data1 = await resp1.json();
-                let results = (data1.results || []).slice(0, 30);
-
-                // 无结果时回退到综合搜索（CHM + 项目文件）
-                if (!results.length) {
-                    const resp2 = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-                    const data2 = await resp2.json();
-                    results = (data2.results || []).map(r => ({
-                        name: r.name, type: r.type,
-                        detail: r.detail || '', price: '', damage: '', weight: '', item_type: r.type
-                    })).slice(0, 30);
-                }
-
-                if (!results.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;">未找到</div>'; return; }
-                itemSearchResults = results;
-                el.innerHTML = results.map((r, i) => {
-                    const isWpn = !!(r.damage && r.damage.trim());
-                    const btnLabel = isWpn ? '⚔️武器' : '+背包';
-                    return `
-                    <div class="item-result-row" onclick="viewItemDetail(${i})">
-                        <span style="font-weight:bold;color:var(--gold);">${isWpn ? '⚔️' : '📦'} ${r.name}</span>
-                        <span style="display:flex;gap:0.2rem;">
-                            ${currentChar ? '<button class="btn btn-success btn-small" onclick="event.stopPropagation();addItemToCharByIdx(' + i + ')" style="padding:0.1rem 0.35rem;font-size:0.6rem;">' + btnLabel + '</button>' : ''}
-                        </span>
-                    </div>`;
-                }).join('');
-            } catch(e) { el.innerHTML = `<div style="color:var(--red);">搜索失败</div>`; }
-        }
-
-        function viewItemDetail(index) {
-            const item = itemSearchResults[index];
-            if (!item) return;
-            const idx = index;
-            const isWpn = !!(item.damage && item.damage.trim());
-            const btnLabel = isWpn ? '⚔️ 添加为武器' : '➕ 添加到背包';
-            document.getElementById('item-detail').innerHTML =
-                '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.5rem;margin-top:0.3rem;font-size:0.8rem;">' +
-                    '<div style="font-weight:bold;color:var(--accent);">' + (isWpn ? '⚔️ ' : '📦 ') + item.name + '</div>' +
-                    (item.detail ? '<div style="color:var(--text-dim);margin-top:0.2rem;">' + item.detail + '</div>' : '') +
-                    '<div style="margin-top:0.3rem;display:flex;gap:0.3rem;">' +
-                        (currentChar ? '<button class="btn btn-success btn-small" onclick="addItemToCharByIdx(' + idx + ')">' + btnLabel + '</button>' : '<span style="color:var(--text-dim);font-size:0.7rem;">请先选择角色</span>') +
-                        '<button class="btn btn-small" style="background:var(--surface2);color:var(--text);" onclick="document.getElementById(\'item-detail\').innerHTML=\'\'">关闭</button>' +
-                    '</div>' +
-                '</div>';
-        }
-
-        function addItemToCharByIdx(index) {
-            const item = itemSearchResults[index];
-            if (!item) return;
-            addItemToChar(item);
-        }
-
-        async function addItemToChar(item) {
-            if (!currentChar || !currentChar.id) { alert('请先选择一个角色'); return; }
-            const itemName = item.name || item;
-            // 判断是否为武器（有伤害字段）
-            const isWeapon = !!(item.damage && item.damage.trim());
-
-            try {
-                if (isWeapon) {
-                    // 根据角色属性自动计算攻击加值（力量+熟练）
-                    const strScore = (currentChar.abilities && currentChar.abilities.str) || 10;
-                    const strMod = Math.floor((strScore - 10) / 2);
-                    const profBonus = currentChar.proficiency_bonus || 2;
-                    const atkBonus = strMod + profBonus;
-                    // 添加为武器
-                    const resp = await fetch(`/api/character/${currentChar.id}/weapon`, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            name: itemName,
-                            attack_bonus: atkBonus,
-                            damage: item.damage || '1d6',
-                            damage_type: item.type || '挥砍',
-                            description: item.detail || ''
-                        })
-                    });
-                    if (!resp.ok) throw new Error((await resp.text()).substring(0, 100));
-                    const data = await resp.json();
-                    if (data.error) { alert(data.error); return; }
-                    alert('✅ "' + itemName + '" 已添加到武器装备');
-                    selectChar(currentChar.id);
-                } else {
-                    // 添加为背包物品
-                    const resp = await fetch(`/api/character/${currentChar.id}/item`, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({name: itemName, quantity: 1, location: '背包',
-                            description: item.detail || '', weight: parseFloat(item.weight) || 0})
-                    });
-                    if (!resp.ok) throw new Error((await resp.text()).substring(0, 100));
-                    const data = await resp.json();
-                    if (data.error) { alert(data.error); return; }
-                    alert('✅ "' + itemName + '" 已添加到背包');
-                    selectChar(currentChar.id);
-                }
-            } catch(e) { alert('添加失败: ' + e.message); }
-        }
 
         // 初始加载
         loadCharList();

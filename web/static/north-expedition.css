@@ -1710,6 +1710,11 @@
         .guild-rank-badge { min-width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; letter-spacing: 1px; border: 2px solid rgba(160,200,240,0.4); box-shadow: 0 0 22px rgba(160,200,240,0.18); background: rgba(20,30,50,0.6); }
         .guild-rank-info { flex: 1; }
         .guild-rank-name { font-size: 1.2rem; color: #e8d9a8; margin-bottom: 8px; }
+        .guild-rank-adventurer { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .gra-label { font-size: 0.72rem; color: #888; }
+        .gra-name { font-size: 0.95rem; color: #ffd700; font-weight: bold; }
+        .gra-edit { background: none; border: 1px solid #2a2a40; color: #aaa; cursor: pointer; font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 4px; }
+        .gra-edit:hover { border-color: #ffd700; color: #ffd700; }
         .guild-rank-stats { display: flex; gap: 22px; flex-wrap: wrap; }
         .guild-stat { font-size: 0.85rem; color: #8a9ab0; }
         .guild-stat b { color: #ffd700; font-size: 1rem; }

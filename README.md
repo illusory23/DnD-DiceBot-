@@ -2,7 +2,7 @@
 
 **Chronicles of Dust — Online TRPG Platform**
 
-> 版本：v5.1 | 更新日期：2026-08-09
+> 版本：v5.2 | 更新日期：2026-08-17
 
 一个集 D&D 5E 跑团工具、北境雪原探索玩法、官网门户于一体的综合性 TRPG 平台。基于 Python Flask 后端 + 原生 HTML/CSS/JS 前端构建。
 
@@ -41,15 +41,16 @@
 | 功能 | 说明 |
 |------|------|
 | 🎲 3D 物理掷骰 | 基于 @3d-dice/dice-box 的真实物理模拟 |
-| 👤 角色卡系统 | D&D 5E 角色创建/编辑/导出/导入 |
-| ⚔️ 战斗追踪 | 先攻顺序、HP 管理、状态追踪 |
-| 📖 法术查询 | 内置 D&D 5E SRD 完整法术库，支持 CHM 离线检索 |
+| 👤 角色卡系统 | D&D 5E 角色创建/编辑/导出/导入，DM 公开/私有角色可见性 |
+| ⚔️ 战斗追踪 | 先攻顺序、HP 管理、状态追踪（战斗中临时加入自动排序） |
+| 📖 法术书 | 已学/已准备法术、法术位管理、资料库搜索一键添加 |
 | 👹 怪物图鉴 | 内置 D&D 5E SRD 怪物数据 |
-| 🗺️ 地图 | 战斗地图占位（开发中） |
+| 🗺️ 战术地图 | 无限画布/图层/迷雾/token/内嵌战斗面板/WS 实时同步（五文件模块化） |
 | 💬 聊天室 | 实时消息广播与骰子结果推送 |
 | 🍺 北境酒馆 | 中世纪风格独立聊天室，仅北境玩家可见 |
-| 👥 用户系统 | 注册/登录/修改资料，scrypt密码哈希 |
-| ☁️ 云端存档 | 北境数据PostgreSQL持久化，跨设备恢复 |
+| 👥 用户系统 | 注册/登录/修改资料/头像（圆形裁剪），scrypt 密码哈希 |
+| 🔔 消息通知 | 评论/点赞/收藏/@提及提醒，聚合去重，独立页 + 未读红点 |
+| ☁️ 云端存档 | 北境数据 PostgreSQL 持久化（自动存+失败重试+日志裁剪），跨设备恢复 |
 | 🔧 Mod 系统 | 外置接口，支持自定义扩展 |
 | 🔐 管理员后台 | `/admin` 独立后台：仪表盘/用户/角色/聊天/统计/错误/系统维护/内容/每周话题/社区/审计日志/数据备份 |
 
@@ -58,11 +59,14 @@
 | 功能 | 说明 |
 |------|------|
 | 🏠 首页 | 品牌展示 + 功能分区 + 平台统计（真实数据） |
-| 👥 用户系统 | 登录/注册/角色绑定 |
+| 👥 用户系统 | 登录/注册/角色绑定/头像上传（圆形裁剪，全站展示） |
 | 🔗 功能导航 | 左侧滑出式导航，一键跳转各平台模块 |
 | 📰 每周话题 | 管理员后台发布（标题/内容/图片），独立详情页 + 评论区 |
-| 💬 冒险者酒馆 | 5 大板块真实社区：发帖（多图上传）、图文详情、评论、删除 |
-| 🔧 创意工坊 | 真实投稿系统：介绍/附件上传（zip）、详情页、评论 |
+| 💬 冒险者酒馆 | 5 大板块真实社区：发帖（多图上传）、图文详情、评论、删除、点赞/收藏、搜索分页 |
+| 🔧 创意工坊 | 真实投稿系统：介绍/附件上传（zip）、详情页、评论、点赞/收藏、搜索分页 |
+| 📄 独立详情页 | 帖子 `/post/<id>`、工坊 `/workshop/<id>` 点击直接进入 |
+| 🔔 消息通知 | 评论/点赞/收藏/@提及提醒，聚合去重（N 人），独立页 `/notifications` + 未读红点 |
+| 📢 公告 | 横幅展示 + 历史公告页 `/announcements` |
 | 🟢 在线冒险者 | 真实在线统计（打开任意页面即在线，关闭全部页面下线） |
 | 📊 平台统计 | 主题/帖子/用户/投稿/投掷 全部真实数据，实时刷新 |
 | ❄️ 北境召唤卡 | 魔幻风格入口，直接进入北境雪原玩法 |
@@ -99,9 +103,11 @@
 | 🧑‍🤝‍🧑 冒险补给站 | 完整商店：固定6件+随机5件，购买/出售，商店资金，商队刷新 |
 | ⚒️ 铁匠工房 | 锻造界面（UI就绪，待开放） |
 | 🧪 炼金工坊 | 炼金界面（UI就绪，待开放） |
-| 💾 存档系统 | JSON 导出/导入，含商店资金/库存/商队/熔炼炉完整状态 |
+| 🏛️ 公会系统 | 等级晋升（青羽→白羽 7 级）、积分、晋升进程可视化、头衔标签、冒险者名修改 |
+| 💾 存档系统 | 服务器端自动存（30秒+2秒防抖）+ 失败重试 + 日志裁剪（500条）+ JSON 导出/导入 |
 | 📊 冒险记录 | 点击事件查看详情统计 + 柱状图 + 子事件产出明细 |
 | 🎨 资金颜色 | GP金色 / SP银色 / CP铜色 统一显示 |
+| ⚡ 渲染优化 | 事件日志增量渲染、商店背包/仓库变化检测（无变化跳过重绘） |
 
 ---
 
@@ -121,8 +127,8 @@
 | | 雪地特效 — Canvas 雪花 + 极光粒子 |
 | | 在线心跳 — `online-presence.js` 全站在线状态 |
 | | 事件驱动 — 原生事件委托 |
-| **数据** | SQLAlchemy ORM — 17张表，支持 PostgreSQL |
-| | JSON — 法术库、怪物库、物品表、每周话题(topics)、酒馆帖子(community)、工坊投稿(workshop) |
+| **数据** | PostgreSQL — 31 张表（2026-08-15 全量迁移，DATABASE_URL 可覆盖） |
+| | JSON — 法术库、怪物库、物品表（只读资料） |
 | | CHM 索引 — 离线 D&D 规则检索 |
 | | TXT — 随机事件表定义 |
 | **安全** | 用户名白名单校验、密码哈希、SECRET_KEY 随机持久化、审计日志 |
@@ -144,18 +150,26 @@
 │   │   ├── dice3d-e.html          # 增强版 3D 掷骰（带角色联动）
 │   │   ├── character.html         # 角色管理
 │   │   ├── combat.html            # 战斗追踪
-│   │   ├── spells.html            # 法术查询
+│   │   ├── spells.html            # 法术书
 │   │   ├── reference.html         # 怪物图鉴
-│   │   ├── map.html               # 战斗地图
+│   │   ├── map.html               # 战术地图
 │   │   ├── chat.html              # 聊天室
+│   │   ├── events.html            # DM 事件系统
+│   │   ├── mods.html              # Mod 管理
 │   │   ├── test4.html             # 备用测试页
-│   │   ├── admin/                 # 管理员后台模板（12 个页面）
+│   │   ├── admin/                 # 管理员后台模板（16 个页面）
 │   │   └── portal/                # 官网门户
 │   │       ├── index.html         # 官网首页（社区/工坊/话题/在线）
-│   │       └── user.html          # 用户页
+│   │       ├── user.html          # 用户中心
+│   │       ├── post_detail.html   # 帖子独立详情页
+│   │       ├── workshop_detail.html # 工坊独立详情页
+│   │       ├── notifications.html # 消息通知页
+│   │       └── announcements.html # 历史公告页
 │   └── static/                    # 静态资源
 │       ├── style.css              # 全局样式
 │       ├── online-presence.js     # 全站在线心跳脚本
+│       ├── announcement-banner.js # 公告横幅
+│       ├── common-error-handler.js # 统一 Toast 错误提示
 │       ├── admin/                 # 后台样式与脚本
 │       ├── dice-box/              # 3D 骰子引擎 (dice-box v1)
 │       ├── dice-v2/               # 3D 骰子引擎 (dice-box v2)
@@ -166,7 +180,22 @@
 │       ├── portal/                # 官网静态资源
 │       ├── character.js           # 角色卡 JS
 │       ├── combat.js              # 战斗 JS
-│       └── map.js                 # 地图 JS
+│       ├── map.js                 # 地图主逻辑 JS
+│       ├── map-idb.js             # 地图 IndexedDB 缓存
+│       ├── map-fog.js             # 地图战争迷雾
+│       ├── map-saves.js           # 地图存档槽
+│       ├── map-page.js            # 地图加入房间覆盖层
+│       ├── north-main.js          # 北境核心引擎
+│       ├── north-camp.js          # 北境营地系统（商店/仓库/工作间）
+│       ├── north-data.js          # 北境事件表数据
+│       ├── north-survival.js      # 北境生存判定
+│       ├── north-guild.js         # 北境公会系统
+│       ├── north-tavern.js        # 北境酒馆聊天
+│       ├── north-fx.js            # 北境特效
+│       ├── character-monsters.js  # 角色卡怪物搜索模块
+│       ├── character-features.js  # 角色卡特性模块
+│       ├── character-inventory.js # 角色卡武器/物品/钱币模块
+│       └── combat-monsters.js     # 战斗页怪物搜索模块
 ├── core/                          # 核心引擎
 │   ├── dice_engine.py             # 骰子表达式解析与掷骰
 │   ├── dnd5e_rules.py             # D&D 5E 规则实现
@@ -177,10 +206,10 @@
 │   ├── chm_search.py              # CHM 全文检索
 │   └── excel_importer.py          # Excel 角色导入
 ├── data/                          # 数据文件
-│   ├── characters.db              # SQLite 角色数据库
-│   ├── topics.json                # 每周话题（含评论）
-│   ├── community.json             # 酒馆帖子（含评论）
-│   ├── workshop.json              # 工坊投稿（含评论）
+│   ├── characters.db              # SQLite 角色数据库（PG 迁移前旧库）
+│   ├── topics.json                # 每周话题（已迁 PostgreSQL）
+│   ├── community.json             # 酒馆帖子（已迁 PostgreSQL）
+│   ├── workshop.json              # 工坊投稿（已迁 PostgreSQL）
 │   ├── secret_key                 # SECRET_KEY（首次启动自动生成）
 │   ├── spells_full.json           # 完整法术库
 │   ├── monsters_full.json         # 完整怪物库
@@ -252,9 +281,13 @@ python app.py
 | `/mods` | `mods.html` | Mod 配置 |
 | `/events` | `events.html` | 事件展示 |
 | `/portal/` | `portal/index.html` | 官网首页 |
-| `/portal/user` | `portal/user.html` | 用户页 |
+| `/portal/user` | `portal/user.html` | 用户中心 |
+| `/post/<id>` | `portal/post_detail.html` | 帖子独立详情页（含点赞/收藏/评论） |
+| `/workshop/<id>` | `portal/workshop_detail.html` | 工坊独立详情页 |
+| `/notifications` | `portal/notifications.html` | 消息通知页 |
+| `/announcements` | `portal/announcements.html` | 历史公告页 |
 | `/topics/<id>` | `topic_detail.html` | 每周话题详情（含评论） |
-| `/admin` | `admin/*` | 管理员后台（12 个页面） |
+| `/admin` | `admin/*` | 管理员后台（14 大模块） |
 | `/_test_dice` | `_test_dice.html` | 骰子测试 |
 
 ---
@@ -265,7 +298,7 @@ python app.py
 
 以北境"九子的注视"为背景的独立探索生存玩法。玩家在极寒雪原中探索、采集、战斗、生存，体验完整的 D&D 5E 规则 + 生存机制。
 
-### 7.2 事件系统（15 张表，完整 CHAIN 链式调用）
+### 7.2 事件系统（16 张表，完整 CHAIN 链式调用）
 
 | 分类 | 表名 | 说明 |
 |------|------|------|
@@ -363,10 +396,24 @@ python app.py
 | POST | `/api/community/posts` | 发帖（图片真上传） |
 | GET | `/api/community/posts/<id>` | 帖子详情 |
 | POST | `/api/community/posts/<id>/comments` | 帖子评论 |
-| GET | `/api/workshop/items` | 工坊投稿列表 |
+| GET | `/api/workshop/items` | 工坊投稿列表（搜索/分页/点赞收藏计数） |
 | POST | `/api/workshop/items` | 工坊投稿（附件真上传） |
 | GET | `/api/workshop/items/<id>` | 投稿详情（含评论） |
 | POST | `/api/workshop/items/<id>/comments` | 投稿评论 |
+| POST | `/api/community/posts/<id>/like` | 帖子点赞/取消 |
+| POST | `/api/workshop/items/<id>/like` | 工坊点赞/取消 |
+| GET | `/api/notifications` | 消息通知列表（聚合） |
+| GET | `/api/notifications/unread-count` | 未读红点数 |
+| POST | `/api/notifications/read` | 已读（单条/全部） |
+| GET | `/api/announcements/history` | 历史公告列表 |
+| POST | `/api/auth/avatar` | 上传头像（圆形裁剪） |
+| GET | `/api/users/avatars` | 批量查询用户头像 |
+| GET/POST | `/api/combat-state` | 战斗状态（时间戳版本保护，旧状态 409） |
+| POST | `/api/character/<id>/learned-spell` | 添加已学法术 |
+| POST | `/api/character/<id>/visibility` | DM 切换公开/私有角色 |
+| GET/POST | `/api/north/save` | 北境服务器存档 |
+| GET/POST | `/api/shared-canvas` | 共享画布（since_ver 增量） |
+| GET/POST | `/api/map-saves` | 服务器地图存档 |
 
 管理后台 API 统一挂载 `/admin/api/*`（全部需管理员鉴权，操作记审计日志）。
 
@@ -376,7 +423,7 @@ python app.py
 
 事件表定义在**三处**保持同步：
 
-1. `north-expedition.html` — JavaScript `TABLES` 对象（前端渲染用）
+1. `web/static/north-data.js` — JavaScript `TABLES` 对象（`window.NORTH_DATA`，前端渲染用）
 2. `dnd_bot.py` — Python 字典（QQ 机器人用）
 3. `data/随机事件表.txt` — 文字版参考文档
 
@@ -403,7 +450,7 @@ python app.py
 
 ### 10.1 添加新事件表条目
 
-1. 在 `north-expedition.html` 的 `TABLES` 对象中添加条目
+1. 在 `web/static/north-data.js` 的 `TABLES` 对象中添加条目
 2. 如需检定交互，在 `CHECK_ACTIONS` 中添加 `steps` 定义
 3. 如需自动拾取，在 `ITEM_ACTIONS` 中添加 `ranges`
 4. 同步更新 `dnd_bot.py` 中的对应 Python 字典
@@ -443,6 +490,18 @@ python app.py
 详见 `骰娘/更新日志/` 目录，每条更新一个独立 txt 文件。
 
 命名格式：`YYYY-MM-DD_序号_主题.txt`
+
+### 近期重要更新（2026-08-15 ~ 08-17）
+
+- **PostgreSQL 全量迁移**：SQLite 17 表 + 12 JSON + 282 归档 → 31 表，运行数据全部入库
+- **消息通知系统**：评论/点赞/收藏/@提及提醒、同主题聚合去重（N 人）、独立页 /notifications、导航/用户中心未读红点（30 秒轮询）
+- **官网深化**：用户头像（上传/圆形裁剪/全站展示）、酒馆/工坊点赞+搜索+分页、历史公告页、帖子/工坊独立详情页跳转
+- **地图五文件模块化**：map.js 拆为 map-idb/map-fog/map-saves/map-page + 主文件，内联 JS 全外置；战斗防回弹（时间戳保护+WS 半开降级）、临时加入先攻排序、迷雾擦除半径同步
+- **伤害/治疗聊天室广播**：攻击命中/未命中/治疗/手动伤害治疗自动广播（"⚔️ xxx 受到 n 点伤害 / 🛡️ xxx 未被击中 / 💚 xxx 恢复 n 点血量"），自然 20 重击切换播报
+- **模块化推广**：北境营地拆出 north-camp.js（第五次拆分）；character.js 拆出 character-monsters/features/inventory.js；combat.js 拆出 combat-monsters.js
+- **DM 事件消息**：带发布者署名（DM 徽章）+ 统一"事件名：事件内容"格式，标题支持"发布者名：事件名 内容"指令式发布
+- **北境深化**：五次拆分（data/main/camp/survival/guild/tavern/fx）、公会系统上线（等级晋升/积分/头衔/冒险者名修改）、存档加固（失败重试+日志裁剪 500 条）、事件日志增量渲染
+- **角色卡**：DM 公开/私有角色（is_public）、DND5E24 悲灵模板导入（含法术位）、属性/豁免编辑修复、法术书添加 500 修复
 
 ### 近期重要更新（2026-08-09）
 

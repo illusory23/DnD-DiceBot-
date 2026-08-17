@@ -520,6 +520,11 @@
                         <div class="guild-rank-badge" id="guildRankBadge">青羽</div>
                         <div class="guild-rank-info">
                             <div class="guild-rank-name" id="guildRankName">青羽冒险者</div>
+                            <div class="guild-rank-adventurer">
+                                <span class="gra-label">🧭 冒险者</span>
+                                <span class="gra-name" id="guildAdventurerName">-</span>
+                                <button class="gra-edit" onclick="northRenameAdventurer()" title="修改冒险者名">✏️</button>
+                            </div>
                             <div class="guild-rank-stats">
                                 <span class="guild-stat">🗺️ 累计事件 <b id="guildStatEvents">0</b> 次</span>
                                 <span class="guild-stat">⭐ 冒险者积分 <b id="guildStatPoints">0</b> 分</span>
@@ -608,8 +613,10 @@
         </div>
     </div>
 
+    <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
     <script src="/static/north-data.js"></script>
     <script src="/static/north-main.js"></script>
+    <script src="/static/north-camp.js"></script>
     <script src="/static/north-survival.js"></script>
     <script src="/static/north-guild.js"></script>
     <script src="/static/north-tavern.js"></script>

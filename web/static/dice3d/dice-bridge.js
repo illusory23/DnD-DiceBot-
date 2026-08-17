@@ -1,4 +1,4 @@
-// 3D物理骰子 — @3d-dice/dice-box（小窗口模式）
+// 3D物理骰子 — 与 /dice3d 掷骰界面同引擎（dice-engine-v3 + three + cannon-es，小窗口模式）
 let diceBox = null;
 let overlayEl = null;
 let panelEl = null;
@@ -113,18 +113,20 @@ export async function initDiceOverlay() {
         overlayEl.style.opacity = '0.01'; // 几乎不可见，但DOM认为可见
         await new Promise(function(r) { setTimeout(r, 120); });
 
-        var DiceBox = (await import('/static/dice-box/dice-box.es.min.js')).default;
-        diceBox = new DiceBox({
-            container: '#dice-stage',
-            assetPath: '/static/dice-box/',
-            theme: 'default',
-            themeColor: '#ffffff',
-            offscreen: false,
-            scale: 34,
-            settleTimeout: 5000
+        var DiceBox = (await import('/static/dice-engine-v3/index.js')).default;
+        // 与 /dice3d 掷骰界面完全一致的物理参数
+        diceBox = new DiceBox('#dice-stage', {
+            assetPath: '/static/dice-engine-v3/',
+            sounds: false,
+            theme_surface: 'green-felt',
+            theme_colorset: 'white',
+            theme_material: 'glass',
+            gravity_multiplier: 400,
+            light_intensity: 0.7,
+            strength: 1
         });
 
-        await diceBox.init();
+        await diceBox.initialize();
 
         // 强制 canvas 匹配容器尺寸
         if (diceBox.canvas) {
@@ -195,32 +197,29 @@ export function hideDiceOverlay() {
     if (rollBtnEl) { rollBtnEl.disabled = false; rollBtnEl.style.display = ''; rollBtnEl.textContent = '🎲 掷骰'; }
 }
 
-// 物理掷骰：等待 diceBox 自然完成。
-// 提前关闭时不做任何干预 — 让骰子自然停稳，获取真实点数
-function rollWithTimeout(notation) {
-    return new Promise(function(resolveOuter) {
-        var settled = false;
-        function done(val) {
-            if (settled) return;
-            settled = true;
-            clearTimeout(hardTimer);
-            resolveOuter(val);
-        }
-        var hardTimer = setTimeout(function() {
-            console.warn('[dice-bridge] 骰子物理引擎硬超时(20s)');
-            done(null);
-        }, 20000);
-        diceBox.roll(notation).then(function(results) {
-            var total = 0;
-            if (Array.isArray(results)) {
-                results.forEach(function(r) { total += (r.value || 0); });
-            }
-            done(total >= 1 ? total : null);
-        }).catch(function(e) {
-            console.warn('[dice-bridge] diceBox.roll 异常:', e);
-            done(null);
-        });
-    });
+// 与 /dice3d 页面一致的确定性标注：API 先算出结果，动画按结果摆放骰子
+function buildDetNotation(apiResult, notation) {
+    var m = String(notation).match(/d(\d+)/i);
+    var sides = m ? (parseInt(m[1]) || 20) : 20;
+    var rolls = apiResult.rolls || [];
+    if (sides === 100) {
+        var total = apiResult.total || 0;
+        var tens = Math.floor(total / 10) % 10, ones = total % 10;
+        if (tens === 0) tens = 10;
+        if (ones === 0) ones = 10;
+        return '2d10@' + tens + ',' + ones;
+    }
+    return (rolls.length || 1) + 'd' + sides + '@' + (rolls.join(',') || '0');
+}
+
+// 播放确定性动画（结果已由 API 确定；动画带超时兜底，避免引擎异常时卡住流程）
+function rollDetAnimation(dn) {
+    return Promise.race([
+        diceBox.roll(dn, {theme:{theme_colorset:'white'}}).catch(function(e) {
+            console.warn('[dice-bridge] dice-engine roll 异常:', e);
+        }),
+        new Promise(function(r) { setTimeout(r, 8000); })
+    ]);
 }
 
 export async function roll3D(notation) {
@@ -251,18 +250,24 @@ export async function roll3D(notation) {
         // 掷骰中：掷骰按钮禁用（标题栏 ✕ 仍可中断关闭）
         if (rollBtnEl) { rollBtnEl.disabled = true; rollBtnEl.textContent = '🎲 掷骰中...'; }
 
-        diceBox.clear();
-        // 直接等待 diceBox 物理结果，不再用外部超时竞速
-        // diceBox 内部 settleTimeout(5s) 保证不会无限等待
-        // rollWithTimeout 等骰子自然停稳，拿到的是真实物理结果
-        // 无论界面是否已被关闭（abortRequested），结果都来自同一批骰子
-        var total = await rollWithTimeout(notation);
+        if (diceBox.clearDice) { try { diceBox.clearDice(); } catch(e) {} }
+        // 与 /dice3d 掷骰界面一致：服务器先算出确定性结果，再播放 3D 物理动画
+        var resp = await fetch('/api/roll', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({expression: notation})});
+        var data = await resp.json();
+        if (data.error) {
+            console.warn('[dice-bridge] /api/roll 失败:', data.error);
+            hideDiceOverlay();
+            return null;
+        }
+        var dn = buildDetNotation(data, notation);
+        await rollDetAnimation(dn);
+        var total = data.total;
 
         // 清理状态
         hideDiceOverlay();
 
-        if (!total || total < 1) {
-            console.warn('[dice-bridge] 骰子物理结果无效');
+        if (typeof total !== 'number' || total < 1) {
+            console.warn('[dice-bridge] 骰子结果无效');
             return null;
         }
 

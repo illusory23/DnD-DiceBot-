@@ -174,7 +174,8 @@
         </div>
     </div>
 
-    <script src="/static/combat.js?v=27"></script>
+    <script src="/static/combat.js?v=29"></script>
+    <script src="/static/combat-monsters.js?v=29"></script>
 <script>
 (function(){
 window._portalUserId=null;fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById("join-username").value=d.user.username;}}).catch(function(){});var K='dnd_joined_room';
@@ -216,3 +217,4 @@ document.addEventListener('click',function(e){if(!e.target.closest('.color-row')
 </script>
 </body>
 </html>
+

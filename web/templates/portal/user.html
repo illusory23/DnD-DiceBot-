@@ -480,7 +480,7 @@ function loadNotifications(){
       var count = n.count || 1;
       var who = count > 1 ? '<b style="color:var(--gold);">' + count + ' 人</b>'
                           : '<b style="color:var(--accent);">' + escH(n.actor || '') + '</b>';
-      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('like') >= 0 ? '👍' : '💬');
+      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('fav') >= 0 ? '⭐' : (n.type.indexOf('like') >= 0 ? '👍' : '💬'));
       return '<div class="item-row"' + unread + ' style="flex-direction:column;align-items:flex-start;gap:4px;cursor:pointer;" onclick="openNotification(' + n.id + ',\'' + escH(n.link || '') + '\')">' +
         '<div style="display:flex;width:100%;gap:8px;align-items:center;">' +
           '<span>' + icon + '</span>' +
@@ -586,8 +586,8 @@ function doLogout(){
 }
 
 loadUserData();
-// 未读红点每 30 秒轮询
-setInterval(refreshUnreadCount, 30000);
+// 未读红点与通知列表每 30 秒轮询（新评论/点赞/收藏自动出现）
+setInterval(function(){ refreshUnreadCount(); loadNotifications(); }, 30000);
 
 function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
 (function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();

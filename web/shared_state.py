@@ -322,6 +322,44 @@ def apply_incremental(key: str, items: list, removed_ids: list | None = None) ->
         return _bump()
 
 
+def apply_fog_incremental(strokes: list, erasures: list,
+                          remove_stroke_ids: list | None = None,
+                          remove_erase_ids: list | None = None) -> int:
+    """迷雾增量合并（按 id 去重/删除），兼容旧无 id / 列表格式数据。
+
+    迷雾元素（雾笔/擦除轨迹）各自带唯一 id；增量只传新增/删除的元素，
+    避免每次绘制/擦除都全量重传整个迷雾数组（远程延迟与带宽的关键优化）。
+    """
+    global _explicitly_cleared
+    with _lock:
+        cur = _shared_canvas.get('fog')
+        if not isinstance(cur, dict):
+            # 旧格式兼容：空或列表（视为旧雾笔数组）→ 规范为 {strokes, erasures, visible}
+            if isinstance(cur, list):
+                cur = {'strokes': list(cur), 'erasures': [], 'visible': True}
+            else:
+                cur = {'strokes': [], 'erasures': [], 'visible': True}
+        s_map = {s.get('id'): s for s in cur.get('strokes', [])
+                 if isinstance(s, dict) and s.get('id')}
+        for s in strokes or []:
+            if isinstance(s, dict) and s.get('id'):
+                s_map[s['id']] = s
+        for rid in remove_stroke_ids or []:
+            s_map.pop(rid, None)
+        e_map = {e.get('id'): e for e in cur.get('erasures', [])
+                 if isinstance(e, dict) and e.get('id')}
+        for e in erasures or []:
+            if isinstance(e, dict) and e.get('id'):
+                e_map[e['id']] = e
+        for rid in remove_erase_ids or []:
+            e_map.pop(rid, None)
+        cur['strokes'] = list(s_map.values())
+        cur['erasures'] = list(e_map.values())
+        _shared_canvas['fog'] = cur
+        _explicitly_cleared = False
+        return _bump()
+
+
 def append_shared_strokes(strokes: list) -> int:
     """追加笔迹（按 id 去重），超限截断。返回新版本号。"""
     global _explicitly_cleared

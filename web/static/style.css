@@ -603,6 +603,10 @@ body {
 }
 
 /* ━━━ 角色详情展开面板 ━━━ */
+#char-detail {
+    display: flex;
+    flex-direction: column;
+}
 .char-detail-grid {
     display: grid;
     grid-template-columns: 230px 1fr;
@@ -610,12 +614,14 @@ body {
     align-items: start;
     max-width: 100%;
     overflow: hidden;
+    flex: 1;
+    min-height: 0;
 }
 
 .char-detail-left {
     display: flex; flex-direction: column; align-items: stretch;
     gap: 0.2rem;
-    max-height: 82vh;
+    max-height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
     font-size: 0.82rem;
@@ -623,7 +629,7 @@ body {
 
 .char-detail-right {
     min-width: 0;
-    max-height: 82vh;
+    max-height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
 }

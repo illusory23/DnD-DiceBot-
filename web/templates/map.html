@@ -266,6 +266,48 @@
         }
         .map-token.selected .token-rotate-line { display: block; }
 
+        /* ━━ 死亡标识（HP<=0 倒地） ━━ */
+        .map-token .token-dead-mark {
+            position: absolute; top: -16px; left: -10px;
+            font-size: 1.05rem; line-height: 1; z-index: 12;
+            display: none; pointer-events: none;
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.9));
+            animation: deadPulse 1.4s ease-in-out infinite;
+        }
+        .map-token .token-dead-mark.show { display: block; }
+        @keyframes deadPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.18); }
+        }
+
+        /* ━━ 攻击按钮（选中其他角色时显示） ━━ */
+        .map-token .token-attack-btn {
+            position: absolute; top: -14px; right: -10px;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, #ff5f5f, #c0392b);
+            border: 2px solid #fff; color: #fff; font-size: 0.82rem;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 13; user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65), 0 0 0 2px rgba(192,57,43,0.35);
+            transition: transform 0.12s ease;
+        }
+        .map-token .token-attack-btn:hover { transform: scale(1.2); }
+        .map-token .token-attack-btn:active { transform: scale(0.95); }
+
+        /* ━━ 治疗按钮（攻击按钮下方，选中其他角色时显示） ━━ */
+        .map-token .token-heal-btn {
+            position: absolute; top: 15px; right: -10px;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, #6fd98b, #27ae60);
+            border: 2px solid #fff; color: #fff; font-size: 0.82rem;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 13; user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65), 0 0 0 2px rgba(39,174,96,0.35);
+            transition: transform 0.12s ease;
+        }
+        .map-token .token-heal-btn:hover { transform: scale(1.2); }
+        .map-token .token-heal-btn:active { transform: scale(0.95); }
+
         /* ━━ 选择框 ━━ */
         .selection-rect {
             position: absolute;
@@ -391,6 +433,65 @@
         .dice-popup .adv-toggle-mini button:first-child { border-radius: 3px 0 0 3px; }
         .dice-popup .adv-toggle-mini button:last-child { border-radius: 0 3px 3px 0; }
         .dice-popup .adv-toggle-mini button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ━━ 攻击掷骰弹窗（独立3D物理掷骰小界面） ━━ */
+        .attack-popup {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 460px; max-width: 94vw; max-height: 86vh;
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 12px; z-index: 600;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+            flex-direction: column; overflow: hidden;
+        }
+        .attack-popup.show { display: flex; }
+        .attack-popup-header {
+            padding: 8px 12px; background: var(--accent); color: #fff;
+            font-weight: bold; font-size: 0.9rem; display: flex;
+            justify-content: space-between; align-items: center;
+            cursor: move; user-select: none; flex-shrink: 0;
+        }
+        .attack-popup-body { padding: 10px 12px; overflow-y: auto; }
+        .attack-popup-body select,
+        .attack-popup-body input {
+            width: 100%; padding: 0.35rem; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 4px;
+            color: var(--gold); font-size: 0.8rem; margin-bottom: 6px;
+        }
+        .attack-popup .attack-dice-config { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+        .attack-popup .attack-dice-config label { display: block; font-size: 0.75rem; color: var(--text-dim); }
+        .attack-popup .attack-dice-config select,
+        .attack-popup .attack-dice-config input { margin: 3px 0 0; }
+        .attack-popup .adv-toggle-mini { display: flex; gap: 0; margin-bottom: 6px; }
+        .attack-popup .adv-toggle-mini button {
+            padding: 0.2rem 0.5rem; font-size: 0.75rem;
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; flex: 1;
+        }
+        .attack-popup .adv-toggle-mini button:first-child { border-radius: 3px 0 0 3px; }
+        .attack-popup .adv-toggle-mini button:last-child { border-radius: 0 3px 3px 0; }
+        .attack-popup .adv-toggle-mini button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .attack-popup .attack-3d-toggle {
+            padding: 0.25rem 0.6rem; font-size: 0.75rem;
+            background: var(--accent); color: #fff;
+            border: 1px solid var(--gold); border-radius: 4px;
+            cursor: pointer; white-space: nowrap;
+        }
+        .attack-popup .attack-3d-toggle.off {
+            background: var(--surface2); color: var(--text);
+            border-color: var(--border);
+        }
+        .attack-popup .attack-main-btn {
+            flex: 1; padding: 0.45rem 0.6rem; border: none; border-radius: 6px;
+            color: #fff; cursor: pointer; font-size: 0.88rem; font-weight: bold;
+            background: linear-gradient(135deg, #e6c57f, #c9973a);
+            color: #241703;
+        }
+        .attack-popup .attack-main-btn.dmg {
+            background: linear-gradient(135deg, #ff6b6b, #c0392b);
+            color: #fff;
+        }
+        .attack-popup .attack-main-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
         /* ━━ 缩放指示器 ━━ */
         .zoom-indicator {
@@ -1018,6 +1119,132 @@
         </div>
     </div>
 
+    <!-- 攻击掷骰弹窗（独立3D物理掷骰小界面） -->
+    <div class="attack-popup" id="attack-popup">
+        <div class="attack-popup-header" id="attack-popup-drag">
+            ⚔️ 攻击掷骰
+            <button onclick="closeAttackPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="attack-target-name"></b>
+                <span id="attack-target-ac" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div class="attack-dice-config">
+                <label>🎲 骰子面数
+                    <select id="attack-die-sides" onchange="updateAttackStatus()">
+                        <option value="4">d4</option>
+                        <option value="6">d6</option>
+                        <option value="8">d8</option>
+                        <option value="10">d10</option>
+                        <option value="12">d12</option>
+                        <option value="20" selected>d20</option>
+                        <option value="100">d100</option>
+                    </select>
+                </label>
+                <label>➕ 加值
+                    <input id="attack-bonus" type="number" value="0" min="-100" max="100" step="1" onchange="updateAttackStatus()">
+                </label>
+            </div>
+            <div class="adv-toggle-mini" id="attack-adv">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="attack-3d-toggle" class="attack-3d-toggle" onclick="attackToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="attack-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="attack-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="attack-roll-btn" class="attack-main-btn" onclick="attackRoll()">🎲 攻击掷骰</button>
+                <button id="attack-dmg-btn" class="attack-main-btn dmg" onclick="attackDamageRoll()" style="display:none;">💥 伤害掷骰</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 伤害掷骰弹窗：命中后独立设置伤害骰 -->
+    <div class="attack-popup" id="damage-popup">
+        <div class="attack-popup-header" id="damage-popup-drag">
+            💥 伤害掷骰
+            <button onclick="closeDamagePopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="damage-target-name"></b>
+                <span id="damage-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div class="attack-dice-config">
+                <label>🎲 骰子面数
+                    <select id="damage-die-sides" onchange="updateDamageStatus()">
+                        <option value="4">d4</option>
+                        <option value="6" selected>d6</option>
+                        <option value="8">d8</option>
+                        <option value="10">d10</option>
+                        <option value="12">d12</option>
+                        <option value="20">d20</option>
+                        <option value="100">d100</option>
+                    </select>
+                </label>
+                <label>➕ 加值
+                    <input id="damage-bonus" type="number" value="0" min="-100" max="100" step="1" onchange="updateDamageStatus()">
+                </label>
+            </div>
+            <div class="adv-toggle-mini" id="damage-adv">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="damage-3d-toggle" class="attack-3d-toggle" onclick="damageToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="damage-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="damage-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="damage-roll-btn" class="attack-main-btn dmg" onclick="damageRoll()">💥 伤害掷骰并结算</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 治疗掷骰弹窗（独立3D物理掷骰小界面） -->
+    <div class="attack-popup" id="heal-popup">
+        <div class="attack-popup-header" id="heal-popup-drag">
+            💚 治疗掷骰
+            <button onclick="closeHealPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="heal-target-name"></b>
+                <span id="heal-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <input type="text" id="heal-expr" value="1d8" placeholder="如 2d8+3 / 3d6"
+                       style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+                       onkeydown="if(event.key==='Enter') healRoll()">
+                <button onclick="healRoll()" style="padding:0.35rem 0.75rem;background:var(--green);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.85rem;white-space:nowrap;">💚 治疗</button>
+            </div>
+            <div class="dice-quick" style="margin-bottom:6px;">
+                <button onclick="healQuick('1d4')">1d4</button>
+                <button onclick="healQuick('1d6')">1d6</button>
+                <button onclick="healQuick('1d8')">1d8</button>
+                <button onclick="healQuick('2d8+3')">2d8+3</button>
+                <button onclick="healQuick('3d6')">3d6</button>
+                <button onclick="healQuick('4d6')">4d6</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="heal-3d-toggle" class="attack-3d-toggle" onclick="healToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="heal-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="heal-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="heal-roll-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#6fd98b,#27ae60);color:#fff;" onclick="healRoll()">🎲 治疗掷骰</button>
+            </div>
+        </div>
+    </div>
+
     <div class="zoom-indicator" id="zoom-label">100%</div>
 
     <!-- 服务器地图选择弹窗 -->
@@ -1072,11 +1299,12 @@
 
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
-    <script src="/static/map-idb.js?v=54"></script>
-    <script src="/static/map-fog.js?v=54"></script>
-    <script src="/static/map-saves.js?v=54"></script>
-    <script src="/static/map.js?v=54"></script>
-    <script src="/static/map-page.js?v=54"></script>
+    <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
+    <script src="/static/map-idb.js?v=66"></script>
+    <script src="/static/map-fog.js?v=66"></script>
+    <script src="/static/map-saves.js?v=66"></script>
+    <script src="/static/map.js?v=66"></script>
+    <script src="/static/map-page.js?v=66"></script>
 
 
 <!-- ━━ 骰子统计排行榜 ━━ -->
@@ -1099,3 +1327,9 @@
 <button class="stats-toggle" id="stats-toggle-btn" onclick="toggleStats()" title="骰子统计">📊<br>统<br>计</button>
 </body>
 </html>
+
+
+
+
+
+

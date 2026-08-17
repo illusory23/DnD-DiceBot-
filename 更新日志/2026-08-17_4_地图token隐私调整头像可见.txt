@@ -1,0 +1,25 @@
+【2026-08-17_4】地图 token 隐私调整：他人 token 头像与名称均可见（仅信息面板拦截）
+
+修改文件：
+- web/static/map.js
+- web/templates/map.html（缓存版本号 v60 → v62）
+
+需求调整：此前 PL 视角下其他玩家 token 显示 ❓ 占位且隐藏真实头像；
+最终调整为：头像与名称均可见，仅角色信息面板不可查看。
+
+修改（refreshTokenPrivacy）：
+1. 头像：所有 token 一律保留 portraitUrl 头像（无头像时显示 👤 占位），
+   不再清空他人 token 的 backgroundImage。
+2. 名称：一律显示真实名（t.name），删除 mine 归属分支与 ❓ 占位，
+   同步移除不再使用的 getIdentity/_isDM/charDataCache 局部引用。
+3. 隐私边界保持不变（不影响其他功能）：
+   - canViewCharInfo 仍拦截 PL 点击他人 token 的信息面板
+     （提示"无法查看其他玩家的角色信息"）；
+   - 攻击/治疗按钮可见性、死亡标记等归属逻辑不变（各自独立判断）。
+
+验证：node --check map.js 语法通过。
+（显示层不再做名称/头像脱敏；唯一隐私拦截点为信息面板 canViewCharInfo）
+
+文档同步：
+- 骰娘功能总结.txt（v5.2 新增功能 🎭 行）
+- 各功能说明/地图.md（功能节 token 行 + 修改注意点第 5 条）

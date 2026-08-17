@@ -77,9 +77,13 @@
         ].join('');
         closeBtn.onmouseover = function () { closeBtn.style.color = '#ff6b6b'; };
         closeBtn.onmouseout = function () { closeBtn.style.color = 'var(--text-dim,#888)'; };
+        var publisher = document.createElement('div');
+        publisher.textContent = '📢 由 ' + (ev.publisher || 'DM') + ' 发布';
+        publisher.style.cssText = 'color:var(--text-dim,#888);font-size:0.72rem;text-align:right;margin-bottom:4px;';
+        card.appendChild(publisher);
         var title = document.createElement('div');
         title.className = 'event-popup-title';
-        title.textContent = (isPin ? '📌 置顶事件：' : '📜 事件：') + (ev.title || '');
+        title.textContent = (isPin ? '📌 置顶事件：' : '📜 ') + (ev.title || '') + (isPin ? '' : '：');
         title.style.cssText = [
             isPin ? 'color:#4dc9f6;' : 'color:var(--gold,#ffd700);',
             'font-weight:bold;font-size:1.05rem;',

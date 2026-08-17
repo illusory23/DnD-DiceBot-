@@ -1,0 +1,36 @@
+【2026-08-17_7】重击播报切换 + 事件消息格式修正
+
+修改文件：
+- web/static/map.js
+- web/templates/map.html（缓存版本号 v64 → v65）
+- web/templates/chat.html
+- web/static/event-popup.js
+
+一、自然 20 重击播报切换
+需求：攻击掷骰 d20 投出自然 20（大成功）且命中时，聊天室播报切换为
+"xxx 遭受重击，受到了 n 点伤害"。
+实现：
+1. rollAttackDice / roll3dStage 返回结构由数字改为
+   {total, isCrit}（isCrit 取 /api/roll 响应的 is_crit_success，
+   优势/劣势时同样由引擎判定）。
+2. attackRoll 记录 attackCtx.nat20；伤害结算广播处按 nat20 分支：
+   - 自然20：💥 xxx 遭受重击，受到了 n 点伤害
+   - 普通命中：⚔️ xxx 受到 n 点伤害
+3. damageRoll / healRoll 调用点同步适配新返回结构
+   （只取 r.total，行为不变）。
+
+二、DM 事件消息格式修正
+问题：发布事件后聊天室显示"📜 事件：事件名" + 内容两段，
+事件名与内容拆开且无冒号连接（弹窗同样）。
+需求：播报格式改为"事件名：事件内容"。
+实现：
+1. chat.html：事件消息渲染合并为单行
+   "📜 {event_title}：{event_content}"（原"事件："前缀去掉）。
+2. map.js 地图内聊天面板 _renderChatMsg 增加 event 分支：
+   与独立聊天室一致的单行格式（此前事件消息在地图面板按普通
+   文本显示 title+content）。
+3. event-popup.js 全平台弹窗：普通事件标题行改为
+   "📜 {事件名}："（内容行紧随其后，视觉合并为"事件名：事件内容"）；
+   置顶事件保持"📌 置顶事件：标题"公告样式不变。
+
+验证：node --check map.js 语法通过。

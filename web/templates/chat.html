@@ -514,9 +514,10 @@
                 }
                 div.className = 'chat-msg event';
                 div.setAttribute('data-event-id', msg.event_id || '');
+                const evName = esc((msg.name && msg.name !== '事件') ? msg.name : 'DM');
                 div.innerHTML = '<span class="cm-time">[' + msg.time + ']</span>' +
-                    '<div class="cm-event-title">📜 事件：' + esc(msg.event_title) + '</div>' +
-                    '<div class="cm-event-text">' + esc(msg.event_content) + '</div>';
+                    '<span class="cm-name" style="color:#ffd700;">' + evName + ' <span style="background:var(--gold);color:#000;font-size:0.6rem;padding:0 2px;border-radius:3px;">DM</span></span>' +
+                    '：<span class="cm-event-title">📜 ' + esc(msg.event_title) + '：' + esc(msg.event_content) + '</span>';
                 msgs.appendChild(div);
                 msgs.scrollTop = msgs.scrollHeight;
                 return;

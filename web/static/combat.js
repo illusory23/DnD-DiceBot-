@@ -80,7 +80,8 @@
                 hp, hpMax, ac, conditions: [],
                 charId: selectedCharId,
                 addedBy: identity.name || '',
-                addedByRole: identity.role || 'PL'
+                addedByRole: identity.role || 'PL',
+                joinedLate: combatStarted === true  // 战斗中临时加入：下一轮才进入回合顺序
             });
             // 不自动排序，等点击"开始"后再排
             _localChangeTs = Date.now();
@@ -111,9 +112,24 @@
             if (!combatants.length) return;
             const currentIdx = combatants.findIndex(c => c.isCurrent);
             if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
-            const nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % combatants.length;
-            // 如果下一位是先攻最高（绕回第一位），轮数自动+1
-            if (nextIdx === 0 && currentIdx >= 0 && combatants.length > 1) {
+            let nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % combatants.length;
+            // 战斗中临时加入的角色本轮不参与（下一轮才生效）：跳过 joinedLate
+            const hasLate = combatants.some(c => c.joinedLate);
+            let guard = 0;
+            while (combatants[nextIdx] && combatants[nextIdx].joinedLate && guard++ < combatants.length) {
+                nextIdx = (nextIdx + 1) % combatants.length;
+            }
+            // 存在临时角色且回绕到本轮已行动区域：本轮结束，自动进入下一轮
+            if (hasLate && (nextIdx === currentIdx || (currentIdx >= 0 && nextIdx < currentIdx))) {
+                combatants.forEach(c => { c.isCurrent = false; c.joinedLate = false; });
+                combatants[0].isCurrent = true;
+                const round = parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) + 1;
+                document.getElementById('round-info').textContent = `第 ${round} 轮`;
+                renderInitiative();
+                return;
+            }
+            // 无临时角色时：下一位若是先攻最高（绕回第一位），轮数自动+1
+            if (!hasLate && nextIdx === 0 && currentIdx >= 0 && combatants.length > 1) {
                 const round = parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) + 1;
                 document.getElementById('round-info').textContent = `第 ${round} 轮`;
             }
@@ -126,7 +142,17 @@
             if (!combatants.length) return;
             const currentIdx = combatants.findIndex(c => c.isCurrent);
             if (currentIdx >= 0) combatants[currentIdx].isCurrent = false;
-            const prevIdx = currentIdx <= 0 ? combatants.length - 1 : currentIdx - 1;
+            let prevIdx = currentIdx <= 0 ? combatants.length - 1 : currentIdx - 1;
+            const hasLate = combatants.some(c => c.joinedLate);
+            let guard = 0;
+            while (combatants[prevIdx] && combatants[prevIdx].joinedLate && guard++ < combatants.length) {
+                prevIdx = prevIdx <= 0 ? combatants.length - 1 : prevIdx - 1;
+            }
+            if (hasLate && (prevIdx === currentIdx || (currentIdx >= 0 && prevIdx > currentIdx))) {
+                combatants[currentIdx].isCurrent = true;
+                renderInitiative();
+                return;
+            }
             combatants[prevIdx].isCurrent = true;
             renderInitiative();
         }
@@ -134,7 +160,7 @@
         function prevRound() {
             // 上一回合：回合数-1（最少第1轮），回到先攻最高
             if (!combatants.length) return;
-            combatants.forEach(c => c.isCurrent = false);
+            combatants.forEach(c => { c.isCurrent = false; c.joinedLate = false; });
             combatants[0].isCurrent = true;
             const round = Math.max(1, parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) - 1);
             document.getElementById('round-info').textContent = `第 ${round} 轮`;
@@ -144,7 +170,7 @@
         function nextRound() {
             // 下一回合：回合数+1，回到先攻最高
             if (!combatants.length) return;
-            combatants.forEach(c => c.isCurrent = false);
+            combatants.forEach(c => { c.isCurrent = false; c.joinedLate = false; });
             combatants[0].isCurrent = true;
             const round = parseInt((document.getElementById('round-info').textContent.match(/\d+/) || ['1'])[0]) + 1;
             document.getElementById('round-info').textContent = `第 ${round} 轮`;
@@ -172,7 +198,7 @@
                     : `<span style="color:var(--text-dim);font-size:0.78rem;">先攻:</span><span style="color:var(--cyan);font-weight:bold;font-size:0.85rem;">${c.initiative || '--'}</span>`;
                 return `
                 <div class="combatant-row${c.isCurrent ? ' current' : ''}">
-                    <span class="combatant-name">${combatStarted ? (i + 1) + '. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}</span>
+                    <span class="combatant-name">${combatStarted ? (i + 1) + '. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}${c.joinedLate ? ' <span style="color:var(--gold);font-size:0.65rem;" title="战斗中临时加入，下一轮开始生效">⏳</span>' : ''}</span>
                     ${initDisplay}
                     <span class="combatant-hp" style="color:${hpColor}">❤️ ${c.hp}/${c.hpMax}</span>
                     <span class="combatant-ac">🛡️ AC ${c.ac}</span>
@@ -198,6 +224,13 @@
             const value = input.value;
             updateInitiative(index, value);
             _localChangeTs = Date.now();  // 标记本地修改时间
+            // 解除输入框聚焦，避免重渲染被跳过
+            try { input.blur(); } catch(e) {}
+            // 战斗已开始：确认先攻后按先攻值降序重排，临时加入的角色自动进入下一轮回合顺序
+            if (combatStarted && combatants.length > 1) {
+                const _initVal = c => (c.initiative === undefined || c.initiative === null || isNaN(c.initiative)) ? -Infinity : c.initiative;
+                combatants.sort((a, b) => _initVal(b) - _initVal(a));
+            }
             // 立即保存到localStorage和服务器
             if (typeof saveCombatState === 'function') saveCombatState();
             // 然后再渲染
@@ -281,112 +314,18 @@
         function clearCombat() {
             if (!confirm('确认清空战斗？')) return;
             combatants = [];
+            combatStarted = false;
             document.getElementById('round-info').textContent = '';
+            _localChangeTs = Date.now();  // 清空后 3 秒内忽略服务器旧状态，防止回弹
             renderInitiative();
             updateDmgDropdown();
             localStorage.removeItem(COMBAT_STORAGE);
+            if (typeof saveCombatState === 'function') saveCombatState();  // 同步清空到服务器
         }
 
         // ━━━ 怪物搜索 ━━━
         let selectedMonster = null;
 
-        async function searchMonster() {
-            const query = document.getElementById('monster-search').value.trim();
-            if (query.length < 2) { alert('至少输入2个字'); return; }
-
-            const resultsEl = document.getElementById('search-results');
-            resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">搜索中...</div>';
-
-            try {
-                // 先用精确搜索
-                const resp = await fetch(`/api/monster/${encodeURIComponent(query)}`);
-                const data = await resp.json();
-
-                if (!data.error) {
-                    // 精确匹配 — 直接显示详情
-                    selectedMonster = data;
-                    resultsEl.innerHTML = '';
-                    showMonsterInfo(data);
-                    return;
-                }
-
-                // 模糊搜索
-                const searchResp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-                const searchData = await searchResp.json();
-
-                if (!searchData.results || !searchData.results.length) {
-                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物</div>';
-                    document.getElementById('monster-info').innerHTML = '';
-                    return;
-                }
-
-                // 过滤只显示怪物
-                const monsters = searchData.results.filter(r => r.type === 'monster');
-                if (!monsters.length) {
-                    resultsEl.innerHTML = '<div style="color:var(--text-dim);padding:0.5rem;">未找到匹配的生物（可尝试其他关键词）</div>';
-                    return;
-                }
-
-                resultsEl.innerHTML = monsters.map(m => `
-                    <div class="search-result-item" onclick="selectMonsterResult('${m.name.replace(/'/g, "\\'")}')">
-                        <span class="name">👹 ${m.name}</span>
-                        <span class="meta">CR:${m.cr || '?'} | ${m.source || ''}</span>
-                    </div>
-                `).join('');
-
-            } catch(e) {
-                resultsEl.innerHTML = `<div style="color:var(--red);">搜索失败: ${e.message}</div>`;
-            }
-        }
-
-        async function selectMonsterResult(name) {
-            document.getElementById('monster-search').value = name;
-            const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
-            const data = await resp.json();
-            if (!data.error) {
-                selectedMonster = data;
-                document.getElementById('search-results').innerHTML = '';
-                showMonsterInfo(data);
-            }
-        }
-
-        function showMonsterInfo(monster) {
-            const el = document.getElementById('monster-info');
-            el.innerHTML = `
-                <div class="monster-info-card">
-                    <div class="title">👹 ${monster.name}${monster.name_en ? ' <small style="color:var(--text-dim)">' + monster.name_en + '</small>' : ''}</div>
-                    <div style="color:var(--gold);margin-bottom:0.5rem;">
-                        挑战等级: ${monster.cr || '?'} | ${monster.size || '?'} ${monster.type || '?'}
-                        ${monster.legendary ? ' | 传奇: ' + monster.legendary : ''}
-                    </div>
-                    ${monster.detail_text ? `<div class="detail">${monster.detail_text}</div>` : ''}
-                    <div style="color:var(--text-dim);font-size:0.8rem;">📚 来源: ${monster.source || '未知'}</div>
-                    <div class="btn-row">
-                        <button class="btn btn-primary" onclick="addMonsterToCombat()">➕ 加入战斗</button>
-                    </div>
-                </div>`;
-        }
-
-        function addMonsterToCombat() {
-            if (!selectedMonster) { alert('请先搜索并选择一个生物'); return; }
-
-            // 估算HP和AC
-            let hpEst = 10, acEst = 10;
-            const detailText = selectedMonster.detail_text || '';
-            const hpMatch = detailText.match(/生命值[：:]\s*(\d+)/) || detailText.match(/HP[：:]\s*(\d+)/i);
-            const acMatch = detailText.match(/AC[：:]\s*(\d+)/i) || detailText.match(/护甲等级[：:]\s*(\d+)/);
-            if (hpMatch) hpEst = parseInt(hpMatch[1]);
-            if (acMatch) acEst = parseInt(acMatch[1]);
-
-            // 填充表单（先攻加入后在列表中手动填入）
-            document.getElementById('combatant-name').value = selectedMonster.name || '';
-            document.getElementById('combatant-hp').value = hpEst;
-            document.getElementById('combatant-hp-max').value = hpEst;
-            document.getElementById('combatant-ac').value = acEst;
-            document.getElementById('char-select').value = '';
-            // 自动加入战斗
-            addCombatant();
-        }
 
         // ━━━ 快速骰 ━━━
         async function quickRoll() {
@@ -411,11 +350,11 @@
                 _combatLastTs = 0;
                 localStorage.removeItem(COMBAT_STORAGE);
                 fetch('/api/combat-state', {method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({state: {combatants:[], round:'', _ts:0}})}).catch(()=>{});
+                    body: JSON.stringify({state: {combatants:[], round:'', _ts:0, _force: true, started: false}})}).catch(()=>{});
                 return;
             }
             try {
-                var state = {combatants: combatants.map(c => ({...c})), round: document.getElementById('round-info')?.textContent || '', _ts: _combatLastTs};
+                var state = {combatants: combatants.map(c => ({...c})), round: document.getElementById('round-info')?.textContent || '', _ts: _combatLastTs, started: combatStarted === true};
                 localStorage.setItem(COMBAT_STORAGE, JSON.stringify(state));
                 // POST到服务器，服务器会返回新时间戳
                 fetch('/api/combat-state', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -430,18 +369,21 @@
         // 定时拉取服务器战斗状态
         setInterval(function() {
             fetch('/api/combat-state').then(function(r) { return r.json(); }).then(function(data) {
-                if (!data.ok || !data.state || !data.state.combatants) return;
+                if (!data.ok || !data.state || !Array.isArray(data.state.combatants)) return;
                 var s = data.state;
                 var remoteTs = s._ts || 0;
+                // 本地最近 3 秒有编辑时跳过远程覆盖（防闪回/防清空回弹）
+                if (Date.now() - _localChangeTs < 3000) return;
                 if (remoteTs <= _combatLastTs + 1) return;
                 _combatLastTs = remoteTs;
                 combatants = s.combatants.map(function(rc, i) {
                     var lc = combatants[i];
-                    return {name: rc.name, initiative: rc.initiative, initDetail: rc.initDetail, hp: rc.hp, hpMax: rc.hpMax, ac: rc.ac, conditions: rc.conditions, charId: rc.charId, isCurrent: rc.isCurrent, addedBy: (lc && lc.addedBy) || rc.addedBy || '', addedByRole: (lc && lc.addedByRole) || rc.addedByRole || 'PL'};
+                    return {name: rc.name, initiative: rc.initiative, initDetail: rc.initDetail, hp: rc.hp, hpMax: rc.hpMax, ac: rc.ac, conditions: rc.conditions, charId: rc.charId, isCurrent: rc.isCurrent, joinedLate: !!rc.joinedLate, addedBy: (lc && lc.addedBy) || rc.addedBy || '', addedByRole: (lc && lc.addedByRole) || rc.addedByRole || 'PL'};
                 });
+                combatStarted = s.started === true;
                 renderInitiative();
                 updateDmgDropdown();
-                if (s.round) document.getElementById('round-info').textContent = s.round;
+                if (s.round !== undefined) document.getElementById('round-info').textContent = s.round;
                 localStorage.setItem(COMBAT_STORAGE, JSON.stringify(s));
             }).catch(function() {});
         }, 3000);
@@ -454,6 +396,7 @@
                 if (!state.combatants || !state.combatants.length) return false;
                 _combatLastTs = state._ts || 0;
                 combatants = state.combatants.map(c => ({...c}));
+                combatStarted = state.started === true;  // 恢复"战斗已开始"标记
                 renderInitiative();
                 updateDmgDropdown();
                 if (state.round) {
@@ -487,30 +430,38 @@
                 _combatWs = new WebSocket(proto + '//' + location.host + '/ws');
                 _combatWs.onopen = function() {
                     // WS就绪后推送一次当前状态
-                    if (combatants.length) {
-                        _combatWs.send(JSON.stringify({
-                            type: 'combat_update',
-                            state: {combatants: combatants.map(function(c) { return {name:c.name, initiative:c.initiative, initDetail:c.initDetail, hp:c.hp, hpMax:c.hpMax, ac:c.ac, conditions:c.conditions, charId:c.charId, isCurrent:c.isCurrent}; }),
-                                    round: document.getElementById('round-info') ? document.getElementById('round-info').textContent : ''}
-                        }));
-                    }
+                    _combatWs.send(JSON.stringify({
+                        type: 'combat_update',
+                        state: {combatants: combatants.map(function(c) { return {name:c.name, initiative:c.initiative, initDetail:c.initDetail, hp:c.hp, hpMax:c.hpMax, ac:c.ac, conditions:c.conditions, charId:c.charId, isCurrent:c.isCurrent, joinedLate:c.joinedLate}; }),
+                                round: document.getElementById('round-info') ? document.getElementById('round-info').textContent : '',
+                                _ts: _combatLastTs,
+                                started: combatStarted === true}
+                    }));
                 };
                 _combatWs.onmessage = function(e) {
                     try {
                         var msg = JSON.parse(e.data);
                         if (msg.type === 'combat_update') {
                             var s = msg.state;
-                            if (!s || !s.combatants) return;
+                            if (!s || !Array.isArray(s.combatants)) return;
+                            // 本地最近 3 秒有编辑时跳过远程覆盖（防闪回/防清空回弹）
+                            if (Date.now() - _localChangeTs < 3000) return;
+                            // 本地刚清空且服务器是非空旧状态：保持清空
+                            if (!combatants.length && s.combatants.length) return;
                             // 合并远程状态（保留本地添加者信息）
                             combatants = s.combatants.map(function(rc, i) {
                                 var lc = combatants[i];
-                                return {name: rc.name, initiative: rc.initiative, initDetail: rc.initDetail, hp: rc.hp, hpMax: rc.hpMax, ac: rc.ac, conditions: rc.conditions, charId: rc.charId, isCurrent: rc.isCurrent, addedBy: (lc && lc.addedBy) || rc.addedBy || '', addedByRole: (lc && lc.addedByRole) || rc.addedByRole || 'PL'};
+                                return {name: rc.name, initiative: rc.initiative, initDetail: rc.initDetail, hp: rc.hp, hpMax: rc.hpMax, ac: rc.ac, conditions: rc.conditions, charId: rc.charId, isCurrent: rc.isCurrent, joinedLate: !!rc.joinedLate, addedBy: (lc && lc.addedBy) || rc.addedBy || '', addedByRole: (lc && lc.addedByRole) || rc.addedByRole || 'PL'};
                             });
+                            combatStarted = s.started === true;
                             renderInitiative();
                             updateDmgDropdown();
-                            if (s.round) document.getElementById('round-info').textContent = s.round;
+                            if (s.round !== undefined) document.getElementById('round-info').textContent = s.round;
                             if (s._ts) _combatLastTs = s._ts;
                             try { localStorage.setItem(COMBAT_STORAGE, JSON.stringify(s)); } catch(e) {}
+                        }
+                        if (msg.type === 'combat_update_ack') {
+                            if (msg.timestamp) _combatLastTs = msg.timestamp;
                         }
                     } catch(ex) {}
                 };
@@ -530,13 +481,14 @@
         saveCombatState = function() {
             _origSaveCombatState();
             // 通过 WS 实时广播（不等 HTTP 轮询）
-            if (_combatWs && _combatWs.readyState === WebSocket.OPEN && combatants.length) {
+            if (_combatWs && _combatWs.readyState === WebSocket.OPEN) {
                 try {
                     _combatWs.send(JSON.stringify({
                         type: 'combat_update',
-                        state: {combatants: combatants.map(function(c) { return {name:c.name, initiative:c.initiative, initDetail:c.initDetail, hp:c.hp, hpMax:c.hpMax, ac:c.ac, conditions:c.conditions, charId:c.charId, isCurrent:c.isCurrent}; }),
+                        state: {combatants: combatants.map(function(c) { return {name:c.name, initiative:c.initiative, initDetail:c.initDetail, hp:c.hp, hpMax:c.hpMax, ac:c.ac, conditions:c.conditions, charId:c.charId, isCurrent:c.isCurrent, joinedLate:c.joinedLate}; }),
                                 round: document.getElementById('round-info') ? document.getElementById('round-info').textContent : '',
-                                _ts: _combatLastTs}
+                                _ts: _combatLastTs,
+                                started: combatStarted === true}
                     }));
                 } catch(e) {}
             }

@@ -1,0 +1,30 @@
+【2026-08-17_2】法术书界面添加法术报 500（"Unexpected token '<'"）修复
+
+修改文件：
+- web/app.py
+
+问题：法术界面添加法术（手动添加 / 从资料库"添加到法术书（含详情）"）
+均失败，浏览器控制台报：
+  添加失败: Unexpected token '<', "<!doctype "... is not valid JSON
+  POST /api/character/<id>/learned-spell → 500 (INTERNAL SERVER ERROR)
+
+根因：POST /api/character/<name_or_id>/learned-spell 调用
+core/character.py 的 add_learned_spell 时使用了 range_= 关键字，
+但函数签名是 range=（无下划线），抛出
+  TypeError: add_learned_spell() got an unexpected keyword argument 'range_'.
+Flask 返回默认 HTML 500 错误页，前端按 JSON 解析报 "Unexpected token '<'"。
+（learned_spells 表本身正常：应用上下文内直接调用 add_learned_spell
+写入/查询均成功，排除数据库问题。）
+
+修复：web/app.py 中该接口的 range_=data.get('range', '') 改为
+range=data.get('range', '')，与函数签名一致。
+
+排查范围：
+1. 全库搜索 range_= 确认无其他残留调用点。
+2. prepared-spell 接口（api_add_prepared_spell）只传
+   char_id/spell_name/spell_level，不涉及 range 参数，无同类问题。
+
+验证（Flask test client 模拟前端请求）：
+- 修复前：POST 返回 500 + HTML 错误页（复现根因 TypeError 堆栈）✓
+- 修复后：POST 返回 200，{"success":true,"spell_id":30,"name":"火球术"}，
+  测试数据已删除 ✓

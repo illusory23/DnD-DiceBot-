@@ -40,11 +40,13 @@
         // 点在任一擦除圆盘内（进行中轨迹也计入）
         function fogPointInEraseDisk(x, y) {
             if (fogErasures.length === 0 && fogErasePoints.length === 0) return false;
-            const r = eraserRadius();
             const all = fogErasures;
             const live = fogErasePoints;
             for (let k = 0; k < all.length + (live.length >= 1 ? 1 : 0); k++) {
-                const pts = k < all.length ? all[k].points : live;
+                const er = k < all.length ? all[k] : null;
+                const pts = er ? er.points : live;
+                // 每条擦除轨迹保存自己擦除时的半径；进行中的轨迹用当前画笔粗细
+                const r = er ? (er.radius > 0 ? er.radius : eraserRadius()) : eraserRadius();
                 for (let i = 0; i < pts.length - 1; i++) {
                     if (fogPointSegDist(x, y, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y) <= r) return true;
                 }
@@ -55,8 +57,11 @@
         // 擦除完成：记录擦除轨迹（版本化缓存自动增量判定），仅经过路径的部分消失
         function removeFogByErasePath() {
             if (fogErasePoints.length === 0) return;
-            fogErasures.push({points: fogErasePoints.slice()});
-            window._markDirty('fog');
+            // 记录擦除时的半径：之后切换画笔粗细不影响已擦除洞的大小，远程端也按各自半径渲染
+            const erasure = {id: genStrokeId(), points: fogErasePoints.slice(), radius: eraserRadius()};
+            fogErasures.push(erasure);
+            // WS 在线时增量推送这条擦除轨迹（远程立即看到，无需全量重传）
+            if (window._pushFogIncremental) window._pushFogIncremental([], [erasure], [], []);
             debouncedSave();
         }
 
@@ -120,7 +125,7 @@
             if (currentFogStroke && currentFogStroke.points.length >= 1) drawFogShapeTo(fogMaskCtx, currentFogStroke, fogLineWidth());
             // 橡皮挖洞（destination-out 像素级）：洞宽 = 橡皮直径，含进行中的擦除轨迹（所见即所得）
             fogMaskCtx.globalCompositeOperation = 'destination-out';
-            for (const er of fogErasures) drawFogShapeTo(fogMaskCtx, er, eraserRadius() * 2);
+            for (const er of fogErasures) drawFogShapeTo(fogMaskCtx, er, (er.radius > 0 ? er.radius : eraserRadius()) * 2);
             if (fogErasePoints.length >= 1) drawFogShapeTo(fogMaskCtx, {points: fogErasePoints, closed: false}, eraserRadius() * 2);
             fogMaskCtx.globalCompositeOperation = 'source-over';
 

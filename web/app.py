@@ -158,6 +158,20 @@ def _ensure_user_columns():
     except Exception as _e:
         _app_logger.warning(f'补列 users 表失败: {_e}')
 
+
+def _ensure_character_columns():
+    """旧库补列：characters.is_public（DM 公开角色，幂等）。"""
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        cols = {c['name'] for c in _sa_inspect(db.engine).get_columns('characters')}
+        if 'is_public' not in cols:
+            with db.engine.begin() as conn:
+                conn.exec_driver_sql(
+                    "ALTER TABLE characters ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT FALSE")
+            _app_logger.info('已补列 characters.is_public')
+    except Exception as _e:
+        _app_logger.warning(f'补列 characters.is_public 失败: {_e}')
+
 # ━━━ 静态文件缓存 ━━━
 from werkzeug.serving import make_server
 # 本地工具场景优先保证代码改动立即可见：JS/CSS 不做长缓存，避免浏览器沿用旧版脚本
@@ -329,6 +343,7 @@ _app_logger = get_logger('dicebot')
 # 旧库补列（is_active / last_login_ip），依赖 _app_logger，需在应用上下文内执行
 with app.app_context():
     _ensure_user_columns()
+    _ensure_character_columns()
 
 # ━━━ DM/主机系统 ━━━
 _dm_name: str | None = None      # 当前DM的显示名
@@ -417,6 +432,7 @@ from .shared_state import (
     get_shared_canvas, get_shared_canvas_ts, update_shared_canvas,
     append_shared_strokes, apply_incremental, remove_shared_strokes,
     clear_shared_canvas, get_state_snapshot, get_version, save_layer_image,
+    apply_fog_incremental,
 )
 
 _ws_connected: set = set()
@@ -581,13 +597,51 @@ def ws_canvas(ws):
                 # ━━ 战斗状态同步 ━━
                 if data.get('type') == 'combat_update':
                     state = data.get('state', {})
-                    if state and state.get('combatants'):
+                    if isinstance(state, dict) and 'combatants' in state:
                         global _combat_state, _combat_state_ts
+                        # 版本保护：客户端基于旧状态的推送不覆盖新状态（防网络延迟回弹）
+                        base_ts = float(state.get('_ts', 0) or 0)
+                        if not state.get('_force') and base_ts < _combat_state_ts - 0.001:
+                            state['_ts'] = _combat_state_ts
+                            state['_conflict'] = True
+                            try:
+                                ws.send(_json.dumps({
+                                    'type': 'combat_update_conflict',
+                                    'state': _combat_state,
+                                    'timestamp': _combat_state_ts,
+                                }))
+                            except Exception:
+                                pass
+                            continue
                         _combat_state = state
                         _combat_state_ts = _time.time()
                         state['_ts'] = _combat_state_ts
                         _save_combat_state()
                         _ws_broadcast(_json.dumps(data), exclude=ws)
+                        # 给发起者回确认（携带服务器时间戳），让本地时间戳与服务器同步
+                        try:
+                            ws.send(_json.dumps({
+                                'type': 'combat_update_ack',
+                                'timestamp': _combat_state_ts,
+                                'state': state,
+                                '_cid': data.get('_cid'),
+                            }))
+                        except Exception:
+                            pass
+                    continue
+
+                # ━━ 迷雾增量同步（雾笔/擦除轨迹按 id 合并，避免全量重传）━━
+                if data.get('type') == 'fog_incr':
+                    d = data.get('data', {})
+                    ver = apply_fog_incremental(
+                        d.get('strokes') or [],
+                        d.get('erasures') or [],
+                        d.get('removeStrokes') or [],
+                        d.get('removeErasures') or [],
+                    )
+                    if ver is not None:
+                        data['_ver'] = ver
+                    _ws_broadcast(_json.dumps(data), exclude=ws)
                     continue
 
                 # ━━ 画布同步消息 ━━
@@ -961,8 +1015,8 @@ def api_list_characters():
         chars = list_characters()
         groups = list_character_groups()
     elif name:
-        # PL 有用户名 → 只看自己创建的
-        chars = list_characters(created_by=name)
+        # PL 有用户名 → 看自己创建的 + DM 公开的角色
+        chars = list_characters(created_by=name, include_public=True)
         groups = list_character_groups(created_by=name)
     else:
         # PL 未设置用户名 → 看不到任何角色（安全性）
@@ -970,6 +1024,26 @@ def api_list_characters():
         groups = []
 
     return jsonify({'characters': chars, 'groups': groups})
+
+
+@app.route('/api/characters/hp', methods=['GET'])
+def api_characters_hp():
+    """批量获取角色 HP（轻量，供地图死亡标识轮询）"""
+    ids_arg = request.args.get('ids', '')
+    id_list = []
+    for part in ids_arg.split(','):
+        try:
+            id_list.append(int(part))
+        except (TypeError, ValueError):
+            continue
+    if not id_list:
+        return jsonify({'ok': True, 'hp': []})
+    from core.models import Character
+    chars = Character.query.filter(Character.id.in_(id_list)).all()
+    return jsonify({'ok': True, 'hp': [
+        {'id': c.id, 'hp_current': c.hp_current, 'hp_max': c.hp_max}
+        for c in chars
+    ]})
 
 
 @app.route('/api/characters/reorder', methods=['POST'])
@@ -1372,7 +1446,7 @@ def api_add_learned_spell(name_or_id):
         spell_level=int(data.get('level', 0)),
         school=data.get('school', ''),
         casting_time=data.get('casting_time', ''),
-        range_=data.get('range', ''),
+        range=data.get('range', ''),
         duration=data.get('duration', ''),
         components=data.get('components', ''),
         ritual=data.get('ritual', '否'),
@@ -1720,6 +1794,23 @@ def api_update_character_field(name_or_id):
     return jsonify({'success': True, 'field': field, 'value': value})
 
 
+@app.route('/api/character/<name_or_id>/visibility', methods=['POST'])
+def api_set_character_visibility(name_or_id):
+    """DM 设置角色公开/私有。公开角色对全体玩家可见（PL 只读）。"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    role = (request.args.get('role') or '').strip()
+    if role != 'DM':
+        return jsonify({'error': '仅 DM 可以设置角色可见性'}), 403
+
+    data = request.get_json(silent=True) or {}
+    is_public = bool(data.get('is_public', False))
+    update_character(char['id'], is_public=is_public)
+    return jsonify({'success': True, 'is_public': is_public})
+
+
 @app.route('/api/character/<name_or_id>/spell-slots', methods=['PUT'])
 def api_update_spell_slots(name_or_id):
     """直接设置法术位（x/y格式，x为当前已用，y为最大）"""
@@ -1793,7 +1884,11 @@ def api_get_portrait(name_or_id):
     }
     mimetype = mimetypes.get(ext, 'application/octet-stream')
 
-    return send_file(str(resolved_path), mimetype=mimetype)
+    resp = send_file(str(resolved_path), mimetype=mimetype)
+    # 头像不缓存：上传新头像后立即显示新图，避免浏览器命中旧缓存
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 
 @app.route('/api/character/<name_or_id>/portrait', methods=['PUT'])
@@ -1869,11 +1964,12 @@ def api_upload_portrait(name_or_id):
     if ext not in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'):
         return jsonify({'error': f'不支持的图片格式: {ext}'}), 400
 
-    # 保存到 resources/头像/<角色名><ext>
+    # 保存到 resources/头像/<角色名>_<角色id><ext>
+    # 文件名带角色 id：不同角色同名也不会互相覆盖头像（PL 与 DM 同名角色同理）
     avatar_dir = RESOURCES_DIR / '头像'
     avatar_dir.mkdir(exist_ok=True)
     safe_name = ''.join(c for c in char['name'] if c not in r'<>:"/\|?*')
-    filename = f'{safe_name}{ext}'
+    filename = f'{safe_name}_{char_id}{ext}'
     save_path = avatar_dir / filename
 
     try:
@@ -3522,14 +3618,30 @@ def api_dm_event_publish():
     if len(content) > 2000:
         return jsonify({'ok': False, 'error': '事件内容过长（最多2000字）'})
 
+    # 指令式发布解析："事件 {身份}：{事件名} {内容}" ——
+    # 标题形如 "{发布者名}：{事件名} {内容}" 时拆分为事件名+内容（身份用于消息署名）
+    ev_title, ev_content = title, content
+    _prefix = name + '：' if name else ''
+    if not _prefix:
+        _prefix = name + ':' if name else ''
+    if _prefix and title.startswith(_prefix):
+        rest = title[len(_prefix):].strip()
+        if rest:
+            if ' ' in rest:
+                sp = rest.split(' ', 1)
+                ev_title, ev_content = sp[0].strip(), (sp[1].strip() or content)
+            else:
+                ev_title = rest
+
     ts = _time.time()
 
     # 0. 创建发布历史记录（供 DM 管理页撤回/置顶）
     pub_id = max([e.get('id', 0) for e in _dm_published_events], default=0) + 1
     pub_record = {
         'id': pub_id,
-        'title': title,
-        'content': content,
+        'title': ev_title,
+        'content': ev_content,
+        'publisher': name,
         'published_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
         'recalled_at': None,
         'pinned': False,
@@ -3537,16 +3649,16 @@ def api_dm_event_publish():
     _dm_published_events.append(pub_record)
     _save_dm_published_events()
 
-    # 1. 聊天室同步显示（独立事件样式，非DM名义）
+    # 1. 聊天室同步显示（事件消息带发布者署名，格式"事件名：事件内容"）
     _chat_messages.append({
-        'name': '事件',
-        'text': title + '\n' + content,
+        'name': name,
+        'text': ev_title + '：' + ev_content,
         'time': _time.strftime('%H:%M:%S'),
-        'is_dm': False,
+        'is_dm': True,
         'color': '#ffd700',
         'event': True,
-        'event_title': title,
-        'event_content': content,
+        'event_title': ev_title,
+        'event_content': ev_content,
         'event_id': pub_id,
         'ip': 'system',
         '_ts': ts,
@@ -3557,8 +3669,9 @@ def api_dm_event_publish():
     # 2. 全平台弹窗通知广播（各页面 event-popup.js 轮询拉取）
     _event_notifications.append({
         'event_id': pub_id,
-        'title': title,
-        'content': content,
+        'title': ev_title,
+        'content': ev_content,
+        'publisher': name,
         'time': _time.strftime('%H:%M:%S'),
         '_ts': ts,
         'recalled': False,
@@ -4116,6 +4229,16 @@ def api_push_combat_state():
     global _combat_state, _combat_state_ts
     data = request.get_json(silent=True) or {}
     state = data.get('state', {})
+    if not isinstance(state, dict):
+        state = {}
+    # 版本保护：客户端基于旧状态的推送不覆盖新状态（防网络延迟回弹）
+    base_ts = float(state.get('_ts', 0) or 0)
+    if not state.get('_force') and base_ts < _combat_state_ts - 0.001:
+        return jsonify({
+            'ok': False, 'conflict': True,
+            'state': _combat_state,
+            'timestamp': _combat_state_ts,
+        }), 409
     _combat_state_ts = _time.time()
     state['_ts'] = _combat_state_ts
     _combat_state = state
@@ -4715,8 +4838,8 @@ def _notify(user_id, ntype: str, actor: str, content: str, link: str, group_key:
                            link=link, read=False, group_key=group_key, count=1,
                            created_at=now))
         db.session.commit()
-    except Exception:
-        pass
+    except Exception as _e:
+        _app_logger.error(f'通知写入失败 user_id={user_id} type={ntype}: {_e}')
 
 
 def _notify_author(author_name: str, ntype: str, actor: str, content: str, link: str,
@@ -4727,6 +4850,8 @@ def _notify_author(author_name: str, ntype: str, actor: str, content: str, link:
     author = _UserModel.query.filter_by(username=author_name).first()
     if author and author.username != actor:
         _notify(author.id, ntype, actor, content, link, group_key)
+    elif not author:
+        _app_logger.warning(f'通知未发送：找不到用户 [{author_name}]（帖子/投稿作者名与账号用户名不一致，可能改过名）')
 
 
 _MENTION_RE = _re.compile(r'@([\w一-龥-]{2,30})')
@@ -5702,18 +5827,24 @@ def _save_favorites(data: dict):
 
 
 def _favorite_title(fav: dict) -> str:
-    """补全收藏项的标题/作者（用于我的收藏展示）"""
+    """补全收藏项的标题/作者（用于我的收藏展示）。
+
+    帖子/工坊投稿存储在 JSON 文件（community.json / workshop.json），
+    需从同源读取，否则 PostgreSQL 模型查不到导致收藏列表为空。
+    """
     try:
         if fav.get('type') == 'post':
-            from core.models import CommunityPost as _CP
-            p = _CP.query.filter_by(id=fav.get('item_id')).first()
+            with _community_lock:
+                posts = _load_json_file(_COMMUNITY_FILE, [])
+            p = next((x for x in posts if x.get('id') == fav.get('item_id')), None)
             if p:
-                return {'title': p.title or '', 'author': p.author or ''}
+                return {'title': p.get('title', ''), 'author': p.get('author', '')}
         elif fav.get('type') == 'workshop':
-            from core.models import WorkshopItem as _WI
-            it = _WI.query.filter_by(id=fav.get('item_id')).first()
+            with _community_lock:
+                items = _load_json_file(_WORKSHOP_FILE, [])
+            it = next((x for x in items if x.get('id') == fav.get('item_id')), None)
             if it:
-                return {'title': it.title or '', 'author': it.author or ''}
+                return {'title': it.get('title', ''), 'author': it.get('author', '')}
     except Exception:
         pass
     return {'title': '', 'author': ''}
@@ -5769,6 +5900,26 @@ def api_toggle_favorite():
             'created_at': _time.strftime('%Y-%m-%d %H:%M:%S'),
         })
         _save_favorites(store)
+        # 被收藏通知（自己收藏自己不通知；同项聚合；作者从 JSON 数据源读取）
+        try:
+            if fav_type == 'post':
+                with _community_lock:
+                    posts = _load_json_file(_COMMUNITY_FILE, [])
+                target = next((p for p in posts if p.get('id') == item_id), None)
+                if target:
+                    _notify_author(target.get('author'), 'post_fav', user.username,
+                                   f'收藏了你的帖子《{str(target.get("title", ""))[:30]}》',
+                                   f'/post/{item_id}', group_key=f'post_fav:{item_id}')
+            elif fav_type == 'workshop':
+                with _community_lock:
+                    items = _load_json_file(_WORKSHOP_FILE, [])
+                target = next((s for s in items if s.get('id') == item_id), None)
+                if target:
+                    _notify_author(target.get('author'), 'workshop_fav', user.username,
+                                   f'收藏了你的投稿《{str(target.get("title", ""))[:30]}》',
+                                   f'/workshop/{item_id}', group_key=f'workshop_fav:{item_id}')
+        except Exception:
+            pass
         return jsonify({'ok': True, 'favorited': True})
 
 
@@ -5979,8 +6130,31 @@ def api_auth_update_profile():
             return jsonify({'ok': False, 'error': '用户名仅限中文、字母、数字、下划线、连字符'}), 400
         if _UserModel.query.filter_by(username=new_username).first():
             return jsonify({'ok': False, 'error': '用户名已存在'}), 409
+        old_username = user.username
         user.username = new_username
         _flask_session['username'] = new_username
+        # 同步更新历史帖子/投稿的作者名：否则改名后他人点赞/收藏/评论，
+        # 通知按旧用户名找不到作者，发布者收不到消息
+        try:
+            with _community_lock:
+                posts = _load_json_file(_COMMUNITY_FILE, [])
+                p_changed = False
+                for p in posts:
+                    if p.get('author') == old_username:
+                        p['author'] = new_username
+                        p_changed = True
+                if p_changed:
+                    _save_json_file(_COMMUNITY_FILE, posts)
+                items = _load_json_file(_WORKSHOP_FILE, [])
+                w_changed = False
+                for s in items:
+                    if s.get('author') == old_username:
+                        s['author'] = new_username
+                        w_changed = True
+                if w_changed:
+                    _save_json_file(_WORKSHOP_FILE, items)
+        except Exception:
+            pass
     if new_email and new_email != user.email:
         if _UserModel.query.filter_by(email=new_email).first():
             return jsonify({'ok': False, 'error': '邮箱已被使用'}), 409

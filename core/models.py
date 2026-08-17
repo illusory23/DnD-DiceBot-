@@ -91,6 +91,7 @@ class Character(db.Model):
     name = db.Column(db.String(100), nullable=False)
     player = db.Column(db.String(100), default='')
     created_by = db.Column(db.String(100), default='')
+    is_public = db.Column(db.Boolean, default=False)  # DM 公开角色：所有玩家可见
     level = db.Column(db.Integer, default=1)
     class_ = db.Column('class', db.String(50), default='')
     race = db.Column(db.String(50), default='')

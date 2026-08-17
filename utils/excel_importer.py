@@ -793,11 +793,29 @@ def _import_dnd5e24(ws, cells: dict) -> dict:
     }
     result['spell_info'] = spell_info
 
-    # ━━ 法术位（E63-E71 = 1-9环）━━
+    # ━━ 法术位 ━
+    # 悲灵 v1.0.1 模板：B62='环阶'标签，B63-B71=1-9环；
+    #   G列='已用/最大'输入格（模板默认'/'，填后如'1/2'或纯数字）；
+    #   J62='法术值'标签，J63-J71=每环法术位数量（如1级法师J63=2）。
+    # 兼容旧布局：E63-E71（早期模板把法术位数值放在E列）。
     spell_slots = {}
     for level in range(1, 10):
-        max_slots = _safe_int(cells.get(f'E{62 + level}'))
-        spell_slots[str(level)] = {'max': max_slots or 0, 'used': 0}
+        row = 62 + level
+        used, max_slots = 0, 0
+        # G列优先：'已用/最大'格式
+        g_val = str(cells.get(f'G{row}', '') or '').strip()
+        g_match = re.match(r'^(\d+)\s*/\s*(\d+)$', g_val)
+        if g_match:
+            used = int(g_match.group(1))
+            max_slots = int(g_match.group(2))
+        else:
+            if g_val.isdigit():
+                max_slots = int(g_val)
+            else:
+                # J列（法术值）为主，E列为旧布局兜底
+                max_slots = (_safe_int(cells.get(f'J{row}'))
+                             or _safe_int(cells.get(f'E{row}')) or 0)
+        spell_slots[str(level)] = {'max': max_slots, 'used': used}
     result['spell_slots'] = spell_slots
 
     # ━━ 法术列表：Q57-Q66=无消耗法术(戏法), Y57-Y66=准备法术(X列=等级) ━━

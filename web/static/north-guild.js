@@ -44,6 +44,8 @@
                 if (badge) { badge.textContent = rank.rank; badge.style.color = rank.color; }
                 const nameEl = document.getElementById('guildRankName');
                 if (nameEl) nameEl.textContent = rank.rank + ' 冒险者';
+                const advEl = document.getElementById('guildAdventurerName');
+                if (advEl) advEl.textContent = window.NORTH_CTX.username || '-';
                 const evEl = document.getElementById('guildStatEvents');
                 if (evEl) evEl.textContent = window.NORTH_CTX.statsData.total;
                 const ptEl = document.getElementById('guildStatPoints');
