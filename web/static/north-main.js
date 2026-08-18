@@ -438,6 +438,12 @@
                 return false;
             }
 
+            // 探索中锁定角色切换：仅在营地（深度0）或昏迷倒下时允许切换
+            function canSwitchChar() {
+                if (survival.exploreDepth > 0 && !isKnockedDown()) return false;
+                return true;
+            }
+
             // 事件结算锁：动画播放中 或 材料未确认时，禁止下一次事件
             let _eventLocked = false;
             let pendingGains = []; // 待确认的物品/钱币收益
@@ -1276,6 +1282,17 @@
                     ointBtn.disabled = !hasOintment;
                     ointBtn.textContent = survival.coldResist > 0 ? '🧴 药膏中(' + survival.coldResist + ')' : '🧴 涂药膏';
                 }
+                // 治疗药水按钮：背包有治疗药水时可用
+                var hasPotion = false;
+                if (activeChar && activeChar.inventory) {
+                    for (var si3 = 0; si3 < activeChar.inventory.length; si3++) {
+                        if (activeChar.inventory[si3].name === '治疗药水' && activeChar.inventory[si3].qty > 0) {
+                            hasPotion = true; break;
+                        }
+                    }
+                }
+                var potionBtn = document.getElementById('usePotionBtn');
+                if (potionBtn) potionBtn.disabled = !hasPotion || (activeChar && (activeChar.hp || 0) >= (activeChar.hpMax || 0));
 
                 // 时间显示
                 var ti = formatGameTime();
@@ -2034,8 +2051,10 @@
                     _displayRendered = 0;
                     return;
                 }
-                // 存档恢复/导入后日志重建，强制全量重绘
-                if (forceFull || _displayRendered > displayLog.length) {
+                // 存档恢复/导入后日志重建，强制全量重绘；
+                // 注意：displayLog 满 MAX_DISPLAY 后 push+shift 条数不变，
+                // 此时"已渲染条数==总条数"不能跳过渲染，必须全量重绘（否则新事件不显示）
+                if (forceFull || _displayRendered >= displayLog.length) {
                     outputEl.innerHTML = displayLog.map(e => e.html).join('');
                     _displayRendered = displayLog.length;
                 } else {
@@ -2404,6 +2423,7 @@
                 const saveData = {
                     version: 2,
                     exportTime: now.toISOString(),
+                    _advAvatar: _advAvatarUrl,
                     charData: charData,
                     activeCharId: activeCharId,
                     survival: survival,
@@ -2512,6 +2532,8 @@
                         }
                         if (saveData.bookPages) bookPages = saveData.bookPages;
                         if (saveData.statsData) statsData = saveData.statsData;
+                        // 冒险者头像（徽章）
+                        if (saveData._advAvatar !== undefined) { _advAvatarUrl = saveData._advAvatar || ''; applyAdvAvatar(); }
                         window.NORTH_GUILD.updateRankUI(); // 等级随存档事件数恢复
                         if (saveData.discoveredItems) discoveredItems = saveData.discoveredItems;
                         if (saveData.eventSubStats) eventSubStats = saveData.eventSubStats;
@@ -2653,6 +2675,7 @@
                 return {
                     version: 3,
                     _northName: _northUsername,
+                    _advAvatar: _advAvatarUrl,
                     charData: charData,
                     activeCharId: activeCharId,
                     survival: survival,
@@ -2774,6 +2797,8 @@
                         if (sd.wsSmeltCoal !== undefined) wsSmeltCoal = sd.wsSmeltCoal;
                         if (sd.wsSmeltBars !== undefined) wsSmeltBars = sd.wsSmeltBars;
                         if (sd.wsSmeltIngot !== undefined) wsSmeltIngot = sd.wsSmeltIngot;
+                        // 冒险者头像（徽章）
+                        if (sd._advAvatar !== undefined) { _advAvatarUrl = sd._advAvatar || ''; applyAdvAvatar(); }
                         // 刷新UI（存档恢复后强制全量重绘日志）
                         renderDisplayLog(true);
                         updateSurvivalUI();
@@ -3095,6 +3120,74 @@
                 updateSurvivalUI();
             }
 
+            // 使用背包中的可交互物品（治疗/驱寒类，效果表见 north-data.js ITEM_USE_TABLE）
+            function useBackpackItem(itemName) {
+                if (checkKnockdown()) return;
+                var table = (window.NORTH_DATA && window.NORTH_DATA.ITEM_USE_TABLE) || {};
+                var cfg = table[itemName];
+                if (!cfg) { return; }
+                if (!activeChar || !activeChar.inventory) { addSystemLog('⚠️ 请先选择角色', 'warning'); return; }
+                // 驱寒药膏走既有全套逻辑（扣减/严寒/抵抗）
+                if (cfg.ointment) {
+                    doUseOintment();
+                    refreshBagUseUI();
+                    return;
+                }
+                // 纯治疗物品满血拦截（先于扣减，防药水白扣；绒蜂蜜含寒冷抗性收益不拦截）
+                if (cfg.heal && !cfg.coldResist
+                    && (activeChar.hp || 0) >= (activeChar.hpMax || 0)) {
+                    addSystemLog('💡 血量已满，无需使用' + itemName, 'warning');
+                    return;
+                }
+                var found = false;
+                for (var i = 0; i < activeChar.inventory.length; i++) {
+                    if (activeChar.inventory[i].name === itemName && activeChar.inventory[i].qty > 0) {
+                        activeChar.inventory[i].qty--;
+                        if (activeChar.inventory[i].qty <= 0) activeChar.inventory.splice(i, 1);
+                        found = true; break;
+                    }
+                }
+                if (!found) { addSystemLog('🎒 背包中没有' + itemName, 'warning'); return; }
+                var heal = 0;
+                if (cfg.heal) {
+                    heal = rollDiceExpr(cfg.heal);
+                    var hpBefore = activeChar.hp || 0;
+                    activeChar.hp = Math.min(hpBefore + heal, activeChar.hpMax || hpBefore);
+                    heal = activeChar.hp - hpBefore;
+                    addSystemLog('🧪 使用了 ' + itemName + '，恢复 ' + heal + ' 点血量', 'success');
+                }
+                if (cfg.coldResist) {
+                    survival.coldResist = Math.max(survival.coldResist || 0, cfg.coldResist);
+                    addSystemLog('❄️ ' + itemName + ' 带来寒冷抗性，接下来 ' + cfg.coldResist + ' 次事件抵抗寒冷体质豁免（包括严寒考验）', 'success');
+                }
+                // 回写存档引用 + 刷新 UI（addSystemLog 已触发 2 秒防抖存档）
+                if (charData[activeCharId]) charData[activeCharId] = activeChar;
+                refreshBagUseUI();
+            }
+
+            // 使用物品后的 UI 刷新（生存面板/角色面板/营地各背包）
+            // 每步独立 try-catch：单步失败不影响其他区域刷新
+            function refreshBagUseUI() {
+                try { updateSurvivalUI(); } catch (e) { console.error('[北境] updateSurvivalUI 刷新失败:', e); }
+                // 探索页角色面板：仅角色有效且面板存在时渲染
+                // （renderCharDetail 对无效 id 会把 activeChar 置 null，必须先守卫）
+                try {
+                    if (typeof renderCharDetail === 'function' && activeCharId && charData[activeCharId]
+                        && document.getElementById('charDetailContainer')) {
+                        renderCharDetail(activeCharId);
+                    }
+                } catch (e) { console.error('[北境] renderCharDetail 刷新失败:', e); }
+                try {
+                    if (document.getElementById('campCharDetail')) renderCampCharSheet();
+                } catch (e) { console.error('[北境] renderCampCharSheet 刷新失败:', e); }
+                try {
+                    if (window.NORTH_CAMP) {
+                        if (window.NORTH_CAMP.refreshAllShopBackpacks) window.NORTH_CAMP.refreshAllShopBackpacks();
+                        if (window.NORTH_CAMP.storageRender) window.NORTH_CAMP.storageRender();
+                    }
+                } catch (e) { console.error('[北境] 营地背包刷新失败:', e); }
+            }
+
             // 长休消耗：4燃料 + 2口粮/食物（优先口粮）
             function consumeRestCosts() {
                 var fuelPriority = ['firewood','pine_branch','resin','glow_moss','iron_resin'];
@@ -3299,6 +3392,41 @@
 
             var _northUsername = '';
             var _northUserId = null;
+            var _advAvatarUrl = '';   // 冒险者头像（徽章）URL，随存档保存
+
+            // 应用冒险者头像：有 URL 显示图片，无则恢复默认徽章 🐺
+            function applyAdvAvatar() {
+                const av = document.getElementById('advAvatar');
+                if (!av) return;
+                if (_advAvatarUrl) {
+                    av.style.backgroundImage = 'url(' + _advAvatarUrl + ')';
+                    av.textContent = '';
+                } else {
+                    av.style.backgroundImage = '';
+                    av.textContent = '🐺';
+                }
+            }
+
+            // 上传冒险者头像（徽章）→ 保存 URL → 触发自动存档
+            function uploadAdvAvatar(file) {
+                if (!file) return;
+                var fd = new FormData();
+                fd.append('avatar', file);
+                fetch('/api/north/avatar', { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+                    if (d.ok && d.url) {
+                        _advAvatarUrl = d.url + '?t=' + Date.now();
+                        applyAdvAvatar();
+                        addSystemLog('🖼️ 冒险者头像（徽章）已更新', 'success');
+                        // 头像变更触发自动存档（未登录仅会话内生效）
+                        clearTimeout(addSystemLog._saveTimer);
+                        addSystemLog._saveTimer = setTimeout(saveNorthToServer, 2000);
+                    } else {
+                        alert('头像上传失败：' + (d.error || '未知错误'));
+                    }
+                }).catch(function(){
+                    alert('头像上传失败：网络错误');
+                });
+            }
 
             function showContent() {
                 if (_introDone) return;
@@ -3509,12 +3637,32 @@
 
                 charSelect.addEventListener('change', function() {
                     if (this.value) {
+                        // 探索中锁定角色切换：回到营地或昏迷倒下后才可切换
+                        if (!canSwitchChar()) {
+                            addSystemLog('🚫 探索中无法切换角色，请先返回营地', 'warning');
+                            this.value = activeCharId || '';
+                            return;
+                        }
                         renderCharDetail(this.value);
                         // 同步到营地界面
                         var campSel = document.getElementById('campCharSelect');
                         if (campSel) { campSel.value = this.value; renderCampCharDetail(this.value); }
                     }
                 });
+
+                // 冒险者头像（徽章）上传：点击头像 → 选择图片 → 上传并展示
+                const advAvatarEl = document.getElementById('advAvatar');
+                const advAvatarInput = document.getElementById('advAvatarInput');
+                if (advAvatarEl && advAvatarInput) {
+                    advAvatarEl.addEventListener('click', function() {
+                        advAvatarInput.click();
+                    });
+                    advAvatarInput.addEventListener('change', function() {
+                        uploadAdvAvatar(this.files && this.files[0]);
+                        this.value = '';
+                    });
+                }
+                applyAdvAvatar();
 
                 document.getElementById('healBtn').addEventListener('click', function() {
                     const amount = prompt('输入治疗量（正数）:', '5');
@@ -3530,6 +3678,7 @@
                 document.getElementById('lightBtn').addEventListener('click', doLight);
                 document.getElementById('consumeRationBtn').addEventListener('click', doConsumeRation);
                 document.getElementById('useOintmentBtn').addEventListener('click', doUseOintment);
+                document.getElementById('usePotionBtn').addEventListener('click', function() { useBackpackItem('治疗药水'); });
                 // 顶部标签切换
                 const exploreView = document.getElementById('exploreView');
                 const campView = document.getElementById('campView');
@@ -3717,6 +3866,7 @@
             window.NORTH_CAMP_CTX.renderCharDetail = renderCharDetail;
             window.NORTH_CAMP_CTX.renderCampCharSheet = renderCampCharSheet;
             window.NORTH_CAMP_CTX.findWpNum = findWpNum;
+            window.NORTH_CAMP_CTX.useBackpackItem = useBackpackItem;
 
                 // ━━ 皮革旧书系统 ━━
                 // 状态变量已移至全局（bookOpen, activeBookTab, bookPages, currentPageIdx）
@@ -4249,7 +4399,9 @@
                     html += `<span style="color:#5a7a9a;font-size:0.62rem;">（点击数值修改）</span></div>`;
                     html += `<div style="font-size:0.7rem;color:#7aacd8;margin-bottom:0.2rem;">📦 物品 (${data.inventory.length}件)</div>`;
                     data.inventory.forEach(function(it, i) {
-                        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.08rem 0;font-size:0.7rem;"><span class="cc-editable" onclick="campEditItem('${id}',${i})">${esc(it.name)} ${it.qty>1?'x'+it.qty:''} <span style="color:#5a7a9a;font-size:0.6rem;">${esc(it.location||'背包')}</span></span><span style="color:#e0556a;cursor:pointer;font-size:0.65rem;" onclick="campDelItem('${id}',${i})" title="删除">✕</span></div>`;
+                        var useCfg = (window.NORTH_DATA && window.NORTH_DATA.ITEM_USE_TABLE) ? window.NORTH_DATA.ITEM_USE_TABLE[it.name] : null;
+                        var useBtn = useCfg ? `<span style="color:#8fd08a;cursor:pointer;font-size:0.62rem;margin-right:0.45rem;background:rgba(60,140,80,0.2);border:1px solid rgba(100,180,120,0.45);border-radius:3px;padding:0 4px;line-height:1.4;white-space:nowrap;" onclick="event.stopPropagation();window.NORTH_CAMP_CTX.useBackpackItem('${esc(it.name)}')" title="${esc(useCfg.desc || '使用')}">使用</span>` : '';
+                        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.08rem 0;font-size:0.7rem;"><span class="cc-editable" onclick="campEditItem('${id}',${i})">${esc(it.name)} ${it.qty>1?'x'+it.qty:''} <span style="color:#5a7a9a;font-size:0.6rem;">${esc(it.location||'背包')}</span></span><span style="display:flex;align-items:center;">${useBtn}<span style="color:#e0556a;cursor:pointer;font-size:0.65rem;" onclick="campDelItem('${id}',${i})" title="删除">✕</span></span></div>`;
                     });
                     if (!data.inventory.length) html += '<div style="color:#5a7a9a;font-size:0.7rem;text-align:center;padding:0.3rem;">暂无物品</div>';
                     html += `<button class="cc-tag" style="margin-top:0.3rem;cursor:pointer;background:rgba(60,140,220,0.15);border:none;color:#88ccff;font-size:0.65rem;padding:0.15rem 0.6rem;" onclick="campAddItem('${id}')">+ 添加物品</button>`;
@@ -4499,6 +4651,12 @@
                 // 营地角色选择器
                 document.getElementById('campCharSelect').addEventListener('change', function() {
                     if (this.value) {
+                        // 探索中锁定角色切换：回到营地或昏迷倒下后才可切换
+                        if (!canSwitchChar()) {
+                            addSystemLog('🚫 探索中无法切换角色，请先返回营地', 'warning');
+                            this.value = activeCharId || '';
+                            return;
+                        }
                         renderCampCharDetail(this.value);
                         // 同步到探索界面
                         charSelect.value = this.value;

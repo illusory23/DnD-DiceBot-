@@ -70,6 +70,7 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
     <a href="/user">用户中心</a>
     <a href="/notifications" class="active">消息通知 <span class="notify-badge" id="nav-badge">0</span></a>
     <a href="/announcements">平台公告</a>
+    <a href="/guide">新手指南</a>
   </div>
 </nav>
 
@@ -90,6 +91,7 @@ function notifyIcon(type){
   if (type === 'mention') return '@️';
   if (type.indexOf('fav') >= 0) return '⭐';
   if (type.indexOf('like') >= 0) return '👍';
+  if (type.indexOf('friend') >= 0) return '🤝';
   return '💬';
 }
 

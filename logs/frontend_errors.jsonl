@@ -692,3 +692,10 @@
 {"time": "2026-08-17 20:11:40", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
 {"time": "2026-08-17 20:12:18", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
 {"time": "2026-08-17 20:12:18", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 13:45:14", "message": "config is not defined", "source": "Promise", "lineno": 0, "colno": 0, "url": "http://localhost:5000/map", "page": "/map", "username": "天冥", "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0", "stack": "ReferenceError: config is not defined\n    at window.damageRoll (http://localhost:5000/static/map.js?v=67:3027:86)\n    at HTMLButtonElement.onclick (http://localhost:5000/map:1259:97)"}
+{"time": "2026-08-18 22:49:15", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 22:49:15", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 22:49:19", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 22:49:19", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 22:49:21", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}
+{"time": "2026-08-18 22:49:21", "message": "", "source": "", "lineno": 0, "colno": 0, "url": "", "page": "", "username": "", "userAgent": "", "stack": ""}

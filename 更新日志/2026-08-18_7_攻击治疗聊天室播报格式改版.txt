@@ -1,0 +1,42 @@
+2026-08-18_7_攻击治疗聊天室播报格式改版
+════════════════════════════════════════════════════
+
+【需求】
+地图攻击/治疗的聊天室语音播报格式改为带发起者与方式的完整句式：
+- 攻击命中：{发起攻击的角色} 使用 {攻击方式} 击中了 {被攻击对象}，
+  {被攻击对象} 受到了 {伤害掷骰结果} 点伤害
+- 治疗：{发起治疗的角色} 使用 {治疗方式}，{被治疗对象} 回复了
+  {回复掷骰结果} 点血量
+
+【实现】
+一、map.js 数据补充：
+  1. pickAttackSource：cfg 增加 sourceName（武器名/法术名纯名称，
+     与显示用 sourceLabel "武器 · xx" 区分）
+  2. attackCtx 增加 sourceName 字段（openAttackPopup 保存）
+  3. pickHealSource：cfg 增加 sourceName（物品名/法术名）
+  4. healCtx 增加 healerName / sourceName 字段（openHealPopup 保存）
+
+二、播报格式（map.js）：
+  1. 伤害播报（damageRoll）：
+     "{攻击者} 使用 {攻击方式} 击中了 {目标}，{目标} 受到了 {dmg} 点伤害"
+     例：小明 使用 长剑 击中了 哥布林，哥布林 受到了 5 点伤害
+     - 自然 20 重击："{攻击者} 使用 {攻击方式} 重击击中了 {目标}，
+       {目标} 受到了 {dmg} 点伤害"
+     - 倒地仍追加"，已倒地！"
+     - 自由攻击无攻击者时回退 "攻击 击中了 {目标}，..."
+  2. 治疗播报（healRoll）：
+     "{治疗者} 使用 {治疗方式}，{目标} 回复了 {heal} 点血量"
+     例：小红 使用 治疗药水，小明 回复了 7 点血量
+     - 满血仍追加"，已满血！"
+     - 自由治疗无治疗者时回退 "治疗，{目标} 回复了 {heal} 点血量"
+  3. 未命中播报与战斗面板手动伤害/治疗播报保持原格式不变
+
+三、map.html 五个 JS 缓存版本号 v=69 → v=70
+
+【涉及文件】
+- web/static/map.js（pickAttackSource/attackCtx/pickHealSource/healCtx/
+  damageRoll 播报/healRoll 播报）
+- web/templates/map.html（版本号）
+
+【验证】
+- node --check map.js 通过

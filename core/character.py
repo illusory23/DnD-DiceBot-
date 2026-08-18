@@ -565,7 +565,8 @@ def long_rest(char_id: int) -> dict:
     char.temp_hp = 0
     for slot in char.spell_slots:
         slot.used_slots = slot.max_slots  # used=当前拥有数量，长休恢复全满
-    char.hd_count = int(char.hit_dice.split('d')[1]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
+    # 长休恢复生命骰：取 hit_dice 的数量前缀（如 "3d8" → 3），而非骰面数
+    char.hd_count = int(char.hit_dice.split('d')[0]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
     if char.death_saves:
         char.death_saves.successes = 0
         char.death_saves.failures = 0

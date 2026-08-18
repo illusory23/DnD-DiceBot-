@@ -39,7 +39,13 @@
                         var sellHint = isSupply ? 'title="点击出售 ' + it.name + ' ×' + it.qty + '"' : 'title="' + it.name + ' ×' + it.qty + '"';
                         html += '<div class="ws-bp-item" ' + clickHandler + ' ' + sellHint + '>';
                         html += '<span class="bp-name">' + (it.name.length > 5 ? it.name.slice(0,5)+'…' : it.name) + '</span>';
-                        html += '<span class="bp-qty">×' + it.qty + '</span></div>';
+                        html += '<span class="bp-qty">×' + it.qty + '</span>';
+                        // 可交互物品（治疗/驱寒类）附加"使用"小按钮，阻止冒泡避免触发出售
+                        var useCfg = (window.NORTH_DATA && window.NORTH_DATA.ITEM_USE_TABLE) ? window.NORTH_DATA.ITEM_USE_TABLE[it.name] : null;
+                        if (useCfg) {
+                            html += '<span class="bp-use" style="margin-top:2px;font-size:0.56rem;color:#8fd08a;background:rgba(60,140,80,0.25);border:1px solid rgba(100,180,120,0.45);border-radius:3px;padding:0 5px;cursor:pointer;line-height:1.4;" onclick="event.stopPropagation();window.NORTH_CAMP_CTX.useBackpackItem(\'' + it.name.replace(/'/g, "\\'") + '\')" title="' + (useCfg.desc || '使用') + '">使用</span>';
+                        }
+                        html += '</div>';
                     }
                     // 金币显示
                     if (window.NORTH_CAMP_CTX.activeChar && window.NORTH_CAMP_CTX.activeChar.coins) {
@@ -639,6 +645,11 @@
                         html += '<div class="st-bp-item" onclick="backpackToStorage('+i+')" title="点击存入仓库">';
                         html += '<span class="st-name">'+it.name+'</span>';
                         html += '<span class="st-qty">×'+it.qty+'</span>';
+                        // 可交互物品（治疗/驱寒类）附加"使用"小按钮，阻止冒泡避免触发存入仓库
+                        var useCfg = (window.NORTH_DATA && window.NORTH_DATA.ITEM_USE_TABLE) ? window.NORTH_DATA.ITEM_USE_TABLE[it.name] : null;
+                        if (useCfg) {
+                            html += '<span class="st-use" style="margin-top:2px;font-size:0.56rem;color:#8fd08a;background:rgba(60,140,80,0.25);border:1px solid rgba(100,180,120,0.45);border-radius:3px;padding:0 5px;cursor:pointer;line-height:1.4;" onclick="event.stopPropagation();window.NORTH_CAMP_CTX.useBackpackItem(\'' + it.name.replace(/'/g, "\\'") + '\')" title="' + (useCfg.desc || '使用') + '">使用</span>';
+                        }
                         html += '</div>';
                     }
                     // 金币显示

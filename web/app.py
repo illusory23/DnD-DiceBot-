@@ -4396,6 +4396,64 @@ def announcements_page():
     return render_template('portal/announcements.html')
 
 
+# ━━━ 更新日志（历史版本页，读取 骰娘/更新日志/ 目录） ━━━
+_CHANGELOG_DIR = _Path(__file__).parent.parent / '更新日志'
+_CHANGELOG_RE = _re.compile(r'^(\d{4}-\d{2}-\d{2})_(\d+)_(.+?)\.txt$')
+
+
+@app.route('/api/changelog')
+def api_changelog_list():
+    """公开接口：列出 更新日志/ 目录下全部日志（按日期+序号数字倒序）。"""
+    entries = []
+    try:
+        parsed = []
+        for f in _CHANGELOG_DIR.glob('*.txt'):
+            m = _CHANGELOG_RE.match(f.name)
+            if not m:
+                continue
+            parsed.append((f, m))
+        # 按 (日期, 序号) 数字倒序：文件名字符串倒序在序号≥10 时排序错误（_9_ > _10_）
+        for f, m in sorted(parsed, key=lambda pm: (pm[1].group(1), int(pm[1].group(2))), reverse=True):
+            entries.append({
+                'filename': f.name,
+                'date': m.group(1),
+                'seq': int(m.group(2)),
+                'title': m.group(3),
+                'size': f.stat().st_size,
+            })
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'entries': entries})
+
+
+@app.route('/api/changelog/<path:filename>')
+def api_changelog_content(filename):
+    """公开接口：读取单个更新日志内容（纯文本；防路径穿越）。"""
+    fname = _os.path.basename(filename)
+    if not fname.endswith('.txt') or not _CHANGELOG_RE.match(fname):
+        return jsonify({'ok': False, 'error': '文件名不合法'}), 400
+    fp = _CHANGELOG_DIR / fname
+    try:
+        content = fp.read_text(encoding='utf-8', errors='replace')
+    except FileNotFoundError:
+        return jsonify({'ok': False, 'error': '文件不存在'}), 404
+    except Exception:
+        return jsonify({'ok': False, 'error': '读取失败'}), 500
+    return jsonify({'ok': True, 'filename': fname, 'content': content})
+
+
+@app.route('/changelog')
+def changelog_page():
+    """官网历史版本更新日志页。"""
+    return render_template('portal/changelog.html')
+
+
+@app.route('/guide')
+def guide_page():
+    """官网新手使用指南页（静态内容）。"""
+    return render_template('portal/guide.html')
+
+
 @app.route('/post/<int:post_id>')
 def post_detail_page(post_id):
     """酒馆帖子独立详情页（收藏/列表跳转用）。"""
@@ -4919,6 +4977,187 @@ def api_notifications_mark_read():
         db.session.commit()
         return jsonify({'ok': True})
     return jsonify({'ok': False, 'error': '参数错误'}), 400
+
+
+# ━━━ 好友系统（2026-08-18，双向好友：申请→接受→成为好友）━━━
+
+@app.route('/api/users/search')
+def api_user_search():
+    """按用户名或用户 ID 搜索用户（好友添加前置，登录）。返回与自己的好友关系状态。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return jsonify({'ok': False, 'error': '请输入用户名或用户ID'}), 400
+    from core.models import FriendRequest as _FR
+    targets = []
+    if q.isdigit():
+        t = _UserModel.query.filter_by(id=int(q)).first()
+        if t:
+            targets = [t]
+    else:
+        exact = _UserModel.query.filter_by(username=q).first()
+        if exact:
+            targets = [exact]
+        else:
+            targets = _UserModel.query.filter(_UserModel.username.ilike('%' + q + '%')).limit(10).all()
+    now = _time.strftime('%Y-%m-%d %H:%M:%S')
+    users = []
+    for t in targets:
+        if t.id == user.id:
+            continue  # 不返回自己
+        pair = ((_FR.user_id == user.id) & (_FR.target_id == t.id)) | \
+               ((_FR.user_id == t.id) & (_FR.target_id == user.id))
+        if _FR.query.filter(pair, _FR.status == 'accepted').first():
+            relation = 'friend'
+        elif _FR.query.filter_by(user_id=user.id, target_id=t.id, status='pending').first():
+            relation = 'pending_out'
+        elif _FR.query.filter_by(user_id=t.id, target_id=user.id, status='pending').first():
+            relation = 'pending_in'
+        else:
+            relation = 'none'
+        users.append({'id': t.id, 'username': t.username,
+                      'avatar_url': t.avatar_url or '', 'relation': relation})
+    return jsonify({'ok': True, 'users': users})
+
+
+@app.route('/api/friends/request', methods=['POST'])
+def api_friend_request():
+    """发送好友申请（按用户名）。反向 pending 自动转接受互加。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    data = request.get_json(silent=True) or {}
+    target_name = (data.get('target_username') or '').strip()
+    if not target_name:
+        return jsonify({'ok': False, 'error': '请输入对方用户名'}), 400
+    target = _UserModel.query.filter_by(username=target_name).first()
+    if not target:
+        return jsonify({'ok': False, 'error': '用户不存在'}), 404
+    if target.id == user.id:
+        return jsonify({'ok': False, 'error': '不能添加自己为好友'}), 400
+    from core.models import FriendRequest as _FR
+    now = _time.strftime('%Y-%m-%d %H:%M:%S')
+    pair = ((_FR.user_id == user.id) & (_FR.target_id == target.id)) | \
+           ((_FR.user_id == target.id) & (_FR.target_id == user.id))
+    accepted = _FR.query.filter(pair, _FR.status == 'accepted').first()
+    if accepted:
+        return jsonify({'ok': False, 'error': '你们已经是好友了'}), 400
+    my_pending = _FR.query.filter_by(user_id=user.id, target_id=target.id,
+                                     status='pending').first()
+    if my_pending:
+        return jsonify({'ok': False, 'error': '好友申请已发送，等待对方处理'}), 400
+    # 对方已向我发过 pending：直接互加
+    reverse = _FR.query.filter_by(user_id=target.id, target_id=user.id,
+                                  status='pending').first()
+    if reverse:
+        reverse.status = 'accepted'
+        reverse.responded_at = now
+        db.session.commit()
+        _notify(reverse.user_id, 'friend_accept', user.username,
+                '接受了你的好友请求', '/user')
+        return jsonify({'ok': True, 'accepted': True, 'message': '对方已向你发送过申请，你们已互相成为好友'})
+    db.session.add(_FR(user_id=user.id, target_id=target.id, status='pending',
+                       created_at=now, responded_at=''))
+    db.session.commit()
+    _notify(target.id, 'friend_request', user.username,
+            '请求加你为好友', '/user')
+    return jsonify({'ok': True, 'accepted': False, 'message': '好友申请已发送'})
+
+
+@app.route('/api/friends/respond', methods=['POST'])
+def api_friend_respond():
+    """处理好友申请：{request_id, action: accept|reject}。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    data = request.get_json(silent=True) or {}
+    from core.models import FriendRequest as _FR
+    fr = _FR.query.filter_by(id=data.get('request_id'), target_id=user.id).first()
+    if not fr or fr.status != 'pending':
+        return jsonify({'ok': False, 'error': '申请不存在或已处理'}), 404
+    action = data.get('action')
+    if action not in ('accept', 'reject'):
+        return jsonify({'ok': False, 'error': '参数错误'}), 400
+    now = _time.strftime('%Y-%m-%d %H:%M:%S')
+    fr.status = 'accepted' if action == 'accept' else 'rejected'
+    fr.responded_at = now
+    db.session.commit()
+    if action == 'accept':
+        _notify(fr.user_id, 'friend_accept', user.username,
+                '接受了你的好友请求', '/user')
+    return jsonify({'ok': True})
+
+
+def _friend_to_dict(other_id: int):
+    """好友信息（含用户名与头像，供列表展示）。"""
+    other = db.session.get(_UserModel, other_id)
+    if not other:
+        return None
+    return {'id': other.id, 'username': other.username,
+            'avatar_url': other.avatar_url or ''}
+
+
+@app.route('/api/friends')
+def api_friend_list():
+    """我的好友列表（accepted 双向）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    from core.models import FriendRequest as _FR
+    rows = _FR.query.filter(
+        ((_FR.user_id == user.id) | (_FR.target_id == user.id)),
+        _FR.status == 'accepted',
+    ).all()
+    friends = []
+    for r in rows:
+        other_id = r.target_id if r.user_id == user.id else r.user_id
+        info = _friend_to_dict(other_id)
+        if info:
+            friends.append(info)
+    return jsonify({'ok': True, 'friends': friends})
+
+
+@app.route('/api/friends/pending')
+def api_friend_pending():
+    """待处理请求：收到的（可接受/拒绝）+ 已发出的。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    from core.models import FriendRequest as _FR
+    incoming = _FR.query.filter_by(target_id=user.id, status='pending').all()
+    outgoing = _FR.query.filter_by(user_id=user.id, status='pending').all()
+    received = []
+    for r in incoming:
+        info = _friend_to_dict(r.user_id)
+        if info:
+            info['request_id'] = r.id
+            info['created_at'] = r.created_at or ''
+            received.append(info)
+    sent = []
+    for r in outgoing:
+        info = _friend_to_dict(r.target_id)
+        if info:
+            info['request_id'] = r.id
+            sent.append(info)
+    return jsonify({'ok': True, 'received': received, 'sent': sent})
+
+
+@app.route('/api/friends/<int:other_id>', methods=['DELETE'])
+def api_friend_delete(other_id):
+    """删除好友（删除双方 accepted 记录）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    from core.models import FriendRequest as _FR
+    _FR.query.filter(
+        ((_FR.user_id == user.id) & (_FR.target_id == other_id)) |
+        ((_FR.user_id == other_id) & (_FR.target_id == user.id)),
+        _FR.status == 'accepted',
+    ).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/api/community/posts/<int:post_id>/like', methods=['POST'])
@@ -6369,6 +6608,50 @@ def api_north_list_saves():
             'size': len(s.save_data) if s.save_data else 0,
         } for s in saves],
     })
+
+
+@app.route('/api/north/avatar', methods=['POST'])
+def api_north_avatar_upload():
+    """北境冒险者头像（徽章）上传。multipart/form-data 字段 'avatar'。
+
+    登录用户：north_u<user_id>.<ext> 命名，上传时自动删除同用户旧头像；
+    未登录：north_temp.<ext> 单文件覆盖（仅当前会话生效，与北境存档行为一致）。
+    """
+    if 'avatar' not in request.files:
+        return jsonify({'ok': False, 'error': '请选择图片文件'}), 400
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'ok': False, 'error': '未选择文件'}), 400
+
+    ext = _os.path.splitext(file.filename)[1].lower()
+    if ext not in _AVATAR_EXTS:
+        return jsonify({'ok': False, 'error': '仅支持图片格式: JPG/PNG/GIF/WEBP/BMP'}), 400
+
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > _AVATAR_MAX:
+        return jsonify({'ok': False, 'error': '图片过大（最大2MB）'}), 400
+
+    user = _get_current_user()
+    if user:
+        fname = f'north_u{user.id}{ext}'
+        # 删除同用户旧头像（可能是其他扩展名）
+        for old in _AVATAR_DIR.glob(f'north_u{user.id}.*'):
+            try:
+                old.unlink()
+            except Exception:
+                pass
+    else:
+        fname = f'north_temp{ext}'
+
+    try:
+        _AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+        file.save(str(_AVATAR_DIR / fname))
+    except Exception as _e:
+        return jsonify({'ok': False, 'error': f'头像保存失败: {_e}'}), 500
+
+    return jsonify({'ok': True, 'url': f'/static/avatars/{fname}'})
 
 
 def run_server():

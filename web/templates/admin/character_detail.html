@@ -45,7 +45,7 @@ async function loadDetail() {
                 <div class="detail-item"><div class="detail-label">先攻加值</div><div class="detail-value">${c.initiative_bonus || 0}</div></div>
                 <div class="detail-item"><div class="detail-label">速度</div><div class="detail-value">${c.speed || 30} ft.</div></div>
                 <div class="detail-item"><div class="detail-label">熟练加值</div><div class="detail-value">+${c.proficiency_bonus || 2}</div></div>
-                <div class="detail-item"><div class="detail-label">生命骰</div><div class="detail-value">${c.hd_count || 1}${c.hit_dice || 'd8'}</div></div>
+                <div class="detail-item"><div class="detail-label">生命骰</div><div class="detail-value">${c.hit_dice || '1d8'}</div></div>
                 <div class="detail-item"><div class="detail-label">XP</div><div class="detail-value">${c.xp || 0}</div></div>
                 <div class="detail-item"><div class="detail-label">被动察觉</div><div class="detail-value">${c.passive_perception || 10}</div></div>
                 <div class="detail-item"><div class="detail-label">施法属性</div><div class="detail-value">${Admin.escHtml(c.spellcasting_ability || '-')}</div></div>

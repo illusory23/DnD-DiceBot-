@@ -97,6 +97,7 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
     <a href="/">首页</a>
     <a href="/user" class="active">用户中心</a>
     <a href="/notifications">消息通知</a>
+    <a href="/guide">新手指南</a>
     <a href="#" onclick="doLogout()">退出</a>
   </div>
 </nav>
@@ -175,6 +176,26 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
     </div>
     <div class="card-body">
       <div class="item-list" id="notify-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 我的好友 ━━ -->
+  <div class="card">
+    <div class="card-header">🤝 我的好友</div>
+    <div class="card-body">
+      <!-- 搜索添加：输入用户名或ID → 搜索 → 结果中点添加好友发申请 -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="friend-search-input" placeholder="输入对方用户名或用户ID，搜索添加好友" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;" onkeydown="if(event.key==='Enter')searchFriendUser()">
+        <button class="btn btn-primary btn-sm" onclick="searchFriendUser()" style="white-space:nowrap;">🔍 搜索</button>
+      </div>
+      <!-- 搜索结果（头像+用户名+ID+添加按钮，按关系状态显示） -->
+      <div id="friend-search-result" style="display:none;margin-bottom:12px;"></div>
+      <!-- 待处理请求（收到的可接受/拒绝 + 已发送的等待处理） -->
+      <div id="friend-requests" style="margin-bottom:12px;"></div>
+      <!-- 好友列表 -->
+      <div class="item-list" id="friend-list">
         <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
       </div>
     </div>
@@ -462,6 +483,7 @@ function renderUser(user){
   loadNotifications();
   refreshUnreadCount();
   loadMyComments();
+  loadFriendsData();
 }
 
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -480,7 +502,7 @@ function loadNotifications(){
       var count = n.count || 1;
       var who = count > 1 ? '<b style="color:var(--gold);">' + count + ' 人</b>'
                           : '<b style="color:var(--accent);">' + escH(n.actor || '') + '</b>';
-      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('fav') >= 0 ? '⭐' : (n.type.indexOf('like') >= 0 ? '👍' : '💬'));
+      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('fav') >= 0 ? '⭐' : (n.type.indexOf('like') >= 0 ? '👍' : (n.type.indexOf('friend') >= 0 ? '🤝' : '💬')));
       return '<div class="item-row"' + unread + ' style="flex-direction:column;align-items:flex-start;gap:4px;cursor:pointer;" onclick="openNotification(' + n.id + ',\'' + escH(n.link || '') + '\')">' +
         '<div style="display:flex;width:100%;gap:8px;align-items:center;">' +
           '<span>' + icon + '</span>' +
@@ -511,6 +533,120 @@ function refreshUnreadCount(){
     var c = (d.ok && d.count) ? d.count : 0;
     if (c > 0) { badge.style.display = ''; badge.textContent = c + ' 未读'; }
     else { badge.style.display = 'none'; }
+  }).catch(function(){});
+}
+
+/* ━━ 好友系统 ━━ */
+function searchFriendUser(){
+  var q = document.getElementById('friend-search-input').value.trim();
+  if (!q) { Toast.show('请输入用户名或用户ID', 'error'); return; }
+  fetch('/api/users/search?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-search-result');
+    if (!el) return;
+    if (!d.ok) { Toast.show(d.error || '搜索失败', 'error'); return; }
+    var list = d.users || [];
+    el.style.display = '';
+    if (!list.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:8px;font-size:0.8rem;">未找到该用户</div>';
+      return;
+    }
+    el.innerHTML = list.map(function(u){
+      var btn;
+      if (u.relation === 'friend') {
+        btn = '<span style="font-size:0.72rem;color:var(--gold);white-space:nowrap;">✓ 已是好友</span>';
+      } else if (u.relation === 'pending_out') {
+        btn = '<span style="font-size:0.72rem;color:var(--text-dim);white-space:nowrap;">⏳ 申请中</span>';
+      } else if (u.relation === 'pending_in') {
+        btn = '<button class="btn btn-sm btn-primary" onclick="sendFriendRequest(\'' + escH(u.username) + '\')">✓ 接受并互加</button>';
+      } else {
+        btn = '<button class="btn btn-sm btn-primary" onclick="sendFriendRequest(\'' + escH(u.username) + '\')">➕ 添加好友</button>';
+      }
+      return '<div class="item-row">' + friendAvatarHtml(u) +
+        '<span style="flex:1;font-size:0.82rem;">' + escH(u.username) +
+        ' <span style="color:var(--text-dim);font-size:0.7rem;">ID: ' + u.id + '</span></span>' + btn +
+      '</div>';
+    }).join('');
+  }).catch(function(){ Toast.show('网络错误，搜索失败', 'error'); });
+}
+
+function sendFriendRequest(targetUsername){
+  fetch('/api/friends/request', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({target_username: targetUsername}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '发送失败', 'error'); return; }
+    Toast.show(d.message || '好友申请已发送', 'success');
+    loadFriendsData();
+    searchFriendUser();  // 刷新搜索结果中的关系状态（已是好友/申请中）
+  }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+function respondFriend(requestId, action){
+  fetch('/api/friends/respond', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({request_id: requestId, action: action}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '操作失败', 'error'); return; }
+    Toast.show(action === 'accept' ? '已接受好友请求' : '已拒绝好友请求', 'success');
+    loadFriendsData();
+    loadNotifications();
+  }).catch(function(){ Toast.show('网络错误，操作失败', 'error'); });
+}
+
+function deleteFriend(friendId, friendName){
+  if (!confirm('确定删除好友「' + friendName + '」吗？')) return;
+  fetch('/api/friends/' + friendId, {method: 'DELETE'})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { Toast.show(d.error || '删除失败', 'error'); return; }
+      Toast.show('已删除好友', 'success');
+      loadFriendsData();
+    }).catch(function(){ Toast.show('网络错误，删除失败', 'error'); });
+}
+
+function friendAvatarHtml(f){
+  if (!f.avatar_url) return '<span style="width:26px;height:26px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;flex-shrink:0;">⚔️</span>';
+  return '<img src="' + escH(f.avatar_url) + '" onerror="this.style.display=\'none\'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;">';
+}
+
+function loadFriendsData(){
+  fetch('/api/friends').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-list');
+    if (!el) return;
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">请先登录</div>'; return; }
+    var list = d.friends || [];
+    if (!list.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无好友，输入用户名搜索添加</div>';
+      return;
+    }
+    el.innerHTML = list.map(function(f){
+      return '<div class="item-row">' + friendAvatarHtml(f) +
+        '<span class="item-name" style="flex:1;color:var(--text);">' + escH(f.username) + '</span>' +
+        '<button class="btn btn-sm" onclick="deleteFriend(' + f.id + ',\'' + escH(f.username) + '\')" style="border-color:var(--red);color:var(--red);">🗑 删除</button>' +
+      '</div>';
+    }).join('');
+  }).catch(function(){});
+
+  fetch('/api/friends/pending').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-requests');
+    if (!el || !d.ok) return;
+    var html = '';
+    (d.received || []).forEach(function(r){
+      html += '<div class="item-row" style="margin-bottom:6px;border-color:var(--accent);">' +
+        '<span>📩</span>' + friendAvatarHtml(r) +
+        '<span style="flex:1;font-size:0.82rem;"><b style="color:var(--accent);">' + escH(r.username) + '</b> 请求加你为好友</span>' +
+        '<button class="btn btn-sm btn-primary" onclick="respondFriend(' + r.request_id + ',\'accept\')">✓ 接受</button>' +
+        '<button class="btn btn-sm" onclick="respondFriend(' + r.request_id + ',\'reject\')">✕ 拒绝</button>' +
+      '</div>';
+    });
+    (d.sent || []).forEach(function(r){
+      html += '<div class="item-row" style="margin-bottom:6px;">' +
+        '<span>📤</span>' + friendAvatarHtml(r) +
+        '<span style="flex:1;font-size:0.82rem;color:var(--text-dim);">已向 <b style="color:var(--gold);">' + escH(r.username) + '</b> 发送申请，等待处理</span>' +
+      '</div>';
+    });
+    el.innerHTML = html;
   }).catch(function(){});
 }
 
@@ -586,8 +722,8 @@ function doLogout(){
 }
 
 loadUserData();
-// 未读红点与通知列表每 30 秒轮询（新评论/点赞/收藏自动出现）
-setInterval(function(){ refreshUnreadCount(); loadNotifications(); }, 30000);
+// 未读红点与通知列表每 30 秒轮询（新评论/点赞/收藏/好友请求自动出现）
+setInterval(function(){ refreshUnreadCount(); loadNotifications(); loadFriendsData(); }, 30000);
 
 function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
 (function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();

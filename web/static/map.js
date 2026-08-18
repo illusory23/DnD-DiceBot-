@@ -1504,7 +1504,7 @@
             attackBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); });
             attackBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
-                openAttackPopup(token);
+                openAttackPicker(token);
             });
             el.appendChild(attackBtn);
             token.attackBtn = attackBtn;
@@ -1518,7 +1518,7 @@
             healBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); });
             healBtn.addEventListener('click', (e) => {
                 e.stopPropagation(); e.preventDefault();
-                openHealPopup(token);
+                openHealPicker(token);
             });
             el.appendChild(healBtn);
             token.healBtn = healBtn;
@@ -1592,7 +1592,7 @@
                 ev.stopPropagation(); ev.preventDefault();
                 const sx = ev.clientX; const sy = ev.clientY;
                 const sSize = token.size;
-                function mv(ev2) { const d = Math.max(20, Math.min(200, sSize + (ev2.clientX-sx + ev2.clientY-sy)/2)); token.size = d; el.style.width = d+'px'; el.style.height = d+'px'; }
+                function mv(ev2) { const d = Math.max(20, Math.min(400, sSize + (ev2.clientX-sx + ev2.clientY-sy)/2)); token.size = d; el.style.width = d+'px'; el.style.height = d+'px'; }
                 function up() { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); debouncedSave(); window._wsSendOp('tokens', [tokenNetData(token)], []); window._markDirty('tokens'); }
                 window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
             });
@@ -2395,6 +2395,179 @@
             } catch(e) { resultEl.textContent = '网络错误'; }
         }
 
+        // ━━━ 攻击方式选择（点击⚔后先选发起攻击者 + 武器/法术，再进入命中掷骰界面） ━━━
+        let attackPickerCtx = null;      // {targetToken, targetAC, targetName}
+        let attackPickerTab = 'weapon';
+        let attackPickerChars = [];      // 可发起攻击的角色列表（侧边栏同源）
+        let attackPickerChar = null;     // 当前选择的攻击者完整数据
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        window.openAttackPicker = async function(token) {
+            if (!token || !token.charId) {
+                if (typeof Toast !== 'undefined') Toast.info('该标记未关联角色，无法攻击');
+                return;
+            }
+            let charData = charDataCache[token.charId];
+            if (!charData) charData = await fetchCharData(token.charId);
+            if (!charData) {
+                if (typeof Toast !== 'undefined') Toast.info('目标角色数据加载失败');
+                return;
+            }
+            attackPickerCtx = { targetToken: token, targetAC: parseInt(charData.ac) || 10, targetName: token.name || charData.name || '' };
+            document.getElementById('attack-picker-target').textContent = attackPickerCtx.targetName;
+            // 攻击者候选：与侧边栏角色列表同源（排除目标自己）
+            attackPickerChars = [];
+            try {
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
+                attackPickerChars = chars.filter(c => c && c.id !== token.charId);
+            } catch(e) { attackPickerChars = []; }
+            const sel = document.getElementById('attack-picker-attacker');
+            if (!attackPickerChars.length) {
+                sel.innerHTML = '<option value="">无可用攻击者</option>';
+                document.getElementById('attack-source-list').innerHTML = '<div class="attack-source-empty">没有可发起攻击的角色</div>';
+                attackPickerChar = null;
+            } else {
+                sel.innerHTML = attackPickerChars.map(c => `<option value="${c.id}">${escapeHtml(c.name || '无名')}（${c.level || 1}级 ${escapeHtml(c.class || '')}）</option>`).join('');
+                await loadAttackPickerChar();
+            }
+            document.getElementById('attack-picker-popup').classList.add('show');
+        };
+
+        window.closeAttackPicker = function() {
+            document.getElementById('attack-picker-popup').classList.remove('show');
+            attackPickerCtx = null;
+        };
+
+        window.onAttackAttackerChange = function() {
+            loadAttackPickerChar();
+        };
+
+        window.switchAttackTab = function(tab) {
+            attackPickerTab = tab;
+            document.querySelectorAll('#attack-picker-tabs button').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.tab === tab);
+            });
+            renderAttackSourceList();
+        };
+
+        // 加载所选攻击者的完整角色数据（武器/已准备法术/法术攻击加值）
+        async function loadAttackPickerChar() {
+            const sel = document.getElementById('attack-picker-attacker');
+            const id = parseInt(sel && sel.value, 10);
+            const c = attackPickerChars.find(function(x) { return x.id === id; });
+            attackPickerChar = null;
+            if (!c) { renderAttackSourceList(); return; }
+            try {
+                const data = await fetchCharData(id);
+                attackPickerChar = data || null;
+            } catch(e) { attackPickerChar = null; }
+            renderAttackSourceList();
+        }
+
+        // 渲染武器/法术列表（武器读取角色武器数据；法术读取已准备法术）
+        function renderAttackSourceList() {
+            const list = document.getElementById('attack-source-list');
+            if (!list) return;
+            if (!attackPickerChar) {
+                list.innerHTML = '<div class="attack-source-empty">攻击者角色数据加载失败</div>';
+                return;
+            }
+            if (attackPickerTab === 'weapon') {
+                const weapons = (attackPickerChar.weapons || []).filter(function(w) { return w && w.name; });
+                if (!weapons.length) {
+                    list.innerHTML = '<div class="attack-source-empty">该角色没有武器（可在角色卡中添加）</div>';
+                    return;
+                }
+                list.innerHTML = weapons.map(function(w, i) {
+                    const bonus = parseInt(w.attack_bonus) || 0;
+                    const dmg = w.damage_dice || '—';
+                    const meta = [w.damage_type ? '伤害类型 ' + escapeHtml(w.damage_type) : '', w.description ? escapeHtml(w.description) : ''].filter(Boolean).join(' · ');
+                    return `<div class="attack-source-item" onclick="pickAttackSource('weapon', ${i})">
+                        <div style="min-width:0;">
+                            <div class="src-name">${escapeHtml(w.name)}</div>
+                            ${meta ? `<div class="src-meta">${meta}</div>` : ''}
+                        </div>
+                        <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+                            <div class="src-meta">命中 +${bonus}</div>
+                            <div class="src-meta">伤害 ${escapeHtml(dmg)}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                const spells = (attackPickerChar.prepared_spells || []).filter(function(s) { return s && s.spell_name; });
+                if (!spells.length) {
+                    list.innerHTML = '<div class="attack-source-empty">该角色没有已准备法术（可在法术书中准备）</div>';
+                    return;
+                }
+                const sab = parseInt(attackPickerChar.spell_attack_bonus) || 0;
+                list.innerHTML = spells.map(function(s, i) {
+                    return `<div class="attack-source-item" onclick="pickAttackSource('spell', ${i})">
+                        <div style="min-width:0;">
+                            <div class="src-name">${escapeHtml(s.spell_name)}</div>
+                            ${s.spell_level ? `<div class="src-meta">${s.spell_level}环${s.notes ? ' · ' + escapeHtml(s.notes) : ''}</div>` : ''}
+                        </div>
+                        <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+                            <div class="src-meta">法术攻击 +${sab}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        // 从已学法术详情中尝试提取伤害骰表达式（如 1d8 / 2d6+3），供伤害弹窗预填
+        function extractSpellDamage(spellName) {
+            if (!attackPickerChar) return '';
+            const learned = attackPickerChar.learned_spells || [];
+            for (let i = 0; i < learned.length; i++) {
+                const sp = learned[i];
+                if (sp && sp.spell_name === spellName && sp.description) {
+                    const m = String(sp.description).match(/\d{1,3}d\d{1,3}(?:\s*[+-]\s*\d{1,3})?/i);
+                    if (m) return m[0].replace(/\s+/g, '');
+                }
+            }
+            return '';
+        }
+
+        // 选中武器/法术后进入命中掷骰界面（自动带入加值与伤害表达式）
+        window.pickAttackSource = function(kind, index) {
+            if (!attackPickerCtx || !attackPickerChar) return;
+            const cfg = { attackerName: attackPickerChar.name || '未知', attackerCharId: attackPickerChar.id, sourceLabel: '', sourceName: '', bonus: 0, dmgExpr: '' };
+            if (kind === 'weapon') {
+                const w = (attackPickerChar.weapons || [])[index];
+                if (!w) return;
+                cfg.sourceLabel = '武器 · ' + w.name;
+                cfg.sourceName = w.name;
+                cfg.bonus = parseInt(w.attack_bonus) || 0;
+                cfg.dmgExpr = w.damage_dice || '';
+                cfg.dmgType = w.damage_type || '';
+            } else {
+                const s = (attackPickerChar.prepared_spells || [])[index];
+                if (!s) return;
+                cfg.sourceLabel = '法术 · ' + s.spell_name;
+                cfg.sourceName = s.spell_name;
+                cfg.bonus = parseInt(attackPickerChar.spell_attack_bonus) || 0;
+                cfg.dmgExpr = extractSpellDamage(s.spell_name);
+            }
+            const token = attackPickerCtx.targetToken;
+            closeAttackPicker();
+            openAttackPopup(token, cfg);
+        };
+
+        // 自由攻击：跳过武器/法术选择，手动设置骰子与加值
+        window.openFreeAttack = function() {
+            if (!attackPickerCtx) return;
+            const token = attackPickerCtx.targetToken;
+            closeAttackPicker();
+            openAttackPopup(token, { attackerName: '', attackerCharId: null, sourceLabel: '', bonus: 0, dmgExpr: '' });
+        };
+
         // ━━━ 攻击掷骰（独立3D物理掷骰 + AC判定 + 伤害自动扣血） ━━━
         let attackCtx = null;   // {targetToken, targetAC, hit}
         let attackUse3D = true;
@@ -2697,7 +2870,8 @@
             setAttackStatus(`⚔️ 攻击骰: ${expr} ${acShow} &nbsp;|&nbsp; 3D物理掷骰: ${attackUse3D ? '✨开' : '关'}`);
         }
 
-        window.openAttackPopup = async function(token) {
+        // attackerCfg: {attackerName, attackerCharId, sourceLabel, bonus, dmgExpr}（由攻击方式选择弹窗传入）
+        window.openAttackPopup = async function(token, attackerCfg) {
             if (!token || !token.charId) {
                 if (typeof Toast !== 'undefined') Toast.info('该标记未关联角色，无法攻击');
                 return;
@@ -2708,9 +2882,25 @@
                 if (typeof Toast !== 'undefined') Toast.info('目标角色数据加载失败');
                 return;
             }
-            attackCtx = { targetToken: token, targetAC: parseInt(charData.ac) || 10, hit: false };
+            const cfg = attackerCfg || {};
+            attackCtx = {
+                targetToken: token,
+                targetAC: parseInt(charData.ac) || 10,
+                hit: false,
+                attackerName: cfg.attackerName || '',
+                attackerCharId: cfg.attackerCharId || null,
+                sourceLabel: cfg.sourceLabel || '',
+                sourceName: cfg.sourceName || '',
+                dmgExpr: cfg.dmgExpr || '',
+                dmgType: cfg.dmgType || ''
+            };
             document.getElementById('attack-target-name').textContent = token.name || charData.name || '';
             document.getElementById('attack-target-ac').textContent = (window._isDM === true) ? `🛡️ AC ${attackCtx.targetAC}` : '🛡️ AC ❓';
+            // 发起攻击者与所用武器/法术
+            document.getElementById('attack-attacker-name').textContent = attackCtx.attackerName || '自由攻击';
+            document.getElementById('attack-source-name').textContent = attackCtx.sourceLabel ? '（' + attackCtx.sourceLabel + '）' : '';
+            // 武器/法术自动加值（自由攻击为 0，可手动修改）
+            document.getElementById('attack-bonus').value = cfg.bonus || 0;
             setAttackResult('');
             document.getElementById('attack-dmg-btn').style.display = 'none';
             const rollBtn = document.getElementById('attack-roll-btn');
@@ -2771,10 +2961,23 @@
             const active = document.querySelector('#damage-adv .active');
             return active ? active.dataset.adv : '';
         }
+        // 解析武器/法术伤害骰：1d10 → 1个d10；1d10+6 → 1个d10+6；2d6+3 → 2个d6+3；无效返回 null
+        function parseDmgDice(dmgExpr) {
+            if (!dmgExpr) return null;
+            const m = String(dmgExpr).trim().match(/^(\d{1,2})d(\d{1,3})(?:\s*([+-])\s*(\d{1,3}))?$/i);
+            if (!m) return null;
+            const count = parseInt(m[1], 10);
+            const sides = parseInt(m[2], 10);
+            const bonus = m[3] ? parseInt(m[4], 10) * (m[3] === '-' ? -1 : 1) : 0;
+            return { count, sides, bonus };
+        }
         function getDamageDiceConfig() {
+            const countEl = document.getElementById('damage-die-count');
             const sides = parseInt(document.getElementById('damage-die-sides').value, 10);
             const bonus = parseInt(document.getElementById('damage-bonus').value, 10);
+            const count = countEl ? parseInt(countEl.value, 10) : 1;
             return {
+                count: Number.isFinite(count) ? Math.max(1, Math.min(20, count)) : 1,
                 sides: [4, 6, 8, 10, 12, 20, 100].includes(sides) ? sides : 6,
                 bonus: Number.isFinite(bonus) ? Math.max(-100, Math.min(100, bonus)) : 0
             };
@@ -2787,10 +2990,14 @@
             const el = document.getElementById('damage-result');
             if (el) el.innerHTML = html;
         }
+        // 构建伤害表达式：数量d面数+加值（如 2d6+3，自由增减数量/面数/加值）
+        function buildDamageExpr(config) {
+            const c = config || getDamageDiceConfig();
+            return c.count + 'd' + c.sides + (c.bonus ? (c.bonus > 0 ? '+' : '') + c.bonus : '');
+        }
         function updateDamageStatus() {
             if (!damageCtx) return;
-            const config = getDamageDiceConfig();
-            setDamageStatus(`💥 伤害骰: ${formatAttackExpression(config.sides, config.bonus)} &nbsp;|&nbsp; 3D物理掷骰: ${damageUse3D ? '✨开' : '关'}`);
+            setDamageStatus(`💥 伤害骰: ${buildDamageExpr()} &nbsp;|&nbsp; 3D物理掷骰: ${damageUse3D ? '✨开' : '关'}`);
         }
         window.damageToggle3D = function() {
             damageUse3D = !damageUse3D;
@@ -2810,6 +3017,19 @@
             document.getElementById('damage-target-name').textContent = token.name || (charData && charData.name) || '';
             document.getElementById('damage-target-hp').textContent = charData ? `❤️ ${charData.hp_current || 0}/${charData.hp_max || 0}` : '';
             setDamageResult('');
+            // 武器/法术伤害骰自动填入"数量/面数/加值"三字段（1d10 → 1个d10；1d10+6 → 1个d10+6），
+            // 解析失败保留手动设置，仍可自由增减
+            const parsed = parseDmgDice(attackCtx && attackCtx.dmgExpr);
+            if (parsed) {
+                const countEl = document.getElementById('damage-die-count');
+                const sidesEl = document.getElementById('damage-die-sides');
+                const bonusEl = document.getElementById('damage-bonus');
+                if (countEl) countEl.value = parsed.count;
+                if (sidesEl && Array.prototype.some.call(sidesEl.options, function(o) { return o.value === String(parsed.sides); })) {
+                    sidesEl.value = String(parsed.sides);
+                }
+                if (bonusEl) bonusEl.value = parsed.bonus;
+            }
             const rollBtn = document.getElementById('damage-roll-btn');
             rollBtn.disabled = false;
             rollBtn.textContent = '💥 伤害掷骰并结算';
@@ -2823,7 +3043,7 @@
         window.damageRoll = async function() {
             if (!damageCtx || damageInProgress) return;
             const config = getDamageDiceConfig();
-            const expr = formatAttackExpression(config.sides, config.bonus);
+            const expr = buildDamageExpr(config);  // 数量d面数+加值（可自由增减数量）
             const adv = getDamageAdv();
             const rollBtn = document.getElementById('damage-roll-btn');
             damageInProgress = true;
@@ -2869,16 +3089,208 @@
             refreshTokenDeadMarks();
             const dead = (newHp !== null && newHp <= 0);
             setDamageResult(`<div class="dice-total-badge" style="background:#c0392b;">💥 造成 ${dmg} 点伤害！</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">${token.name || ''} 剩余 HP: ${newHp !== null ? newHp : '?'}/${newHpMax !== null ? newHpMax : '?'}${dead ? ' 💀 已倒地！' : ''}</div>`);
-            // 聊天室广播：受到伤害（自然20重击切换播报）
+            // 聊天室广播：{攻击者} 使用 {攻击方式} 击中了 {目标}，{目标} 受到了 {dmg} 点伤害（自然20重击切换播报）
             if (dmg > 0) {
+                const atkName = (attackCtx && attackCtx.attackerName) || '';
+                const srcName = (attackCtx && attackCtx.sourceName) || '';
+                let act = '攻击';
+                if (atkName) act = srcName ? atkName + ' 使用 ' + srcName : atkName;
+                const tgtName = token.name || '目标';
                 if (attackCtx && attackCtx.nat20) {
-                    mapChatNotifyHp('💥', (token.name || '目标') + ' 遭受重击，受到了 ' + dmg + ' 点伤害' + (dead ? '，已倒地！' : ''));
+                    mapChatNotifyHp('💥', act + ' 重击击中了 ' + tgtName + '，' + tgtName + ' 受到了 ' + dmg + ' 点伤害' + (dead ? '，已倒地！' : ''));
                 } else {
-                    mapChatNotifyHp('⚔️', (token.name || '目标') + ' 受到 ' + dmg + ' 点伤害' + (dead ? '，已倒地！' : ''));
+                    mapChatNotifyHp('⚔️', act + ' 击中了 ' + tgtName + '，' + tgtName + ' 受到了 ' + dmg + ' 点伤害' + (dead ? '，已倒地！' : ''));
                 }
             }
             if (attackCtx) attackCtx.hit = false;
             document.getElementById('attack-dmg-btn').style.display = 'none';
+        };
+
+        // ━━━ 治疗方式选择（点击💚后先选治疗者 + 背包治疗物品/已准备治疗法术） ━━━
+        let healPickerCtx = null;      // {targetToken, targetName}
+        let healPickerTab = 'item';
+        let healPickerChars = [];      // 可发起治疗的角色列表
+        let healPickerChar = null;     // 当前选择的治疗者完整数据
+
+        // 判断物品是否为可回血治疗物品（名称/效果/描述含治疗关键词）
+        function isHealItem(item) {
+            if (!item) return false;
+            const name = item.item_name || item.name || '';
+            const text = name + ' ' + (item.effect || '') + ' ' + (item.description || '');
+            return /治疗|回复|恢复|疗伤|治愈/.test(text);
+        }
+        // 判断法术是否为治疗相关法术
+        function isHealSpell(spell) {
+            if (!spell) return false;
+            const name = spell.spell_name || '';
+            return /治疗|回复|恢复|疗伤|治愈/.test(name);
+        }
+        // 提取治疗骰表达式（如 2d4+2 / 1d8），提取失败返回默认值
+        function extractHealDice(text) {
+            if (text) {
+                const m = String(text).match(/\d{1,3}d\d{1,3}(?:\s*[+-]\s*\d{1,3})?/i);
+                if (m) return m[0].replace(/\s+/g, '');
+            }
+            return '1d8';
+        }
+
+        window.openHealPicker = async function(token) {
+            if (!token || !token.charId) {
+                if (typeof Toast !== 'undefined') Toast.info('该标记未关联角色，无法治疗');
+                return;
+            }
+            let charData = charDataCache[token.charId];
+            if (!charData) charData = await fetchCharData(token.charId);
+            if (!charData) {
+                if (typeof Toast !== 'undefined') Toast.info('目标角色数据加载失败');
+                return;
+            }
+            healPickerCtx = { targetToken: token, targetName: token.name || charData.name || '' };
+            document.getElementById('heal-picker-target').textContent = healPickerCtx.targetName;
+            // 治疗者候选：与侧边栏角色列表同源
+            healPickerChars = [];
+            try {
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
+                healPickerChars = chars.filter(function(c) { return c && c.id !== token.charId; });
+            } catch(e) { healPickerChars = []; }
+            const sel = document.getElementById('heal-picker-healer');
+            if (!healPickerChars.length) {
+                sel.innerHTML = '<option value="">无可用治疗者</option>';
+                document.getElementById('heal-source-list').innerHTML = '<div class="attack-source-empty">没有可发起治疗的角色</div>';
+                healPickerChar = null;
+            } else {
+                sel.innerHTML = healPickerChars.map(function(c) {
+                    return `<option value="${c.id}">${escapeHtml(c.name || '无名')}（${c.level || 1}级 ${escapeHtml(c.class || '')}）</option>`;
+                }).join('');
+                await loadHealPickerChar();
+            }
+            document.getElementById('heal-picker-popup').classList.add('show');
+        };
+
+        window.closeHealPicker = function() {
+            document.getElementById('heal-picker-popup').classList.remove('show');
+            healPickerCtx = null;
+        };
+
+        window.onHealHealerChange = function() {
+            loadHealPickerChar();
+        };
+
+        window.switchHealTab = function(tab) {
+            healPickerTab = tab;
+            document.querySelectorAll('#heal-picker-tabs button').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.tab === tab);
+            });
+            renderHealSourceList();
+        };
+
+        // 加载所选治疗者的完整角色数据（背包物品/已准备法术）
+        async function loadHealPickerChar() {
+            const sel = document.getElementById('heal-picker-healer');
+            const id = parseInt(sel && sel.value, 10);
+            const c = healPickerChars.find(function(x) { return x.id === id; });
+            healPickerChar = null;
+            if (!c) { renderHealSourceList(); return; }
+            try {
+                const data = await fetchCharData(id);
+                healPickerChar = data || null;
+            } catch(e) { healPickerChar = null; }
+            renderHealSourceList();
+        }
+
+        // 渲染治疗物品/法术列表（物品：背包中可回血治疗的物品；法术：已准备的治疗法术）
+        function renderHealSourceList() {
+            const list = document.getElementById('heal-source-list');
+            if (!list) return;
+            if (!healPickerChar) {
+                list.innerHTML = '<div class="attack-source-empty">治疗者角色数据加载失败</div>';
+                return;
+            }
+            if (healPickerTab === 'item') {
+                const inv = (healPickerChar.inventory || []).filter(isHealItem);
+                if (!inv.length) {
+                    list.innerHTML = '<div class="attack-source-empty">背包中没有可回血治疗的物品</div>';
+                    return;
+                }
+                list.innerHTML = inv.map(function(it, i) {
+                    const expr = extractHealDice((it.effect || '') + ' ' + (it.description || ''));
+                    const name = it.item_name || it.name || '治疗物品';
+                    const qty = it.quantity != null ? it.quantity : 1;
+                    return `<div class="attack-source-item" onclick="pickHealSource('item', ${i})">
+                        <div style="min-width:0;">
+                            <div class="src-name">${escapeHtml(name)}</div>
+                            ${it.effect ? `<div class="src-meta">${escapeHtml(it.effect)}</div>` : ''}
+                        </div>
+                        <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+                            <div class="src-meta">× ${qty}</div>
+                            <div class="src-meta">治疗 ${escapeHtml(expr)}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                const spells = (healPickerChar.prepared_spells || []).filter(isHealSpell);
+                if (!spells.length) {
+                    list.innerHTML = '<div class="attack-source-empty">没有已准备的治疗相关法术</div>';
+                    return;
+                }
+                list.innerHTML = spells.map(function(s, i) {
+                    const expr = extractHealDice(healSpellDesc(s.spell_name));
+                    return `<div class="attack-source-item" onclick="pickHealSource('spell', ${i})">
+                        <div style="min-width:0;">
+                            <div class="src-name">${escapeHtml(s.spell_name)}</div>
+                            ${s.spell_level ? `<div class="src-meta">${s.spell_level}环${s.notes ? ' · ' + escapeHtml(s.notes) : ''}</div>` : ''}
+                        </div>
+                        <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+                            <div class="src-meta">治疗 ${escapeHtml(expr)}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        // 从已学法术详情中取治疗法术的描述（供提取治疗骰）
+        function healSpellDesc(spellName) {
+            if (!healPickerChar) return '';
+            const learned = healPickerChar.learned_spells || [];
+            for (let i = 0; i < learned.length; i++) {
+                const sp = learned[i];
+                if (sp && sp.spell_name === spellName && sp.description) return sp.description;
+            }
+            return '';
+        }
+
+        // 选中治疗物品/法术后进入治疗掷骰界面（自动带入治疗表达式）
+        window.pickHealSource = function(kind, index) {
+            if (!healPickerCtx || !healPickerChar) return;
+            const cfg = { healerName: healPickerChar.name || '未知', healerCharId: healPickerChar.id, sourceLabel: '', sourceName: '', expr: '1d8' };
+            if (kind === 'item') {
+                const it = (healPickerChar.inventory || []).filter(isHealItem)[index];
+                if (!it) return;
+                const itName = it.item_name || it.name || '治疗物品';
+                cfg.sourceLabel = '物品 · ' + itName;
+                cfg.sourceName = itName;
+                cfg.expr = extractHealDice((it.effect || '') + ' ' + (it.description || ''));
+            } else {
+                const s = (healPickerChar.prepared_spells || []).filter(isHealSpell)[index];
+                if (!s) return;
+                cfg.sourceLabel = '法术 · ' + s.spell_name;
+                cfg.sourceName = s.spell_name;
+                cfg.expr = extractHealDice(healSpellDesc(s.spell_name));
+            }
+            const token = healPickerCtx.targetToken;
+            closeHealPicker();
+            openHealPopup(token, cfg);
+        };
+
+        // 自由治疗：跳过物品/法术选择，手动输入治疗表达式
+        window.openFreeHeal = function() {
+            if (!healPickerCtx) return;
+            const token = healPickerCtx.targetToken;
+            closeHealPicker();
+            openHealPopup(token, { healerName: '', healerCharId: null, sourceLabel: '', expr: '1d8' });
         };
 
         // ━━━ 治疗掷骰（独立3D物理掷骰 + 自动恢复血量） ━━━
@@ -2910,7 +3322,8 @@
             window.healRoll();
         };
 
-        window.openHealPopup = async function(token) {
+        // healerCfg: {healerName, healerCharId, sourceLabel, expr}（由治疗方式选择弹窗传入）
+        window.openHealPopup = async function(token, healerCfg) {
             if (!token || !token.charId) {
                 if (typeof Toast !== 'undefined') Toast.info('该标记未关联角色，无法治疗');
                 return;
@@ -2921,9 +3334,15 @@
                 if (typeof Toast !== 'undefined') Toast.info('目标角色数据加载失败');
                 return;
             }
-            healCtx = { targetToken: token };
+            const cfg = healerCfg || {};
+            healCtx = { targetToken: token, healerName: cfg.healerName || '', sourceName: cfg.sourceName || '' };
             document.getElementById('heal-target-name').textContent = token.name || charData.name || '';
             document.getElementById('heal-target-hp').textContent = `❤️ ${charData.hp_current || 0}/${charData.hp_max || 0}`;
+            // 治疗者与所用物品/法术
+            document.getElementById('heal-healer-name').textContent = cfg.healerName || '自由治疗';
+            document.getElementById('heal-source-name').textContent = cfg.sourceLabel ? '（' + cfg.sourceLabel + '）' : '';
+            // 物品/法术自动带入治疗表达式（仍可手动修改）
+            document.getElementById('heal-expr').value = cfg.expr || '1d8';
             setHealResult('');
             const rollBtn = document.getElementById('heal-roll-btn');
             rollBtn.disabled = false;
@@ -2988,8 +3407,15 @@
             if (newHp !== null) document.getElementById('heal-target-hp').textContent = `❤️ ${newHp}/${newHpMax}`;
             const full = (newHp !== null && newHpMax !== null && newHp >= newHpMax);
             setHealResult(`<div class="dice-total-badge" style="background:#27ae60;">💚 恢复 ${heal} 点生命！</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">${healCtx.targetToken.name || ''} 剩余 HP: ${newHp !== null ? newHp : '?'}/${newHpMax !== null ? newHpMax : '?'}${full ? ' ✨ 已满血！' : ''}</div>`);
-            // 聊天室广播：恢复血量
-            if (heal > 0) mapChatNotifyHp('💚', (healCtx.targetToken.name || '目标') + ' 恢复 ' + heal + ' 点血量' + (full ? '，已满血！' : ''));
+            // 聊天室广播：{治疗者} 使用 {治疗方式}，{目标} 回复了 {heal} 点血量
+            if (heal > 0) {
+                const healerName = (healCtx && healCtx.healerName) || '';
+                const srcName = (healCtx && healCtx.sourceName) || '';
+                let act = '治疗';
+                if (healerName) act = srcName ? healerName + ' 使用 ' + srcName : healerName;
+                const tgtName = healCtx.targetToken.name || '目标';
+                mapChatNotifyHp('💚', act + '，' + tgtName + ' 回复了 ' + heal + ' 点血量' + (full ? '，已满血！' : ''));
+            }
         };
 
         // ━━━ 工具栏第二行折叠 ━━━
@@ -3206,8 +3632,10 @@
             });
         });
         makeDraggable(document.getElementById('dice-popup'), document.getElementById('dice-popup-drag'));
+        makeDraggable(document.getElementById('attack-picker-popup'), document.getElementById('attack-picker-popup-drag'));
         makeDraggable(document.getElementById('attack-popup'), document.getElementById('attack-popup-drag'));
         makeDraggable(document.getElementById('damage-popup'), document.getElementById('damage-popup-drag'));
+        makeDraggable(document.getElementById('heal-picker-popup'), document.getElementById('heal-picker-popup-drag'));
         makeDraggable(document.getElementById('heal-popup'), document.getElementById('heal-popup-drag'));
 
         // ━━━ 侧边栏标签切换 ━━━

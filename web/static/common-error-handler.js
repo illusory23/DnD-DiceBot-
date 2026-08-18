@@ -48,9 +48,11 @@
       userAgent: navigator.userAgent.substring(0, 200),
       stack: (event.error && event.error.stack || '').substring(0, 2000),
     };
-    // 使用 sendBeacon 确保页面关闭时也能发出
+    // 使用 sendBeacon 确保页面关闭时也能发出（Blob 方式带 Content-Type，
+    // 否则服务端 get_json 解析失败会把所有错误记成空字段）
     try {
-      navigator.sendBeacon('/api/error-report', JSON.stringify(err));
+      var blob = new Blob([JSON.stringify(err)], { type: 'application/json' });
+      navigator.sendBeacon('/api/error-report', blob);
     } catch (e) {
       fetch('/api/error-report', {
         method: 'POST',

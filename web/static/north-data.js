@@ -764,11 +764,25 @@
                 { rank: '白羽', need: 750, color: '#ffffff', reward: 400 },
             ];
 
+            // ━━ 背包物品直接使用效果表（2026-08-18 治疗/驱寒类，效果与 wp 物品表对齐）━━
+            // heal: 治疗骰表达式（rollDiceExpr 掷出并回血）
+            // coldResist: 使用后获得的寒冷抵抗次数（取已有值较大者）
+            // ointment: true → 走既有 doUseOintment() 全套逻辑（扣减/严寒/抵抗）
+            // 注意：霜羽雉的蛋（可孵化/出售）没有恢复血量效果，不在此表
+            const ITEM_USE_TABLE = {
+                '药草':     { heal: '1d2',    desc: '恢复 1d2 点生命' },
+                '绒蜂蜜':   { heal: '1d4',    coldResist: 3, desc: '恢复 1d4 点生命，并获得寒冷抗性' },
+                '白花藤':   { heal: '1d4',    desc: '恢复 1d4 点生命' },
+                '治疗药水': { heal: '2d4+2',  desc: '恢复 2d4+2 点生命' },
+                '驱寒药膏': { ointment: true, desc: '消除 2 级严寒，接下来 6 次事件抵抗寒冷体质豁免' },
+            };
+
     window.NORTH_DATA = {
         TABLES: TABLES,
         TABLE_NAMES: TABLE_NAMES,
         ITEM_ACTIONS: ITEM_ACTIONS,
         CHECK_ACTIONS: CHECK_ACTIONS,
-        RANK_LEVELS: RANK_LEVELS
+        RANK_LEVELS: RANK_LEVELS,
+        ITEM_USE_TABLE: ITEM_USE_TABLE
     };
 })();

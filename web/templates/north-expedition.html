@@ -95,8 +95,12 @@
                 <!-- 冒险者面板 -->
                 <div class="north-panel char-card">
                     <div class="panel-header">
-                        <span>👤 冒险者 <span id="charNameInHeader" style="font-weight:300;color:#7aacd8;">—</span></span>
+                        <span class="adv-header-left">
+                            <div class="adv-avatar" id="advAvatar" title="点击上传冒险者头像（徽章）">🐺</div>
+                            <span>👤 冒险者 <span id="charNameInHeader" style="font-weight:300;color:#7aacd8;">—</span></span>
+                        </span>
                         <span class="badge" id="charStatus">未选择</span>
+                        <input type="file" id="advAvatarInput" accept="image/*" style="display:none;">
                     </div>
                     <div class="char-selector">
                         <select id="charSelect">
@@ -191,6 +195,7 @@
                         <button data-action="light" id="lightBtn">🔥 生火</button>
                         <button data-action="consume_ration" id="consumeRationBtn">🍖 进食</button>
                         <button data-action="use_ointment" id="useOintmentBtn" title="使用驱寒药膏">🧴 涂药膏</button>
+                        <button data-action="use_potion" id="usePotionBtn" title="使用治疗药水（恢复 2d4+2 生命）">🧪 治疗药水</button>
                     </div>
                 </div>
 

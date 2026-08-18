@@ -545,6 +545,7 @@ class Notification(db.Model):
     """消息通知（2026-08-16 新增）：被评论/被点赞/被@提醒。
 
     type: post_comment | workshop_comment | post_like | workshop_like | mention
+          | friend_request | friend_accept
     link: 跳转详情页（/post/<id>、/workshop/<id>）
     content: 动作文本（不含 actor，展示时 count>1 用 "N 人"+content，否则 actor+content）
     group_key: 聚合去重键（如 post_comment:3），同 key 未读通知累加 count
@@ -561,3 +562,19 @@ class Notification(db.Model):
     group_key = db.Column(db.String(100), default='', index=True)  # 聚合去重键
     count = db.Column(db.Integer, default=1)        # 聚合人数
     created_at = db.Column(db.String(20), default='')
+
+
+class FriendRequest(db.Model):
+    """好友申请（2026-08-18 新增）：双向好友体系。
+
+    user_id 发起方 / target_id 接收方（均存 id 不存用户名，防改名丢数据）
+    status: pending | accepted | rejected；好友关系 = accepted 记录（不另建好友表）
+    """
+    __tablename__ = 'friend_requests'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)   # 请求方
+    target_id = db.Column(db.Integer, nullable=False, index=True)  # 被请求方
+    status = db.Column(db.String(10), nullable=False, default='pending')
+    created_at = db.Column(db.String(20), default='')
+    responded_at = db.Column(db.String(20), default='')

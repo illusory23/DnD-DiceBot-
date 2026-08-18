@@ -459,6 +459,7 @@
             color: var(--gold); font-size: 0.8rem; margin-bottom: 6px;
         }
         .attack-popup .attack-dice-config { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+        .attack-popup .attack-dice-config.damage3 { grid-template-columns: 1fr 1fr 1fr; }
         .attack-popup .attack-dice-config label { display: block; font-size: 0.75rem; color: var(--text-dim); }
         .attack-popup .attack-dice-config select,
         .attack-popup .attack-dice-config input { margin: 3px 0 0; }
@@ -492,6 +493,30 @@
             color: #fff;
         }
         .attack-popup .attack-main-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* ━━ 攻击方式选择弹窗（先选武器/法术，再进入命中掷骰） ━━ */
+        .attack-picker-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .attack-picker-tabs button {
+            flex: 1; padding: 0.35rem; font-size: 0.82rem;
+            background: var(--bg); border: none; color: var(--text-dim); cursor: pointer;
+        }
+        .attack-picker-tabs button.active { background: var(--accent); color: #fff; }
+        .attack-source-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .attack-source-item {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            padding: 0.4rem 0.55rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: var(--text);
+        }
+        .attack-source-item:hover { border-color: var(--accent); background: var(--surface2); }
+        .attack-source-item .src-name { font-weight: bold; color: var(--gold); }
+        .attack-source-item .src-meta { color: var(--text-dim); font-size: 0.72rem; }
+        .attack-source-empty { text-align: center; color: var(--text-dim); font-size: 0.78rem; padding: 1rem 0; }
+        .attack-free-btn {
+            width: 100%; margin-top: 8px; padding: 0.4rem; background: var(--surface2);
+            border: 1px dashed var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 0.78rem; cursor: pointer;
+        }
+        .attack-free-btn:hover { border-color: var(--accent); color: var(--gold); }
 
         /* ━━ 缩放指示器 ━━ */
         .zoom-indicator {
@@ -1119,6 +1144,27 @@
         </div>
     </div>
 
+    <!-- 攻击方式选择弹窗：先选发起攻击者 + 武器/法术，再进入命中掷骰界面 -->
+    <div class="attack-popup" id="attack-picker-popup">
+        <div class="attack-popup-header" id="attack-picker-popup-drag">
+            ⚔️ 选择攻击方式
+            <button onclick="closeAttackPicker()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="attack-picker-target"></b>
+            </div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:3px;">⚔️ 发起攻击者</label>
+            <select id="attack-picker-attacker" onchange="onAttackAttackerChange()" style="margin-bottom:8px;"></select>
+            <div class="attack-picker-tabs" id="attack-picker-tabs">
+                <button class="active" data-tab="weapon" onclick="switchAttackTab('weapon')">⚔️ 武器</button>
+                <button data-tab="spell" onclick="switchAttackTab('spell')">✨ 法术</button>
+            </div>
+            <div class="attack-source-list" id="attack-source-list"></div>
+            <button class="attack-free-btn" onclick="openFreeAttack()">🎲 自由攻击（手动设置骰子与加值）</button>
+        </div>
+    </div>
+
     <!-- 攻击掷骰弹窗（独立3D物理掷骰小界面） -->
     <div class="attack-popup" id="attack-popup">
         <div class="attack-popup-header" id="attack-popup-drag">
@@ -1126,6 +1172,10 @@
             <button onclick="closeAttackPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
         </div>
         <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                ⚔️ 攻击者：<b id="attack-attacker-name"></b>
+                <span id="attack-source-name" style="color:var(--text-dim);font-size:0.75rem;"></span>
+            </div>
             <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
                 🎯 目标：<b id="attack-target-name"></b>
                 <span id="attack-target-ac" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
@@ -1175,7 +1225,10 @@
                 🎯 目标：<b id="damage-target-name"></b>
                 <span id="damage-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
             </div>
-            <div class="attack-dice-config">
+            <div class="attack-dice-config damage3">
+                <label>🔢 骰子数量
+                    <input id="damage-die-count" type="number" value="1" min="1" max="20" step="1" onchange="updateDamageStatus()">
+                </label>
                 <label>🎲 骰子面数
                     <select id="damage-die-sides" onchange="updateDamageStatus()">
                         <option value="4">d4</option>
@@ -1208,6 +1261,27 @@
         </div>
     </div>
 
+    <!-- 治疗方式选择弹窗：先选治疗者 + 治疗物品/法术，再进入治疗掷骰界面 -->
+    <div class="attack-popup" id="heal-picker-popup">
+        <div class="attack-popup-header" id="heal-picker-popup-drag">
+            💚 选择治疗方式
+            <button onclick="closeHealPicker()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="heal-picker-target"></b>
+            </div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:3px;">💚 治疗者</label>
+            <select id="heal-picker-healer" onchange="onHealHealerChange()" style="margin-bottom:8px;"></select>
+            <div class="attack-picker-tabs" id="heal-picker-tabs">
+                <button class="active" data-tab="item" onclick="switchHealTab('item')">🎒 治疗物品</button>
+                <button data-tab="spell" onclick="switchHealTab('spell')">✨ 治疗法术</button>
+            </div>
+            <div class="attack-source-list" id="heal-source-list"></div>
+            <button class="attack-free-btn" onclick="openFreeHeal()">💚 自由治疗（手动输入治疗表达式）</button>
+        </div>
+    </div>
+
     <!-- 治疗掷骰弹窗（独立3D物理掷骰小界面） -->
     <div class="attack-popup" id="heal-popup">
         <div class="attack-popup-header" id="heal-popup-drag">
@@ -1215,6 +1289,10 @@
             <button onclick="closeHealPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
         </div>
         <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                💚 治疗者：<b id="heal-healer-name"></b>
+                <span id="heal-source-name" style="color:var(--text-dim);font-size:0.75rem;"></span>
+            </div>
             <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
                 🎯 目标：<b id="heal-target-name"></b>
                 <span id="heal-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
@@ -1300,11 +1378,11 @@
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
     <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
-    <script src="/static/map-idb.js?v=66"></script>
-    <script src="/static/map-fog.js?v=66"></script>
-    <script src="/static/map-saves.js?v=66"></script>
-    <script src="/static/map.js?v=66"></script>
-    <script src="/static/map-page.js?v=66"></script>
+    <script src="/static/map-idb.js?v=71"></script>
+    <script src="/static/map-fog.js?v=71"></script>
+    <script src="/static/map-saves.js?v=71"></script>
+    <script src="/static/map.js?v=71"></script>
+    <script src="/static/map-page.js?v=71"></script>
 
 
 <!-- ━━ 骰子统计排行榜 ━━ -->

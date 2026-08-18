@@ -1010,3 +1010,14 @@
 [2026-08-17 20:40:00] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
 [2026-08-17 20:40:20] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
 [2026-08-17 20:48:17] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 13:42:54] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 14:32:24] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 15:34:29] [admin.login] user=IllusoryActor ip=127.0.0.1 管理员登录
+[2026-08-18 15:43:37] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 15:46:59] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 16:06:52] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-18 16:07:01] [map.save] user=IllusoryActor ip=127.0.0.1 保存地图存档: _autosave (0.1MB)
+[2026-08-18 22:34:32] [user.register] user=friendtest_a_1592 ip=::1 新用户注册 id=35
+[2026-08-18 22:34:32] [user.register] user=friendtest_b_1592 ip=::1 新用户注册 id=36
+[2026-08-18 22:47:40] [user.register] user=friendtest_c_1592 ip=::1 新用户注册 id=37
+[2026-08-18 22:47:40] [user.register] user=friendtest_d_1592 ip=::1 新用户注册 id=38
