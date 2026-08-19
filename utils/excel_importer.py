@@ -796,8 +796,9 @@ def _import_dnd5e24(ws, cells: dict) -> dict:
     # ━━ 法术位 ━
     # 悲灵 v1.0.1 模板：B62='环阶'标签，B63-B71=1-9环；
     #   G列='已用/最大'输入格（模板默认'/'，填后如'1/2'或纯数字）；
-    #   J62='法术值'标签，J63-J71=每环法术位数量（如1级法师J63=2）。
-    # 兼容旧布局：E63-E71（早期模板把法术位数值放在E列）。
+    #   E62='法术位'标签，E63-E71=每环法术位数值（玩家实际填写处）。
+    #   J列"法术值"是模板内置示例值（2/3/5/6/7/9/10/11/13），与玩家角色
+    #   无关，读取会导致低等级角色被识别出高环法术位——一律忽略。
     spell_slots = {}
     for level in range(1, 10):
         row = 62 + level
@@ -812,9 +813,8 @@ def _import_dnd5e24(ws, cells: dict) -> dict:
             if g_val.isdigit():
                 max_slots = int(g_val)
             else:
-                # J列（法术值）为主，E列为旧布局兜底
-                max_slots = (_safe_int(cells.get(f'J{row}'))
-                             or _safe_int(cells.get(f'E{row}')) or 0)
+                # E列（法术位数值）兜底；勿读 J 列（模板示例值）
+                max_slots = _safe_int(cells.get(f'E{row}')) or 0
         spell_slots[str(level)] = {'max': max_slots, 'used': used}
     result['spell_slots'] = spell_slots
 

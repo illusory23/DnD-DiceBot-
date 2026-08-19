@@ -1230,6 +1230,28 @@
             return false;
         }
 
+        // PL 移动/旋转/缩放 token 权限：DM 可全部；PL 仅可操作自己的角色或 DM 公开角色
+        function canMoveToken(token) {
+            if (window._isDM === true) return true;
+            if (!token) return false;
+            const identity = (typeof getIdentity === 'function') ? getIdentity() : {name: ''};
+            const myName = identity.name || '';
+            if (!myName) return false;
+            const cd = token.charId ? charDataCache[token.charId] : null;
+            if (!cd) return false;  // 角色数据未加载：保守拒绝（加载完成后即放行）
+            if (cd.is_public === true) return true;   // DM 公开角色：所有玩家可移动
+            if (cd.created_by === myName) return true;    // 自己创建的角色
+            if (cd.name === myName) return true;          // 兜底：角色名与玩家名一致
+            return false;
+        }
+        // 确保角色数据已加载后判断移动权限（拖动/旋转/缩放前调用）
+        async function ensureTokenCharData(token) {
+            if (token && token.charId) {
+                try { await fetchCharData(token.charId); } catch(e) {}
+            }
+            return canMoveToken(token);
+        }
+
         // 地图 token 名称与头像均可见；仅角色信息面板按 canViewCharInfo 拦截
         function refreshTokenPrivacy() {
             mapTokens.forEach(t => {
@@ -1254,16 +1276,13 @@
         // ━━━ 死亡标识（HP<=0 倒地时 token 头上显示 💀） ━━━
         function getTokenHp(token) {
             if (!token) return null;
-            // 战斗列表与角色数据缓存并存时取最大值：
-            // 任一来源显示存活即按存活处理，避免同步滞后导致死亡标识滞留
+            // 战斗中 HP 以战斗列表为准（与战斗面板/信息面板一致），非战斗取角色卡缓存
             const cb = mapCombatants.find(c => c.charId && token.charId && c.charId === token.charId) ||
                        mapCombatants.find(c => c.name && token.name && c.name === token.name);
+            if (cb && typeof cb.hp === 'number') return cb.hp;
             const cd = charDataCache[token.charId];
-            const vals = [];
-            if (cb && typeof cb.hp === 'number') vals.push(cb.hp);
-            if (cd && typeof cd.hp_current === 'number') vals.push(cd.hp_current);
-            if (!vals.length) return null;
-            return Math.max(...vals);
+            if (cd && typeof cd.hp_current === 'number') return cd.hp_current;
+            return null;
         }
 
         function refreshTokenDeadMarks() {
@@ -1380,7 +1399,12 @@
             const ab = charData.abilities || {};
             const mods = charData.ability_mods || {};
             const abbr = {str:'力', dex:'敏', con:'体', int:'智', wis:'感', cha:'魅'};
-            const hpPct = charData.hp_max ? Math.round(charData.hp_current / charData.hp_max * 100) : 100;
+            // HP 显示与战斗面板一致：战斗中取战斗列表值，非战斗取角色卡缓存
+            const _cb = mapCombatants.find(c => c.charId && token.charId && c.charId === token.charId) ||
+                        mapCombatants.find(c => c.name && charData.name && c.name === charData.name);
+            const hpCur = (_cb && typeof _cb.hp === 'number') ? _cb.hp : (charData.hp_current || 0);
+            const hpMax = (_cb && typeof _cb.hpMax === 'number') ? _cb.hpMax : (charData.hp_max || 0);
+            const hpPct = hpMax ? Math.round(hpCur / hpMax * 100) : 100;
 
             // 武器装备
             const weapons = charData.weapons || [];
@@ -1402,9 +1426,12 @@
             const tipBody = document.getElementById('tip-body');
             tipBody.innerHTML = `
                 <div class="tip-header">${charData.name}</div>
+                <div style="text-align:center;font-size:0.7rem;color:var(--gold);margin-bottom:0.15rem;">
+                    🎯 Lv.${charData.level||1} ${charData.class||''}${charData.race ? ' · ' + charData.race : ''}
+                </div>
                 <div class="tip-hp-bar">
                     <div class="tip-hp-fill" style="width:${hpPct}%"></div>
-                    <div class="tip-hp-text">❤️ ${charData.hp_current||0}/${charData.hp_max||0}</div>
+                    <div class="tip-hp-text">❤️ ${hpCur}/${hpMax}</div>
                 </div>
                 <div style="text-align:center;font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">
                     🛡️ AC ${charData.ac||10} | 🏃 ${charData.speed||30}尺 | ⭐ +${charData.proficiency_bonus||2}
@@ -1565,11 +1592,18 @@
             // 应用旋转
             if (token.rotation) applyTokenRotation(token);
 
-            el.addEventListener('mousedown', (e) => {
+            el.addEventListener('mousedown', async (e) => {
                 if (_justDropped) return;
                 if (e.target === sizeHandle || e.target === rotHandle) return;
                 if (currentTool !== 'select') return;
                 e.stopPropagation();
+                // 移动权限：PL 仅可移动自己的角色或 DM 公开角色
+                if (!(await ensureTokenCharData(token))) {
+                    if (window._isDM !== true && typeof Toast !== 'undefined') {
+                        Toast.info('无法移动其他玩家的角色标记（DM公开角色除外）');
+                    }
+                    return;
+                }
                 // 如果已被多选且点击的是多选中的元素，开始群组拖拽
                 if (multiSelected.length > 0 && multiSelected.some(ms => ms.ref === token)) {
                     startGroupDrag(e);
@@ -1580,16 +1614,30 @@
                 const pt = screenToCanvas(e.clientX, e.clientY);
                 dragOffset = {x: pt.x - token.x, y: pt.y - token.y};
             });
-            el.addEventListener('dblclick', (e) => {
+            el.addEventListener('dblclick', async (e) => {
                 e.stopPropagation();
+                // 删除权限与移动权限一致
+                if (!(await ensureTokenCharData(token))) {
+                    if (window._isDM !== true && typeof Toast !== 'undefined') {
+                        Toast.info('无法删除其他玩家的角色标记（DM公开角色除外）');
+                    }
+                    return;
+                }
                 removeMapToken(token);
                 if (selectedElement && selectedElement.type === 'token' && selectedElement.ref === token) selectedElement = null;
                 multiSelected = multiSelected.filter(ms => ms.ref !== token);
                 debouncedSave();
             });
 
-            sizeHandle.addEventListener('mousedown', (ev) => {
+            sizeHandle.addEventListener('mousedown', async (ev) => {
                 ev.stopPropagation(); ev.preventDefault();
+                // 缩放权限与移动权限一致
+                if (!(await ensureTokenCharData(token))) {
+                    if (window._isDM !== true && typeof Toast !== 'undefined') {
+                        Toast.info('无法调整其他玩家的角色标记（DM公开角色除外）');
+                    }
+                    return;
+                }
                 const sx = ev.clientX; const sy = ev.clientY;
                 const sSize = token.size;
                 function mv(ev2) { const d = Math.max(20, Math.min(400, sSize + (ev2.clientX-sx + ev2.clientY-sy)/2)); token.size = d; el.style.width = d+'px'; el.style.height = d+'px'; }
@@ -1640,11 +1688,19 @@
             token.el.style.transform = `rotate(${deg}deg)`;
         }
 
-        function startRotate(e) {
+        async function startRotate(e) {
             const handle = e.target.closest('.token-rotate');
             const tokenEl = handle.closest('.map-token');
             rotToken = mapTokens.find(t => t.el === tokenEl);
             if (!rotToken) return;
+            // 旋转权限与移动权限一致
+            if (!(await ensureTokenCharData(rotToken))) {
+                if (window._isDM !== true && typeof Toast !== 'undefined') {
+                    Toast.info('无法旋转其他玩家的角色标记（DM公开角色除外）');
+                }
+                rotToken = null;
+                return;
+            }
             isRotating = true;
             rotStartRotation = rotToken.rotation || 0;
             const rect = tokenEl.getBoundingClientRect();
@@ -3032,22 +3088,33 @@
             }
             const rollBtn = document.getElementById('damage-roll-btn');
             rollBtn.disabled = false;
-            rollBtn.textContent = '💥 伤害掷骰并结算';
+            rollBtn.textContent = '💥 伤害掷骰';
+            pendingDamage = null;
+            const confirmBtn = document.getElementById('damage-confirm-btn');
+            if (confirmBtn) { confirmBtn.style.display = 'none'; confirmBtn.disabled = true; }
             updateDamageStatus();
             document.getElementById('damage-popup').classList.add('show');
         };
         window.closeDamagePopup = function() {
             document.getElementById('damage-popup').classList.remove('show');
+            pendingDamage = null;
             damageCtx = null;
         };
+        // 待结算伤害值（v5.5：掷骰后不直接结算，点"✅ 确定结算"才生效，确定前可重掷/重新选择）
+        let pendingDamage = null;
+
         window.damageRoll = async function() {
             if (!damageCtx || damageInProgress) return;
             const config = getDamageDiceConfig();
             const expr = buildDamageExpr(config);  // 数量d面数+加值（可自由增减数量）
             const adv = getDamageAdv();
             const rollBtn = document.getElementById('damage-roll-btn');
+            const confirmBtn = document.getElementById('damage-confirm-btn');
             damageInProgress = true;
             rollBtn.disabled = true;
+            // 重新掷骰时旧待结算值作废
+            pendingDamage = null;
+            if (confirmBtn) { confirmBtn.style.display = 'none'; confirmBtn.disabled = true; }
             rollBtn.textContent = damageUse3D ? '💥 请在3D界面掷骰' : '💥 投掷中...';
             setDamageResult('<div class="dice-anim-area">' + renderDiceFace(1, true, config.sides) + '</div><div style="text-align:center;color:var(--cyan);font-size:0.85rem;">💥 伤害掷骰中...</div>');
             let total = null;
@@ -3059,9 +3126,22 @@
             }
             damageInProgress = false;
             rollBtn.disabled = false;
-            rollBtn.textContent = '💥 伤害掷骰并结算';
+            rollBtn.textContent = '💥 伤害掷骰';
             if (total === null) { setDamageResult('<span style="color:var(--text-dim);">已取消伤害掷骰</span>'); return; }
             const dmg = Math.max(0, Math.round(total));
+            pendingDamage = dmg;
+            const token = damageCtx.targetToken;
+            setDamageResult(`<div class="dice-total-badge" style="background:#c0392b;">💥 掷出 ${dmg} 点伤害</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">目标：${token.name || ''}（尚未结算）— 点击 ✅ 确定结算 生效，或重新掷骰 / 重新选择</div>`);
+            if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; }
+        };
+
+        // 确认伤害结算：应用扣血、同步战斗面板并播报（v5.5）
+        window.confirmDamage = async function() {
+            if (!damageCtx || pendingDamage === null) return;
+            const dmg = pendingDamage;
+            pendingDamage = null;
+            const confirmBtn = document.getElementById('damage-confirm-btn');
+            if (confirmBtn) confirmBtn.disabled = true;
             const token = damageCtx.targetToken;
             const targetId = token.charId;
             let newHp = null, newHpMax = null;
@@ -3088,7 +3168,6 @@
             refreshCharHpDisplay(targetId);
             refreshTokenDeadMarks();
             const dead = (newHp !== null && newHp <= 0);
-            setDamageResult(`<div class="dice-total-badge" style="background:#c0392b;">💥 造成 ${dmg} 点伤害！</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">${token.name || ''} 剩余 HP: ${newHp !== null ? newHp : '?'}/${newHpMax !== null ? newHpMax : '?'}${dead ? ' 💀 已倒地！' : ''}</div>`);
             // 聊天室广播：{攻击者} 使用 {攻击方式} 击中了 {目标}，{目标} 受到了 {dmg} 点伤害（自然20重击切换播报）
             if (dmg > 0) {
                 const atkName = (attackCtx && attackCtx.attackerName) || '';
@@ -3103,7 +3182,28 @@
                 }
             }
             if (attackCtx) attackCtx.hit = false;
-            document.getElementById('attack-dmg-btn').style.display = 'none';
+            const dmgBtn = document.getElementById('attack-dmg-btn');
+            if (dmgBtn) dmgBtn.style.display = 'none';
+            // 结算完成：关闭伤害弹窗与攻击弹窗，复位状态
+            document.getElementById('damage-popup').classList.remove('show');
+            damageCtx = null;
+            closeAttackPopup();
+        };
+
+        // 重新选择攻击方式：放弃待结算伤害，回到攻击方式选择（或自由攻击）弹窗（v5.5）
+        window.reselectDamage = function() {
+            const token = damageCtx ? damageCtx.targetToken : null;
+            const fromPicker = !!(attackCtx && attackCtx.attackerName);
+            pendingDamage = null;
+            document.getElementById('damage-popup').classList.remove('show');
+            damageCtx = null;
+            closeAttackPopup();
+            if (!token) return;
+            if (fromPicker) {
+                openAttackPicker(token);
+            } else {
+                openAttackPopup(token, { attackerName: '', attackerCharId: null, sourceLabel: '', bonus: 0, dmgExpr: '' });
+            }
         };
 
         // ━━━ 治疗方式选择（点击💚后先选治疗者 + 背包治疗物品/已准备治疗法术） ━━━
@@ -3348,20 +3448,31 @@
             rollBtn.disabled = false;
             rollBtn.textContent = '🎲 治疗掷骰';
             setHealStatus(`💚 治疗骰: ${document.getElementById('heal-expr').value || '1d8'} &nbsp;|&nbsp; 3D物理掷骰: ${healUse3D ? '✨开' : '关'}`);
+            pendingHeal = null;
+            const confirmBtn = document.getElementById('heal-confirm-btn');
+            if (confirmBtn) { confirmBtn.style.display = 'none'; confirmBtn.disabled = true; }
             document.getElementById('heal-popup').classList.add('show');
         };
 
         window.closeHealPopup = function() {
             document.getElementById('heal-popup').classList.remove('show');
+            pendingHeal = null;
             healCtx = null;
         };
+
+        // 待结算治疗值（v5.5：掷骰后不直接结算，点"✅ 确定结算"才生效，确定前可重掷/重新选择）
+        let pendingHeal = null;
 
         window.healRoll = async function() {
             if (!healCtx || healInProgress) return;
             const expr = document.getElementById('heal-expr').value.trim() || '1d8';
             const rollBtn = document.getElementById('heal-roll-btn');
+            const confirmBtn = document.getElementById('heal-confirm-btn');
             healInProgress = true;
             rollBtn.disabled = true;
+            // 重新掷骰时旧待结算值作废
+            pendingHeal = null;
+            if (confirmBtn) { confirmBtn.style.display = 'none'; confirmBtn.disabled = true; }
             rollBtn.textContent = healUse3D ? '🎲 请在3D界面掷骰' : '💚 投掷中...';
             setHealResult('<div class="dice-anim-area">' + renderDiceFace(1, true, 8) + '</div><div style="text-align:center;color:var(--cyan);font-size:0.85rem;">💚 治疗掷骰中...</div>');
             let total = null;
@@ -3376,6 +3487,18 @@
             rollBtn.textContent = '🎲 治疗掷骰';
             if (total === null) { setHealResult('<span style="color:var(--text-dim);">已取消掷骰</span>'); return; }
             const heal = Math.max(0, Math.round(total));
+            pendingHeal = heal;
+            setHealResult(`<div class="dice-total-badge" style="background:#27ae60;">💚 掷出 ${heal} 点治疗</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">目标：${healCtx.targetToken.name || ''}（尚未结算）— 点击 ✅ 确定结算 生效，或重新掷骰 / 重新选择</div>`);
+            if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; }
+        };
+
+        // 确认治疗结算：应用回血、同步战斗面板并播报（v5.5）
+        window.confirmHeal = async function() {
+            if (!healCtx || pendingHeal === null) return;
+            const heal = pendingHeal;
+            pendingHeal = null;
+            const confirmBtn = document.getElementById('heal-confirm-btn');
+            if (confirmBtn) confirmBtn.disabled = true;
             const targetId = healCtx.targetToken.charId;
             let newHp = null, newHpMax = null;
             // 自动恢复血量（正数为治疗，上限 hp_max）
@@ -3403,10 +3526,7 @@
             }
             refreshCharHpDisplay(targetId);
             refreshTokenDeadMarks();
-            // 更新弹窗内目标 HP 显示
-            if (newHp !== null) document.getElementById('heal-target-hp').textContent = `❤️ ${newHp}/${newHpMax}`;
             const full = (newHp !== null && newHpMax !== null && newHp >= newHpMax);
-            setHealResult(`<div class="dice-total-badge" style="background:#27ae60;">💚 恢复 ${heal} 点生命！</div><div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">${healCtx.targetToken.name || ''} 剩余 HP: ${newHp !== null ? newHp : '?'}/${newHpMax !== null ? newHpMax : '?'}${full ? ' ✨ 已满血！' : ''}</div>`);
             // 聊天室广播：{治疗者} 使用 {治疗方式}，{目标} 回复了 {heal} 点血量
             if (heal > 0) {
                 const healerName = (healCtx && healCtx.healerName) || '';
@@ -3415,6 +3535,24 @@
                 if (healerName) act = srcName ? healerName + ' 使用 ' + srcName : healerName;
                 const tgtName = healCtx.targetToken.name || '目标';
                 mapChatNotifyHp('💚', act + '，' + tgtName + ' 回复了 ' + heal + ' 点血量' + (full ? '，已满血！' : ''));
+            }
+            // 结算完成：关闭治疗弹窗，复位状态
+            document.getElementById('heal-popup').classList.remove('show');
+            healCtx = null;
+        };
+
+        // 重新选择治疗方式：放弃待结算治疗，回到治疗方式选择（或自由治疗）弹窗（v5.5）
+        window.reselectHeal = function() {
+            const token = healCtx ? healCtx.targetToken : null;
+            const fromPicker = !!(healCtx && healCtx.healerName);
+            pendingHeal = null;
+            document.getElementById('heal-popup').classList.remove('show');
+            healCtx = null;
+            if (!token) return;
+            if (fromPicker) {
+                openHealPicker(token);
+            } else {
+                openHealPopup(token, { healerName: '', healerCharId: null, sourceLabel: '', expr: '1d8' });
             }
         };
 
@@ -3609,6 +3747,10 @@
             var reg = getSlotRegistry(); reg.activeSlotId = null; saveSlotRegistry(reg);
             zoomFit(); redrawCanvas();
             wsSend({type: 'clear_all'});
+            // 标记脏数据并立即推送空状态：WS 断开时 clear_all 只会进待发队列，
+            // 服务端旧状态可能经 HTTP 轮询把已清除的 token 复活——立即推送空列表兜底
+            _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true;
+            window._pushSharedCanvas(true);
             saveState();
         }
 
@@ -3868,6 +4010,39 @@
             debouncedSave();
         }
 
+        // HP 状态文字（v5.5）：按血量比例划分 毫发无损/轻伤/中等伤势/重伤/死亡
+        function hpStatusOf(hp, hpMax) {
+            if (!(hpMax > 0)) hpMax = hp || 0;
+            if (hp <= 0) return { text: '死亡', color: 'var(--red)' };
+            const ratio = hp / hpMax;
+            if (ratio >= 1) return { text: '毫发无损', color: 'var(--green)' };
+            if (ratio > 2 / 3) return { text: '轻伤', color: 'var(--green)' };
+            if (ratio > 1 / 3) return { text: '中等伤势', color: 'var(--gold)' };
+            return { text: '重伤', color: 'var(--red)' };
+        }
+        // 战斗列表 HP 可见性：DM 全部可见；PL 仅自己的角色与 DM 公开角色可见具体数值（v5.5）
+        function canViewCombatantHp(c) {
+            if (window._isDM === true) return true;
+            if (!c) return false;
+            const cd = c.charId ? charDataCache[c.charId] : null;
+            return canViewCharInfo({ charId: c.charId, name: c.name }, cd);
+        }
+        // 战斗行 HP 显示：不可见时显示 ?/? 与状态文字
+        function mapCombatHpDisplay(c) {
+            const hpNum = parseInt(c.hp, 10);
+            const hpMaxNum = parseInt(c.hpMax, 10);
+            if (canViewCombatantHp(c)) {
+                const hpPct = hpMaxNum > 0 ? Math.round(hpNum / hpMaxNum * 100) : 100;
+                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
+                return `<span style="color:${hpColor};font-size:0.75rem;">❤️${hpNum}/${hpMaxNum}</span>`;
+            }
+            const st = hpStatusOf(hpNum, hpMaxNum);
+            return `<span style="color:${st.color};font-size:0.75rem;" title="血量数值隐藏（仅 DM 与对应玩家可见）">❤️?/? · ${st.text}</span>`;
+        }
+        // 战斗者角色数据补拉失败/进行中标记（避免重复请求私有/不可读角色）
+        let _mapHpFetchFailed = {};
+        let _mapHpFetching = {};
+
         function mapRenderInitiative() {
             // 战斗列表 HP 变化时同步刷新 token 倒地标识
             refreshTokenDeadMarks();
@@ -3884,8 +4059,6 @@
             const isDM = window._isDM === true;
             const identity = typeof getIdentity === 'function' ? getIdentity() : { name: '' };
             el.innerHTML = mapCombatants.map((c, i) => {
-                const hpPct = c.hpMax > 0 ? Math.round(c.hp / c.hpMax * 100) : 100;
-                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
                 const canEdit = isDM || (c.addedBy && c.addedBy === identity.name);
                 const initDisplay = canEdit
                     ? `<span style="color:var(--text-dim);font-size:0.7rem;">先攻:</span><input type="number" id="map-init-input-${i}" value="${c.initiative || ''}" placeholder="--"
@@ -3896,11 +4069,20 @@
                 <div class="combatant-row${c.isCurrent ? ' current' : ''}" style="font-size:0.78rem;padding:0.35rem 0.4rem;">
                     <span class="combatant-name" style="font-size:0.8rem;">${mapCombatStarted ? (i+1)+'. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}${c.joinedLate ? ' <span style="color:var(--gold);font-size:0.65rem;" title="战斗中临时加入，下一轮开始生效">⏳</span>' : ''}</span>
                     ${initDisplay}
-                    <span style="color:${hpColor};font-size:0.75rem;">❤️${c.hp}/${c.hpMax}</span>
+                    ${mapCombatHpDisplay(c)}
                     <button onclick="mapRemoveCombatant(${i})" title="脱离战斗"
                             style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.9rem;padding:0 0.2rem;">✕</button>
                 </div>`;
             }).join('');
+            // 补拉战斗者角色数据（HP 可见性判定依赖 is_public / created_by），完成后重渲染
+            const missingIds = [...new Set(mapCombatants
+                .filter(c => c.charId && !charDataCache[c.charId] && !_mapHpFetchFailed[c.charId] && !_mapHpFetching[c.charId])
+                .map(c => c.charId))];
+            missingIds.forEach(id => {
+                _mapHpFetching[id] = true;
+                fetchCharData(id).then(d => { if (!d) _mapHpFetchFailed[id] = true; })
+                    .finally(() => { delete _mapHpFetching[id]; mapRenderInitiative(); });
+            });
         }
 
         function mapUpdateInitiative(index, value) {
@@ -3937,7 +4119,8 @@
             mapCombatants.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
-                opt.textContent = `${c.name} (❤️${c.hp}/${c.hpMax})`;
+                // 不可见 HP 的战斗者在目标下拉中同样脱敏（v5.5）
+                opt.textContent = canViewCombatantHp(c) ? `${c.name} (❤️${c.hp}/${c.hpMax})` : `${c.name} (❤️?/?)`;
                 if (c.name === currentVal) opt.selected = true;
                 select.appendChild(opt);
             });
@@ -4144,7 +4327,6 @@
             if (keepLocal && !mapCombatants.length && (s.combatants || []).length) {
                 if (ts) _mapCombatLastTs = ts;
                 saveMapCombatLocal();
-                if (typeof Toast !== 'undefined') Toast.info('已保持清空状态（忽略旧战斗同步）');
                 return;
             }
             // 服务器状态为空但本地刚有编辑（如首次添加战斗者/对方刚清空）：保留本地，
@@ -4152,7 +4334,6 @@
             if (keepLocal && Object.keys(localOverrides).length > 0 && !(s.combatants || []).length) {
                 if (ts) _mapCombatLastTs = ts;
                 saveMapCombatLocal();
-                if (typeof Toast !== 'undefined') Toast.info('战斗状态已同步（保留本地内容）');
                 return;
             }
             mapCombatants = s.combatants.map(c => {
@@ -4170,10 +4351,19 @@
             mapUpdateDmgDropdown();
             if (s.round) document.getElementById('map-round-info').textContent = s.round;
             if (ts) _mapCombatLastTs = ts;
-            saveMapCombatLocal();
-            if (typeof Toast !== 'undefined') {
-                Toast.info(keepLocal ? '战斗状态已同步（已保留本地刚输入的内容）' : '战斗状态已被其他玩家更新，已同步最新数据');
+            // 远端战斗 HP 变化 → 同步角色数据缓存与显示（token 信息面板/倒地标识与战斗面板一致）
+            mapCombatants.forEach(function(c) {
+                if (c.charId && charDataCache[c.charId] && typeof c.hp === 'number') {
+                    charDataCache[c.charId].hp_current = c.hp;
+                    if (typeof c.hpMax === 'number') charDataCache[c.charId].hp_max = c.hpMax;
+                }
+            });
+            refreshTokenDeadMarks();
+            if (selectedElement && selectedElement.type === 'token' && selectedElement.ref &&
+                selectedElement.ref.charId && charDataCache[selectedElement.ref.charId]) {
+                showTokenInfoPanel(selectedElement.ref);
             }
+            saveMapCombatLocal();
         }
         function startCombatSync() {
             if (combatSyncTimer) clearInterval(combatSyncTimer);
@@ -4297,6 +4487,10 @@
             }
 
             if (state) {
+                // 本地存在存档：立即设置保护标志（不能等 applyState 完成）——
+                // 图层图片异步加载期间 WS init/HTTP 轮询可能到达，若此时标志未设置，
+                // 服务端旧状态（缺最后改动）会以"全量语义"清空本地 token/文字（地图被清空）
+                window._localStateRestored = true;
                 try {
                     // 按层从 IndexedDB / _emergency 补全被 localStorage 截断的 dataURL
                     if (state.layers && state.layers.length > 0) {
@@ -4377,8 +4571,6 @@
                     dbSetSync(STORAGE_KEY, state);
 
                     console.log('✅ 已恢复上次关闭时的地图状态');
-                    // 标记本地状态已恢复，阻止 WS init / HTTP 轮询用服务端旧数据覆盖
-                    window._localStateRestored = true;
                     // 5 秒后自动清除保护标志，DM端强制推送本地状态到服务器确保PL同步
                     setTimeout(function() {
                         window._localStateRestored = false;
@@ -4390,6 +4582,8 @@
                     return;
                 } catch(e) {
                     console.warn('恢复状态失败，使用空白画布:', e);
+                    // 恢复失败：解除保护，允许服务端状态兜底覆盖（避免空白画布再推送给服务器）
+                    window._localStateRestored = false;
                 }
             }
 
@@ -4465,7 +4659,10 @@
                     localStorage.setItem(STORAGE_KEY + '_unload', JSON.stringify(s));
                 } catch(e) { console.error('⚠ 紧急保存 _unload 失败:', e); }
                 saveState(); saveMapCombatLocal();
-                window._pushSharedCanvas();
+                // 立即推送（绕过100ms防抖）：离开页面前确保服务端拿到最新状态，
+                // 否则返回地图时服务端旧状态（缺最后改动）可能清空本地 token
+                _dirtyFlags.layers = _dirtyFlags.tokens = _dirtyFlags.texts = _dirtyFlags.fog = true;
+                window._pushSharedCanvas(true);
             };
             window.addEventListener('pagehide', saveOnUnload);
             window.addEventListener('beforeunload', saveOnUnload);
@@ -5443,10 +5640,9 @@ applyRoleRestrictions();
             window._pushSharedCanvas();
         }
 
-        function pushSharedCanvas() {
+        function pushSharedCanvas(immediate) {
             if (_pushDebounce) clearTimeout(_pushDebounce);
-            _pushDebounce = setTimeout(function() {
-                _pushDebounce = null;
+            function doPush() {
                 if (!window._anyDirty()) return;
 
                 var s = collectSyncState();
@@ -5472,14 +5668,20 @@ applyRoleRestrictions();
                 if (_dirtyFlags.texts) { body.texts = s.textBoxes; _dirtyFlags.texts = false; }
                 if (_dirtyFlags.fog) { body.fog = {strokes: s.fogStrokes, erasures: s.fogErasures, visible: s.fogVisible}; _dirtyFlags.fog = false; }
 
+                // keepalive：页面卸载/切走时也能送达（同步体很小，无 dataURL）
                 fetch('/api/shared-canvas', {method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body), keepalive: true
                 }).then(function(r){ return r.json(); }).then(function(d){
                     _pushInFlight = false;
                     if (d && d.version !== undefined) sharedCanvasVer = d.version;
                     window._localStateRestored = false;
                 }).catch(function(){ _pushInFlight = false; });
                 _pushInFlight = true;
+            }
+            if (immediate) { doPush(); return; }
+            _pushDebounce = setTimeout(function() {
+                _pushDebounce = null;
+                doPush();
             }, 100);
         }
 

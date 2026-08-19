@@ -261,6 +261,32 @@ a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
   </div>
 </div>
 
+<!-- ━━ 好友私聊弹窗（v5.5：文本+图片，3秒轮询增量拉取） ━━ -->
+<div class="modal-overlay" id="chat-modal">
+  <div class="modal-card" style="max-width:480px;">
+    <button class="modal-close" onclick="closeFriendChat()">✕</button>
+    <h3 id="chat-friend-name" style="display:flex;align-items:center;gap:8px;">💬 好友私聊</h3>
+    <div id="chat-msg-list" style="height:320px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="chat-input" maxlength="500" placeholder="输入消息...（Enter 发送）"
+             style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+             onkeydown="if(event.key==='Enter')sendFriendChatMsg()">
+      <button class="btn" onclick="pickChatImage()" title="发送图片">📷</button>
+      <button class="btn btn-primary" onclick="sendFriendChatMsg()">发送</button>
+    </div>
+    <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="onChatImagePicked(this)">
+  </div>
+</div>
+
+<!-- ━━ 好友资料弹窗（v5.5：仅公开信息，私密字段不可见） ━━ -->
+<div class="modal-overlay" id="friend-profile-modal">
+  <div class="modal-card" style="max-width:480px;">
+    <button class="modal-close" onclick="document.getElementById('friend-profile-modal').classList.remove('show')">✕</button>
+    <h3>👤 好友资料</h3>
+    <div id="friend-profile-body" style="max-height:70vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <script>
 var _currentUser = null;
 
@@ -605,10 +631,167 @@ function deleteFriend(friendId, friendName){
     }).catch(function(){ Toast.show('网络错误，删除失败', 'error'); });
 }
 
+/* ━━ 好友私聊（v5.5：文本+图片，3 秒轮询增量拉取） ━━ */
+var _chatFriend = null;    // 当前聊天好友 {id, username, avatar_url}
+var _chatLastId = 0;       // 已拉取的最大消息 id（增量轮询）
+var _chatTimer = null;
+
+function openFriendChat(friendId){
+  var f = _friendsList.find(function(x){ return x.id === friendId; });
+  if (!f) return;
+  _chatFriend = { id: f.id, username: f.username, avatar_url: f.avatar_url || '' };
+  _chatLastId = 0;
+  document.getElementById('chat-friend-name').innerHTML =
+    friendAvatarHtml(_chatFriend) + ' <b style="color:var(--accent);">' + escH(f.username) + '</b>';
+  var box = document.getElementById('chat-msg-list');
+  box.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:10px;font-size:0.8rem;">加载中...</div>';
+  document.getElementById('chat-modal').classList.add('show');
+  loadFriendChat(true);
+  if (_chatTimer) clearInterval(_chatTimer);
+  _chatTimer = setInterval(function(){ loadFriendChat(false); }, 3000);
+}
+
+function closeFriendChat(){
+  document.getElementById('chat-modal').classList.remove('show');
+  _chatFriend = null;
+  if (_chatTimer) { clearInterval(_chatTimer); _chatTimer = null; }
+  loadFriendsData();  // 刷新好友列表未读红点
+}
+
+function loadFriendChat(first){
+  if (!_chatFriend) return;
+  fetch('/api/friends/chat/' + _chatFriend.id + '?since_id=' + (_chatLastId || 0))
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) {
+        if (first) document.getElementById('chat-msg-list').innerHTML =
+          '<div style="color:var(--text-dim);text-align:center;padding:10px;font-size:0.8rem;">' + escH(d.error || '加载失败') + '</div>';
+        return;
+      }
+      appendFriendChatMessages(d.messages || [], first);
+    }).catch(function(){});
+}
+
+function appendFriendChatMessages(msgs, first){
+  var box = document.getElementById('chat-msg-list');
+  if (!box) return;
+  if (!msgs.length) {
+    if (first) box.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.8rem;">还没有消息，来打个招呼吧～</div>';
+    return;
+  }
+  var h = '';
+  msgs.forEach(function(m){
+    if (m.id > _chatLastId) _chatLastId = m.id;
+    var mine = m.sender_id !== _chatFriend.id;
+    var img = m.image_url
+      ? '<div><img src="' + escH(m.image_url) + '" alt="图片" style="max-width:220px;max-height:220px;border-radius:6px;margin-top:4px;cursor:pointer;display:block;" onclick="window.open(this.src)" onerror="this.outerHTML=\'<span style=font-size:0.75rem;color:var(--text-dim);>[图片已失效]</span>\'"></div>'
+      : '';
+    h += '<div style="display:flex;margin:6px 0;' + (mine ? 'justify-content:flex-end;' : '') + '">' +
+      '<div style="max-width:75%;padding:8px 12px;border-radius:10px;font-size:0.85rem;word-break:break-word;white-space:pre-wrap;' + (mine ? 'background:var(--accent);color:#fff;' : 'background:var(--surface2);color:var(--text);') + '">' +
+      (m.content ? escH(m.content) : '') + img +
+      '<div style="font-size:0.65rem;opacity:0.7;margin-top:3px;text-align:right;">' + (m.created_at || '').slice(5, 16) + '</div>' +
+      '</div></div>';
+  });
+  if (first) { box.innerHTML = h; } else { box.insertAdjacentHTML('beforeend', h); }
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendFriendChatMsg(){
+  if (!_chatFriend) return;
+  var input = document.getElementById('chat-input');
+  var content = input.value.trim();
+  if (!content) return;
+  fetch('/api/friends/chat/' + _chatFriend.id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: content}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '发送失败', 'error'); return; }
+    input.value = '';
+    loadFriendChat(false);
+  }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+function pickChatImage(){
+  document.getElementById('chat-image-input').click();
+}
+
+function onChatImagePicked(input){
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !_chatFriend) return;
+  if (file.size > 2 * 1024 * 1024) { Toast.show('图片过大（最大2MB）', 'error'); return; }
+  var fd = new FormData();
+  fd.append('image', file);
+  Toast.show('图片上传中...', 'success');
+  fetch('/api/friends/chat/' + _chatFriend.id + '/image', {method: 'POST', body: fd})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { Toast.show(d.error || '上传失败', 'error'); return null; }
+      return fetch('/api/friends/chat/' + _chatFriend.id, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({image_url: d.url}),
+      }).then(function(r){ return r.json(); });
+    }).then(function(d){
+      if (d && d.ok) loadFriendChat(false);
+    }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+/* ━━ 好友资料（v5.5：仅头像/ID/用户名/上次登录/简介/酒馆工坊投稿/收藏） ━━ */
+function openFriendProfile(friendId){
+  fetch('/api/users/' + friendId + '/profile').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '加载失败', 'error'); return; }
+    var p = d.profile;
+    var av = p.avatar_url
+      ? '<img src="' + escH(p.avatar_url) + '" alt="" onerror="this.style.display=\'none\'" style="width:64px;height:64px;border-radius:50%;object-fit:cover;flex-shrink:0;">'
+      : '<span style="width:64px;height:64px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">⚔️</span>';
+    var html = '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">' + av +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:1.05rem;color:var(--accent);"><b>' + escH(p.username) + '</b></div>' +
+      '<div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">ID: ' + p.id + '</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">🕐 上次登录：' + (p.last_login ? escH(p.last_login) : '从未登录') + '</div>' +
+      '</div></div>';
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">📝 个人简介</div>';
+    html += '<div style="font-size:0.85rem;color:var(--text);white-space:pre-wrap;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:6px;word-break:break-word;">' +
+      (p.bio ? escH(p.bio) : '<span style="color:var(--text-dim);">暂无简介</span>') + '</div>';
+    // 酒馆帖子
+    var posts = p.posts || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">🍺 酒馆帖子（' + posts.length + '）</div>';
+    if (!posts.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">暂无帖子</div>'; }
+    else {
+      html += '<div style="margin-bottom:12px;">' + posts.map(function(t){
+        return '<div class="item-row" style="margin-bottom:4px;"><a href="/post/' + t.id + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(t.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + (t.created_at || '').slice(0, 10) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    // 工坊投稿
+    var works = p.workshop_items || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">🔧 工坊投稿（' + works.length + '）</div>';
+    if (!works.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">暂无投稿</div>'; }
+    else {
+      html += '<div style="margin-bottom:12px;">' + works.map(function(t){
+        return '<div class="item-row" style="margin-bottom:4px;"><a href="/workshop/' + t.id + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(t.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + (t.created_at || '').slice(0, 10) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    // 收藏
+    var favs = p.favorites || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">⭐ 收藏（' + favs.length + '）</div>';
+    if (!favs.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);">暂无收藏</div>'; }
+    else {
+      html += '<div>' + favs.map(function(f){
+        var link = f.type === 'post' ? '/post/' + f.item_id : '/workshop/' + f.item_id;
+        return '<div class="item-row" style="margin-bottom:4px;"><span>' + (f.type === 'post' ? '💬' : '📦') + '</span><a href="' + link + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(f.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + escH(f.author || '') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    document.getElementById('friend-profile-body').innerHTML = html;
+    document.getElementById('friend-profile-modal').classList.add('show');
+  }).catch(function(){ Toast.show('网络错误，加载失败', 'error'); });
+}
+
 function friendAvatarHtml(f){
   if (!f.avatar_url) return '<span style="width:26px;height:26px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;flex-shrink:0;">⚔️</span>';
   return '<img src="' + escH(f.avatar_url) + '" onerror="this.style.display=\'none\'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;">';
 }
+
+var _friendsList = [];  // 好友列表缓存（私聊/资料弹窗取头像用户名用）
 
 function loadFriendsData(){
   fetch('/api/friends').then(function(r){ return r.json(); }).then(function(d){
@@ -616,14 +799,18 @@ function loadFriendsData(){
     if (!el) return;
     if (!d.ok) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">请先登录</div>'; return; }
     var list = d.friends || [];
+    _friendsList = list;
     if (!list.length) {
       el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无好友，输入用户名搜索添加</div>';
       return;
     }
     el.innerHTML = list.map(function(f){
+      var unreadBadge = f.unread > 0 ? '<span style="background:var(--red);color:#fff;border-radius:9px;padding:0 5px;font-size:0.65rem;margin-left:3px;flex-shrink:0;">' + f.unread + '</span>' : '';
       return '<div class="item-row">' + friendAvatarHtml(f) +
-        '<span class="item-name" style="flex:1;color:var(--text);">' + escH(f.username) + '</span>' +
-        '<button class="btn btn-sm" onclick="deleteFriend(' + f.id + ',\'' + escH(f.username) + '\')" style="border-color:var(--red);color:var(--red);">🗑 删除</button>' +
+        '<span class="item-name" style="flex:1;color:var(--text);display:flex;align-items:center;gap:4px;min-width:0;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escH(f.username) + '</span>' + unreadBadge + '</span>' +
+        '<button class="btn btn-sm btn-primary" onclick="openFriendChat(' + f.id + ')" title="与好友私聊">💬 私聊</button>' +
+        '<button class="btn btn-sm" onclick="openFriendProfile(' + f.id + ')" title="查看好友资料">👤 资料</button>' +
+        '<button class="btn btn-sm" onclick="deleteFriend(' + f.id + ',\'' + escH(f.username) + '\')" title="删除好友" style="border-color:var(--red);color:var(--red);">🗑</button>' +
       '</div>';
     }).join('');
   }).catch(function(){});
@@ -696,6 +883,9 @@ function setValue(id, val, emptyText){
 function showEditModal(){ document.getElementById('edit-modal').classList.add('show'); }
 function hideEditModal(){ document.getElementById('edit-modal').classList.remove('show'); }
 document.getElementById('edit-modal').addEventListener('click',function(e){ if(e.target===this)hideEditModal(); });
+// 私聊/好友资料弹窗：点击遮罩关闭（v5.5）
+document.getElementById('chat-modal').addEventListener('click',function(e){ if(e.target===this)closeFriendChat(); });
+document.getElementById('friend-profile-modal').addEventListener('click',function(e){ if(e.target===this)this.classList.remove('show'); });
 
 function saveProfile(){
   var data = {

@@ -182,60 +182,8 @@
                 difficulty: 'standard' // 'light' | 'standard' | 'hardcore'
             };
 
-            // 角色数据
-            const charData = {
-                '1': {
-                    name: '艾琳·霜刃', rank: '青羽', level: 5, class: '战士', race: '人类',
-                    hp: 28, hpMax: 35, tempHp: 0, ac: 18, speed: 30, profBonus: 3, passivePerception: 14,
-                    str: 16, dex: 14, con: 15, int: 10, wis: 12, cha: 8,
-                    height: '175cm', weight: '68kg', alignment: '守序中立', faith: '坦帕斯', gender: '女',
-                    languages: '通用语、矮人语',
-                    keyAbilities: '力量', resistances: '寒冷',
-                    spellSaveDc: 13, spellAttackBonus: 5,
-                    skillProfs: { '运动': 1, '威吓': 1, '察觉': 1, '生存': 1 },
-                    saveProfs: { '力量': 1, '体质': 1 },
-                    weapons: [{ name: '长剑', bonus: 7, damage: '1d8+4', type: '挥砍' }, { name: '手斧', bonus: 6, damage: '1d6+4', type: '挥砍' }],
-                    inventory: [{ name: '治疗药水', qty: 2, location: '背包' }, { name: '绳索50尺', qty: 1, location: '背包' }, { name: '火把', qty: 3, location: '背包' }, { name: '探险家背包', qty: 1, location: '装备' }],
-                    coins: { cp: 15, sp: 32, gp: 45 },
-                    spells: [{ name: '猎人印记', level: 1 }],
-                    background: { personality: '沉默寡言，但战斗时充满激情', ideals: '荣誉至上，绝不抛弃同伴', bonds: '守护北境边疆是我的使命', flaws: '对陌生人极度不信任', appearance: '银色短发，左脸有一道旧伤疤', backstory: '曾在帝国北境军团服役五年，参与过三次对霜巨魔的讨伐。退役后成为自由冒险者，继续在北境探索。' },
-                    features: [{ cat: 'class_feature', name: '战斗风格：防御', desc: '着装护甲时AC额外+1' }, { cat: 'class_feature', name: '回气', desc: '附赠动作恢复1d10+5HP' }, { cat: 'class_feature', name: '额外攻击', desc: '攻击动作可攻击两次' }, { cat: 'feat', name: '坚毅', desc: '体质+1，HP上限额外+5' }],
-                },
-                '2': {
-                    name: '铁砧·石心', rank: '青羽', level: 4, class: '牧师', race: '矮人',
-                    hp: 32, hpMax: 38, tempHp: 0, ac: 16, speed: 25, profBonus: 2, passivePerception: 15,
-                    str: 14, dex: 10, con: 16, int: 8, wis: 17, cha: 10,
-                    height: '142cm', weight: '82kg', alignment: '中立善良', faith: '摩拉丁', gender: '男',
-                    languages: '通用语、矮人语、天界语',
-                    keyAbilities: '感知', resistances: '毒素',
-                    spellSaveDc: 13, spellAttackBonus: 5,
-                    skillProfs: { '医药': 1, '宗教': 1, '洞悉': 1, '说服': 1 },
-                    saveProfs: { '感知': 1, '魅力': 1 },
-                    weapons: [{ name: '战锤', bonus: 5, damage: '1d8+2', type: '钝击' }],
-                    inventory: [{ name: '圣徽', qty: 1, location: '装备' }, { name: '治疗药水', qty: 3, location: '背包' }, { name: '圣水', qty: 1, location: '背包' }, { name: '祭司套装', qty: 1, location: '背包' }],
-                    coins: { cp: 8, sp: 15, gp: 62 },
-                    spells: [{ name: '治疗伤口', level: 1 }, { name: '祝福术', level: 1 }, { name: '灵体武器', level: 2 }],
-                    background: { personality: '乐观豁达，喜欢在篝火旁讲故事', ideals: '每个人的生命都值得拯救', bonds: '我的锻造锤是家族五代传承', flaws: '过于信任他人，容易被欺骗', appearance: '浓密的红胡子编成辫子，手臂粗壮', backstory: '出身于山脉深处的矮人锻造氏族，因受到神启而成为牧师。为寻找传说中的寒铁髓来到北境。' },
-                    features: [{ cat: 'class_feature', name: '引导神力', desc: '每日1次，驱散不死生物或使用领域能力' }, { cat: 'racial_trait', name: '矮人体魄', desc: '对毒素豁免优势，对毒素伤害有抗性' }],
-                },
-                '3': {
-                    name: '灰羽·游侠', rank: '青羽', level: 4, class: '游侠', race: '精灵',
-                    hp: 24, hpMax: 30, tempHp: 0, ac: 15, speed: 35, profBonus: 2, passivePerception: 16,
-                    str: 12, dex: 18, con: 13, int: 10, wis: 14, cha: 8,
-                    height: '168cm', weight: '55kg', alignment: '混乱善良', faith: '梅丽凯', gender: '女',
-                    languages: '通用语、精灵语、兽人语',
-                    keyAbilities: '敏捷', resistances: '—',
-                    spellSaveDc: 12, spellAttackBonus: 4,
-                    skillProfs: { '隐匿': 1, '自然': 1, '察觉': 1, '生存': 1, '驯兽': 1 },
-                    saveProfs: { '力量': 1, '敏捷': 1 },
-                    weapons: [{ name: '长弓', bonus: 7, damage: '1d8+4', type: '穿刺' }, { name: '短剑', bonus: 6, damage: '1d6+4', type: '穿刺' }],
-                    inventory: [{ name: '箭矢×20', qty: 1, location: '箭袋' }, { name: '治疗药水', qty: 1, location: '背包' }, { name: '狩猎陷阱', qty: 2, location: '背包' }, { name: '冬行靴', qty: 1, location: '装备' }],
-                    coins: { cp: 24, sp: 40, gp: 18 },
-                    spells: [{ name: '猎人印记', level: 1 }, { name: '大步奔行', level: 1 }],
-                    background: { personality: '安静但敏锐，总是先观察再行动', ideals: '自然平衡高于一切', bonds: '与一只名为霜翼的雪鸮为伴', flaws: '不擅长与人社交，经常误解他人意图', appearance: '深棕色长发编成辫子，绿色眼睛，身材修长', backstory: '在北境森林中长大的精灵游侠，追踪和生存能力出众。因故乡被恶尸潮摧毁而踏上冒险之路。' },
-                    features: [{ cat: 'class_feature', name: '宿敌：野兽', desc: '对野兽的追踪和知识检定优势' }, { cat: 'class_feature', name: '自然探索者', desc: '在北极地形中不会迷路，移动不受困难地形影响' }, { cat: 'racial_trait', name: '精灵感知', desc: '对魅惑豁免优势，睡眠免疫' }],
-                }
-            };
+            // 角色数据（v5.5：移除内置默认角色，新号进入无角色，需在营地新建或导入Excel）
+            const charData = {};
             // 默认角色模板
             function defaultCharTemplate(name) {
                 return { name, rank:'青羽', level:1, class:'战士', race:'人类', hp:10, hpMax:10, tempHp:0, ac:10, speed:30, profBonus:2, passivePerception:10, str:10, dex:10, con:10, int:10, wis:10, cha:10, height:'', weight:'', alignment:'', faith:'', gender:'', languages:'通用语', keyAbilities:'', resistances:'', spellSaveDc:10, spellAttackBonus:0, skillProfs:{}, saveProfs:{}, weapons:[], inventory:[], coins:{cp:0,sp:0,gp:0}, spells:[], background:{personality:'',ideals:'',bonds:'',flaws:'',appearance:'',backstory:''}, features:[] };
@@ -2096,6 +2044,7 @@
                     el.addEventListener('click', async function() {
                         if (isEventLocked()) return;
                         if (checkKnockdown()) return;
+                        if (!activeChar) { alert('请先选择或创建角色'); return; }
                         lockEvents();
                         try {
                         const cmd = this.dataset.cmd;

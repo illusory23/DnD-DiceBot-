@@ -1015,6 +1015,12 @@ def api_list_characters():
         chars = list_characters()
         groups = list_character_groups()
     elif name:
+        # 身份防护：以已注册账号ID查询角色列表时，必须该账号本人登录
+        # （防止伪造身份绕过加入覆盖层直接读取他人角色）
+        claimed_user = _UserModel.query.filter_by(username=name).first()
+        cur = _get_current_user()
+        if claimed_user is not None and (not cur or cur.id != claimed_user.id):
+            return jsonify({'error': '身份验证失败，请先登录该账号'}), 403
         # PL 有用户名 → 看自己创建的 + DM 公开的角色
         chars = list_characters(created_by=name, include_public=True)
         groups = list_character_groups(created_by=name)
@@ -4022,6 +4028,15 @@ def api_room_join():
     if not name:
         return jsonify({'ok': False, 'error': 'Name required'})
 
+    # ━━ 身份防护：声明的 ID 若为已注册官网用户名，必须由该账号本人登录后使用 ━
+    # 防止从浏览器历史记录直接进入平台时，知道他人 ID 即可冒用其账号身份（无需登录）
+    claimed_user = _UserModel.query.filter_by(username=name).first()
+    if claimed_user is not None:
+        cur = _get_current_user()
+        if not cur or cur.id != claimed_user.id:
+            return jsonify({'ok': False,
+                            'error': f'「{name}」为已注册账号ID，请先登录该账号后进入'})
+
     client_ip = request.remote_addr or 'unknown'
     _prune_stale_users()
 
@@ -4709,14 +4724,15 @@ _COMMUNITY_FILE = _Path(__file__).parent.parent / 'data' / 'community.json'
 _WORKSHOP_FILE = _Path(__file__).parent.parent / 'data' / 'workshop.json'
 _community_lock = _threading.Lock()
 
-# 板块静态定义
+# 板块静态定义（v5.5 起删除"规则研讨堂/冒险战报馆"，旧帖归一化至综合讨论区）
 _COMMUNITY_BOARDS = [
     {'id': 'discuss', 'icon': '💭', 'name': '综合讨论区', 'desc': '跑团相关的任何话题'},
-    {'id': 'rules', 'icon': '📖', 'name': '规则研讨堂', 'desc': 'D&D 5E 规则深度讨论'},
     {'id': 'recruit', 'icon': '📯', 'name': '跑团招募版', 'desc': '寻找 DM 或玩家'},
-    {'id': 'battle', 'icon': '📜', 'name': '冒险战报馆', 'desc': '记录你的每一次冒险'},
     {'id': 'tech', 'icon': '🛠️', 'name': '技术支持区', 'desc': '平台使用问题、Bug反馈'},
 ]
+
+# 已删除板块的旧帖统一归入综合讨论区
+_DEPRECATED_BOARDS = {'rules': 'discuss', 'battle': 'discuss'}
 
 
 def _load_json_file(path: _Path, default: list) -> list:
@@ -4728,7 +4744,9 @@ def _load_json_file(path: _Path, default: list) -> list:
         if path == _COMMUNITY_FILE:
             from core.models import CommunityPost as _CP
             rows = _CP.query.order_by(_CP.id).all()
-            return [{'id': r.id, 'board': r.board, 'title': r.title, 'content': r.content,
+            # 已删除板块（规则研讨堂/冒险战报馆）的旧帖归一化到综合讨论区
+            return [{'id': r.id, 'board': _DEPRECATED_BOARDS.get(r.board, r.board),
+                     'title': r.title, 'content': r.content,
                      'images': r.images or [], 'author': r.author or '',
                      'created_at': r.created_at or '', 'reply_count': r.reply_count or 0,
                      'comments': r.comments or [], 'likes': r.likes or []} for r in rows]
@@ -5090,13 +5108,21 @@ def api_friend_respond():
     return jsonify({'ok': True})
 
 
-def _friend_to_dict(other_id: int):
-    """好友信息（含用户名与头像，供列表展示）。"""
+def _friend_to_dict(other_id: int, viewer_id: int = None):
+    """好友信息（含用户名与头像，供列表展示）。viewer_id 传入时附带私聊未读数（v5.5）。"""
     other = db.session.get(_UserModel, other_id)
     if not other:
         return None
-    return {'id': other.id, 'username': other.username,
-            'avatar_url': other.avatar_url or ''}
+    out = {'id': other.id, 'username': other.username,
+           'avatar_url': other.avatar_url or ''}
+    if viewer_id is not None:
+        try:
+            from core.models import FriendMessage as _FM
+            out['unread'] = _FM.query.filter_by(
+                sender_id=other.id, receiver_id=viewer_id, read=False).count()
+        except Exception:
+            out['unread'] = 0
+    return out
 
 
 @app.route('/api/friends')
@@ -5113,7 +5139,7 @@ def api_friend_list():
     friends = []
     for r in rows:
         other_id = r.target_id if r.user_id == user.id else r.user_id
-        info = _friend_to_dict(other_id)
+        info = _friend_to_dict(other_id, user.id)
         if info:
             friends.append(info)
     return jsonify({'ok': True, 'friends': friends})
@@ -5158,6 +5184,167 @@ def api_friend_delete(other_id):
     ).delete(synchronize_session=False)
     db.session.commit()
     return jsonify({'ok': True})
+
+
+# ━━━ 好友私聊（v5.5）：好友间一对一聊天，支持图片 ━━━
+
+def _are_friends(a_id: int, b_id: int) -> bool:
+    """判定两个用户是否为好友（accepted 双向记录）。"""
+    from core.models import FriendRequest as _FR
+    pair = ((_FR.user_id == a_id) & (_FR.target_id == b_id)) | \
+           ((_FR.user_id == b_id) & (_FR.target_id == a_id))
+    return _FR.query.filter(pair, _FR.status == 'accepted').first() is not None
+
+
+def _fm_to_dict(r) -> dict:
+    return {'id': r.id, 'sender_id': r.sender_id, 'receiver_id': r.receiver_id,
+            'content': r.content or '', 'image_url': r.image_url or '',
+            'read': bool(r.read), 'created_at': r.created_at or ''}
+
+
+@app.route('/api/friends/chat/<int:other_id>')
+def api_friend_chat_history(other_id):
+    """好友私聊记录（仅好友双方可读）。?since_id= 增量拉取；读取时自动标记对方消息为已读。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    if not _are_friends(user.id, other_id):
+        return jsonify({'ok': False, 'error': '仅好友之间可以私聊'}), 403
+    from core.models import FriendMessage as _FM
+    q = _FM.query.filter(
+        ((_FM.sender_id == user.id) & (_FM.receiver_id == other_id)) |
+        ((_FM.sender_id == other_id) & (_FM.receiver_id == user.id)),
+    ).order_by(_FM.id.asc())
+    since = request.args.get('since_id', type=int)
+    if since:
+        q = q.filter(_FM.id > since)
+    rows = q.all()
+    unread = [r for r in rows if r.receiver_id == user.id and not r.read]
+    if unread:
+        for r in unread:
+            r.read = True
+        db.session.commit()
+    return jsonify({'ok': True, 'messages': [_fm_to_dict(r) for r in rows]})
+
+
+@app.route('/api/friends/chat/<int:other_id>', methods=['POST'])
+def api_friend_chat_send(other_id):
+    """发送私聊。body: {content?, image_url?}（文本/图片至少一项）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    if not _are_friends(user.id, other_id):
+        return jsonify({'ok': False, 'error': '仅好友之间可以私聊'}), 403
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()[:2000]
+    image_url = (data.get('image_url') or '').strip()[:300]
+    if not content and not image_url:
+        return jsonify({'ok': False, 'error': '消息内容不能为空'}), 400
+    # image_url 仅允许本站 /static/ 下的图片（防外部链接注入）
+    if image_url and not image_url.startswith('/static/'):
+        return jsonify({'ok': False, 'error': '图片地址无效'}), 400
+    from core.models import FriendMessage as _FM
+    msg = _FM(sender_id=user.id, receiver_id=other_id, content=content,
+              image_url=image_url, read=False,
+              created_at=_time.strftime('%Y-%m-%d %H:%M:%S'))
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({'ok': True, 'message': _fm_to_dict(msg)})
+
+
+@app.route('/api/friends/chat/<int:other_id>/image', methods=['POST'])
+def api_friend_chat_image(other_id):
+    """私聊图片上传（multipart 字段 'image'），复用头像校验规则，返回 {ok, url}。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    if not _are_friends(user.id, other_id):
+        return jsonify({'ok': False, 'error': '仅好友之间可以私聊'}), 403
+    if 'image' not in request.files:
+        return jsonify({'ok': False, 'error': '请选择图片文件'}), 400
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'ok': False, 'error': '未选择文件'}), 400
+    ext = _os.path.splitext(file.filename)[1].lower()
+    if ext not in _AVATAR_EXTS:
+        return jsonify({'ok': False, 'error': '仅支持图片格式: JPG/PNG/GIF/WEBP/BMP'}), 400
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > _AVATAR_MAX:
+        return jsonify({'ok': False, 'error': '图片过大（最大2MB）'}), 400
+    chat_dir = _Path(__file__).parent / 'static' / 'chat-images'
+    try:
+        chat_dir.mkdir(parents=True, exist_ok=True)
+        fname = f'fm_{user.id}_{int(_time.time() * 1000)}{ext}'
+        file.save(str(chat_dir / fname))
+    except Exception as _e:
+        return jsonify({'ok': False, 'error': f'图片保存失败: {_e}'}), 500
+    return jsonify({'ok': True, 'url': f'/static/chat-images/{fname}'})
+
+
+@app.route('/api/friends/chat/unread-count')
+def api_friend_chat_unread():
+    """未读私聊总数（好友列表红点，v5.5）。"""
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': True, 'count': 0})
+    try:
+        from core.models import FriendMessage as _FM
+        cnt = _FM.query.filter_by(receiver_id=user.id, read=False).count()
+    except Exception:
+        cnt = 0
+    return jsonify({'ok': True, 'count': cnt})
+
+
+@app.route('/api/users/<int:user_id>/profile')
+def api_user_profile(user_id):
+    """好友信息查看（v5.5）：仅好友（或自己）可见，只返回公开字段。
+
+    可见：头像、ID、用户名、上次登录时间、个人简介、酒馆帖子、工坊投稿、收藏。
+    不可见：邮箱、手机号、登录 IP 等私密信息一律不返回。
+    """
+    user = _get_current_user()
+    if not user:
+        return jsonify({'ok': False, 'error': '请先登录'}), 401
+    target = db.session.get(_UserModel, user_id)
+    if not target:
+        return jsonify({'ok': False, 'error': '用户不存在'}), 404
+    if target.id != user.id and not _are_friends(user.id, target.id):
+        return jsonify({'ok': False, 'error': '仅好友之间可以查看信息'}), 403
+    # 酒馆帖子
+    with _community_lock:
+        posts = _load_json_file(_COMMUNITY_FILE, [])
+    my_posts = [{'id': p.get('id'), 'title': p.get('title', ''),
+                 'created_at': p.get('created_at', '')}
+                for p in posts if p.get('author') == target.username]
+    # 工坊投稿
+    with _community_lock:
+        items = _load_json_file(_WORKSHOP_FILE, [])
+    my_works = [{'id': it.get('id'), 'title': it.get('title', ''),
+                 'created_at': it.get('created_at', '')}
+                for it in items if it.get('author') == target.username]
+    # 收藏（含标题/作者补全）
+    with _favorites_lock:
+        favs = [f for f in _load_favorites().get('favorites', [])
+                if f.get('user_id') == target.id]
+    fav_out = []
+    for f in favs:
+        info = _favorite_title(f)
+        if info['title']:
+            fav_out.append({'type': f.get('type'), 'item_id': f.get('item_id'),
+                            'title': info['title'], 'author': info['author'],
+                            'created_at': f.get('created_at', '')})
+    return jsonify({'ok': True, 'profile': {
+        'id': target.id,
+        'username': target.username,
+        'avatar_url': target.avatar_url or '',
+        'last_login': target.last_login.isoformat(sep=' ') if target.last_login else '',
+        'bio': target.bio or '',
+        'posts': my_posts,
+        'workshop_items': my_works,
+        'favorites': fav_out,
+    }})
 
 
 @app.route('/api/community/posts/<int:post_id>/like', methods=['POST'])

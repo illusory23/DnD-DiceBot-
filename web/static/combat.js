@@ -177,6 +177,48 @@
             renderInitiative();
         }
 
+        // HP 状态文字（v5.5）：按血量比例划分 毫发无损/轻伤/中等伤势/重伤/死亡
+        function hpStatusOf(hp, hpMax) {
+            if (!(hpMax > 0)) hpMax = hp || 0;
+            if (hp <= 0) return { text: '死亡', color: 'var(--red)' };
+            const ratio = hp / hpMax;
+            if (ratio >= 1) return { text: '毫发无损', color: 'var(--green)' };
+            if (ratio > 2 / 3) return { text: '轻伤', color: 'var(--green)' };
+            if (ratio > 1 / 3) return { text: '中等伤势', color: 'var(--gold)' };
+            return { text: '重伤', color: 'var(--red)' };
+        }
+        // 战斗列表 HP 可见性：DM 全部可见；PL 仅自己的角色与 DM 公开角色可见具体数值（v5.5）
+        function canViewCombatantHp(c) {
+            const identity = getIdentity();
+            if (identity.role === 'DM') return true;
+            if (!c) return false;
+            const myName = identity.name || '';
+            if (!myName) return false;
+            if (c.addedBy && c.addedBy === myName) return true;  // 自己添加的战斗者（通常是自己的角色）
+            const cd = c.charId ? charCache[c.charId] : null;
+            if (cd) {
+                if (cd.is_public === true) return true;   // DM 公开角色
+                if (cd.created_by === myName) return true;
+                if (cd.name === myName) return true;
+            }
+            return false;
+        }
+        // 战斗行 HP 显示：不可见时显示 ?/? 与状态文字
+        function combatHpDisplay(c) {
+            const hpNum = parseInt(c.hp, 10);
+            const hpMaxNum = parseInt(c.hpMax, 10);
+            if (canViewCombatantHp(c)) {
+                const hpPct = hpMaxNum > 0 ? Math.round(hpNum / hpMaxNum * 100) : 100;
+                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
+                return `<span class="combatant-hp" style="color:${hpColor}">❤️ ${hpNum}/${hpMaxNum}</span>`;
+            }
+            const st = hpStatusOf(hpNum, hpMaxNum);
+            return `<span class="combatant-hp" style="color:${st.color}" title="血量数值隐藏（仅 DM 与对应玩家可见）">❤️ ?/? · ${st.text}</span>`;
+        }
+        // 战斗者角色数据补拉失败/进行中标记（避免重复请求私有/不可读角色）
+        let _hpFetchFailed = {};
+        let _hpFetching = {};
+
         function renderInitiative() {
             const el = document.getElementById('initiative-list');
             if (!combatants.length) {
@@ -187,8 +229,6 @@
             const identity = getIdentity();
             const isDM = identity.role === 'DM';
             el.innerHTML = combatants.map((c, i) => {
-                const hpPct = c.hpMax > 0 ? Math.round(c.hp / c.hpMax * 100) : 100;
-                const hpColor = hpPct <= 25 ? 'var(--red)' : (hpPct <= 50 ? 'var(--gold)' : 'var(--green)');
                 // DM可编辑所有先攻，PL只能编辑自己添加的
                 const canEdit = isDM || (c.addedBy && c.addedBy === identity.name);
                 const initDisplay = canEdit
@@ -200,7 +240,7 @@
                 <div class="combatant-row${c.isCurrent ? ' current' : ''}">
                     <span class="combatant-name">${combatStarted ? (i + 1) + '. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}${c.joinedLate ? ' <span style="color:var(--gold);font-size:0.65rem;" title="战斗中临时加入，下一轮开始生效">⏳</span>' : ''}</span>
                     ${initDisplay}
-                    <span class="combatant-hp" style="color:${hpColor}">❤️ ${c.hp}/${c.hpMax}</span>
+                    ${combatHpDisplay(c)}
                     <span class="combatant-ac">🛡️ AC ${c.ac}</span>
                     ${c.conditions.length ? `<span style="color:var(--red)">[${c.conditions.join(',')}]</span>` : ''}
                     <button onclick="removeCombatant(${i})" title="脱离战斗"
@@ -208,6 +248,17 @@
                             onmouseover="this.style.color='#ff0000'" onmouseout="this.style.color='var(--red)'">✕</button>
                 </div>`;
             }).join('');
+            // 补拉战斗者角色数据（HP 可见性判定依赖 is_public / created_by），完成后重渲染
+            const missingIds = [...new Set(combatants
+                .filter(c => c.charId && !charCache[c.charId] && !_hpFetchFailed[c.charId] && !_hpFetching[c.charId])
+                .map(c => c.charId))];
+            missingIds.forEach(id => {
+                _hpFetching[id] = true;
+                fetch(`/api/character/${id}`).then(r => r.json()).then(data => {
+                    if (data && !data.error) charCache[id] = data; else _hpFetchFailed[id] = true;
+                }).catch(() => { _hpFetchFailed[id] = true; })
+                .finally(() => { delete _hpFetching[id]; renderInitiative(); });
+            });
         }
 
         function updateInitiative(index, value) {
@@ -245,7 +296,8 @@
             combatants.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
-                opt.textContent = `${c.name} (HP:${c.hp}/${c.hpMax})`;
+                // 不可见 HP 的战斗者在目标下拉中同样脱敏（v5.5）
+                opt.textContent = canViewCombatantHp(c) ? `${c.name} (HP:${c.hp}/${c.hpMax})` : `${c.name} (HP:?/?)`;
                 if (c.name === currentVal) opt.selected = true;
                 select.appendChild(opt);
             });

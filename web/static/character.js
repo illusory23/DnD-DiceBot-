@@ -42,7 +42,9 @@
             let html = '';
 
             // 总角色组（显示全部角色，不可拖动/删除）
-            html += renderGroupHTML({id: '__all__', name: '总角色组', _isDefault: true, _collapsed: false}, chars);
+            // 默认排序：从新到旧（id 倒序 = 新创建的角色在上方）
+            const allSorted = [...chars].sort((a, b) => (b.id || 0) - (a.id || 0));
+            html += renderGroupHTML({id: '__all__', name: '总角色组', _isDefault: true, _collapsed: false}, allSorted);
 
             // 各分组及其角色（类型归一化比较，group_id 可能是字符串或数字）
             for (const g of groups) {
@@ -121,6 +123,12 @@
                     e.preventDefault();
                     e.stopPropagation();
                     this.classList.remove('drag-over');
+                    // 分组拖拽落在角色项上：转交分组排序（角色拖拽时 dragCharId 有值）
+                    if (dragGroupId && !dragCharId) {
+                        const g = this.closest('.char-group');
+                        if (g) groupDropReorder(e, g);
+                        return;
+                    }
                     if (!dragCharId || dragCharId === parseInt(this.dataset.charId)) return;
                     // 总角色组内不支持跨组拖放
                     const targetGroup = this.closest('.char-group');
@@ -175,6 +183,22 @@
 
             // 分组拖拽排序
             let dragGroupId = null;
+            // 分组拖拽释放：按释放点位于目标分组上半/下半决定插前/插后，并保存新顺序
+            function groupDropReorder(e, targetGroupEl) {
+                if (!dragGroupId || dragGroupId === targetGroupEl.dataset.groupId) return;
+                const srcGroup = el.querySelector(`.char-group[data-group-id="${dragGroupId}"]`);
+                if (!srcGroup) return;
+                const rect = targetGroupEl.getBoundingClientRect();
+                const after = (e.clientY || 0) > rect.top + rect.height / 2;
+                if (after) {
+                    targetGroupEl.parentNode.insertBefore(srcGroup, targetGroupEl.nextSibling);
+                } else {
+                    targetGroupEl.parentNode.insertBefore(srcGroup, targetGroupEl);
+                }
+                // 发送新排序
+                const orderedGroupIds = [...el.querySelectorAll('.char-group[draggable="true"]')].map(gr => parseInt(gr.dataset.groupId));
+                saveGroupOrder(orderedGroupIds);
+            }
             const groups = el.querySelectorAll('.char-group[draggable="true"]');
             groups.forEach(g => {
                 g.addEventListener('dragstart', function(e) {
@@ -203,12 +227,7 @@
                     e.preventDefault();
                     e.stopPropagation();
                     this.classList.remove('group-drag-over');
-                    if (!dragGroupId || dragGroupId === this.dataset.groupId) return;
-                    const srcGroup = el.querySelector(`.char-group[data-group-id="${dragGroupId}"]`);
-                    if (srcGroup) this.parentNode.insertBefore(srcGroup, this.nextSibling || this);
-                    // 发送新排序
-                    const orderedGroupIds = [...el.querySelectorAll('.char-group[draggable="true"]')].map(gr => parseInt(gr.dataset.groupId));
-                    saveGroupOrder(orderedGroupIds);
+                    groupDropReorder(e, this);
                 });
             });
         }
@@ -364,13 +383,20 @@
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const data = await resp.json();
+                // 身份验证失败（如伪造他人已注册ID）：显示服务端错误并停留在加入覆盖层
+                if (data && data.error) {
+                    document.getElementById('char-list').innerHTML =
+                        `<div style="color:var(--red)">${data.error}</div>`;
+                    return;
+                }
                 // 兼容旧格式（纯数组）和新格式（{characters, groups}）
                 if (Array.isArray(data)) {
                     charListChars = data;
                     charListGroups = [];
                 } else {
                     charListChars = data.characters || [];
-                    charListGroups = (data.groups || []).map(g => ({...g, _collapsed: false}));
+                    // 进入界面时角色组默认折叠（关闭），点击组头展开
+                    charListGroups = (data.groups || []).map(g => ({...g, _collapsed: true}));
                 }
                 updateQuickGroupSelects();
                 refreshCharListDisplay();

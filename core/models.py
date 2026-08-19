@@ -578,3 +578,20 @@ class FriendRequest(db.Model):
     status = db.Column(db.String(10), nullable=False, default='pending')
     created_at = db.Column(db.String(20), default='')
     responded_at = db.Column(db.String(20), default='')
+
+
+class FriendMessage(db.Model):
+    """好友私聊消息（2026-08-20 v5.5 新增）。
+
+    仅好友之间可发消息；content 文本与 image_url 图片二选一或同时。
+    read 标记接收方是否已读（读取私聊记录时自动置真）。
+    """
+    __tablename__ = 'friend_messages'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sender_id = db.Column(db.Integer, nullable=False, index=True)    # 发送方
+    receiver_id = db.Column(db.Integer, nullable=False, index=True)  # 接收方
+    content = db.Column(db.Text, default='')
+    image_url = db.Column(db.Text, default='')
+    read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.String(20), default='')

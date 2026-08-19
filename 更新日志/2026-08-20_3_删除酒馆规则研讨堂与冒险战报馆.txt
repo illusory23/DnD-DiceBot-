@@ -1,0 +1,32 @@
+【2026-08-20_3】删除酒馆「规则研讨堂」与「冒险战报馆」板块
+
+修改文件：
+- web/app.py（_COMMUNITY_BOARDS 板块定义、旧帖归一化）
+- web/templates/portal/index.html（板块占位数组）
+- web/templates/portal/guide.html（新手指南板块描述）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+变更内容
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+冒险者酒馆原 5 大板块（综合讨论区/规则研讨堂/跑团招募版/
+冒险战报馆/技术支持区）删除「规则研讨堂」（rules）与
+「冒险战报馆」（battle）两个板块，现为 3 大板块：
+
+  综合讨论区 / 跑团招募版 / 技术支持区
+
+处理细节：
+- _COMMUNITY_BOARDS 删除 rules/battle 两项，新增
+  _DEPRECATED_BOARDS 映射（rules→discuss、battle→discuss）；
+- 已删除板块的历史帖子在 _load_json_file 读取时自动归一化到
+  「综合讨论区」——列表/详情/后台管理读到的 board 均为 discuss，
+  经点赞/评论等全量写回流程后数据自动固化，帖子不丢失；
+- 发帖接口校验按新板块列表，rules/battle 板块已无法发新帖，
+  旧板块访问接口 404；
+- 前端 index.html 板块占位数组、新手指南 guide.html 描述
+  （5 大板块 → 3 大板块）同步更新。
+
+验证：
+- python -m py_compile 语法通过；
+- /api/community/boards 冒烟测试返回 3 个板块
+  （discuss / recruit / tech）；
+- 后台管理走同一 _load_json_file，历史帖子板块名同样归一化。

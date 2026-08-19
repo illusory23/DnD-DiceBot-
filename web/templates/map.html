@@ -294,9 +294,9 @@
         .map-token .token-attack-btn:hover { transform: scale(1.2); }
         .map-token .token-attack-btn:active { transform: scale(0.95); }
 
-        /* ━━ 治疗按钮（攻击按钮下方，选中其他角色时显示） ━━ */
+        /* ━━ 治疗按钮（token 左上角，选中其他角色时显示） ━━ */
         .map-token .token-heal-btn {
-            position: absolute; top: 15px; right: -10px;
+            position: absolute; top: -14px; left: -10px;
             width: 26px; height: 26px; border-radius: 50%;
             background: linear-gradient(135deg, #6fd98b, #27ae60);
             border: 2px solid #fff; color: #fff; font-size: 0.82rem;
@@ -1256,7 +1256,9 @@
             <div id="damage-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
             <div class="dicepop-result" id="damage-result" style="min-height:64px;"></div>
             <div style="display:flex;gap:6px;margin-top:8px;">
-                <button id="damage-roll-btn" class="attack-main-btn dmg" onclick="damageRoll()">💥 伤害掷骰并结算</button>
+                <button id="damage-roll-btn" class="attack-main-btn dmg" onclick="damageRoll()">💥 伤害掷骰</button>
+                <button id="damage-confirm-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#f1c40f,#e67e22);color:#fff;display:none;" onclick="confirmDamage()">✅ 确定结算</button>
+                <button id="damage-reselect-btn" class="attack-main-btn" style="background:var(--surface2);color:var(--text);" onclick="reselectDamage()">← 重新选择</button>
             </div>
         </div>
     </div>
@@ -1319,6 +1321,8 @@
             <div class="dicepop-result" id="heal-result" style="min-height:64px;"></div>
             <div style="display:flex;gap:6px;margin-top:8px;">
                 <button id="heal-roll-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#6fd98b,#27ae60);color:#fff;" onclick="healRoll()">🎲 治疗掷骰</button>
+                <button id="heal-confirm-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#f1c40f,#e67e22);color:#fff;display:none;" onclick="confirmHeal()">✅ 确定结算</button>
+                <button id="heal-reselect-btn" class="attack-main-btn" style="background:var(--surface2);color:var(--text);" onclick="reselectHeal()">← 重新选择</button>
             </div>
         </div>
     </div>
@@ -1378,11 +1382,11 @@
     <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
 
     <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
-    <script src="/static/map-idb.js?v=71"></script>
-    <script src="/static/map-fog.js?v=71"></script>
-    <script src="/static/map-saves.js?v=71"></script>
-    <script src="/static/map.js?v=71"></script>
-    <script src="/static/map-page.js?v=71"></script>
+    <script src="/static/map-idb.js?v=74"></script>
+    <script src="/static/map-fog.js?v=74"></script>
+    <script src="/static/map-saves.js?v=74"></script>
+    <script src="/static/map.js?v=74"></script>
+    <script src="/static/map-page.js?v=74"></script>
 
 
 <!-- ━━ 骰子统计排行榜 ━━ -->

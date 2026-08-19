@@ -224,10 +224,10 @@ def _char_to_dict(char: Character) -> dict:
         d['background'] = {}
     # features — 按分类分组（前端期望 {category: [feats]}，分类键为英文）
     _feat_cat_map = (
-        ('class_feature', ('职业能力', '职业特性', '职业能力')),
-        ('feat', ('专长',)),
-        ('racial_trait', ('种族特性', '种族特质')),
-        ('special_ability', ('特殊能力',)),
+        ('class_feature', ('职业能力', '职业特性', 'class_feature')),
+        ('feat', ('专长', 'feat')),
+        ('racial_trait', ('种族特性', '种族特质', 'racial_trait')),
+        ('special_ability', ('特殊能力', 'special_ability')),
     )
     feature_groups = {'class_feature': [], 'feat': [], 'racial_trait': [],
                       'special_ability': [], 'other': []}

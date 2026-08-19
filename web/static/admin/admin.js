@@ -139,7 +139,15 @@ const Admin = {
     // ━━ 日期格式化 ━━
     formatDate(iso) {
         if (!iso) return '-';
-        const d = new Date(iso);
+        // 后端 DateTime 字段均为 UTC naive（isoformat 无时区后缀）。
+        // JS 会把无后缀字符串当本地时间解析，导致显示比真实注册时间早 8 小时
+        // （曾出现"服务器未开启时注册"）。补 Z 按 UTC 解析后自动转本地时区显示。
+        let s = String(iso).trim();
+        if (!/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) {
+            s = s.replace(' ', 'T') + 'Z';
+        }
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return iso;
         const pad = n => String(n).padStart(2, '0');
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     },
