@@ -234,7 +234,7 @@
             return {
                 brushStrokes: brushStrokes.map(s => ({tool:s.tool, color:s.color, size:s.size, points:s.points})),
                 textBoxes: textBoxes.map(b => ({id:b.id, x:b.x, y:b.y, text:b.text, fontSize:b.fontSize})),
-                mapTokens: mapTokens.map(t => ({id:t.id, charId:t.charId, name:t.name, portraitUrl:t.portraitUrl, x:t.x, y:t.y, size:t.size, rotation:t.rotation||0, owner:t.owner||''})),
+                mapTokens: mapTokens.map(t => ({id:t.id, charId:t.charId, name:t.name, portraitUrl:t.portraitUrl, x:t.x, y:t.y, size:t.size, rotation:t.rotation||0, owner:t.owner||'', dead: !!t.dead})),
                 tokenIdCounter, textIdCounter,
                 canvasWidth: canvas.width, canvasHeight: canvas.height,
                 scale, offsetX, offsetY,
@@ -369,7 +369,7 @@
                     mapTokens = [];
                     tokenIdCounter = state.tokenIdCounter || 0;
                     for (const t of (state.mapTokens || [])) {
-                        const token = createMapTokenElement(t.id, t.charId, t.name, t.portraitUrl, t.x, t.y, t.size, t.rotation||0, t.owner);
+                        const token = createMapTokenElement(t.id, t.charId, t.name, t.portraitUrl, t.x, t.y, t.size, t.rotation||0, t.owner, t.dead);
                         mapTokens.push(token);
                         if (t.charId) {
                             fetchCharData(t.charId);  // 预加载角色数据到缓存
@@ -1296,7 +1296,8 @@
         // token 角色 HP 轻量轮询：外部（角色卡页面等）修改 HP 后，
         // 自动同步缓存并刷新死亡标识（批量接口一次请求，覆盖倒地与恢复两种情况）
         function startDeadMarkSync() {
-            setInterval(async () => {
+            if (window._deadMarkSyncTimer) clearInterval(window._deadMarkSyncTimer);
+            window._deadMarkSyncTimer = setInterval(async () => {
                 const charIds = [...new Set(mapTokens.filter(t => t.charId).map(t => t.charId))];
                 if (!charIds.length) return;
                 try {
@@ -1462,6 +1463,8 @@
             if (changed) redrawFogCanvas();
         }
 
+        let _panelRefreshing = false;  // token 信息面板强制刷新防重入
+
         function showTokenInfoPanel(token) {
             const charData = charDataCache[token.charId];
             if (!charData) { return; }
@@ -1504,6 +1507,13 @@
 
             const panel = document.getElementById('token-info-panel');
             const tipBody = document.getElementById('tip-body');
+            // 死亡豁免状态（v5.9）：成功/失败次数 + 稳定/死亡标记（无记录时不显示）
+            const ds = charData.death_saves || {};
+            const dsLine = charData.death_saves
+                ? `<div style="text-align:center;font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">
+                    💀 死亡豁免 成功 <span style="color:var(--green);">${ds.successes||0}/3</span> | 失败 <span style="color:var(--red);">${ds.failures||0}/3</span>
+                    ${ds.is_dead ? ' <span style="color:#9aa4b2;">[死亡]</span>' : (ds.is_stable ? ' <span style="color:var(--cyan);">[稳定]</span>' : '')}
+                   </div>` : '';
             tipBody.innerHTML = `
                 <div class="tip-header">${charData.name}</div>
                 <div style="text-align:center;font-size:0.7rem;color:var(--gold);margin-bottom:0.15rem;">
@@ -1513,8 +1523,9 @@
                     <div class="tip-hp-fill" style="width:${hpPct}%"></div>
                     <div class="tip-hp-text">❤️ ${hpCur}/${hpMax}</div>
                 </div>
+                ${dsLine}
                 <div style="text-align:center;font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">
-                    🛡️ AC ${charData.ac||10} | 🏃 ${charData.speed||30}尺 | ⭐ +${charData.proficiency_bonus||2}
+                    🛡️ AC ${charData.ac||10} | 🏃 ${charData.speed||30}尺 | ⭐ +${charData.proficiency_bonus||2} | ✨ DC ${charData.spell_save_dc||10} | 👁️ 被动察觉 ${charData.passive_perception||10}
                 </div>
                 <div class="tip-abilities">
                     ${Object.entries(abbr).map(([k,label]) => {
@@ -1530,6 +1541,19 @@
                 </div>
             `;
             panel.classList.add('show');
+
+            // 异步强制刷新角色数据（死亡豁免次数/HP 等实时性字段，force 绕过缓存），
+            // 刷新后若面板仍打开且选中同一 token 则重渲染；防重入避免递归循环
+            if (!_panelRefreshing && token.charId) {
+                _panelRefreshing = true;
+                fetchCharData(token.charId, true).then(function() {
+                    _panelRefreshing = false;
+                    if (selectedElement && selectedElement.type === 'token' && selectedElement.ref === token &&
+                        document.getElementById('token-info-panel').classList.contains('show')) {
+                        showTokenInfoPanel(token);
+                    }
+                }).catch(function() { _panelRefreshing = false; });
+            }
         }
 
         function hideTokenInfoPanel() {
@@ -1580,19 +1604,21 @@
         }
 
         // ━━━ 地图标记（角色头像）━━
-        function createMapTokenElement(id, charId, name, portraitUrl, x, y, size, rotation, owner) {
+        function createMapTokenElement(id, charId, name, portraitUrl, x, y, size, rotation, owner, dead) {
             // owner：放置者身份（用于 PL 查看权限控制）；远程/存档恢复时用数据中的 owner
             let _tokOwner = owner || '';
             if (!_tokOwner && typeof getIdentity === 'function') {
                 const _ident = getIdentity();
                 _tokOwner = _ident.name || '';
             }
-            const token = { id, charId, name, portraitUrl, x, y, size, rotation: rotation || 0, selected: false, owner: _tokOwner };
+            const token = { id, charId, name, portraitUrl, x, y, size, rotation: rotation || 0, selected: false, owner: _tokOwner, dead: !!dead };
             const el = document.createElement('div');
             el.className = 'map-token';
             el.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
             if (portraitUrl) el.style.backgroundImage = `url(${portraitUrl})`;
             else el.innerHTML = '<span class="token-face" style="font-size:1.5rem;">👤</span>';
+            // 死亡 token 黑白化（死亡豁免失败 3 次）
+            if (token.dead) el.style.filter = 'grayscale(1)';
 
             // 死亡标识（HP<=0 倒地时显示 💀）
             const deadMark = document.createElement('div');
@@ -1780,7 +1806,8 @@
         // ━━━ 标记/文字网络序列化（顶层作用域：addMapToken/拖拽/旋转/文本框均引用）━━
         function tokenNetData(t) {
             return {id:t.id, charId:t.charId, name:t.name, portraitUrl:t.portraitUrl,
-                    x:t.x, y:t.y, size:t.size||48, rotation:t.rotation||0, owner:t.owner||''};
+                    x:t.x, y:t.y, size:t.size||48, rotation:t.rotation||0, owner:t.owner||'',
+                    dead: !!t.dead};
         }
 
         function textNetData(b) {
@@ -2961,7 +2988,7 @@
         }
 
         // 3D 掷骰：先取 API 确定性结果，再在覆盖层播放物理动画，返回总点数
-        async function roll3dStage(expr, adv) {
+        async function roll3dStage(expr, adv, btnLabel) {
             if (!d3dReady) await init3dDiceStage();
             let e = expr;
             if (adv === 'adv') e = 'adv ' + e;
@@ -2971,7 +2998,7 @@
             if (data.error) throw new Error(data.error);
 
             show3dDiceOverlay();
-            if (d3dRollBtn) { d3dRollBtn.disabled = false; d3dRollBtn.textContent = '🎲 掷骰'; }
+            if (d3dRollBtn) { d3dRollBtn.disabled = false; d3dRollBtn.textContent = btnLabel || '🎲 掷骰'; }
             if (d3dStatusEl) d3dStatusEl.textContent = (adv ? (adv === 'adv' ? '✨ 优势' : '💀 劣势') + ' · ' : '') + expr;
             const action = await new Promise(function(res) { d3dPendingResolve = res; });
             d3dPendingResolve = null;
@@ -4023,7 +4050,8 @@
                 dexMod,           // 敏捷调整值（先攻平手时比较）
                 addedBy: identity.name || '',
                 addedByRole: identity.role || 'PL',
-                joinedLate: mapCombatStarted === true  // 战斗中临时加入：下一轮才进入回合顺序
+                joinedLate: mapCombatStarted === true,  // 战斗中临时加入：下一轮才进入回合顺序
+                dead: false       // 死亡豁免失败 3 次 → true（防重复触发 + 列表标记）
             });
             // 不自动排序
             _mapLocalChangeTs = Date.now();
@@ -4050,6 +4078,10 @@
             mapRenderInitiative();
             saveMapCombatLocal();
             debouncedSave();
+            // 死亡豁免：首轮第一位行动者倒地则触发（异步，不阻塞轮转）
+            if (mapCombatants[0] && mapCombatants[0].hp != null && mapCombatants[0].hp <= 0) {
+                maybeTriggerDeathSave(mapCombatants[0]);
+            }
         }
 
         function mapNextCombatant() {
@@ -4073,12 +4105,18 @@
                 mapRenderInitiative();
                 saveMapCombatLocal();
                 debouncedSave();
+                // 死亡豁免：新回合首位行动者倒地则触发
+                if (mapCombatants[0].hp != null && mapCombatants[0].hp <= 0) maybeTriggerDeathSave(mapCombatants[0]);
                 return;
             }
             mapCombatants[nextIdx].isCurrent = true;
             mapRenderInitiative();
             saveMapCombatLocal();
             debouncedSave();
+            // 死亡豁免：轮到倒地角色时触发（异步，不阻塞轮转）
+            if (mapCombatants[nextIdx].hp != null && mapCombatants[nextIdx].hp <= 0) {
+                maybeTriggerDeathSave(mapCombatants[nextIdx]);
+            }
         }
 
         function mapPrevCombatant() {
@@ -4104,6 +4142,131 @@
             mapRenderInitiative();
             saveMapCombatLocal();
             debouncedSave();
+        }
+
+        // ━━━ 死亡豁免（战斗轮中倒地角色轮到行动时触发）━━━
+        let deathSaveBusy = false;  // 防止重复触发（战斗开始/轮转/同步回放并发）
+
+        // 死亡豁免专用 3D 界面模式：复用 d3d 覆盖层（物理引擎与 /dice3d 完全一致）
+        function setD3dDeathSaveMode(name) {
+            const titleEl = document.querySelector('#d3d-panel .d3d-title');
+            if (titleEl) titleEl.textContent = '💀 死亡豁免：' + name;
+            if (d3dRollBtn) d3dRollBtn.textContent = '🎲 掷死亡豁免';
+            if (d3dStatusEl) d3dStatusEl.textContent = '倒地角色进行死亡豁免（d20）';
+        }
+        function setD3dNormalMode() {
+            const titleEl = document.querySelector('#d3d-panel .d3d-title');
+            if (titleEl) titleEl.textContent = '🎲 3D 掷骰';
+            if (d3dRollBtn) d3dRollBtn.textContent = '🎲 掷骰';
+            if (d3dStatusEl) d3dStatusEl.textContent = '';
+        }
+
+        // token 黑白化（本地元素 + WS 增量同步远程端）
+        function applyTokenDeadStyle(combatant) {
+            const tok = mapTokens.find(t => t.charId && combatant.charId && String(t.charId) === String(combatant.charId));
+            if (!tok) return;
+            tok.dead = true;
+            if (tok.el) tok.el.style.filter = 'grayscale(1)';
+            try { window._wsSendOp('tokens', [tokenNetData(tok)], []); } catch(e) {}
+            window._markDirty('tokens');
+        }
+
+        // 死亡豁免结果文案
+        function deathSaveResultText(name, total, data) {
+            if (data.is_dead) return `${name} 死亡豁免失败 3 次，宣告死亡…`;
+            if (total === 1) return `${name} 死亡豁免掷出 1（大失败）！失败 ×2（${data.failures}/3）`;
+            if (total === 20 || data.is_stable) return `${name} 死亡豁免掷出 ${total}！成功 3 次，稳定下来！`;
+            const ok = total >= 10;
+            return `${name} 死亡豁免${ok ? '成功' : '失败'}（${total}）— ${ok ? '成功' : '失败'} ${ok ? data.successes : data.failures}/3`;
+        }
+
+        // 主流程：轮到倒地角色 → 查豁免状态 → 弹 3D 死亡豁免界面掷 d20 → 判定 → 死亡处理
+        async function maybeTriggerDeathSave(combatant) {
+            if (deathSaveBusy || !combatant || !combatant.charId) return;
+            if (combatant.hp == null || combatant.hp > 0 || combatant.dead) return;
+            // 查角色死亡豁免状态：已稳定（3 成功）不再触发；已死亡补同步 token 黑白
+            let ds = null;
+            try {
+                const resp = await fetch(`/api/character/${combatant.charId}`);
+                const d = await resp.json();
+                if (d.error) return;
+                ds = d.death_saves || {};
+            } catch(e) { return; }
+            if (ds.is_stable || ds.is_dead) {
+                if (ds.is_dead && !combatant.dead) {
+                    combatant.dead = true;
+                    applyTokenDeadStyle(combatant);
+                    mapRenderInitiative();
+                }
+                return;
+            }
+            deathSaveBusy = true;
+            try {
+                setD3dDeathSaveMode(combatant.name);
+                // 复用 roll3dStage：API 确定性结果 → 3D 物理动画（用户点"掷死亡豁免"）
+                const result = await roll3dStage('d20', null, '🎲 掷死亡豁免');
+                if (!result) return;  // 用户取消，下次轮到再触发
+                const total = result.total;
+                if (!total || total < 1 || total > 20) {
+                    alert('死亡豁免掷骰结果异常（' + total + '），请重试');
+                    return;
+                }
+                let data = null;
+                try {
+                    const resp = await fetch(`/api/character/${combatant.charId}/death-save`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({roll_value: total})
+                    });
+                    if (!resp.ok) {
+                        const errTxt = await resp.text().catch(function(){ return ''; });
+                        alert('死亡豁免上报失败（HTTP ' + resp.status + '）' + (errTxt && errTxt.length < 200 ? '：' + errTxt : ''));
+                        return;
+                    }
+                    data = await resp.json();
+                } catch(e) {
+                    alert('死亡豁免上报失败：' + e.message + '（服务器需重启以启用该功能）');
+                    return;
+                }
+                if (data.error) { alert(data.error); return; }
+                // 展示结果
+                if (typeof showAlertDialog === 'function') {
+                    await showAlertDialog(deathSaveResultText(combatant.name, total, data));
+                } else {
+                    alert(deathSaveResultText(combatant.name, total, data));
+                }
+                // 聊天室播报：先播本次结果（成功/失败/大失败/稳定），再播死亡宣告（两条独立消息）
+                if (total === 1) {
+                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免掷出 1（大失败）！失败 ×2（' + data.failures + '/3）');
+                } else if (data.is_stable) {
+                    mapChatNotifyHp('💀', combatant.name + (total === 20 ? ' 死亡豁免掷出 20！' : ' 死亡豁免成功 3 次，') + '稳定下来！');
+                } else if (total >= 10) {
+                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免成功（' + total + '），成功 ' + data.successes + '/3');
+                } else {
+                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免失败（' + total + '），失败 ' + data.failures + '/3');
+                }
+                if (data.is_dead) {
+                    mapChatNotifyHp('💀', combatant.name + ' 失血过多，无力支撑，宣告死亡...');
+                }
+                // 死亡处理：token 黑白 + 战斗列表标记
+                if (data.is_dead) {
+                    combatant.dead = true;
+                    applyTokenDeadStyle(combatant);
+                    pushCombatState();
+                }
+                mapRenderInitiative();
+                // 强制刷新角色数据缓存（死亡豁免次数变化，force 绕过缓存）并重渲染选中的 token 信息面板
+                fetchCharData(combatant.charId, true).then(function() {
+                    if (selectedElement && selectedElement.type === 'token' && selectedElement.ref &&
+                        selectedElement.ref.charId === combatant.charId && typeof showTokenInfoPanel === 'function') {
+                        showTokenInfoPanel(selectedElement.ref);
+                    }
+                });
+            } catch(e) {
+                console.error('[death-save] 死亡豁免流程异常:', e);
+            } finally {
+                setD3dNormalMode();
+                deathSaveBusy = false;
+            }
         }
 
         function mapPrevRound() {
@@ -4185,7 +4348,7 @@
                     : `<span style="color:var(--text-dim);font-size:0.7rem;">先攻:</span><span style="color:var(--cyan);font-weight:bold;font-size:0.78rem;">${c.initiative || '--'}</span>`;
                 return `
                 <div class="combatant-row${c.isCurrent ? ' current' : ''}" style="font-size:0.78rem;padding:0.35rem 0.4rem;">
-                    <span class="combatant-name" style="font-size:0.8rem;">${mapCombatStarted ? (i+1)+'. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}${c.joinedLate ? ' <span style="color:var(--gold);font-size:0.65rem;" title="战斗中临时加入，下一轮开始生效">⏳</span>' : ''}</span>
+                    <span class="combatant-name" style="font-size:0.8rem;">${mapCombatStarted ? (i+1)+'. ' : ''}${c.name}${c.isCurrent ? ' ◀' : ''}${c.joinedLate ? ' <span style="color:var(--gold);font-size:0.65rem;" title="战斗中临时加入，下一轮开始生效">⏳</span>' : ''}${c.dead ? ' <span style="color:#9aa4b2;" title="已死亡">💀</span>' : ''}</span>
                     ${initDisplay}
                     ${mapCombatHpDisplay(c)}
                     <button onclick="mapRemoveCombatant(${i})" title="脱离战斗"
@@ -5057,8 +5220,8 @@ applyRoleRestrictions();
             }
             // 停止顶层轮询，boot 接管消息拉取
             if (typeof _topPollTimer !== 'undefined') { clearInterval(_topPollTimer); }
-            setInterval(pollChat, 1500);
-            setInterval(pollMentions, 2000);
+            window._chatPollTimer = setInterval(pollChat, 1500);
+            window._mentionPollTimer = setInterval(pollMentions, 2000);
             // Initial load
             fetch('/api/chat/messages').then(r => r.json()).then(data => {
                 if (data.ok && data.messages) {
@@ -5855,6 +6018,10 @@ applyRoleRestrictions();
                     if (td) {
                         t.x = td.x; t.y = td.y; t.size = td.size||48; t.rotation = td.rotation||0;
                         t.name = td.name; t.owner = td.owner || t.owner;
+                        if (td.dead !== undefined && t.dead !== !!td.dead) {
+                            t.dead = !!td.dead;
+                            if (t.el) t.el.style.filter = t.dead ? 'grayscale(1)' : '';
+                        }
                         if (t.el) {
                             t.el.style.left = td.x + 'px'; t.el.style.top = td.y + 'px';
                             t.el.style.width = t.size + 'px'; t.el.style.height = t.size + 'px';
@@ -5868,7 +6035,7 @@ applyRoleRestrictions();
                 Object.keys(incoming).forEach(function(id) {
                     var td = incoming[id];
                     if (removeMissing && isRecentLocalRemove('tokens', td.id)) return;
-                    mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0, td.owner));
+                    mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0, td.owner, td.dead));
                 });
                 mapTokens.forEach(function(t){ maxId = Math.max(maxId, t.id||0); });
                 tokenIdCounter = Math.max(tokenIdCounter, maxId);
@@ -6046,7 +6213,26 @@ applyRoleRestrictions();
             }
             // 立即拉取一次 + 每1.5秒轮询（仅 WS 断开时实际发请求；WS 在线时直接跳过）
             pullSharedCanvas();
-            setInterval(pullSharedCanvas, 1500);
+            window._canvasPollTimer = setInterval(pullSharedCanvas, 1500);
+
+            // 页面切到后台标签页时暂停非关键轮询（聊天/提及/HP同步/画布/战斗），
+            // 保留房间心跳（防止被服务端判定离线）；回前台立即恢复并同步一次
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    ['_chatPollTimer', '_mentionPollTimer', '_deadMarkSyncTimer', '_canvasPollTimer'].forEach(function(k) {
+                        if (window[k]) { clearInterval(window[k]); window[k] = null; }
+                    });
+                    if (typeof combatSyncTimer !== 'undefined' && combatSyncTimer) {
+                        clearInterval(combatSyncTimer); combatSyncTimer = null;
+                    }
+                } else {
+                    if (!window._chatPollTimer) window._chatPollTimer = setInterval(pollChat, 1500);
+                    if (!window._mentionPollTimer) window._mentionPollTimer = setInterval(pollMentions, 2000);
+                    if (!window._deadMarkSyncTimer) startDeadMarkSync();
+                    if (!window._canvasPollTimer) { pullSharedCanvas(); window._canvasPollTimer = setInterval(pullSharedCanvas, 1500); }
+                    if (!combatSyncTimer) startCombatSync();
+                }
+            });
 
             // 通用变更通知
 

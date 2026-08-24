@@ -813,6 +813,7 @@
                 {label:'信仰', field:'faith', val:char.faith || '', type:'text'},
                 {label:'性别', field:'gender', val:char.gender || '', type:'text'},
                 {label:'亚种', field:'subrace', val:char.subrace || char.subrace || '', type:'text'},
+                {label:'体型', field:'size', val:char.size || '', type:'text'},
             ];
             const metaEditLine = `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.3rem;font-size:0.72rem;">
                 ${editMetaFields.map(f => `
@@ -824,7 +825,7 @@
             </div>`;
 
             el.innerHTML = `
-                <div class="card-header">📋 <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'name')" data-val="${(char.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改角色名">${char.name}</span> — <span class="editable-field" onclick="editCharField(${char.id}, 'level', ${char.level || 1})" title="点击修改等级">${char.level || 1}级</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'class')" data-val="${(char.class || '未知').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改职业">${char.class || '未知'}</span> ${char.race || ''}</div>
+                <div class="card-header">📋 <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'name')" data-val="${(char.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改角色名">${char.name}</span> — <span class="editable-field" onclick="editCharField(${char.id}, 'level', ${char.level || 1})" title="点击修改等级">${char.level || 1}级</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'class')" data-val="${(char.class || '未知').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改职业">${char.class || '未知'}</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'race')" data-val="${(char.race || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改种族">${char.race || '未知种族'}</span></div>
 
                 <div class="char-detail-grid">
                     <!-- 左：头像+基础 -->
@@ -856,12 +857,12 @@
                             <span style="font-size:0.75rem;color:var(--text-dim);">HP</span>
                             <span style="font-size:0.8rem;color:var(--cyan);">💙 <span class="editable-field" onclick="editCharField(${char.id}, 'temp_hp', ${char.temp_hp || 0})" title="点击修改临时HP">${char.temp_hp || 0}</span></span>
                         </div>
-                        <!-- 死亡豁免 -->
+                        <!-- 死亡豁免（点击数字修改，点击状态切换稳定） -->
                         ${(() => {
                             const ds = char.death_saves || {};
                             return `<div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:0.4rem;">
-                                💀 死亡豁免: 成功 <b style="color:var(--green);">${ds.successes || 0}/3</b> | 失败 <b style="color:var(--red);">${ds.failures || 0}/3</b>
-                                ${ds.is_stable ? ' <span style=\"color:var(--cyan);\">[稳定]</span>' : ''}
+                                💀 死亡豁免: 成功 <b style="color:var(--green);cursor:pointer;" onclick="editDeathSaveField(${char.id}, 'successes', ${ds.successes || 0})" title="点击修改成功次数">${ds.successes || 0}/3</b> | 失败 <b style="color:var(--red);cursor:pointer;" onclick="editDeathSaveField(${char.id}, 'failures', ${ds.failures || 0})" title="点击修改失败次数">${ds.failures || 0}/3</b>
+                                <span style="cursor:pointer;${ds.is_stable ? 'color:var(--cyan);' : 'color:var(--text-dim);'}" onclick="toggleDeathStable(${char.id}, ${ds.is_stable ? 'true' : 'false'})" title="点击切换稳定状态">[${ds.is_stable ? '稳定' : '未稳定'}]</span>
                             </div>`;
                         })()}
                         <!-- 关键属性 -->
@@ -1254,6 +1255,36 @@
         function editTextFieldFromData(el, charId, field) {
             const currentVal = el.getAttribute('data-val') || '';
             editCharTextField(charId, field, currentVal);
+        }
+
+        // ━━━ 死亡豁免编辑（成功/失败 0-3、稳定状态切换）━━━
+        async function editDeathSaveField(charId, kind, currentVal) {
+            const label = kind === 'successes' ? '死亡豁免成功次数' : '死亡豁免失败次数';
+            const newVal = await showPromptDialog(`修改${label} (当前: ${currentVal}/3):`, {defaultValue: String(currentVal)});
+            if (newVal === null) return;
+            const val = parseInt(newVal);
+            if (isNaN(val) || val < 0 || val > 3) { alert('请输入 0-3 的整数'); return; }
+            try {
+                const resp = await fetch(`/api/character/${charId}/death-saves`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({[kind]: val})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('修改失败: ' + e.message); }
+        }
+
+        async function toggleDeathStable(charId, current) {
+            try {
+                const resp = await fetch(`/api/character/${charId}/death-saves`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({is_stable: !current})
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                selectChar(charId);
+            } catch(e) { alert('修改失败: ' + e.message); }
         }
 
         // ━━━ 特性管理 ━━━

@@ -23,6 +23,14 @@ pause
 exit /b 1
 
 :pyfound
+
+rem ---- 启动前清理占用 5000 端口的残留进程（防止新旧实例并存，请求打到旧代码）----
+echo  正在清理端口 5000 的旧进程...
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+    taskkill /F /PID %%p >nul 2>&1
+)
+timeout /t 2 /nobreak >nul
+
 echo ============================================
 echo   尘封之卷 · 骰娘跑团平台官网
 echo   正在启动服务器（端口 5000）...

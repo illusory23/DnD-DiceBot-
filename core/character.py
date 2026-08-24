@@ -125,6 +125,7 @@ def _char_to_dict(char: Character) -> dict:
         'created_by': char.created_by or '', 'level': char.level,
         'is_public': bool(char.is_public),
         'class': char.class_, 'race': char.race, 'subrace': char.subrace or '',
+        'size': char.size or '',
         'background_field': char.background_field or '',
         'alignment': char.alignment or '', 'faith': char.faith or '',
         'gender': char.gender or '', 'age': char.age or '',
@@ -197,6 +198,9 @@ def _char_to_dict(char: Character) -> dict:
         ds = char.death_saves
         d['ds_successes'] = ds.successes; d['ds_failures'] = ds.failures
         d['ds_stable'] = ds.is_stable
+        # 前端角色卡详情用 death_saves 对象（旧键 ds_* 保留兼容其他调用方）
+        d['death_saves'] = {'successes': ds.successes, 'failures': ds.failures,
+                            'is_stable': ds.is_stable, 'is_dead': ds.is_dead}
     if char.background_details:
         bg = char.background_details
         d['personality_traits'] = bg.personality_traits
@@ -268,10 +272,11 @@ def _get_char(name_or_id) -> Character | None:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def create_character(name: str, level: int = 1, cls: str = '', race: str = '',
-                     background: str = '', created_by: str = '', group_id: int = None) -> int:
+                     size: str = '', background: str = '', created_by: str = '',
+                     group_id: int = None) -> int:
     """创建角色并返回ID"""
     char = Character(
-        name=name, level=level, class_=cls, race=race,
+        name=name, level=level, class_=cls, race=race, size=size,
         background_field=background, created_by=created_by,
         group_id=group_id,
         hp_max=10, hp_current=10,
@@ -568,9 +573,11 @@ def long_rest(char_id: int) -> dict:
     # 长休恢复生命骰：取 hit_dice 的数量前缀（如 "3d8" → 3），而非骰面数
     char.hd_count = int(char.hit_dice.split('d')[0]) if char.hit_dice and 'd' in char.hit_dice else char.hd_count
     if char.death_saves:
-        char.death_saves.successes = 0
-        char.death_saves.failures = 0
-        char.death_saves.is_stable = False
+        # 已死亡角色（死亡豁免失败 3 次）不因长休复活，豁免保持死亡状态
+        if not char.death_saves.is_dead:
+            char.death_saves.successes = 0
+            char.death_saves.failures = 0
+            char.death_saves.is_stable = False
     _save()
     return {'hp_current': char.hp_current, 'hp_max': char.hp_max}
 
@@ -616,6 +623,10 @@ def death_save(char_id: int, roll_value: int, modifier: int = 0) -> dict:
     if ds is None:
         ds = DeathSave(character_id=char_id)
         db.session.add(ds)
+    # 已死亡角色不再累计死亡豁免（前端也已拦截，这里是 API 层兜底）
+    if ds.is_dead:
+        return {'successes': ds.successes, 'failures': ds.failures,
+                'is_stable': ds.is_stable, 'is_dead': ds.is_dead, 'total': roll_value + modifier}
     total = roll_value + modifier
     if roll_value == 20:
         ds.successes = 3
@@ -628,11 +639,38 @@ def death_save(char_id: int, roll_value: int, modifier: int = 0) -> dict:
         ds.failures += 1
     if ds.failures >= 3:
         ds.is_stable = False
+        ds.is_dead = True  # 死亡豁免失败 3 次 → 角色死亡
     if ds.successes >= 3:
         ds.is_stable = True
     _save()
     return {'successes': ds.successes, 'failures': ds.failures,
-            'is_stable': ds.is_stable, 'total': total}
+            'is_stable': ds.is_stable, 'is_dead': ds.is_dead, 'total': total}
+
+
+def set_death_saves(char_id: int, successes: int = None, failures: int = None,
+                    is_stable: bool = None) -> dict | None:
+    """手动设置死亡豁免（角色详情页编辑用）。
+
+    参数为 None 表示不修改该项；successes/failures 取值范围 0-3。
+    """
+    char = db.session.get(Character, char_id)
+    if not char:
+        return None
+    ds = char.death_saves
+    if ds is None:
+        ds = DeathSave(character_id=char_id)
+        db.session.add(ds)
+    if successes is not None:
+        ds.successes = max(0, min(3, int(successes)))
+    if failures is not None:
+        ds.failures = max(0, min(3, int(failures)))
+        # 失败 3 次 = 死亡；改为 3 以下 = 复活（手动修正通道）
+        ds.is_dead = ds.failures >= 3
+    if is_stable is not None:
+        ds.is_stable = bool(is_stable)
+    _save()
+    return {'successes': ds.successes, 'failures': ds.failures,
+            'is_stable': ds.is_stable, 'is_dead': ds.is_dead}
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

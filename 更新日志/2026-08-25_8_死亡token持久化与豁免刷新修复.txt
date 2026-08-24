@@ -1,0 +1,39 @@
+2026-08-25_8_死亡token持久化与豁免刷新修复
+═══════════════════════════════════════════
+
+【问题 1】从地图切换到别的界面再切回地图后，死亡 token 恢复原色
+  根因：collectState()（所有存档路径的统一序列化：
+  _unload/_light/_emergency/IndexedDB/服务器存档）的 mapTokens
+  序列化缺少 dead 字段——死亡标记只存在于内存，切页面存档
+  恢复时丢失，token 恢复彩色。
+  修复（web/static/map.js collectState）：mapTokens 序列化补
+  dead: !!t.dead（restoreNonImageData / createMapTokenElement
+  早已支持 dead 恢复，补上存档字段即全链路闭环）。
+
+【问题 2】左上角 token 信息面板死亡豁免数量不同步刷新
+  根因：fetchCharData(charId, force) 有缓存短路
+  （!force && charDataCache[charId] 直接返回旧缓存）——死亡豁免
+  后的刷新调用未传 force → 拿到死亡豁免前的旧数据 → 面板显示
+  旧次数。
+  修复：
+    · maybeTriggerDeathSave 掷完豁免后 fetchCharData(combatant.
+      charId, true) 强制刷新（绕过缓存）再重渲染选中面板
+    · showTokenInfoPanel 打开时异步强制刷新一次（_panelRefreshing
+      防重入，刷新后若面板仍打开且选中同一 token 则重渲染）——
+      覆盖切回地图后打开面板 / 远程端更新等场景
+
+【问题 3】死亡豁免失败第三次没有独立过程播报，直接显示死亡信息
+  修复：聊天室播报顺序调整——先播本次结果（掷出 1 大失败×2 /
+      成功 x/3 / 失败 x/3 / 稳定），再独立播死亡宣告
+      （"💀 xxx 失血过多，无力支撑，宣告死亡..."），
+      第三次失败时聊天室出现两条消息（失败过程 + 死亡宣告）
+
+【验证】
+  · node --check map.js 通过
+  · 存档链路走查：collectState 修复后 _unload/_light/IndexedDB/
+    服务器存档均含 dead；恢复路径 restoreNonImageData →
+    createMapTokenElement(t.dead) 应用 grayscale ✓
+  · 播报逻辑走查：is_dead 与本次结果互不排斥，先结果后宣告 ✓
+
+【生效】仅前端（map.js + map.html，v81）→ 无需重启服务器，
+      刷新页面即可

@@ -160,17 +160,35 @@ def _ensure_user_columns():
 
 
 def _ensure_character_columns():
-    """旧库补列：characters.is_public（DM 公开角色，幂等）。"""
+    """旧库补列：characters.is_public / size（幂等）。"""
     try:
         from sqlalchemy import inspect as _sa_inspect
         cols = {c['name'] for c in _sa_inspect(db.engine).get_columns('characters')}
-        if 'is_public' not in cols:
-            with db.engine.begin() as conn:
+        with db.engine.begin() as conn:
+            if 'is_public' not in cols:
                 conn.exec_driver_sql(
                     "ALTER TABLE characters ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT FALSE")
-            _app_logger.info('已补列 characters.is_public')
+                _app_logger.info('已补列 characters.is_public')
+            if 'size' not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE characters ADD COLUMN size VARCHAR(20) NOT NULL DEFAULT ''")
+                _app_logger.info('已补列 characters.size')
     except Exception as _e:
-        _app_logger.warning(f'补列 characters.is_public 失败: {_e}')
+        _app_logger.warning(f'补列 characters 表失败: {_e}')
+
+
+def _ensure_death_saves_columns():
+    """旧库补列：death_saves.is_dead（死亡豁免失败 3 次 → 角色死亡，幂等）。"""
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        cols = {c['name'] for c in _sa_inspect(db.engine).get_columns('death_saves')}
+        if 'is_dead' not in cols:
+            with db.engine.begin() as conn:
+                conn.exec_driver_sql(
+                    "ALTER TABLE death_saves ADD COLUMN is_dead BOOLEAN NOT NULL DEFAULT FALSE")
+            _app_logger.info('已补列 death_saves.is_dead')
+    except Exception as _e:
+        _app_logger.warning(f'补列 death_saves.is_dead 失败: {_e}')
 
 # ━━━ 静态文件缓存 ━━━
 from werkzeug.serving import make_server
@@ -344,6 +362,7 @@ _app_logger = get_logger('dicebot')
 with app.app_context():
     _ensure_user_columns()
     _ensure_character_columns()
+    _ensure_death_saves_columns()
 
 # ━━━ DM/主机系统 ━━━
 _dm_name: str | None = None      # 当前DM的显示名
@@ -1778,7 +1797,7 @@ def api_update_character_field(name_or_id):
         'level', 'spell_save_dc', 'spell_attack_bonus', 'hp_max', 'hp_current', 'temp_hp',
     }
     str_fields = {
-        'height', 'weight_field', 'name', 'class', 'race', 'subrace',
+        'height', 'weight_field', 'name', 'class', 'race', 'subrace', 'size',
         'alignment', 'faith', 'gender', 'resistances', 'key_abilities',
     }
     if field not in int_fields and field not in str_fields:
@@ -1802,6 +1821,65 @@ def api_update_character_field(name_or_id):
 
     update_character(char['id'], **{field: value})
     return jsonify({'success': True, 'field': field, 'value': value})
+
+
+@app.route('/api/character/<name_or_id>/death-save', methods=['POST'])
+def api_roll_death_save(name_or_id):
+    """掷一次死亡豁免（战斗轮中倒地角色轮到行动时调用）。
+
+    body: {roll_value: d20 结果, modifier?: 额外加值}
+    规则（与 core.character.death_save 一致）：1 → 失败×2；≥10 → 成功；
+    20 → 3 成功并稳定；失败累计 3 次 → is_dead=True（角色死亡）。
+    """
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    try:
+        roll_value = int(data.get('roll_value'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'roll_value 必须是整数'}), 400
+    if roll_value < 1 or roll_value > 20:
+        return jsonify({'error': 'roll_value 必须在 1-20 之间'}), 400
+    try:
+        modifier = int(data.get('modifier', 0) or 0)
+    except (TypeError, ValueError):
+        modifier = 0
+
+    from core.character import death_save as _death_save
+    result = _death_save(char['id'], roll_value, modifier)
+    if not result:
+        return jsonify({'error': '角色不存在'}), 404
+    return jsonify({'success': True, **result})
+
+
+@app.route('/api/character/<name_or_id>/death-saves', methods=['PUT'])
+def api_update_death_saves(name_or_id):
+    """手动设置角色死亡豁免（成功/失败次数 0-3、稳定状态）。"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    kwargs = {}
+    for key in ('successes', 'failures'):
+        if key in data:
+            try:
+                val = int(data[key])
+            except (TypeError, ValueError):
+                return jsonify({'error': f'{key} 必须是整数'}), 400
+            if val < 0 or val > 3:
+                return jsonify({'error': f'{key} 必须在 0-3 之间'}), 400
+            kwargs[key] = val
+    if 'is_stable' in data:
+        kwargs['is_stable'] = bool(data['is_stable'])
+
+    from core.character import set_death_saves as _set_death_saves
+    ds = _set_death_saves(char['id'], **kwargs)
+    if ds is None:
+        return jsonify({'error': '角色不存在'}), 404
+    return jsonify({'success': True, 'death_saves': ds})
 
 
 @app.route('/api/character/<name_or_id>/visibility', methods=['POST'])
@@ -2569,12 +2647,14 @@ def api_create_from_monster():
             'wis': min(20, base_score - 1), 'cha': max(8, base_score - 2),
         }
 
-    size = data.get('size', '中型')
+    size = data.get('size', '')
     mtype = data.get('type', '')
-    race_str = f'{size} {mtype}'.strip() or '未知'
+    # 体型独立存 size 列，种族只存生物类型（如"野兽"），不再拼成"中型 野兽"
+    race_str = mtype or '未知'
     created_by = data.get('created_by', '')
 
-    char_id = create_character(name, level=max(1, int(cr)), cls='怪物/NPC', race=race_str, created_by=created_by)
+    char_id = create_character(name, level=max(1, int(cr)), cls='怪物/NPC',
+                               race=race_str, size=size, created_by=created_by)
     char = get_character(char_id)
 
     # 设置属性

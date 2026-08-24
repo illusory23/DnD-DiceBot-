@@ -1,0 +1,31 @@
+2026-08-25_9_地图后台标签页轮询暂停优化
+═══════════════════════════════════════════
+
+【背景】地图页为实时协作设计了多个轮询（聊天 1.5-2s、共享画布
+      1.5s、战斗 3s、token HP 同步、提及 2s），页面切到浏览器
+      后台标签页时仍持续请求（浏览器节流有限，fetch 与 WS 不受
+      完全限制），用户观察"后台一直在获取状态"。
+
+【修改】web/static/map.js：
+  · 各非关键轮询定时器补 window 句柄：
+      _chatPollTimer（1.5s）/ _mentionPollTimer（2s）/
+      _deadMarkSyncTimer（HP 同步）/ _canvasPollTimer（1.5s）
+      （startDeadMarkSync 增加防重复 clearInterval）
+  · 新增 visibilitychange 监听：
+      - 页面隐藏（后台标签页）：暂停上述 4 个轮询 + 战斗同步
+        combatSyncTimer；**保留房间心跳 heartbeatTimer**
+        （防止被服务端 30 秒阈值判定离线）
+      - 页面可见：恢复全部轮询并立即同步一次
+        （pullSharedCanvas 立即拉取 + startCombatSync/
+        startDeadMarkSync 重建）
+
+【说明】管理后台仪表盘（/admin）30 秒自动刷新为既有设计（实时
+      指标），未改动；地图页 WS 心跳与在线心跳（20s）不受影响。
+
+【验证】node --check map.js 通过；作用域走查（pollChat/
+      pollMentions/pullSharedCanvas/startCombatSync/
+      combatSyncTimer 均在同一 boot IIFE 内，visibilitychange
+      处理器可访问）
+
+【生效】仅前端（map.js + map.html，v82）→ 无需重启服务器，
+      刷新页面即可

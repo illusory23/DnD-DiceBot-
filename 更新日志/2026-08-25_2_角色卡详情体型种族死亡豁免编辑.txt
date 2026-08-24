@@ -1,0 +1,53 @@
+2026-08-25_2_角色卡详情体型种族死亡豁免编辑
+═══════════════════════════════════════════
+
+【需求】角色卡界面的角色详情页可修改：体型、种族、死亡豁免
+
+【现状调查】
+  1. 种族（race）：后端 field 接口白名单已支持，但前端详情头部
+     纯文本展示，不可点击编辑
+  2. 体型（size）：characters 表无该列；从怪物创建角色时体型被
+     拼进 race（如"中型 野兽"），数据混存、无法独立修改
+  3. 死亡豁免：有 death_saves 表与 CLI 掷豁免逻辑（character.py
+     death_save()），但 _char_to_dict 输出键为 ds_successes/
+     ds_failures/ds_stable，而前端读取 char.death_saves 对象——
+     键名不一致，`char.death_saves || {}` 永远兜底为空，
+     角色卡详情页死亡豁免恒显 0/0、无稳定标记（隐藏 bug）
+
+【实现】
+  后端：
+    · core/models.py：Character 加 size 列（String(20)，默认 ''）
+    · core/character.py：
+      - _char_to_dict 输出加 'size' 与 'death_saves' 对象键
+        （{successes, failures, is_stable}，旧键 ds_* 保留兼容）
+      - create_character 加 size 参数
+      - 新增 set_death_saves(char_id, successes/failures/is_stable)
+        ——get_or_create DeathSave，值与稳定状态可任意组合修改
+    · web/app.py：
+      - _ensure_character_columns 幂等补列 characters.size
+      - api_update_character_field str_fields 白名单加 'size'
+      - 新增 PUT /api/character/<name_or_id>/death-saves
+        （successes/failures 校验 0-3，is_stable 布尔）
+      - from-monster 创建角色：体型独立存 size 列，种族只存
+        生物类型（如"野兽"），不再拼成"中型 野兽"
+  前端（web/static/character.js + character.html）：
+    · 详情头部种族 → 可点击编辑（editTextFieldFromData，空时
+      显示"未知种族"）
+    · meta 编辑行新增「体型」字段（与亚种/性别同模式）
+    · 死亡豁免区：成功/失败数字可点击编辑（0-3 弹窗输入），
+      [稳定]/[未稳定] 标签可点击切换；新增 editDeathSaveField /
+      toggleDeathStable 函数，成功后 selectChar 重渲染
+    · character.html：character.js?v=17 → v18
+
+【验证】
+  · py_compile（models/character/app）+ node --check character.js 通过
+  · test_client 端到端实测（临时角色，测后删除）：
+      characters 表含 size 列（补列幂等）✅
+      PUT size=中型 / race=半精灵 → 200，GET 回读一致 ✅
+      PUT death-saves {successes:2, failures:1} → 200 ✅
+      is_stable 切换 → 200 ✅；successes=4 / failures=-1 → 400 ✅
+      GET 返回 death_saves 对象 + 旧键 ds_* 双兼容 ✅
+      from-monster 创建 → race='野兽'、size='中型'（拆分生效）✅
+
+【生效】改后端（models/character/app + 补列）→ 需重启服务器；
+      前端缓存版本号已 bump，刷新页面即可

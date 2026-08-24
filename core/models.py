@@ -96,6 +96,7 @@ class Character(db.Model):
     class_ = db.Column('class', db.String(50), default='')
     race = db.Column(db.String(50), default='')
     subrace = db.Column(db.String(50), default='')
+    size = db.Column(db.String(20), default='')  # 体型（微型/小型/中型/大型/巨型/超巨型）
     background_field = db.Column(db.Text, default='')  # 实际存背景 JSON 全文, 需 Text
     alignment = db.Column(db.String(50), default='')
     faith = db.Column(db.String(100), default='')
@@ -222,6 +223,7 @@ class DeathSave(db.Model):
     successes = db.Column(db.Integer, default=0)
     failures = db.Column(db.Integer, default=0)
     is_stable = db.Column(db.Boolean, default=False)
+    is_dead = db.Column(db.Boolean, default=False)  # 死亡豁免失败 3 次 → 角色死亡
 
     character = db.relationship('Character', back_populates='death_saves')
 

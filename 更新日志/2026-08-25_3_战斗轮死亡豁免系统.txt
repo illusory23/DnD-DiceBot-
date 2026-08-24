@@ -1,0 +1,63 @@
+2026-08-25_3_战斗轮死亡豁免系统
+═══════════════════════════════════════════
+
+【需求】战斗轮中倒地的 PL 角色（HP≤0）每回合轮到其行动时进行死亡
+      豁免：
+  1. 独立 3D 物理动画掷骰小界面（物理逻辑参考掷骰界面 = dice-engine-v3）
+  2. 死亡豁免失败 3 次 → 判定角色死亡
+  3. 角色 token 变黑白色
+  4. 聊天室播报："角色名 失血过多，无力支撑，宣告死亡..."
+
+【实现】
+  后端：
+    · core/models.py：DeathSave 加 is_dead 列（死亡豁免失败 3 次 → 死亡）
+    · core/character.py：
+      - death_save()：失败累计 ≥3 → is_dead=True；已死亡角色再掷
+        直接返回当前状态不累计（API 层兜底）；返回含 is_dead
+      - set_death_saves()：失败数 =3 → is_dead=True（手动编辑一致），
+        <3 → is_dead=False（手动复活通道）
+      - long_rest()：已死亡角色跳过豁免重置（死亡不被长休清除）
+      - _char_to_dict：death_saves 对象加 is_dead
+    · web/app.py：
+      - 新增 _ensure_death_saves_columns() 幂等补 death_saves.is_dead
+      - 新增 POST /api/character/<name_or_id>/death-save
+        （body: roll_value 1-20 + 可选 modifier；规则与
+        core.character.death_save 一致：1→失败×2、≥10→成功、
+        20→3 成功稳定；返回 successes/failures/is_stable/is_dead/total）
+  前端（web/static/map.js + map.html）：
+    · token 死亡黑白化：tokenNetData 加 dead 字段（WS 增量同步）、
+      createMapTokenElement 应用 filter:grayscale(1)、WS 合并处
+      同步更新已有 token 样式；新增 applyTokenDeadStyle（本地 +
+      _wsSendOp + _markDirty）；战斗者 combatant 加 dead 标记，
+      战斗列表行显示 💀
+    · 死亡豁免 3D 专用模式：复用 d3d 覆盖层（dice-engine-v3，
+      与 /dice3d 完全一致）——setD3dDeathSaveMode 改标题
+      "💀 死亡豁免：xxx" + 按钮"🎲 掷死亡豁免"，
+      掷完恢复 setD3dNormalMode
+    · 主流程 maybeTriggerDeathSave(combatant)：
+      轮到倒地角色（hp≤0 且未死亡）→ GET 角色查 death_saves
+      （is_stable/is_dead 则跳过，已死亡补同步 token 黑白）→
+      roll3dStage('d20') 物理动画（用户点掷骰，取消下次再触发）→
+      POST death-save API → showAlertDialog 展示结果文案 →
+      死亡时：combatant.dead=true + token 黑白 + 聊天室播报
+      "💀 xxx 失血过多，无力支撑，宣告死亡..." + pushCombatState
+    · 触发点：mapStartCombat（首轮首位倒地）+ mapNextCombatant
+      （正常轮转与新回合回绕两分支），deathSaveBusy 防并发
+    · map.html：map.js?v=78 → v79
+
+【验证】
+  · py_compile（models/character/app）+ node --check map.js 通过
+  · test_client 端到端（临时角色，测后删除）：
+      death_saves 表含 is_dead 列（补列幂等）✅
+      roll=15 → 成功 1；roll=8 → 失败 1；roll=1 → 失败×2 至 3 → 死亡 ✅
+      死亡后再掷不累计（保持 3/True）✅
+      手动失败=3 → is_dead=True；改 2 → 复活 ✅
+      死亡角色长休不重置（保持 3/True）；存活角色长休正常重置 ✅
+      roll_value 0/21/abc → 400 ✅
+  · 前端流程走查：3D 界面复用 d3d 覆盖层（同一引擎/同一确定性
+    标注流程）；token 黑白经 WS tokens op 同步远程端；
+    combatants 经 {...c} 整体替换保留 dead；PL 只读端不触发
+    豁免流程（无轮转操作权限），仅接收同步结果
+
+【生效】改后端（models/character/app + 补列）→ 需重启服务器；
+      前端 map.js 缓存版本号已 bump（v79），刷新页面即可

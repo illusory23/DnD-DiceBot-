@@ -1,0 +1,38 @@
+2026-08-25_6_导航顺序调整与掷骰默认蓝毡
+═══════════════════════════════════════════
+
+【需求 1】跑团平台上方功能界面切换栏顺序调整为：
+          掷骰 → 地图 → 角色 → 法术 → 战斗 → 聊天室 → 参考 → Mod
+  修改（web/templates/*.html 纯模板）：
+    · dice3d-e / character / combat / spells / chat / reference /
+      mods 七个页面（共用 navbar-links 导航）：原顺序
+      掷骰→角色→战斗→法术→地图→参考→Mod→聊天室 重排为
+      掷骰→地图→角色→法术→战斗→聊天室→参考→Mod
+      （脚本按 href 分组重排，各链接 active class 原样保留）
+    · map.html toolbar-row-2 导航行同步统一为新顺序，并补上
+      掷骰/地图/Mod 入口；「🗺️ 事件」保留在末尾（避免丢失
+      事件页入口）
+  说明：跑团平台各页面导航现已完全一致（8 项同序）。
+
+【需求 2】掷骰界面（/dice3d-e）默认桌面改为蓝毡
+  修改（web/templates/dice3d-e.html）：
+    · DiceBox 初始化 theme_surface: 'green-felt' → 'blue-felt'
+      （3D 骰子场景地面默认蓝毡）
+    · 桌布下拉框默认选中项：木桌(wood selected) → 蓝毡
+      (blue-felt selected)
+    · 顺带修复：changeSurface 里 box.updateConfig 写死
+      'green-felt'（换桌布时 3D 场景材质不跟随），改为使用
+      所选值 v
+  说明：用户此前手动选过桌布时 sessionStorage(dice_surface)
+        仍会记住其选择（设计如此）；首次访问/清除缓存后
+        默认蓝毡。
+
+【验证】
+  · 7 页面导航顺序逐一核对：dice3d,map,character,spells,combat,
+    chat,reference,mods ✓
+  · 蓝毡纹理存在（textures/蓝毡.png）✓
+  · 掷骰界面 green-felt 默认已清零；地图 3D 覆盖层（map.js）
+    保持绿毡不动（独立小界面，未在需求范围）
+
+【生效】纯模板修改（TEMPLATES_AUTO_RELOAD 已开启）→ 无需重启
+      服务器，刷新页面即可

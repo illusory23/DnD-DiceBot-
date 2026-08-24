@@ -1,0 +1,36 @@
+2026-08-25_4_本次启动优化汇总与文档同步
+═══════════════════════════════════════════
+
+【本次启动完成项汇总】（详见 1~3 号日志）
+  1. CI 冒烟测试 PostgreSQL 连接修复（.github/workflows/smoke-test.yml：
+     GitHub Actions 新增 postgres:16 services 容器 + DATABASE_URL
+     环境变量 + PG 就绪等待；启动方式 cd web && python app.py →
+     python -m web.app，与生产一致、规避 shared_state 相对导入）
+  2. 角色卡详情体型/种族/死亡豁免可编辑（models.py size 列 +
+     character.py + app.py field 白名单 + death-saves 编辑 API +
+     character.js / character.html；修复死亡豁免输出键名不一致
+     导致详情页恒显 0/0 的隐藏 bug；从怪物创建角色体型独立存储）
+  3. 战斗轮死亡豁免系统（models.py DeathSave.is_dead + death_save()
+     死亡判定 + POST death-save API + 幂等补列；map.js：死亡豁免
+     3D 物理掷骰小界面（复用 dice-engine-v3 覆盖层）、失败 3 次
+     判定死亡、token 黑白化（WS 同步）、战斗列表 💀 标记、聊天室
+     播报"💀 xxx 失血过多，无力支撑，宣告死亡..."、长休不复活、
+     手动编辑可复活）
+
+【文档同步】
+  · 骰娘功能总结.txt：版本 v5.8 → v5.9（2026-08-25），新增
+    v5.9 功能段落（角色卡详情编辑增强 + 战斗轮死亡豁免系统）
+  · 官网跑团平台探索北境优化方向分析_2026-08-16.md：v19 → v20，
+    已完成优化点汇总新增 2026-08-25 段，文末版本注释同步
+  · README.md：版本 v5.9，功能表（角色卡/战术地图）与近期更新
+    段落（v5.9）同步
+  · 各功能说明/：角色卡（体型/种族/死亡豁免编辑、size 列、
+    death-saves/death-save API、版本号 v18、死亡豁免坑）、
+    地图（战斗轮死亡豁免系统、token dead 字段、combatant.dead、
+    版本号 v79、死亡豁免触发注意点）、项目整体（模块索引 v5.9）
+  · 探索北境 / 官网部分 / 管理员后台 / 法术书 / 其他：本次无改动
+
+【重启需求】
+  · 需重启：全部三项均涉及后端（models.py / character.py /
+    app.py + 数据库补列 size、death_saves.is_dead）
+  · 无需重启：无（前端改动随刷新生效，缓存版本号已 bump）
