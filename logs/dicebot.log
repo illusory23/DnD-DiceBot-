@@ -2612,3 +2612,49 @@
 [2026-08-24 23:55:44] [INFO] dicebot: [POST] /api/online/heartbeat → 200 (1.4ms) IP=::1 UA=?
 [2026-08-24 23:56:03] [INFO] dicebot: [POST] /api/online/heartbeat → 200 (3.6ms) IP=::1 UA=?
 [2026-08-24 23:56:15] [INFO] dicebot: [POST] /api/online/heartbeat → 200 (1.3ms) IP=::1 UA=?
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader: 加载Mod: dicebot-mod v2.1.0 — 骰娘动态掷骰Mod (FastAPI)
+[2026-08-25 00:21:48] [INFO] dicebot.mod.dicebot-mod: 骰娘动态掷骰Mod 已注册 (FastAPI: http://localhost:8001)
+[2026-08-25 00:21:48] [INFO] dicebot.mod.dicebot-mod:   状态: /api/mod/dicebot-mod/status
+[2026-08-25 00:21:48] [INFO] dicebot.mod.dicebot-mod:   启动: POST /api/mod/dicebot-mod/start
+[2026-08-25 00:21:48] [INFO] dicebot.mod.dicebot-mod:   掷骰: POST /api/mod/dicebot-mod/roll
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/dicebot-mod
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader: Mod加载成功: dicebot-mod
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader: 加载Mod: example-hello v1.0.0 — 示例Mod - Hello
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/example-hello
+[2026-08-25 00:21:48] [INFO] dicebot.mod_loader: Mod加载成功: example-hello
+[2026-08-25 00:21:48] [INFO] dicebot: Flask 请求日志中间件已安装
+[2026-08-25 00:21:48] [INFO] dicebot: 尘封之卷 Web 服务器启动中...
+[2026-08-25 00:21:49] [INFO] dicebot: 已监听 IPv6 ::1（加速 localhost 访问）
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader: 加载Mod: dicebot-mod v2.1.0 — 骰娘动态掷骰Mod (FastAPI)
+[2026-08-25 00:23:00] [INFO] dicebot.mod.dicebot-mod: 骰娘动态掷骰Mod 已注册 (FastAPI: http://localhost:8001)
+[2026-08-25 00:23:00] [INFO] dicebot.mod.dicebot-mod:   状态: /api/mod/dicebot-mod/status
+[2026-08-25 00:23:00] [INFO] dicebot.mod.dicebot-mod:   启动: POST /api/mod/dicebot-mod/start
+[2026-08-25 00:23:00] [INFO] dicebot.mod.dicebot-mod:   掷骰: POST /api/mod/dicebot-mod/roll
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/dicebot-mod
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader: Mod加载成功: dicebot-mod
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader: 加载Mod: example-hello v1.0.0 — 示例Mod - Hello
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/example-hello
+[2026-08-25 00:23:00] [INFO] dicebot.mod_loader: Mod加载成功: example-hello
+[2026-08-25 00:23:00] [INFO] dicebot: Flask 请求日志中间件已安装
+[2026-08-25 00:23:00] [INFO] dicebot: 尘封之卷 Web 服务器启动中...
+[2026-08-25 00:23:01] [INFO] dicebot: 已监听 IPv6 ::1（加速 localhost 访问）
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader: 加载Mod: dicebot-mod v2.1.0 — 骰娘动态掷骰Mod (FastAPI)
+[2026-08-25 00:26:58] [INFO] dicebot.mod.dicebot-mod: 骰娘动态掷骰Mod 已注册 (FastAPI: http://localhost:8001)
+[2026-08-25 00:26:58] [INFO] dicebot.mod.dicebot-mod:   状态: /api/mod/dicebot-mod/status
+[2026-08-25 00:26:58] [INFO] dicebot.mod.dicebot-mod:   启动: POST /api/mod/dicebot-mod/start
+[2026-08-25 00:26:58] [INFO] dicebot.mod.dicebot-mod:   掷骰: POST /api/mod/dicebot-mod/roll
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/dicebot-mod
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader: Mod加载成功: dicebot-mod
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader: 加载Mod: example-hello v1.0.0 — 示例Mod - Hello
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/example-hello
+[2026-08-25 00:26:58] [INFO] dicebot.mod_loader: Mod加载成功: example-hello
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader: 加载Mod: dicebot-mod v2.1.0 — 骰娘动态掷骰Mod (FastAPI)
+[2026-08-25 00:27:05] [INFO] dicebot.mod.dicebot-mod: 骰娘动态掷骰Mod 已注册 (FastAPI: http://localhost:8001)
+[2026-08-25 00:27:05] [INFO] dicebot.mod.dicebot-mod:   状态: /api/mod/dicebot-mod/status
+[2026-08-25 00:27:05] [INFO] dicebot.mod.dicebot-mod:   启动: POST /api/mod/dicebot-mod/start
+[2026-08-25 00:27:05] [INFO] dicebot.mod.dicebot-mod:   掷骰: POST /api/mod/dicebot-mod/roll
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/dicebot-mod
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader: Mod加载成功: dicebot-mod
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader: 加载Mod: example-hello v1.0.0 — 示例Mod - Hello
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader:   路由已注册: /api/mod/example-hello
+[2026-08-25 00:27:05] [INFO] dicebot.mod_loader: Mod加载成功: example-hello

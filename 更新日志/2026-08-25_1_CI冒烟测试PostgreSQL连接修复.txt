@@ -1,0 +1,40 @@
+2026-08-25_1_CI冒烟测试PostgreSQL连接修复
+═══════════════════════════════════════════
+
+【问题】提交到 git 仓库后，GitHub Actions 冒烟测试（smoke-test）报错：
+  ❌ Flask 进程已退出！启动日志:
+  psycopg2.OperationalError: connection to server at "localhost" (::1), port
+  5432 failed: Connection refused
+  （web/app.py 第 133 行 _init_orm_db(app) → db.create_all() 崩溃）
+
+【根因】
+  1. 2026-08-15 全量迁移 PostgreSQL 后，config.py 默认 DATABASE_URL 指向
+     localhost:5432 的 PG，但 CI workflow 未同步——GitHub Actions runner
+     上没有 PostgreSQL 服务，连接被拒绝，Flask 启动即退出
+  2. 隐藏问题：workflow 用 `cd web && python app.py` 直接执行脚本，
+     而 app.py 顶部有 `from .shared_state import ...` 相对导入——
+     直接执行脚本时 __package__ 为空会报 "attempted relative import
+     with no known parent package"。生产启动方式是 `python -m web.app`
+     （启动骰娘跑团平台官网.bat），相对导入正常。PG 修复后 CI
+     仍会在该处崩溃
+
+【修复】.github/workflows/smoke-test.yml：
+  · 新增 services.postgres 服务容器（postgres:16，5432 端口映射，
+    pg_isready 健康检查，job 顶层 env 设 DATABASE_URL 指向该容器）
+    ——与生产环境一致的 PostgreSQL 路径，而非降级 SQLite
+  · 启动命令改为 `python -m web.app`（项目根目录模块方式，与生产一致）
+  · 启动前增加 PG 就绪等待循环（最多 15 秒，单行 python 探测，
+    防御容器端口未就绪）
+  · job timeout 5 分钟 → 10 分钟（多拉一个 postgres 镜像的余量）
+
+【验证】
+  · YAML 语法解析通过（pyyaml safe_load，services/env/steps 结构确认）
+  · 本地复刻 CI 启动路径验证（DATABASE_URL 指向本地 PG +
+    包导入等价 python -m web.app + test_client）：
+      GET  /                  → 200
+      GET  /api/characters    → 200
+      POST /api/roll 3d6      → 200（total=13）
+    PG 连接、create_all 建表、Mod 加载均正常
+
+【生效】仅修改 CI 配置文件 .github/workflows/smoke-test.yml，
+      无需重启服务器；推送到 GitHub main 分支自动触发验证
