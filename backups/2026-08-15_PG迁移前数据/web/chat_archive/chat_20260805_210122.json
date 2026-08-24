@@ -1,0 +1,132 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:35:42",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785238542.7830565,
+    "system": true
+  },
+  {
+    "name": "厄内",
+    "text": "进入了骰娘",
+    "time": "19:35:46",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785238546.9591804
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:35:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785238558.2677307,
+    "system": true
+  },
+  {
+    "name": "凌羽",
+    "text": "@厄内",
+    "time": "19:37:20",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785238640.831823
+  },
+  {
+    "name": "厄内",
+    "text": "@凌羽",
+    "time": "19:37:39",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785238659.1422849
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "19:39:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785238798.504248,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:43:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239038.0905662,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "19:46:42",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239202.662616,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "19:46:48",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239208.426464,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:46:54",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239214.9939544,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:47:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239259.9918244,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:48:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239319.9967365,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "19:49:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785239379.9914439,
+    "system": true
+  }
+]

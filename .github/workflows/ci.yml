@@ -1,0 +1,84 @@
+name: CI — Python 后端
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax-and-imports:
+    name: Python ${{ matrix.python-version }} — 语法 & 导入
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    # 静默 Node.js 弃用警告（actions 内部使用，不影响功能）
+    env:
+      ACTIONS_ALLOW_USE_UNOFFICIAL_NODE_VERSION: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flask-sock
+
+      - name: 检查所有 .py 文件语法
+        run: |
+          echo "=== 编译检查所有 Python 文件 ==="
+          find . -name "*.py" \
+            -not -path "*/.git/*" \
+            -not -path "*/backups/*" \
+            -not -path "*/__pycache__/*" \
+            -not -path "*/.venv/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/Lib/*" \
+            -not -path "*/Scripts/*" \
+            -exec python -m py_compile {} +
+          echo "✅ 所有 Python 文件语法检查通过"
+
+      - name: 验证核心模块可导入
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, os.getcwd())
+          for m in ['core.dice_engine','core.dnd5e_rules','core.combat','utils.data_loader','utils.formatter']:
+              __import__(m)
+              print(f'  OK: {m}')
+          print('所有核心模块导入成功')
+          "
+
+      - name: 检查依赖声明完整性
+        run: |
+          echo "=== 项目使用的第三方库 ==="
+          grep -rh "^import \|^from " --include="*.py" . \
+            | grep -v "^\s*#" | sed 's/import /|/g; s/from /|/g' \
+            | awk -F'|' '{print $2}' | awk -F'.' '{print $1}' | sort -u \
+            | grep -vE "^(core|utils|web|mods|dnd_bot|json|os|sys|re|time|pathlib|datetime|random|math|io|builtins|threading|atexit|base64|copy|logging|importlib|typing|collections|sqlite3|dataclasses|readline|pyreadline3|socket|hashlib)$" \
+            || true
+          echo ""
+          echo "=== requirements.txt ==="
+          cat requirements.txt

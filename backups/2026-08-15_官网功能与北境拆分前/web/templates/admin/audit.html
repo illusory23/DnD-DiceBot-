@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}审计日志{% endblock %}
+{% block page_title %}📜 审计日志{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>关键操作记录（logs/audit.log）</span>
+        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--text-muted);" id="total-display"></span>
+            <button class="btn btn-sm btn-secondary" onclick="loadLogs()">🔄 刷新</button>
+        </span>
+    </div>
+
+    <!-- 筛选 -->
+    <div class="search-box">
+        <select id="action-filter" style="max-width:180px;">
+            <option value="">全部操作</option>
+            <option value="admin.">后台操作</option>
+            <option value="user.">用户操作</option>
+            <option value="chat">聊天</option>
+            <option value="dice">骰子</option>
+            <option value="stats">统计</option>
+            <option value="backup">备份</option>
+        </select>
+        <input type="text" id="username-filter" placeholder="用户名..." style="max-width:160px;">
+        <input type="text" id="search-input" placeholder="搜索详情/时间...">
+        <select id="limit-select" style="max-width:120px;">
+            <option value="100">100 条</option>
+            <option value="200" selected>200 条</option>
+            <option value="500">500 条</option>
+            <option value="1000">1000 条</option>
+        </select>
+        <button class="btn btn-primary" id="btn-search">🔍 筛选</button>
+    </div>
+
+    <div class="table-container" style="max-height:640px;overflow-y:auto;">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>操作类型</th><th>用户</th><th>IP</th><th>详情</th></tr>
+            </thead>
+            <tbody id="logs-tbody">
+                <tr><td colspan="5" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let currentAction = '';
+let currentUsername = '';
+let currentQuery = '';
+
+async function loadLogs() {
+    const tbody = document.getElementById('logs-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">加载中...</td></tr>';
+
+    try {
+        const limit = document.getElementById('limit-select').value;
+        const params = new URLSearchParams({
+            limit,
+            action: currentAction,
+            username: currentUsername,
+            q: currentQuery,
+        });
+        const data = await Admin.get('/admin/api/audit-logs?' + params);
+
+        document.getElementById('total-display').textContent = `共 ${data.total} 条，显示 ${Math.min(data.total, data.limit)} 条`;
+
+        if (!data.entries.length) {
+            tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📜</div><div class="empty-text">暂无匹配的审计记录</div></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.entries.map(e => `
+            <tr>
+                <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(e.time || '-')}</td>
+                <td><code style="color:var(--accent);font-size:11px;">${Admin.escHtml(e.action)}</code></td>
+                <td style="font-size:12px;">${Admin.escHtml(e.username || '-')}</td>
+                <td style="font-size:11px;color:var(--text-muted);">${Admin.escHtml(e.ip || '-')}</td>
+                <td style="max-width:420px;font-size:12px;">${Admin.escHtml(e.detail || '-')}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+document.getElementById('btn-search').addEventListener('click', () => {
+    currentAction = document.getElementById('action-filter').value;
+    currentUsername = document.getElementById('username-filter').value.trim();
+    currentQuery = document.getElementById('search-input').value.trim();
+    loadLogs();
+});
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btn-search').click();
+});
+document.getElementById('action-filter').addEventListener('change', () => {
+    document.getElementById('btn-search').click();
+});
+
+loadLogs();
+</script>
+{% endblock %}

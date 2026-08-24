@@ -1,0 +1,34 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 初羽の屑 退出房间",
+    "time": "22:20:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785939658.9785006,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "22:21:24",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785939684.404729,
+    "system": true
+  },
+  {
+    "name": "iling",
+    "text": "🎲 凯撒克斯·燃麟 d20 优势 = [18] [18,2] 取高",
+    "time": "22:21:51",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785939711.6146479
+  }
+]

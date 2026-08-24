@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>尘封之卷·跑团平台</title>
+<style>
+:root, [data-theme='dark'] {
+  --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
+  --text: #e0e0e0; --text-dim: #888; --text-light: #666;
+  --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
+  --gold: #ffd700; --green: #4caf50; --red: #f44336;
+  --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+[data-theme='light'] {
+  --bg: #f5f0eb; --surface: #fffef9; --surface2: #f0ebe3;
+  --text: #2c2416; --text-dim: #8b7355; --text-light: #b8a88a;
+  --accent: #c0392b; --accent-light: rgba(192,57,43,0.08);
+  --gold: #8b6914; --green: #2d7d46; --red: #c0392b;
+  --cyan: #1a7a8a; --border: #d4c8b8; --border-light: #e8ddd0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-width:320px;}
+
+/* ━━ 头部 ━━ */
+.header{background:var(--surface);border-bottom:3px solid var(--accent);position:fixed;top:0;left:108px;right:0;z-index:99;height:56px;display:flex;align-items:center;}
+.header-inner{max-width:100%;margin:0;padding:0 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;}
+.header-welcome{color:var(--gold);font-size:1rem;font-weight:600;white-space:nowrap;text-shadow:0 0 10px rgba(255,215,0,0.3);text-align:center;flex:1;font-family:'Georgia','Times New Roman',serif;letter-spacing:1px;}
+.logo-area{display:none;}
+.logo-icon{display:none;}
+.logo-text{display:none;}
+.header-actions{display:flex;gap:8px;align-items:center;}
+.header-actions .btn{padding:7px 18px;border-radius:3px;font-size:0.85rem;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:all 0.15s;}
+.header-actions .btn:hover{border-color:var(--accent);color:var(--accent);}
+.header-actions .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.header-actions .btn-primary:hover{opacity:0.85;color:#fff;}
+.header-actions .user-info{font-size:0.85rem;color:var(--accent);}
+
+
+/* ━━ 左侧功能栏 ━━ */
+.nav-sidebar{position:fixed;left:0;top:0;bottom:0;width:0;background:rgba(18,18,42,0.6);border-right:1px solid transparent;z-index:101;transition:width 0.35s cubic-bezier(0.4,0,0.2,1),border-color 0.35s,background 0.35s;overflow:hidden;display:flex;flex-direction:column;}
+.nav-sidebar.open{width:200px;border-right-color:var(--border);}
+.nav-brand{display:flex;align-items:center;gap:8px;padding:12px 10px;cursor:pointer;color:var(--gold);font-weight:bold;font-size:0.88rem;white-space:nowrap;text-decoration:none;min-height:56px;position:fixed;left:0;top:0;z-index:102;background:var(--surface);width:108px;overflow:hidden;border-right:1px solid var(--border);}
+.nav-brand:hover{background:var(--surface2);}
+.nav-brand .brand-icon{width:26px;height:26px;flex-shrink:0;}
+.nav-brand .brand-text{font-size:0.82rem;}
+.nav-sidebar .nav-items-wrap{display:none;flex-direction:column;flex:1;padding-top:56px;}
+.nav-sidebar.open .nav-items-wrap{display:flex;}
+.nav-sidebar.open{padding-top:0;}
+.nav-sidebar .nav-item{display:flex;align-items:center;gap:12px;padding:12px 16px;color:var(--text-dim);text-decoration:none;font-size:0.82rem;white-space:nowrap;transition:all 0.15s;cursor:pointer;border-left:3px solid transparent;}
+.nav-sidebar .nav-item:hover{color:var(--text);background:var(--surface2);}
+.nav-sidebar .nav-item.active{color:var(--gold);background:var(--accent-light);border-left-color:var(--accent);}
+.nav-sidebar .nav-item .nav-icon{font-size:1.1rem;width:22px;text-align:center;flex-shrink:0;}
+.nav-sidebar .nav-item .nav-label{opacity:1;}
+.nav-sidebar .nav-bottom-first{margin-top:auto;}
+.nav-sidebar .nav-bottom-last{padding-bottom:8px;}
+
+/* ━━ 面包屑 ━━ */
+.breadcrumb{padding:64px 32px 12px;font-size:0.78rem;color:var(--text-dim);}
+.breadcrumb a{color:var(--gold);text-decoration:none;}
+.breadcrumb a:hover{text-decoration:underline;}
+
+/* ━━ 主体两栏 ━━ */
+.main-wrap{padding:0 32px 40px;display:flex;gap:28px;}
+.content{flex:1;min-width:0;}
+.sidebar{width:220px;flex-shrink:0;}
+
+/* ━━ 板块列表 ━━ */
+.section-title{font-size:1.05rem;font-weight:700;color:var(--gold);padding:8px 0;border-bottom:2px solid var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.section-link{cursor:pointer;transition:color 0.2s;}
+.section-link:hover{color:#fff;text-decoration:underline;}
+.board-list{display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;}
+.board-row{background:var(--surface);display:flex;align-items:center;gap:14px;padding:12px 16px;transition:background 0.15s;}
+.board-row:hover{background:rgba(255,215,0,0.05);border-left:2px solid var(--gold);}
+.board-icon{font-size:1.8rem;flex-shrink:0;width:40px;text-align:center;}
+.board-info{flex:1;min-width:0;}
+.board-info .board-name{font-size:0.9rem;font-weight:600;color:var(--gold);}
+.board-info .board-desc{font-size:0.75rem;color:var(--text-dim);margin-top:2px;}
+.board-stats{text-align:right;flex-shrink:0;}
+.board-stats .stat-num{font-size:0.85rem;font-weight:600;color:var(--text);}
+.board-stats .stat-label{font-size:0.7rem;color:var(--text-dim);}
+.board-last{font-size:0.72rem;color:var(--text-dim);text-align:right;flex-shrink:0;min-width:120px;line-height:1.4;}
+.board-last a{color:var(--text);text-decoration:none;}
+.board-last a:hover{color:var(--accent);}
+
+/* ━━ 帖子列表 ━━ */
+.thread-list{background:var(--surface);border:1px solid var(--border);border-radius:4px;}
+.thread-header{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:0.78rem;color:var(--text-dim);font-weight:600;}
+.thread-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border-light);transition:background 0.15s;}
+.thread-row:hover{background:rgba(255,215,0,0.05);}
+.thread-row:last-child{border-bottom:none;}
+.thread-icon{font-size:1.2rem;flex-shrink:0;width:28px;text-align:center;}
+.thread-info{flex:1;min-width:0;}
+.thread-info .thread-title{font-size:0.88rem;color:var(--gold);}
+.thread-info .thread-title:hover{text-decoration:underline;}
+.thread-info .thread-meta{font-size:0.72rem;color:var(--text-dim);margin-top:2px;}
+.thread-counts{text-align:center;flex-shrink:0;font-size:0.78rem;min-width:50px;}
+.thread-counts .count{font-weight:600;}
+.thread-counts .label{font-size:0.68rem;color:var(--text-dim);}
+.thread-last{font-size:0.72rem;color:var(--text-dim);flex-shrink:0;min-width:110px;text-align:right;line-height:1.4;}
+
+/* ━━ Tabs ━━ */
+.tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid var(--border);}
+.tab-btn{padding:8px 18px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:0.85rem;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;}
+.tab-btn:hover{color:var(--accent);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+
+/* ━━ 工坊卡片 ━━ */
+/* ━━ 首页分区面板 ━━ */
+.home-section{padding:40px 0;border-bottom:1px solid var(--border);}
+.home-section:first-child{padding-top:0;}
+.section-icon{font-size:1.2rem;}
+.section-badge{font-size:0.72rem;font-weight:normal;color:var(--text-dim);background:var(--bg);padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;}
+.section-desc{font-size:0.82rem;color:var(--text-dim);margin-bottom:18px;}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;}
+.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px 16px;text-align:center;transition:all 0.2s;cursor:default;}
+.feat-card:hover{border-color:var(--accent);box-shadow:0 0 12px rgba(233,68,96,0.2);cursor:pointer;}
+.feature-demo-card{background:var(--surface);border:1px solid var(--gold);border-radius:8px;padding:20px;margin-bottom:20px;}
+.feature-demo-card .demo-label,.feature-detail-card .detail-label{font-size:0.9rem;font-weight:bold;color:var(--gold);margin-bottom:12px;}
+.feature-demo-card .demo-content{font-size:0.85rem;color:var(--text-dim);line-height:1.8;padding:16px;background:var(--bg);border-radius:6px;border-left:3px solid var(--gold);}
+.feature-detail-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px;}
+.feature-detail-card .detail-content{font-size:0.88rem;color:var(--text);line-height:1.9;}
+.feat-icon{font-size:2.2rem;margin-bottom:8px;}
+.feat-name{font-size:0.85rem;font-weight:600;color:var(--gold);margin-bottom:4px;text-decoration:underline;text-underline-offset:3px;}
+.feat-desc{font-size:0.73rem;color:var(--text-dim);line-height:1.5;}
+.platform-entry .entry-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:linear-gradient(135deg,var(--accent),#c0392b);color:#fff;text-decoration:none;border-radius:4px;font-size:0.85rem;font-weight:600;letter-spacing:1px;transition:all 0.3s;text-align:center;}
+.platform-entry .entry-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(233,68,96,0.35);color:#fff;}
+.platform-entry .entry-arrow{transition:transform 0.3s;}
+.platform-entry .entry-btn:hover .entry-arrow{transform:translateX(3px);}
+.about-bar{display:flex;gap:16px;flex-wrap:wrap;font-size:0.8rem;color:var(--text-dim);padding:8px 0;}
+.about-bar span{background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:3px;color:var(--text);}
+/* ━━ 北境雪原召唤卡 ━━ */
+.north-call{text-align:center;margin:28px 0 8px;}
+.north-call-inner{display:inline-block;background:linear-gradient(135deg,#0a1628 0%,#131a36 40%,#162040 70%,#100e24 100%);border:2px solid #3a6090;border-radius:12px;padding:28px 44px;position:relative;overflow:hidden;box-shadow:0 0 32px rgba(70,130,200,0.18),0 0 64px rgba(120,170,230,0.06),0 0 120px rgba(160,200,240,0.04),inset 0 1px 0 rgba(255,255,255,0.04),inset 0 0 60px rgba(140,190,230,0.05);}
+.north-call-inner::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(180,210,255,0.6),transparent);}
+.north-call-inner::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 20%,rgba(140,200,240,0.1) 0%,transparent 40%),radial-gradient(circle at 70% 50%,rgba(160,120,220,0.06) 0%,transparent 40%),radial-gradient(circle at 50% 80%,rgba(180,210,240,0.04) 0%,transparent 30%);pointer-events:none;z-index:0;animation:mistDrift 8s ease-in-out infinite;}
+@keyframes mistDrift{0%,100%{opacity:0.5;transform:translate(0,0);}33%{opacity:0.8;transform:translate(-1%,-1%);}66%{opacity:0.6;transform:translate(1%,1%);}}
+@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(-10px);}15%{opacity:1;transform:translateX(-50%) translateY(0);}75%{opacity:1;}100%{opacity:0;}}
+.north-mist{position:absolute;inset:0;background:radial-gradient(ellipse at 25% 15%,rgba(170,210,240,0.18) 0%,transparent 45%),radial-gradient(ellipse at 75% 55%,rgba(140,180,225,0.12) 0%,transparent 45%),radial-gradient(ellipse at 50% 80%,rgba(160,200,235,0.08) 0%,transparent 35%);pointer-events:none;z-index:0;animation:mistDrift 8s ease-in-out infinite;border-radius:12px;}
+.north-call-decor,.north-call-title,.north-call-sub,.north-call-btn{position:relative;z-index:1;}
+.north-call-decor{display:flex;justify-content:center;align-items:center;gap:12px;margin-bottom:6px;font-size:1.1rem;color:rgba(180,210,255,0.5);letter-spacing:4px;}
+.north-call-decor img{height:2em;width:auto;border:none;outline:none;-webkit-mask-image:radial-gradient(ellipse 43% 62% at 50% 45%,black 88%,transparent 100%);mask-image:radial-gradient(ellipse 43% 62% at 50% 45%,black 88%,transparent 100%);}
+.north-call-title{font-size:1.05rem;color:#9cc8f0;margin-bottom:6px;letter-spacing:2px;font-weight:600;}
+.north-call-sub{font-size:0.8rem;color:#5a80a8;margin-bottom:18px;}
+.north-call-btn{display:inline-block;padding:12px 36px;background:linear-gradient(135deg,#2c5a90,#1e3d68);color:#c8dff8;border:1px solid #4a80b8;border-radius:6px;font-size:0.95rem;cursor:pointer;letter-spacing:2px;text-decoration:none;transition:all 0.3s;box-shadow:0 0 18px rgba(60,120,200,0.25);font-family:inherit;}
+.north-call-btn:hover{background:linear-gradient(135deg,#3a72b8,#2a5090);border-color:#6aa0d8;color:#e8f0ff;box-shadow:0 0 30px rgba(80,150,220,0.45);transform:translateY(-1px);}
+.detail-back-btn{display:inline-block;margin-top:20px;padding:8px 20px;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;font-size:0.82rem;cursor:pointer;letter-spacing:1px;transition:all 0.25s;font-family:inherit;}
+.detail-back-btn:hover{color:var(--gold);border-color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.04);box-shadow:0 0 12px rgba(255,215,0,0.08);}
+.ws-submit-btn{display:inline-block;padding:5px 14px;background:rgba(255,215,0,0.08);color:var(--gold);border:1px solid rgba(255,215,0,0.3);border-radius:4px;font-size:0.78rem;cursor:pointer;letter-spacing:1px;transition:all 0.2s;font-family:inherit;text-decoration:none;}
+.ws-submit-btn:hover{background:var(--gold);color:#1a1a2e;border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,0.3);}
+.home-section.section-alt{background:var(--surface);margin:0 -16px;padding:20px 16px;border:1px solid var(--accent);border-radius:4px;}
+.thread-tag{display:inline-block;padding:1px 7px;border-radius:2px;font-size:0.7rem;color:#fff;background:var(--accent);margin-right:4px;}
+.thread-tag.hot{background:var(--red);}
+.thread-tag.new{background:var(--green);}
+.workshop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;}
+.ws-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:all 0.2s;}
+.ws-card:hover{border-color:var(--accent);box-shadow:var(--shadow);}
+.ws-img{height:100px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:2.8rem;}
+.ws-body{padding:10px 12px;}
+.ws-body h4{font-size:0.82rem;color:var(--accent);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ws-meta{font-size:0.7rem;color:var(--text-dim);display:flex;justify-content:space-between;}
+.ws-stars{color:var(--gold);}
+
+/* ━━ 侧边栏 ━━ */
+.side-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;margin-bottom:14px;}
+.side-card .side-head{padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:0.82rem;font-weight:600;color:var(--gold);}
+.side-card .side-body{padding:10px 12px;}
+.side-card .side-body ul{list-style:none;padding:0;}
+.side-card .side-body li{padding:4px 0;font-size:0.78rem;border-bottom:1px solid var(--border-light);}
+.side-card .side-body li:last-child{border-bottom:none;}
+.side-card .side-body a{color:var(--text);text-decoration:none;}
+.side-card .side-body a:hover{color:var(--accent);}
+.side-stat{display:flex;justify-content:space-between;font-size:0.8rem;padding:3px 0;}
+.side-stat .ss-num{font-weight:600;color:var(--gold);}
+
+/* ━━ 页脚 ━━ */
+.footer{background:var(--surface);border-top:3px solid var(--accent);margin-top:30px;padding:24px 16px 16px;}
+.footer-inner{max-width:100%;margin:0 auto;}
+.footer-links{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;}
+.footer-links a{color:var(--text-dim);text-decoration:none;font-size:0.8rem;}
+.footer-links a:hover{color:var(--accent);}
+.footer-stats{text-align:center;font-size:0.75rem;color:var(--text-dim);}
+.footer-stats span{margin:0 8px;}
+.footer-copy{text-align:center;font-size:0.72rem;color:var(--text-light);margin-top:8px;}
+
+/* ━━ 模态框 ━━ */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:28px 24px;max-width:400px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15);position:relative;}
+.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;color:var(--text-dim);font-size:1.3rem;}
+.modal-close:hover{color:var(--text);}
+.modal-card h2{font-size:1.1rem;color:var(--accent);margin-bottom:16px;text-align:center;}
+.modal-card input{width:100%;padding:9px 12px;margin-bottom:10px;border:1px solid var(--border);border-radius:3px;font-size:0.9rem;color:var(--text);background:var(--bg);}
+.modal-card input:focus{border-color:var(--accent);outline:none;}
+.modal-card .modal-btn{width:100%;padding:10px;border:none;border-radius:3px;font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:6px;}
+.modal-card .btn-primary{background:var(--accent);color:#fff;}
+.modal-card .btn-primary:hover{opacity:0.85;}
+.modal-error{color:var(--red);font-size:0.78rem;text-align:center;min-height:18px;margin-top:4px;}
+.modal-link{text-align:center;margin-top:10px;font-size:0.8rem;color:var(--text-dim);}
+.modal-link a{color:var(--accent);cursor:pointer;text-decoration:none;}
+.modal-link a:hover{text-decoration:underline;}
+
+/* ━━ 响应式 ━━ */
+@media(max-width:768px){
+  .main-wrap{flex-direction:column;}
+  .sidebar{width:100%;}
+  .board-last{display:none;}
+  .thread-last{display:none;}
+  .header-inner{flex-direction:column;align-items:flex-start;}
+  .header-actions{padding-bottom:8px;}
+}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:9999;width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--gold);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.2);transition:all 0.3s;}
+.theme-toggle:hover{transform:scale(1.1);}
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/common-error-handler.js"></script>
+</head>
+<body>
+
+<!-- ━━ 顶栏 ━━ -->
+<!-- ━━ 头部 ━━ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo-area">
+      <div class="logo-icon"><svg viewBox="0 0 100 100" width="40" height="40" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="lsg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="lsf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#lsg)" stroke-width="3" filter="url(#lsf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#lsg)" stroke-width="3" filter="url(#lsf)"/><circle cx="50" cy="14" r="2.5" fill="url(#lsg)"/><circle cx="76" cy="24" r="2.5" fill="url(#lsg)"/><circle cx="86" cy="50" r="2.5" fill="url(#lsg)"/><circle cx="76" cy="76" r="2.5" fill="url(#lsg)"/><circle cx="50" cy="86" r="2.5" fill="url(#lsg)"/><circle cx="24" cy="76" r="2.5" fill="url(#lsg)"/><circle cx="14" cy="50" r="2.5" fill="url(#lsg)"/><circle cx="24" cy="24" r="2.5" fill="url(#lsg)"/><circle cx="50" cy="50" r="5" fill="url(#lsg)"/></svg></div>
+      <div class="logo-text">
+        <h1>尘封之卷</h1>
+        <div class="tagline">龙与地下城第五版 · 跑团辅助平台</div>
+      </div>
+    </div>
+    <div class="header-welcome">欢迎来到尘封之卷跑团平台，续写属于你的传说！</div>
+    <div class="header-actions" id="header-actions">
+      <a href="/guide" style="color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:10px;">帮助</a>
+      <button class="btn" onclick="showModal('login')">登录</button>
+      <button class="btn btn-primary" onclick="showModal('register')">注册</button>
+    </div>
+  </div>
+</header>
+
+<!-- 左侧功能栏 -->
+<a class="nav-brand" onclick="toggleSidebar()" title="点击展开功能栏">
+    <svg class="brand-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sbsg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sbsg)" stroke-width="3"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sbsg)" stroke-width="3"/><circle cx="50" cy="14" r="2.5" fill="url(#sbsg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sbsg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sbsg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sbsg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sbsg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sbsg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sbsg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sbsg)"/><circle cx="50" cy="50" r="5" fill="url(#sbsg)"/></svg>
+    <span class="brand-text">尘封之卷</span>
+</a>
+<div class="nav-sidebar" id="nav-sidebar">
+  <div class="nav-items-wrap">
+  <a class="nav-item active" data-nav="home" onclick="navTo('home',this)"><span class="nav-icon">📋</span><span class="nav-label">首页</span></a>
+  <a class="nav-item" data-nav="features" onclick="navTo('features',this)"><span class="nav-icon">🎯</span><span class="nav-label">功能介绍</span></a>
+  <a class="nav-item" data-nav="community" onclick="navTo('community',this)"><span class="nav-icon">💬</span><span class="nav-label">冒险者酒馆</span></a>
+  <a class="nav-item" data-nav="workshop" onclick="navTo('workshop',this)"><span class="nav-icon">🔧</span><span class="nav-label">创意工坊</span></a>
+  <a class="nav-item nav-bottom-first" data-nav="about" onclick="navTo('about',this)"><span class="nav-icon">ℹ️</span><span class="nav-label">关于平台</span></a>
+  <a class="nav-item" href="/guide"><span class="nav-icon">📖</span><span class="nav-label">新手指南</span></a>
+  <a class="nav-item" href="/notifications" style="position:relative;"><span class="nav-icon">🔔</span><span class="nav-label">消息通知</span><span id="nav-notify-badge" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:0.65rem;line-height:1.4;"></span></a>
+  <a class="nav-item nav-bottom-last" href="/user"><span class="nav-icon">👤</span><span class="nav-label">用户中心</span></a>
+</div></div>
+
+<!-- ━━ 面包屑 ━━ -->
+<div class="breadcrumb" id="breadcrumb">
+  <a href="#">首页</a> &raquo; 板块列表
+</div>
+
+<!-- ━━ 主体 ━━ -->
+<div class="main-wrap" id="main-wrap">
+  <!-- ━━ 内容区 ━━ -->
+  <div class="content" id="content-area"></div>
+
+  <!-- ━━ 侧边栏 ━━ -->
+  <aside class="sidebar">
+    <!-- 用户面板 -->
+    <div class="side-card" id="side-user">
+      <div class="side-head">👤 冒险者信息</div>
+      <div class="side-body" style="text-align:center;">
+        <div style="font-size:3rem;margin-bottom:6px;">⚔️</div>
+        <div style="font-size:0.85rem;color:var(--text-dim);" id="side-username">登录后查看冒险者信息</div>
+      </div>
+    </div>
+
+    <!-- 平台统计（真实数据） -->
+    <div class="side-card">
+      <div class="side-head">📊 平台统计</div>
+      <div class="side-body">
+        <div class="side-stat"><span>📋 主题总数</span><span class="ss-num" id="stat-topics">-</span></div>
+        <div class="side-stat"><span>💬 帖子总数</span><span class="ss-num" id="stat-posts">-</span></div>
+        <div class="side-stat"><span>👤 注册用户</span><span class="ss-num" id="stat-users">-</span></div>
+        <div class="side-stat"><span>🔧 工坊投稿</span><span class="ss-num" id="stat-workshop">-</span></div>
+        <div class="side-stat"><span>🎲 投掷次数</span><span class="ss-num" id="stat-dice">-</span></div>
+      </div>
+    </div>
+
+    <!-- 最新帖子 -->
+    <div class="side-card">
+      <div class="side-head">📰 每周话题</div>
+      <div class="side-body">
+        <ul id="topic-list" style="list-style:none;margin:0;padding:0;"></ul>
+      </div>
+    </div>
+
+    <!-- 在线用户（真实数据：打开任意页面即在线，关闭全部页面才下线） -->
+    <div class="side-card">
+      <div class="side-head">🟢 在线冒险者</div>
+      <div class="side-body">
+        <div style="font-size:0.8rem;color:var(--text-dim);">
+          当前在线: <b id="online-count" style="color:var(--accent);">-</b> 人
+        </div>
+      </div>
+    </div>
+
+    <!-- 跑团平台入口 -->
+    <div class="side-card platform-entry">
+      <div class="side-body">
+        <a href="javascript:void(0)" class="entry-btn" onclick="checkAuthThenGo('/dice3d')">🎲 进入跑团平台 <span class="entry-arrow">→</span></a>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ━━ 页脚 ━━ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-links">
+      <a href="/changelog">更新日志</a><a href="/announcements">平台公告</a>
+      <a href="/user">用户中心</a><a href="/guide">帮助文档</a><a href="#">联系我们</a>
+    </div>
+    <div class="footer-stats">
+      <span>📋 主题: <b id="foot-topics">-</b></span><span>💬 帖子: <b id="foot-posts">-</b></span>
+      <span>👤 会员: <b id="foot-users">-</b></span><span>🎲 投掷: <b id="foot-dice">-</b></span>
+    </div>
+    <p class="footer-copy">Powered by 尘封之卷 &copy; 2026 · 基于 D&D 5E SRD · 当前时区 GMT+8</p>
+  </div>
+</footer>
+
+<!-- ━━ 登录弹窗 ━━ -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal-card">
+    <button class="modal-close" onclick="hideModal('login')">✕</button>
+    <h2>🔑 登录骰娘</h2>
+    <input type="text" id="login-user" placeholder="用户名或邮箱">
+    <input type="password" id="login-pass" placeholder="密码">
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-dim);margin-bottom:10px;cursor:pointer;">
+      <input type="checkbox" id="login-remember" style="width:auto;margin:0;"> 记住账号密码
+    </label>
+    <button class="modal-btn btn-primary" onclick="doLogin()">登录</button>
+    <div class="modal-error" id="login-error"></div>
+    <div class="modal-link"><a onclick="hideModal('login');showModal('register')">没有账号？立即注册</a></div>
+  </div>
+</div>
+
+<!-- ━━ 注册弹窗 ━━ -->
+<div class="modal-overlay" id="modal-register">
+  <div class="modal-card">
+    <button class="modal-close" onclick="hideModal('register')">✕</button>
+    <h2>✨ 创建冒险者账号</h2>
+    <input type="text" id="reg-user" placeholder="用户名">
+    <input type="email" id="reg-email" placeholder="邮箱">
+    <input type="password" id="reg-pass" placeholder="密码（至少9位，含英文+数字）">
+    <input type="password" id="reg-pass2" placeholder="确认密码">
+    <button class="modal-btn btn-primary" onclick="doRegister()">注册</button>
+    <div class="modal-error" id="reg-error"></div>
+    <div class="modal-link"><a onclick="hideModal('register');showModal('login')">已有账号？去登录</a></div>
+  </div>
+</div>
+
+
+
+<script>
+function S(id){return document.getElementById(id);}
+var boards=[{id:"discuss",icon:"💭",name:"综合讨论区",desc:"跑团相关的任何话题"},{id:"recruit",icon:"📯",name:"跑团招募版",desc:"寻找 DM 或玩家"},{id:"tech",icon:"🛠️",name:"技术支持区",desc:"平台使用问题、Bug反馈"}];
+var _wsSubs=[];
+try{_wsSubs=JSON.parse(localStorage.getItem("workshop_subs")||"[]");}catch(e){}
+function hEscape(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+function showModal(t){S("modal-"+t).classList.add("show");}
+function hideModal(t){S("modal-"+t).classList.remove("show");}
+document.querySelectorAll(".modal-overlay").forEach(function(m){m.addEventListener("click",function(e){if(e.target===m)m.classList.remove("show");});});
+function doLogin(){var u=S("login-user").value.trim();var p=S("login-pass").value;var err=S("login-error");if(!u||!p){err.textContent="请填写账号（用户名或邮箱）和密码";return;}err.textContent="登录中...";fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error+(d.error.indexOf("用户名或密码")>=0?" — 还没有账号？点下方立即注册":"");return;}err.textContent="";hideModal("login");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
+function doRegister(){var u=S("reg-user").value.trim();var e=S("reg-email").value.trim();var p=S("reg-pass").value;var p2=S("reg-pass2").value;var err=S("reg-error");if(!u||!e||!p){err.textContent="请填写所有字段";return;}if(p.length<9){err.textContent="密码至少9位";return;}if(!/[a-zA-Z]/.test(p)||!/\d/.test(p)){err.textContent="密码必须包含英文和数字";return;}if(p!==p2){err.textContent="两次密码不一致";return;}err.textContent="注册中...";fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,email:e,password:p,confirm_password:p2})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){err.textContent=d.error;return;}err.textContent="";hideModal("register");updateUserUI(d.user.username,d.user);}).catch(function(e){err.textContent="网络错误，请重试"});}
+/* 头像 HTML：有头像显示圆形图，无头像显示 ⚔️ 占位；
+ * img 与占位均正常文档流（避免绝对定位塌陷遮挡），img 加载成功后移除占位，
+ * 加载失败移除 img 回退占位 */
+function _avatarHTML(url,size){var fb="<span style='display:inline-flex;align-items:center;justify-content:center;width:"+size+"px;height:"+size+"px;border-radius:50%;background:var(--surface2);font-size:"+Math.round(size*0.5)+"px;vertical-align:middle;flex-shrink:0;'>⚔️</span>";if(!url)return fb;return "<span style='display:inline-flex;position:relative;vertical-align:middle;flex-shrink:0;'><img src='"+url+"' alt='' style='width:"+size+"px;height:"+size+"px;border-radius:50%;object-fit:cover;display:inline-flex;' onload='var s=this.nextElementSibling;if(s)s.remove()' onerror='this.remove()'>"+fb+"</span>";}
+/* 头像批量拉取（一次请求查所有作者，缓存结果） */
+var _avatarCache={};
+function ensureAvatars(names,cb){names=(names||[]).filter(function(n){return n;});var need=[];names.forEach(function(n){if(!(n in _avatarCache))need.push(n);});if(!need.length){cb(_avatarCache);return;}fetch("/api/users/avatars?names="+encodeURIComponent(need.join(","))).then(function(r){return r.json();}).then(function(d){if(d.ok)for(var k in d.avatars)_avatarCache[k]=d.avatars[k];cb(_avatarCache);}).catch(function(){cb(_avatarCache);});}
+function updateUserUI(name,userData){S("side-username").textContent="👤 "+name;var av=userData?userData.avatar_url:"";var extra=userData?('<div style=font-size:0.68rem;color:var(--text-dim);>'+ (userData.character_count||0) +' 个角色</div>'):'';S("side-user").querySelector(".side-body").innerHTML="<div style='display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:6px;'>"+_avatarHTML(av,48)+"<div style='font-size:0.85rem;color:var(--accent);'><b>"+name+"</b></div></div>"+extra+"<button class='btn' onclick='doLogout()' style='font-size:0.72rem;margin-top:8px;width:100%;'>退出</button>";document.getElementById("header-actions").innerHTML="<a href='/guide' style='color:var(--text-dim);text-decoration:none;font-size:0.82rem;margin-right:8px;'>帮助</a><a href='/user' class='user-info' style='text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;'>"+_avatarHTML(av,24)+"<span>"+name+"</span></a><button class='btn' onclick='doLogout()'>退出</button>";}
+function doLogout(){fetch("/api/auth/logout",{method:"POST"}).then(function(){location.reload();}).catch(function(){location.reload();});}
+(function(){fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user)updateUserUI(d.user.username,d.user);}).catch(function(){});})();
+function toggleSidebar(){S("nav-sidebar").classList.toggle("open");}
+document.addEventListener("click",function(e){var sb=S("nav-sidebar");if(sb.classList.contains("open")&&!sb.contains(e.target)&&!e.target.closest(".nav-brand")){sb.classList.remove("open");}});
+var _curNav="home";
+function navTo(nav,el){_curNav=nav;_setSidebarActive(nav);if(nav==="home")renderHome();else if(nav==="features")renderFeatures();else if(nav==="community")renderCommunity();else if(nav==="workshop")renderWorkshop();else if(nav==="about")renderAbout();window.scrollTo(0,0);}
+
+function buildFeatCards(){var feats=[{id:"dice",icon:"🎲",t:"3D 物理骰子",d:"真实的 3D 物理引擎掷骰，多人在线同步"},{id:"map",icon:"🗺️",t:"战术地图",d:"无限画布+图层管理+战争迷雾+角色标记拖放"},{id:"char",icon:"👤",t:"角色卡管理",d:"完整 5E 角色卡系统，Excel 导入/分组管理"},{id:"combat",icon:"⚔️",t:"战斗追踪",d:"先攻追踪+HP管理+怪物搜索"},{id:"library",icon:"📚",t:"资料库",d:"900+法术 500+怪物 全规则参考"},{id:"events",icon:"❄️",t:"探索北境",d:"深入苍白大地，一步步揭开雪原的秘密"}];var h="";feats.forEach(function(f){h+="<div class='feat-card' data-feat='"+f.id+"' onclick='showFeatureDetail(this.dataset.feat)'><div class='feat-icon'>"+f.icon+"</div><div class='feat-name'>"+f.t+"</div><div class='feat-desc'>"+f.d+"</div></div>";});return h;}
+function showFeatureDetail(id){_setSidebarActive("features");
+  var details={
+    dice:{title:"🎲 3D 物理骰子",desc:"基于 Three.js 物理引擎的真实 3D 掷骰体验。支持 d4/d6/d8/d10/d12/d20/d100 全部标准骰子，可自定义骰子数量、加值修正、优势/劣势投掷。内置爆炸骰与保留骰机制，支持暗骰模式。多人在线时所有玩家可同步观看掷骰动画，桌面背景可自由更换。",demo:"3D骰子演示: 选择骰子类型→设置数量/加值→点击投掷→实时3D动画掷出→结果显示+广播到聊天室。支持检定面板: 属性检定/技能检定/豁免检定，自动匹配角色属性加值与熟练项。"},
+    map:{title:"🗺️ 战术地图",desc:"基于 Canvas 的无限画布战术地图系统。支持多图层管理（可导入任意图片作为地图底图）、战争迷雾（DM手动绘制/擦除，玩家视角自动遮盖未探索区域）、角色标记拖放（从侧边栏拖拽角色卡片到地图上，所有玩家实时同步位置）。内置画笔/橡皮/填充/文字工具，支持框选群组操作。所有操作通过 WebSocket 实时同步给全部在线玩家。",demo:"战术地图演示: DM上传地图图片→设置战争迷雾→玩家拖动角色标记到地图→DM逐步揭示迷雾→画笔标注战术要点。支持存档槽系统，可保存/加载多张地图。"},
+    char:{title:"👤 角色卡管理",desc:"完整的 D&D 5E 角色卡系统，涵盖属性值（力量/敏捷/体质/智力/感知/魅力）、技能熟练、豁免熟练、护甲等级、生命值、速度等核心数据。武器/法术/物品/钱币分类管理，支持装备与卸下。长休/短休自动恢复，法术位追踪。支持从 Excel 模板一键导入角色，分组管理多个角色卡，复制/删除/头像自定义等功能。",demo:"角色卡演示: 导入Excel→自动解析属性/技能/装备→查看完整角色卡（含属性加值/技能熟练/战斗数据）→管理物品栏→长休恢复法术位→战斗中使用角色属性自动计算命中加值。"},
+    combat:{title:"⚔️ 战斗追踪",desc:"跑团战斗管理系统。DM 添加参战角色/怪物，设置先攻值后一键排序。战斗中实时追踪 HP 变化（伤害/治疗快捷操作），自动同步到角色卡数据库。战斗轮管理：当前回合高亮显示、下一位/上一位切换、轮数自动递增。支持怪物快速搜索（内置 500+ 怪物数据），一键加入战斗。所有战斗状态通过 WebSocket 实时广播给全部玩家。",demo:"战斗演示: DM添加参战者→设置先攻→开始战斗→按顺序操作→对目标施加伤害/治疗→HP实时更新→角色卡同步→下一位自动切换→全灭或结束清空。"},
+    library:{title:"📚 资料库",desc:"内置完整的 D&D 5E 参考资料库。法术查询（900+ 条，含详细描述/施法时间/距离/成分/持续时间）、怪物查询（500+ 条，含属性/AC/HP/速度/CR/特性/动作）、魔法物品/装备查询、专长查询、规则参考。支持全文搜索和模糊匹配，可查看详细数据面板。服务器资源库允许上传 PDF/图片/文档等文件共享给全团。",demo:"资料库演示: 输入关键词→搜索法术/怪物/物品/规则→点击结果查看详细描述→法术显示等级/学派/施法时间/效果→怪物显示完整数据块→资源库上传PDF供全团查阅。"},
+    events:{title:"❄️ 探索北境",desc:"踏入亚罗帝国以北的苍白大地，在极寒荒野中展开冒险。每一步都充满未知，管理口粮与燃料，抵御严寒考验。内置完整的生存系统：严寒等级、方向感迷失、火源照明、口粮消耗。每一次深入雪原都是对意志的考验。",demo:"探索北境演示: 选择角色→点击事件卡掷骰→链式触发子事件→生存检定自动判定→资源消耗追踪→营地管理角色→跑团结束后导出完整记录。"}
+  };
+  var d=details[id]||{title:"功能介绍",desc:"详细内容待补充",demo:""};
+  var h="<div class='section-title'>"+d.title+"</div>";
+  if(id!=="events") h+="<div class='feature-demo-card'><div class='demo-label'>📸 功能演示</div><div class='demo-content'>"+d.demo+"</div></div>";
+  h+="<div class='feature-detail-card'><div class='detail-label'>📋 详细说明</div><div class='detail-content'>"+d.desc+"</div></div>";
+  if(id==="events") h+="<div class='north-call'><div class='north-call-inner'><div class='north-mist'></div><div class='north-call-decor'>❄️ ⬩ <img src='/static/portal/skull.png' style='border:0;display:inline-block;'> ⬩ ❄️</div><div class='north-call-title'>🗺️ 冒险者，这片大地埋葬了许多过去</div><div class='north-call-sub'>穿越苍白大地，揭开极北之地的古老面纱</div><button class='north-call-btn' onclick=\"checkAuthThenGo('/north-expedition')\">❄️ 进入北境雪原</button></div></div>";h+="<button class='detail-back-btn' onclick='renderFeatures()'>← 返回功能介绍</button>";
+  S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderFeatures()'>功能介绍</a> &raquo; "+d.title;
+}
+
+function buildBoardRows(boardsData){var h="",total=0;(boardsData||[]).forEach(function(b,i){total+=b.topics;var lastTopic=b.lastTopic||"暂无帖子";var lastInfo=b.lastBy?(b.lastBy+" · "+b.last):"-";h+="<div class='board-row' data-id='"+b.id+"' onclick='renderBoard(this.dataset.id)'><div class='board-icon'>"+b.icon+"</div><div class='board-info'><div class='board-name'>"+b.name+"</div><div class='board-desc'>"+b.desc+"</div></div><div class='board-stats'><div class='stat-num'>"+b.topics+"</div><div class='stat-label'>主题</div></div><div class='board-stats'><div class='stat-num'>"+b.posts+"</div><div class='stat-label'>帖子</div></div><div class='board-last'><span>"+lastTopic.substring(0,14)+(lastTopic.length>14?"…":"")+"</span><br>"+lastInfo+"</div></div>";});return {html:h,total:total};}
+
+function buildWsCards(items){var h="";items.forEach(function(i){var title=hEscape(i.title),author=hEscape(i.author),stars=i.stars==="新"?"🆕 新":("⭐ "+i.stars),dl=i.dl?(i.dl+"KB"):"0 下载";h+="<div class='ws-card' data-title='"+title+"' data-author='"+author+"' data-dl='"+i.dl+"' data-stars='"+(i.stars||"")+"' data-desc='"+hEscape(i.desc||"")+"' data-file='"+hEscape(i.file_url||"")+"' data-id='"+(i.id||"")+"' onclick='wsDetailCard(this)'><div class='ws-img'>"+i.icon+"</div><div class='ws-body'><h4>"+i.title+"</h4><div class='ws-meta'><span>👤 "+i.author+"</span><span class='ws-stars'>"+stars+"</span></div><div class='ws-meta' style='margin-top:3px;'><span>📥 "+dl+"</span><span>👍 "+(i.like_count||0)+" · ⭐ "+(i.fav_count||0)+"</span></div></div></div>";});return h;}
+
+function _setSidebarActive(nav){document.querySelectorAll(".nav-item").forEach(function(x){x.classList.remove("active");});var el=document.querySelector(".nav-item[data-nav='"+nav+"']");if(el)el.classList.add("active");}
+function renderHome(){_setSidebarActive("home");S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 板块列表";var h="<div class='home-section'><div class='section-title' title='点击进入功能介绍'><span class='section-icon'>🎯</span> <span class='section-link' onclick='renderFeatures()'>核心功能</span> <span class='section-badge'>6项</span></div><p class='section-desc'>为 DM 和玩家打造的完整跑团工具箱</p><div class='feature-grid'>"+buildFeatCards()+"</div></div>";h+="<div class='home-section section-alt'><div class='section-title' title='点击进入冒险者酒馆'><span class='section-icon'>💬</span> <span class='section-link' onclick='renderCommunity()'>冒险者酒馆</span> <span class='section-badge'>全平台</span></div><p class='section-desc'>与全平台的 DM 和玩家交流跑团心得</p><div class='board-list' id='home-board-list'><div style='padding:14px;font-size:0.8rem;color:var(--text-dim);'>加载中...</div></div></div>";h+="<div class='home-section'><div class='section-title' title='点击进入创意工坊'><span class='section-icon'>🔧</span> <span class='section-link' onclick='renderWorkshop()'>创意工坊精选</span> <span class='section-badge' id='home-ws-count'>- 项</span></div><p class='section-desc'>社区投稿的自定义扩展、地图包、角色模版等创意内容</p><div class='workshop-grid' id='home-ws-grid'><div style='padding:14px;font-size:0.8rem;color:var(--text-dim);'>加载中...</div></div></div>";h+="<div class='home-section section-alt'><div class='section-title' title='点击进入关于平台'><span class='section-icon'>ℹ️</span> <span class='section-link' onclick='renderAbout()'>关于平台</span></div><p class='section-desc'>尘封之卷是一个为龙与地下城第五版规则打造的综合性跑团辅助平台。</p><div class='about-bar'><span>📦 版本 v2.0</span><span>🐍 Python 3.11 + Flask</span><span>🗄️ SQLite</span><span>📜 MIT License</span><span>📖 D&D 5E SRD</span></div></div>";S("content-area").innerHTML=h;loadBoards("home-board-list");loadHomeWorkshop();}
+function loadHomeWorkshop(){fetch("/api/workshop/items").then(function(r){return r.json();}).then(function(data){var subs=(data.items||[]).map(function(s){return {cat:"user",icon:"📦",title:s.title,author:s.author,stars:"新",dl:0,desc:s.desc,file_url:s.file_url||"",id:s.id};});var grid=S("home-ws-grid");if(!grid)return;var count=S("home-ws-count");if(count)count.textContent=subs.length+" 项";if(!subs.length){grid.innerHTML="<div style='padding:14px;font-size:0.8rem;color:var(--text-dim);'>暂无投稿</div>";return;}grid.innerHTML=buildWsCards(subs.slice(0,3));}).catch(function(){});}
+
+function renderCommunity(){_setSidebarActive("community");S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 冒险者酒馆";var h="";h+="<div class='home-section'><div class='section-title'><span class='section-icon'>📢</span> 酒馆告示板 <span class='section-badge' id='board-ann-count'>- 条公告</span></div><p class='section-desc'>张贴在酒馆门口的公告，最新的排在前面</p><div id='community-announcements'><div style='font-size:0.8rem;color:var(--text-dim);padding:10px 0;'>加载中...</div></div></div>";h+="<div class='home-section section-alt'><div class='section-title'><span class='section-icon'>📰</span> 每周话题 <span class='section-badge'>置顶</span></div><div id='community-topics'><div style='font-size:0.8rem;color:var(--text-dim);padding:10px 0;'>加载中...</div></div></div>";h+="<div class='home-section'><div class='section-title'><span class='section-icon'>💬</span> 冒险者酒馆 <span class='section-badge' id='board-total'>- 主题</span><button class='ws-submit-btn' onclick='showCommunityPostModal()' style='margin-left:auto;'>📝 发帖</button></div><p class='section-desc'>与全平台的 DM 和玩家交流跑团心得</p><div class='board-list' id='board-list'><div style='padding:14px;font-size:0.8rem;color:var(--text-dim);'>加载中...</div></div></div>";S("content-area").innerHTML=h;loadCommunityAnnouncements();loadCommunityTopics();loadBoards();}
+function loadCommunityAnnouncements(){var box=document.getElementById("community-announcements");if(!box)return;fetch("/api/announcements/history").then(function(r){return r.json();}).then(function(data){var anns=((data.ok&&data.announcements)||[]).slice().sort(function(a,b){return (b.id||0)-(a.id||0);});var cnt=document.getElementById("board-ann-count");if(cnt)cnt.textContent=anns.length+" 条公告";if(!anns.length){box.innerHTML="<div style='font-size:0.8rem;color:var(--text-dim);padding:10px 0;'>告示板上空无一物</div>";return;}box.innerHTML=anns.map(function(a){var date=(a.created_at||"").slice(0,16);return "<div style='background:var(--surface);border:1px solid var(--border-light);border-left:3px solid var(--gold);border-radius:4px;padding:12px 14px;margin-bottom:10px;'><div style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'><span style='font-size:0.9rem;font-weight:600;color:var(--gold);'>📌 "+hEscape(a.title)+"</span><span style='font-size:0.7rem;color:var(--text-dim);margin-left:auto;white-space:nowrap;'>"+date+"</span></div><div style='font-size:0.8rem;color:var(--text);line-height:1.8;white-space:pre-wrap;word-break:break-word;'>"+hEscape(a.content)+"</div></div>";}).join("");}).catch(function(){var box=document.getElementById("community-announcements");if(box)box.innerHTML="<div style='font-size:0.8rem;color:var(--text-dim);padding:10px 0;'>公告加载失败，请稍后重试</div>";});}
+function loadBoards(containerId){var cid=containerId||"board-list";fetch("/api/community/boards").then(function(r){return r.json();}).then(function(data){var br=buildBoardRows(data.boards);var t=S("board-total");if(t)t.textContent=br.total+" 主题";var box=S(cid);if(box)box.innerHTML=br.html;}).catch(function(){});}
+function loadCommunityTopics(){var box=document.getElementById("community-topics");if(!box)return;fetch("/api/topics").then(function(r){return r.json();}).then(function(data){var topics=data.topics||[];if(!topics.length){box.innerHTML="<div style='font-size:0.8rem;color:var(--text-dim);padding:10px 0;'>暂无话题，敬请期待</div>";return;}box.innerHTML=topics.map(function(t){var date=(t.created_at||"").slice(0,10);return "<div class='thread-row' style='background:var(--surface);border:1px solid var(--border-light);border-radius:4px;padding:10px 14px;margin-bottom:8px;cursor:pointer;' onclick=\"location.href='/topics/"+t.id+"'\"><span class='thread-tag hot'>📌 置顶</span> <b style='color:var(--text);'>"+t.title+"</b><div style='font-size:0.72rem;color:var(--text-dim);margin-top:4px;'>"+t.author+" · "+date+(t.image_count?" · 🖼 "+t.image_count:"")+"</div></div>";}).join("");}).catch(function(){});}
+var _threadBoardId=null,_threadPage=1,_threadQ='',_THREAD_PAGE_SIZE=10;
+function renderBoard(id){_curNav="board_"+id;_setSidebarActive("community");var b=boards.find(function(x){return x.id===id;});if(!b)return;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderCommunity()'>冒险者酒馆</a> &raquo; "+b.name;_threadBoardId=id;_threadPage=1;_threadQ='';var h="<div class='section-title'>"+b.icon+" "+b.name+"<button class='ws-submit-btn' onclick='showCommunityPostModal(\""+b.id+"\")' style='margin-left:auto;'>📝 发帖</button></div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>"+b.desc+"</div><button class='detail-back-btn' onclick='renderCommunity()' style='margin-bottom:12px;'>← 返回酒馆</button><div style='display:flex;gap:8px;margin-bottom:10px;align-items:center;'><input id='thread-search' type='text' placeholder='🔍 搜索标题 / 内容 / 作者...' onkeydown='if(event.key===\"Enter\")doThreadSearch()' style='flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;'><button class='ws-submit-btn' onclick='doThreadSearch()' style='margin:0;'>搜索</button></div><div class='thread-list' id='board-threads'><div class='thread-header'><span style='flex:1;'>主题</span><span style='width:52px;text-align:center;'>👍</span><span style='width:52px;text-align:center;'>⭐</span><span style='width:110px;text-align:center;'>发布</span></div><div style='padding:14px;font-size:0.8rem;color:var(--text-dim);'>加载中...</div></div><div id='thread-pager' style='display:flex;gap:12px;justify-content:center;align-items:center;margin-top:14px;'></div>";S("content-area").innerHTML=h;loadThreads();}
+function doThreadSearch(){_threadQ=S("thread-search").value.trim();_threadPage=1;loadThreads();}
+function threadPage(delta){_threadPage=Math.max(1,_threadPage+delta);loadThreads();}
+function renderThreadPager(data){var pg=S("thread-pager");if(!pg)return;var page=data.page||1,total=data.total||0,pages=Math.max(1,Math.ceil(total/_THREAD_PAGE_SIZE));if(pages<=1){pg.innerHTML="";return;}var h="<button class='detail-back-btn' style='margin-top:0;"+(page<=1?"opacity:0.4;cursor:not-allowed;":"")+"' "+(page>1?"onclick='threadPage(-1)'":"disabled")+">← 上一页</button><span style='font-size:0.8rem;color:var(--text-dim);'>第 "+page+" / "+pages+" 页 · 共 "+total+" 帖</span><button class='detail-back-btn' style='margin-top:0;"+(page>=pages?"opacity:0.4;cursor:not-allowed;":"")+"' "+(page<pages?"onclick='threadPage(1)'":"disabled")+">下一页 →</button>";pg.innerHTML=h;}
+function loadThreads(){if(!_threadBoardId)return;var url="/api/community/boards/"+_threadBoardId+"/threads?page="+_threadPage+"&page_size="+_THREAD_PAGE_SIZE;if(_threadQ)url+="&q="+encodeURIComponent(_threadQ);fetch(url).then(function(r){return r.json();}).then(function(data){var list=data.threads||[];var box=S("board-threads");if(!box)return;var header="<div class='thread-header'><span style='flex:1;'>主题</span><span style='width:52px;text-align:center;'>👍</span><span style='width:52px;text-align:center;'>⭐</span><span style='width:110px;text-align:center;'>发布</span></div>";if(!list.length){box.innerHTML=header+"<div style='padding:14px;color:var(--text-dim);font-size:0.85rem;'>"+(data.total===0?"暂无帖子，来发第一帖吧～":"没有找到相关帖子")+"</div>";renderThreadPager(data);return;}ensureAvatars(list.map(function(t){return t.author;}),function(av){box.innerHTML=header+list.map(function(t){var canDel=currentUser&&(currentUser.username===t.author||currentUser.is_admin);return "<div class='thread-row'><span class='thread-icon'>"+_avatarHTML(av[t.author],26)+"</span><span class='thread-info'><span class='thread-title' onclick='openPostDetail("+t.id+")'>"+hEscape(t.title)+"</span><span class='thread-meta'>"+hEscape(t.author)+" · "+t.created_at+(canDel?" · <a style='color:var(--red);cursor:pointer;' onclick='delPost("+t.id+")'>删除</a>":"")+"</span></span><span class='thread-counts' style='width:52px;'><span class='count'>"+(t.like_count||0)+"</span></span><span class='thread-counts' style='width:52px;'><span class='count'>"+(t.fav_count||0)+"</span></span><span class='thread-counts' style='width:110px;'><span class='label'>"+(t.images&&t.images.length?"🖼 "+t.images.length+" 图":"")+"</span></span></div>";}).join("");renderThreadPager(data);});}).catch(function(){var box=S("board-threads");if(box)box.innerHTML="<div style='padding:14px;color:var(--red);font-size:0.85rem;'>加载失败</div>";});}
+function toggleLike(type,id,btn){fetch("/api/"+(type==="post"?"community/posts/":"workshop/items/")+id+"/like",{method:"POST"}).then(function(r){return r.json();}).then(function(d){if(!d.ok){Toast.show(d.error||"操作失败", "error");return;}var cnt=document.getElementById("like-cnt");if(cnt)cnt.textContent=d.like_count;btn.textContent=d.liked?"👍 已赞":"👍 点赞";}).catch(function(){Toast.show("网络错误", "error");});}
+function initFavBtn(type,id,btn){if(!btn)return;fetch("/api/favorites").then(function(r){return r.json();}).then(function(d){if(!d.ok)return;var fav=d.favorites||[];var found=fav.some(function(f){return f.type===type&&f.item_id===id;});if(found){btn.textContent="⭐ 已收藏";btn.style.borderColor="#6abf8a";btn.style.color="#6abf8a";}}).catch(function(){});}
+function toggleFav(type,id,btn){fetch("/api/favorites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:type,id:id})}).then(function(r){return r.json();}).then(function(d){if(!d.ok){Toast.show(d.error||"操作失败", "error");return;}var cnt=document.getElementById("fav-cnt");if(cnt)cnt.textContent=(parseInt(cnt.textContent)||0)+(d.favorited?1:-1);if(d.favorited){btn.textContent="⭐ 已收藏";btn.style.borderColor="#6abf8a";btn.style.color="#6abf8a";}else{btn.textContent="⭐ 收藏";btn.style.borderColor="";btn.style.color="";}}).catch(function(){Toast.show("网络错误", "error");});}
+function openPostDetail(id){window.location.href="/post/"+id;}
+function delPost(id){if(!confirm("确定要删除这条帖子吗？"))return;fetch("/api/community/posts/"+id,{method:"DELETE"}).then(function(r){return r.json();}).then(function(data){if(data.ok){renderCommunity();}else{Toast.show(data.error||"删除失败", "error");}});}
+
+/* ━━ 评论区通用组件（帖子 / 工坊投稿共用） ━━ */
+function commentBlockHTML(){return "<div style='margin-top:16px;border-top:1px solid var(--border);padding-top:12px;'><div style='font-size:0.85rem;color:var(--gold);font-weight:bold;margin-bottom:8px;'>💬 评论</div><div id='cmt-list'></div><div style='display:flex;gap:8px;margin-top:10px;'><input type='text' id='cmt-input' maxlength='500' placeholder='写下评论...（最多500字）' style='flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;'><button class='detail-back-btn' style='margin-top:0;' onclick='submitComment(this.getAttribute(\"data-type\"),this.getAttribute(\"data-id\"))' data-type='' data-id=''>发表</button></div><div id='cmt-msg' style='font-size:0.72rem;color:var(--text-dim);margin-top:6px;'></div></div>";}
+function renderComments(comments,type,parentId){var list=document.getElementById("cmt-list");if(!list)return;var btn=document.querySelector("#cmt-input+button");if(btn){btn.setAttribute("data-type",type);btn.setAttribute("data-id",parentId);}if(!comments||!comments.length){list.innerHTML="<div style='font-size:0.75rem;color:var(--text-dim);'>暂无评论，来抢沙发～</div>";return;}ensureAvatars(comments.map(function(c){return c.username;}),function(av){list.innerHTML=comments.map(function(c){var canDel=currentUser&&(currentUser.username===c.username||currentUser.is_admin);return "<div style='padding:8px 0;border-bottom:1px solid var(--border-light);'><div style='font-size:0.75rem;color:var(--accent);font-weight:bold;display:flex;align-items:center;gap:6px;'>"+_avatarHTML(av[c.username],20)+"<span>"+hEscape(c.username)+"</span> <span style='color:var(--text-dim);font-weight:normal;'>"+c.created_at+"</span>"+(canDel?"<a style='color:var(--red);cursor:pointer;margin-left:8px;' onclick='deleteComment("+c.id+",\""+type+"\","+parentId+")'>删除</a>":"")+"</div><div style='font-size:0.82rem;color:var(--text);margin-top:2px;white-space:pre-wrap;'>"+hEscape(c.content)+"</div></div>";}).join("");});}
+function loadComments(type,parentId){if(type==="post"){fetch("/api/community/posts/"+parentId).then(function(r){return r.json();}).then(function(d){if(d.ok)renderComments(d.post.comments||[],"post",parentId);}).catch(function(){});}else{fetch("/api/workshop/items/"+parentId).then(function(r){return r.json();}).then(function(d){if(d.ok)renderComments(d.item.comments||[],"item",parentId);}).catch(function(){});}}
+function submitComment(type,parentId){var input=document.getElementById("cmt-input");var content=input.value.trim();var msg=document.getElementById("cmt-msg");if(!content){msg.textContent="请输入评论内容";return;}fetch("/api/"+(type==="post"?"community/posts/":"workshop/items/")+parentId+"/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:content})}).then(function(r){return r.json();}).then(function(data){if(data.ok){input.value="";msg.textContent="";loadComments(type,parentId);}else{msg.textContent=data.error||"评论失败";}}).catch(function(){msg.textContent="网络错误，请重试";});}
+function deleteComment(cid,type,parentId){if(!confirm("确定删除这条评论吗？"))return;fetch("/api/"+(type==="post"?"community/posts/":"workshop/items/")+parentId+"/comments/"+cid,{method:"DELETE"}).then(function(r){return r.json();}).then(function(data){if(data.ok){loadComments(type,parentId);}else{Toast.show(data.error||"删除失败", "error");}});}
+
+function renderFeatures(){_setSidebarActive("features");S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 功能介绍";var h="<div class='section-title'>🎯 核心功能</div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>为 DM 和玩家打造的完整跑团工具箱 · 点击卡片查看详细演示说明</div><div class='feature-grid'>"+buildFeatCards()+"</div>";S("content-area").innerHTML=h;}
+
+var _wsPage=1,_wsQ='',_wsCat='all',_WS_PAGE_SIZE=12;
+function renderWorkshop(){_setSidebarActive("workshop");S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 创意工坊";_wsPage=1;_wsQ='';var h="<div class='section-title'>🔧 创意工坊 <button class='ws-submit-btn' onclick='showSubmitModal()' style='margin-left:auto;'>📤 投稿</button></div><div style='font-size:0.8rem;color:var(--text-dim);margin-bottom:14px;'>投稿和分享你的自定义扩展、地图包、角色模版和更多创意内容</div><div class='tabs' id='ws-tabs'><button class='tab-btn active' data-cat='all' onclick='filterWS(this.dataset.cat,this)'>📦 全部</button><button class='tab-btn' data-cat='extension' onclick='filterWS(this.dataset.cat,this)'>🧩 扩展</button><button class='tab-btn' data-cat='map_pack' onclick='filterWS(this.dataset.cat,this)'>🗺️ 地图</button><button class='tab-btn' data-cat='template' onclick='filterWS(this.dataset.cat,this)'>👤 模版</button><button class='tab-btn' data-cat='monster' onclick='filterWS(this.dataset.cat,this)'>👹 怪物</button><button class='tab-btn' data-cat='dice_skin' onclick='filterWS(this.dataset.cat,this)'>🎲 骰皮</button></div><div style='display:flex;gap:8px;margin-bottom:14px;align-items:center;'><input id='ws-search' type='text' placeholder='🔍 搜索标题 / 介绍 / 作者...' onkeydown='if(event.key===\"Enter\")doWsSearch()' style='flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;'><button class='ws-submit-btn' onclick='doWsSearch()' style='margin:0;'>搜索</button></div><div class='workshop-grid' id='ws-grid'></div><div id='ws-pager' style='display:flex;gap:12px;justify-content:center;align-items:center;margin-top:14px;'></div>";S("content-area").innerHTML=h;renderWSGrid("all");}
+function filterWS(cat,btn){document.querySelectorAll("#ws-tabs .tab-btn").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");_wsCat=cat;_wsPage=1;renderWSGrid(cat);}
+function doWsSearch(){_wsQ=S("ws-search").value.trim();_wsPage=1;renderWSGrid(_wsCat);}
+function wsPage(delta){_wsPage=Math.max(1,_wsPage+delta);renderWSGrid(_wsCat);}
+function renderWsPager(data){var pg=S("ws-pager");if(!pg)return;var page=data.page||1,total=data.total||0,pages=Math.max(1,Math.ceil(total/_WS_PAGE_SIZE));if(pages<=1){pg.innerHTML="";return;}var h="<button class='detail-back-btn' style='margin-top:0;"+(page<=1?"opacity:0.4;cursor:not-allowed;":"")+"' "+(page>1?"onclick='wsPage(-1)'":"disabled")+">← 上一页</button><span style='font-size:0.8rem;color:var(--text-dim);'>第 "+page+" / "+pages+" 页 · 共 "+total+" 件</span><button class='detail-back-btn' style='margin-top:0;"+(page>=pages?"opacity:0.4;cursor:not-allowed;":"")+"' "+(page<pages?"onclick='wsPage(1)'":"disabled")+">下一页 →</button>";pg.innerHTML=h;}
+function renderWSGrid(cat){_wsCat=cat;var grid=S("ws-grid");if(!grid)return;var url="/api/workshop/items?page="+_wsPage+"&page_size="+_WS_PAGE_SIZE;if(_wsQ)url+="&q="+encodeURIComponent(_wsQ);fetch(url).then(function(r){return r.json();}).then(function(data){var subs=(data.items||[]).map(function(s){return {cat:"user",icon:"📦",title:s.title,author:s.author,stars:"新",dl:0,desc:s.desc,file_url:s.file_url||"",id:s.id,like_count:s.like_count||0,fav_count:s.fav_count||0};});var items=cat==="all"?subs:subs.filter(function(i){return i.cat===cat;});if(!items.length){grid.innerHTML="<div style='padding:20px;color:var(--text-dim);font-size:0.85rem;'>"+(data.total===0?"暂无投稿，来投稿第一件作品吧～":"没有找到相关投稿")+"</div>";renderWsPager(data);return;}grid.innerHTML=buildWsCards(items);renderWsPager(data);}).catch(function(){grid.innerHTML="<div style='padding:20px;color:var(--text-dim);font-size:0.85rem;'>加载失败</div>";});}
+function wsDetailCard(el){var _itemId=el.dataset.id?parseInt(el.dataset.id):null;if(_itemId){window.location.href="/workshop/"+_itemId;return;}_setSidebarActive("workshop");var t=el.dataset.title,a=el.dataset.author,d=parseInt(el.dataset.dl)||0,s=el.dataset.stars,desc=el.dataset.desc||"暂无详细介绍",fileUrl=el.dataset.file||"",itemId=null;function renderDetail(it){var av=it?(it.author_avatar||""):"";var h="<div class='section-title'>📦 "+t+" ";if(itemId){h+="<button id='like-btn' onclick='toggleLike(\"workshop\","+itemId+",this)' style='background:none;border:1px solid var(--accent);border-radius:4px;color:var(--accent);cursor:pointer;font-size:0.72rem;padding:2px 8px;vertical-align:middle;'>"+(it&&it.liked?"👍 已赞":"👍 点赞")+"</button><span style='color:var(--text-dim);font-size:0.72rem;margin-left:4px;' id='like-cnt'>"+(it?it.like_count||0:0)+"</span> <button id='fav-btn' onclick='toggleFav(\"workshop\","+itemId+",this)' style='background:none;border:1px solid var(--gold);border-radius:4px;color:var(--gold);cursor:pointer;font-size:0.72rem;padding:2px 8px;vertical-align:middle;'>⭐ 收藏</button><span style='color:var(--text-dim);font-size:0.72rem;margin-left:4px;' id='fav-cnt'>"+(it?it.fav_count||0:0)+"</span>";}h+="</div>";h+="<div style='margin-bottom:16px;font-size:0.82rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap;'>"+_avatarHTML(av,20)+"<span>👤 "+a+"</span><span>| ⭐ "+s+"</span><span>| 📥 "+d+" 下载</span>"+(itemId?"<span>| 📦 社区投稿</span>":"")+"</div>";h+="<div style='background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;line-height:1.8;font-size:0.88rem;white-space:pre-wrap;'>"+hEscape(desc)+"</div>";if(fileUrl){h+="<a class='detail-back-btn' style='display:inline-block;margin-top:14px;text-decoration:none;' href='"+hEscape(fileUrl)+"' target='_blank'>📥 下载文件</a>";}if(itemId&&currentUser&&(currentUser.username===a||currentUser.is_admin)){h+="<button class='detail-back-btn' style='margin-top:14px;' onclick='delWorkshopItem("+itemId+")'>🗑 删除投稿</button>";}h+="<button class='detail-back-btn' onclick='renderWorkshop()'>← 返回工坊</button>";h+="<div style='background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;margin-top:16px;'>"+commentBlockHTML()+"</div>";S("content-area").innerHTML=h;S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; <a href='javascript:void(0)' onclick='renderWorkshop()'>创意工坊</a> &raquo; "+t;if(itemId){loadComments("item",itemId);var fb2=document.getElementById("fav-btn");if(fb2)initFavBtn("workshop",itemId,fb2);}}if(itemId){fetch("/api/workshop/items/"+itemId).then(function(r){return r.json();}).then(function(data){if(data.ok&&data.item){var it=data.item;if(it.title)t=it.title;if(it.desc)desc=it.desc;if(it.file_url)fileUrl=it.file_url;renderDetail(it);}else{renderDetail(null);}}).catch(function(){renderDetail(null);});}else{renderDetail(null);}}
+function delWorkshopItem(id){if(!confirm("确定要删除这条投稿吗？"))return;fetch("/api/workshop/items/"+id,{method:"DELETE"}).then(function(r){return r.json();}).then(function(data){if(data.ok){renderWorkshop();}else{Toast.show(data.error||"删除失败", "error");}});}
+function renderAbout(){_setSidebarActive("about");S("breadcrumb").innerHTML="<a href='javascript:void(0)' onclick='renderHome()'>首页</a> &raquo; 关于平台";S("content-area").innerHTML="<div class='section-title'>ℹ️ 关于 尘封之卷</div><div class='board-list'><div class='board-row' style='flex-direction:column;align-items:flex-start;gap:12px;cursor:default;'><p style='line-height:1.8;'>尘封之卷是一个为龙与地下城第五版规则打造的综合性跑团辅助平台。</p><p style='line-height:1.8;'>无论你是经验丰富的 DM 还是新手冒险者，尘封之卷都会成为你最可靠的伙伴。</p><div style='border-top:1px solid var(--border);width:100%;padding-top:12px;font-size:0.85rem;'><b>版本:</b> v2.0 | <b>运行环境:</b> Python 3.11 + Flask | <b>数据库:</b> SQLite<br><b>开源协议:</b> MIT License | <b>规则依据:</b> D&D 5E SRD 5.1</div></div></div>";}
+
+function showSubmitModal(){S("submit-modal").classList.add("show");}
+function hideSubmitModal(){S("submit-modal").classList.remove("show");S("submit-error").textContent="";}
+function onFileSelected(input){var n=input.files&&input.files[0]?input.files[0].name:"未选择文件";S("submit-file-name").textContent=n;}
+async function doSubmit(){var title=S("submit-title").value.trim();var desc=S("submit-desc").value.trim();var file=S("submit-file").files[0];var err=S("submit-error");if(!title){err.textContent="请填写主题名称";return;}if(!desc){err.textContent="请填写内容介绍";return;}err.textContent="提交中...";var fileUrl="";if(file){var fd=new FormData();fd.append("file",file);try{var r=await fetch("/api/resources/upload",{method:"POST",body:fd});var dd=await r.json();if(dd.success)fileUrl=dd.url;else{err.textContent=dd.error||"文件上传失败";return;}}catch(e){err.textContent="文件上传失败";return;}}try{var resp=await fetch("/api/workshop/items",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:title,desc:desc,file_url:fileUrl})});var data=await resp.json();if(data.ok){hideSubmitModal();S("submit-title").value="";S("submit-desc").value="";S("submit-file").value="";S("submit-file-name").textContent="未选择文件";var toast=document.createElement("div");toast.style.cssText="position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--gold);border-radius:6px;padding:10px 24px;z-index:9999;color:var(--gold);font-size:0.9rem;box-shadow:0 4px 16px rgba(255,215,0,0.2);animation:fadeInOut 2.5s ease forwards;";toast.textContent="✅ 投稿成功，感谢分享！";document.body.appendChild(toast);setTimeout(function(){toast.remove();},2500);renderWorkshop();}else{err.textContent=data.error||"投稿失败";if(resp.status===401)Toast.show("请先登录官网账号", "warning");}}catch(e){err.textContent="网络错误，请重试";}}
+var _communityPosts=[];try{_communityPosts=JSON.parse(localStorage.getItem("community_posts")||"[]");}catch(e){}
+var _postBoardLock=null;
+function showCommunityPostModal(boardId){_postBoardLock=boardId||null;var sel=S("post-board");sel.innerHTML="";boards.forEach(function(b){var opt=document.createElement("option");opt.value=b.id;opt.textContent=b.icon+" "+b.name;sel.appendChild(opt);});var wrap=sel.parentNode;if(_postBoardLock){wrap.style.display="none";sel.value=_postBoardLock;}else{wrap.style.display="";}S("community-post-modal").classList.add("show");}
+function hideCommunityPostModal(){S("community-post-modal").classList.remove("show");S("post-error").textContent="";}
+function onPostImagesSelected(input){var files=input.files;var preview=S("post-images-preview");preview.innerHTML="";if(!files||files.length===0){S("post-images-name").textContent="未选择";return;}if(files.length>9){S("post-error").textContent="最多上传9张图片";S("post-images-name").textContent="未选择";input.value="";return;}S("post-error").textContent="";S("post-images-name").textContent=files.length+" 张图片";for(var i=0;i<Math.min(files.length,9);i++){(function(f,idx){var reader=new FileReader();reader.onload=function(e){var wrap=document.createElement("div");wrap.style.cssText="position:relative;display:inline-block;";var img=document.createElement("img");img.src=e.target.result;img.style.cssText="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid var(--border);";var del=document.createElement("span");del.textContent="✕";del.style.cssText="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--red);color:#fff;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;";del.onclick=function(){wrap.remove();var remaining=preview.querySelectorAll("div").length-1;S("post-images-name").textContent=remaining>0?remaining+" 张图片":"未选择";};wrap.appendChild(img);wrap.appendChild(del);preview.appendChild(wrap);};reader.readAsDataURL(f);})(files[i],i);}}
+async function doCommunityPost(){var lockedBoard=_postBoardLock;var title=S("post-title").value.trim();var boardId=lockedBoard||S("post-board").value;var content=S("post-content").value.trim();var err=S("post-error");var b=boards.find(function(x){return x.id===boardId;});var boardName=b?b.name:boardId;if(!title){err.textContent="请填写帖子标题";return;}if(!content){err.textContent="请填写帖子内容";return;}err.textContent="发布中...";var files=document.getElementById("post-images").files||[];var urls=[];for(var i=0;i<Math.min(files.length,9);i++){var fd=new FormData();fd.append("file",files[i]);try{var r=await fetch("/api/resources/upload",{method:"POST",body:fd});var dd=await r.json();if(dd.success)urls.push(dd.url);}catch(e){}}try{var resp=await fetch("/api/community/posts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({board:boardId,title:title,content:content,images:urls})});var data=await resp.json();if(data.ok){hideCommunityPostModal();_postBoardLock=null;S("post-title").value="";S("post-content").value="";S("post-images").value="";S("post-images-preview").innerHTML="";S("post-images-name").textContent="未选择";var toast=document.createElement("div");toast.style.cssText="position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--gold);border-radius:6px;padding:10px 24px;z-index:9999;color:var(--gold);font-size:0.9rem;box-shadow:0 4px 16px rgba(255,215,0,0.2);animation:fadeInOut 2.5s ease forwards;";toast.textContent="✅ 帖子已发布到「"+boardName+"」";document.body.appendChild(toast);setTimeout(function(){toast.remove();},2500);if(lockedBoard)renderBoard(lockedBoard);else renderCommunity();}else{err.textContent=data.error||"发布失败";if(resp.status===401)Toast.show("请先登录官网账号", "warning");}}catch(e){err.textContent="网络错误，请重试";}}
+
+(function(){document.body.style.marginLeft="108px";document.body.style.paddingTop="56px";document.body.style.marginRight="0";})();
+// 当前登录用户（用于帖子/投稿删除按钮）
+var currentUser=null;
+fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok)currentUser=d.user;}).catch(function(){});
+// 消息通知未读红点（导航栏 🔔）：有人评论/点赞/收藏时提醒
+function refreshNavNotify(){
+  var badge=document.getElementById("nav-notify-badge");
+  if(!badge)return;
+  fetch("/api/notifications/unread-count").then(function(r){return r.json();}).then(function(d){
+    var c=(d.ok&&d.count)?d.count:0;
+    if(c>0){badge.style.display="";badge.textContent=c>99?"99+":c;}
+    else{badge.style.display="none";}
+  }).catch(function(){});
+}
+refreshNavNotify();
+setInterval(refreshNavNotify, 30000);
+// URL hash 定位（从话题独立页导航跳回时定位到对应板块）
+var _hash=location.hash;
+if(_hash==="#community"){navTo("community",document.querySelector('[data-nav="community"]'));}
+else if(_hash==="#workshop"){navTo("workshop",document.querySelector('[data-nav="workshop"]'));}
+else if(_hash==="#features"){navTo("features",document.querySelector('[data-nav="features"]'));}
+else if(_hash==="#about"){navTo("about",document.querySelector('[data-nav="about"]'));}
+else{renderHome();}
+
+
+function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
+(function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();
+
+
+function checkAuthThenGo(url) {
+    fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){
+        if (d.ok && d.user) { window.location.href = url; }
+        else { showAuthRequiredModal(url); }
+    }).catch(function(){ showAuthRequiredModal(url); });
+}
+function showAuthRequiredModal(url) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay show';
+    overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+    var card = document.createElement('div');
+    card.className = 'modal-card';
+    card.style.textAlign = 'center';
+    card.style.maxWidth = '400px';
+    var h2 = document.createElement('h2');
+    h2.textContent = '🔐 请先注册登录';
+    card.appendChild(h2);
+    var p = document.createElement('p');
+    p.style.cssText = 'color:var(--text-dim);font-size:0.85rem;margin:14px 0 18px;line-height:1.6;';
+    p.textContent = '进入跑团平台需要注册账号，以便保存你的角色和冒险记录。';
+    card.appendChild(p);
+    var btnReg = document.createElement('button');
+    btnReg.className = 'modal-btn btn-primary';
+    btnReg.textContent = '📝 立即注册';
+    btnReg.onclick = function() { showModal('register'); overlay.remove(); };
+    card.appendChild(btnReg);
+    var btnLogin = document.createElement('button');
+    btnLogin.className = 'modal-btn btn-primary';
+    btnLogin.style.cssText = 'margin-top:10px;background:var(--surface);color:var(--text);border:1px solid var(--border);';
+    btnLogin.textContent = '🔑 已有账号，去登录';
+    btnLogin.onclick = function() { showModal('login'); overlay.remove(); };
+    card.appendChild(btnLogin);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+}
+
+/* ━━ 在线冒险者（真实数据，每 30 秒刷新，仅显示人数） ━━ */
+function refreshOnline() {
+    fetch('/api/online/users').then(function (r) { return r.json(); }).then(function (data) {
+        var countEl = document.getElementById('online-count');
+        if (countEl) countEl.textContent = data.count;
+    }).catch(function () {});
+}
+refreshOnline();
+setInterval(refreshOnline, 30000);
+
+/* ━━ 当前区块数据定时刷新（30 秒，仅刷新正在查看的区块） ━━ */
+setInterval(function () {
+    if (_curNav === 'community') { loadBoards(); loadCommunityTopics(); }
+    else if (_curNav === 'workshop') {
+        var actTab = document.querySelector('#ws-tabs .tab-btn.active');
+        renderWSGrid(actTab ? actTab.dataset.cat : 'all');
+    }
+    else if (_curNav === 'home') { loadBoards('home-board-list'); loadHomeWorkshop(); }
+    else if (_curNav && _curNav.indexOf('board_') === 0) { loadThreads(); }
+}, 30000);
+
+/* ━━ 平台统计（真实数据，每 60 秒刷新） ━━ */
+function loadPlatformStats() {
+    fetch('/api/stats/overview').then(function (r) { return r.json(); }).then(function (d) {
+        var fmt = function (n) { return (n || 0).toLocaleString(); };
+        var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+        set('stat-topics', fmt(d.topics));
+        set('stat-posts', fmt(d.posts));
+        set('stat-users', fmt(d.users));
+        set('stat-workshop', fmt(d.workshop));
+        set('stat-dice', fmt(d.dice));
+        set('foot-topics', fmt(d.topics));
+        set('foot-posts', fmt(d.posts));
+        set('foot-users', fmt(d.users));
+        set('foot-dice', fmt(d.dice));
+    }).catch(function () {});
+}
+loadPlatformStats();
+setInterval(loadPlatformStats, 60000);
+
+/* ━━ 每周话题（管理员发布，点击查看详情） ━━ */
+function loadTopics() {
+    fetch('/api/topics').then(function (r) { return r.json(); }).then(function (data) {
+        var list = document.getElementById('topic-list');
+        if (!list) return;
+        var topics = data.topics || [];
+        if (!topics.length) {
+            list.innerHTML = '<li style="font-size:0.78rem;color:var(--text-dim);padding:4px 0;">暂无话题，敬请期待</li>';
+            return;
+        }
+        list.innerHTML = topics.map(function (t) {
+            var date = (t.created_at || '').slice(0, 10);
+            var cover = t.cover
+                ? '<img src="' + t.cover + '" style="width:100%;height:52px;object-fit:cover;border-radius:6px;margin-bottom:6px;">'
+                : '';
+            return '<li style="padding:7px 0;border-bottom:1px solid var(--border);">' +
+                '<a href="/topics/' + t.id + '" style="text-decoration:none;display:block;">' +
+                cover +
+                '<span style="font-size:0.85rem;color:var(--text);font-weight:bold;line-height:1.4;display:block;">' + t.title + '</span>' +
+                '<span style="font-size:0.7rem;color:var(--text-dim);">📅 ' + date + (t.image_count ? ' · 🖼 ' + t.image_count : '') + '</span>' +
+                '</a></li>';
+        }).join('');
+    }).catch(function () {});
+}
+
+loadTopics();
+setInterval(loadTopics, 60000);
+
+</script>
+
+
+<!-- ━━ 工坊投稿弹窗 ━━ -->
+<div class="modal-overlay" id="submit-modal">
+  <div class="modal-card" style="max-width:500px;">
+    <button class="modal-close" onclick="hideSubmitModal()">✕</button>
+    <h2>📤 创意工坊投稿</h2>
+    <label style="font-size:0.78rem;color:var(--text-dim);">主题名称</label>
+    <input type="text" id="submit-title" placeholder="给你的创作起个名字">
+    <label style="font-size:0.78rem;color:var(--text-dim);">内容介绍</label>
+    <textarea id="submit-desc" placeholder="描述你的创作内容、使用方法等..." style="width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;resize:vertical;min-height:80px;"></textarea>
+    <label style="font-size:0.78rem;color:var(--text-dim);">附件（上传资源文件）</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <input type="file" id="submit-file" style="display:none;" onchange="onFileSelected(this)">
+      <button class="detail-back-btn" onclick="document.getElementById('submit-file').click()" style="font-size:0.8rem;margin-top:0;">📁 选择文件</button>
+      <span id="submit-file-name" style="font-size:0.75rem;color:var(--text-dim);">未选择文件</span>
+    </div>
+    <button class="modal-btn btn-primary" onclick="doSubmit()">提交投稿</button>
+    <div class="modal-error" id="submit-error"></div>
+  </div>
+</div>
+
+<!-- ━━ 社区发帖弹窗 ━━ -->
+<div class="modal-overlay" id="community-post-modal">
+  <div class="modal-card" style="max-width:560px;">
+    <button class="modal-close" onclick="hideCommunityPostModal()">✕</button>
+    <h2>📝 冒险者酒馆 · 发帖</h2>
+    <label style="font-size:0.78rem;color:var(--text-dim);">发布到分区</label>
+    <select id="post-board" style="width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;"></select>
+    <label style="font-size:0.78rem;color:var(--text-dim);">帖子标题</label>
+    <input type="text" id="post-title" placeholder="给你的帖子起个标题">
+    <label style="font-size:0.78rem;color:var(--text-dim);">帖子内容</label>
+    <textarea id="post-content" placeholder="分享你的跑团故事、规则讨论、招募信息..." style="width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;resize:vertical;min-height:120px;"></textarea>
+    <label style="font-size:0.78rem;color:var(--text-dim);">图片（可选，最多9张）</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <input type="file" id="post-images" style="display:none;" accept="image/*" multiple onchange="onPostImagesSelected(this)">
+      <button class="detail-back-btn" onclick="document.getElementById('post-images').click()" style="font-size:0.8rem;margin-top:0;">🖼️ 选择图片</button>
+      <span id="post-images-name" style="font-size:0.75rem;color:var(--text-dim);">未选择</span>
+    </div>
+    <div id="post-images-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <button class="modal-btn btn-primary" onclick="doCommunityPost()">发布帖子</button>
+    <div class="modal-error" id="post-error"></div>
+  </div>
+</div>
+
+<button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
+<script>
+// 离开跑团平台：清除跑团会话，重新进入时需重新选择身份
+(function(){try{sessionStorage.removeItem('dnd_joined_room');}catch(e){}})();
+</script>
+    <script src="/static/announcement-banner.js"></script>
+</body>
+</html>

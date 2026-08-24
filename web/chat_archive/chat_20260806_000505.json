@@ -1,0 +1,36 @@
+[
+  {
+    "name": "白枫",
+    "text": "🎲 2d4 = [5]",
+    "time": "21:08:38",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935318.4381762
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20+5 = [22]",
+    "time": "21:08:52",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935332.3890517
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "21:09:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935354.8843532,
+    "system": true
+  }
+]

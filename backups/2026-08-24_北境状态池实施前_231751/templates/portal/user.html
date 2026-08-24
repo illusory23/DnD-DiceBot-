@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户中心 — 尘封之卷</title>
+<style>
+:root, [data-theme='dark'] {
+  --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
+  --text: #e0e0e0; --text-dim: #888; --text-light: #666;
+  --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
+  --gold: #ffd700; --green: #4caf50; --red: #f44336;
+  --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
+}
+[data-theme='light'] {
+  --bg: #f5f0eb; --surface: #fffef9; --surface2: #f0ebe3;
+  --text: #2c2416; --text-dim: #8b7355; --text-light: #b8a88a;
+  --accent: #c0392b; --accent-light: rgba(192,57,43,0.08);
+  --gold: #8b6914; --green: #2d7d46; --red: #c0392b;
+  --cyan: #1a7a8a; --border: #d4c8b8; --border-light: #e8ddd0;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;}
+a{color:var(--cyan);text-decoration:none;}a:hover{text-decoration:underline;}
+
+/* ━━ 导航栏 ━━ */
+.navbar{background:var(--surface);border-bottom:2px solid var(--accent);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;}
+.nav-brand{font-size:0.9rem;font-weight:bold;color:var(--gold);text-decoration:none;display:flex;align-items:center;gap:6px;}
+.nav-links{display:flex;gap:4px;align-items:center;}
+.nav-links a{color:var(--text-dim);text-decoration:none;padding:6px 12px;border-radius:4px;font-size:0.82rem;}
+.nav-links a:hover,.nav-links a.active{color:var(--text);background:var(--surface2);}
+
+/* ━━ 主体 ━━ */
+.container{max-width:900px;margin:0 auto;padding:24px 16px;}
+.page-title{font-size:1.3rem;font-weight:bold;color:var(--gold);margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid var(--accent);}
+
+/* ━━ 卡片 ━━ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden;}
+.card-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:600;color:var(--gold);font-size:0.9rem;display:flex;align-items:center;gap:8px;}
+.card-body{padding:16px;}
+
+/* ━━ 用户信息行 ━━ */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+.info-item{display:flex;flex-direction:column;gap:4px;}
+.info-label{font-size:0.72rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;}
+.info-value{font-size:0.95rem;color:var(--text);word-break:break-all;}
+.info-value.empty{color:var(--text-light);font-style:italic;}
+
+/* ━━ 统计数字 ━━ */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;text-align:center;}
+.stat-item{padding:12px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border);}
+.stat-num{font-size:1.5rem;font-weight:bold;color:var(--gold);}
+.stat-label{font-size:0.72rem;color:var(--text-dim);margin-top:4px;}
+
+/* ━━ 列表 ━━ */
+.item-list{display:flex;flex-direction:column;gap:6px;}
+.item-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:4px;border:1px solid var(--border);font-size:0.82rem;}
+.item-row:hover{border-color:var(--accent);}
+.item-icon{font-size:1.2rem;}
+.item-name{flex:1;}
+.item-meta{font-size:0.72rem;color:var(--text-dim);white-space:nowrap;}
+
+/* ━━ 编辑按钮 ━━ */
+.btn{padding:6px 14px;border-radius:4px;font-size:0.8rem;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:all 0.15s;}
+.btn:hover{border-color:var(--accent);}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover{opacity:0.85;}
+.btn-sm{padding:4px 10px;font-size:0.72rem;}
+
+/* ━━ 模态框 ━━ */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-card{background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:24px;max-width:420px;width:90%;}
+.modal-card h3{color:var(--gold);margin-bottom:14px;}
+.modal-card input,.modal-card textarea{width:100%;padding:9px 12px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.9rem;font-family:inherit;}
+.modal-card input:focus,.modal-card textarea:focus{border-color:var(--accent);outline:none;}
+.modal-card textarea{resize:vertical;min-height:60px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
+
+@media(max-width:600px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+.theme-toggle{position:fixed;bottom:20px;right:20px;z-index:9999;width:40px;height:40px;border-radius:50%;border:2px solid var(--accent);background:var(--surface);color:var(--gold);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.2);transition:all 0.3s;}
+.theme-toggle:hover{transform:scale(1.1);}
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <svg viewBox="0 0 100 100" width="14" height="14" style="vertical-align:middle;" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bsg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#bsg)" stroke-width="3"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#bsg)" stroke-width="3"/><circle cx="50" cy="50" r="5" fill="url(#bsg)"/></svg>
+    尘封之卷
+  </a>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/user" class="active">用户中心</a>
+    <a href="/notifications">消息通知</a>
+    <a href="/guide">新手指南</a>
+    <a href="#" onclick="doLogout()">退出</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1 class="page-title">👤 用户中心</h1>
+
+  <!-- ━━ 基本信息 ━━ -->
+  <div class="card">
+    <div class="card-header">📋 基本信息 <button class="btn btn-sm" onclick="showEditModal()" style="margin-left:auto;">✏️ 编辑</button></div>
+    <div class="card-body">
+      <!-- 头像区域（holder 与 img 互斥显示，均占正常文档流，避免绝对定位塌陷遮挡下方信息） -->
+      <div style="display:flex;align-items:center;gap:20px;margin-bottom:18px;">
+        <div style="flex-shrink:0;">
+          <div id="avatar-holder" style="width:84px;height:84px;border-radius:50%;background:var(--bg);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:2.2rem;overflow:hidden;box-shadow:0 0 14px rgba(255,215,0,0.15);">⚔️</div>
+          <img id="info-avatar" alt="头像" onerror="avatarLoadError(this)" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);display:none;box-shadow:0 0 14px rgba(255,215,0,0.15);">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-sm" onclick="document.getElementById('avatar-file').click()">📷 更换头像</button>
+            <button class="btn btn-sm" id="avatar-del-btn" onclick="deleteAvatar()" style="display:none;border-color:var(--red);color:var(--red);">🗑 删除头像</button>
+            <input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="uploadAvatar(this)">
+          </div>
+          <span style="font-size:0.7rem;color:var(--text-dim);">支持 JPG/PNG/GIF/WEBP/BMP，最大 2MB。头像将展示在帖子、评论与酒馆中。</span>
+        </div>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><span class="info-label">用户 ID</span><span class="info-value" id="info-id">—</span></div>
+        <div class="info-item"><span class="info-label">用户名</span><span class="info-value" id="info-username">—</span></div>
+        <div class="info-item"><span class="info-label">绑定邮箱</span><span class="info-value empty" id="info-email">未绑定</span></div>
+        <div class="info-item"><span class="info-label">绑定手机号</span><span class="info-value empty" id="info-phone">未绑定</span></div>
+        <div class="info-item"><span class="info-label">注册时间</span><span class="info-value" id="info-created">—</span></div>
+        <div class="info-item"><span class="info-label">最后登录</span><span class="info-value" id="info-login">—</span></div>
+        <div class="info-item" style="grid-column:1/-1;"><span class="info-label">个人简介</span><span class="info-value empty" id="info-bio">暂无简介</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 数据统计 ━━ -->
+  <div class="card">
+    <div class="card-header">📊 平台数据</div>
+    <div class="card-body">
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-num" id="stat-workshop">0</div><div class="stat-label">角色数量</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-posts">0</div><div class="stat-label">—</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-replies">0</div><div class="stat-label">—</div></div>
+        <div class="stat-item"><div class="stat-num" id="stat-downloads">0</div><div class="stat-label">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 发布的资源 ━━ -->
+  <div class="card">
+    <div class="card-header">🔧 创意工坊投稿</div>
+    <div class="card-body">
+      <div class="item-list" id="workshop-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无投稿</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 社区帖子 ━━ -->
+  <div class="card">
+    <div class="card-header">💬 酒馆发帖数量</div>
+    <div class="card-body">
+      <div class="item-list" id="posts-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无发帖</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 消息通知（被评论/被点赞提醒） ━━ -->
+  <div class="card">
+    <div class="card-header">🔔 消息通知 <span id="notify-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 8px;font-size:0.7rem;font-weight:normal;">0 未读</span>
+      <button class="btn btn-sm" onclick="markAllNotificationsRead()" style="margin-left:auto;">✓ 全部已读</button>
+    </div>
+    <div class="card-body">
+      <div class="item-list" id="notify-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 我的好友 ━━ -->
+  <div class="card">
+    <div class="card-header">🤝 我的好友</div>
+    <div class="card-body">
+      <!-- 搜索添加：输入用户名或ID → 搜索 → 结果中点添加好友发申请 -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="friend-search-input" placeholder="输入对方用户名或用户ID，搜索添加好友" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;" onkeydown="if(event.key==='Enter')searchFriendUser()">
+        <button class="btn btn-primary btn-sm" onclick="searchFriendUser()" style="white-space:nowrap;">🔍 搜索</button>
+      </div>
+      <!-- 搜索结果（头像+用户名+ID+添加按钮，按关系状态显示） -->
+      <div id="friend-search-result" style="display:none;margin-bottom:12px;"></div>
+      <!-- 待处理请求（收到的可接受/拒绝 + 已发送的等待处理） -->
+      <div id="friend-requests" style="margin-bottom:12px;"></div>
+      <!-- 好友列表 -->
+      <div class="item-list" id="friend-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 我的收藏 ━━ -->
+  <div class="card">
+    <div class="card-header">⭐ 我的收藏</div>
+    <div class="card-body">
+      <div class="item-list" id="fav-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━ 我的评论 ━━ -->
+  <div class="card">
+    <div class="card-header">💬 我的评论</div>
+    <div class="card-body">
+      <div class="item-list" id="mycmt-list">
+        <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━ 头像圆形裁剪弹窗 ━━ -->
+<div class="modal-overlay" id="crop-modal">
+  <div class="modal-card" style="max-width:460px;">
+    <button class="modal-close" onclick="closeCrop()">✕</button>
+    <h3>✂️ 裁剪头像</h3>
+    <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;">拖动图片调整位置，滑块缩放，将截取圆形区域。</p>
+    <div id="crop-stage" style="position:relative;width:300px;height:300px;margin:0 auto 12px;overflow:hidden;border-radius:50%;background:var(--bg);border:2px solid var(--gold);cursor:move;touch-action:none;">
+      <img id="crop-img" alt="" draggable="false" style="position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none;pointer-events:none;">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <span style="font-size:0.75rem;color:var(--text-dim);flex-shrink:0;">🔍 缩放</span>
+      <input type="range" id="crop-zoom" min="100" max="300" value="100" style="flex:1;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeCrop()">取消</button>
+      <button class="btn btn-primary" onclick="confirmCrop()">✓ 确认上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━ 编辑资料弹窗 ━━ -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-card">
+    <h3>✏️ 编辑资料</h3>
+    <label style="font-size:0.78rem;color:var(--text-dim);">用户名（可修改，用户ID不变）</label>
+    <input type="text" id="edit-username" placeholder="用户名">
+    <label style="font-size:0.78rem;color:var(--text-dim);">邮箱</label>
+    <input type="email" id="edit-email" placeholder="绑定邮箱">
+    <label style="font-size:0.78rem;color:var(--text-dim);">手机号</label>
+    <input type="tel" id="edit-phone" placeholder="绑定手机号">
+    <label style="font-size:0.78rem;color:var(--text-dim);">个人简介</label>
+    <textarea id="edit-bio" placeholder="介绍一下自己..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="hideEditModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveProfile()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━ 好友私聊弹窗（v5.5：文本+图片，3秒轮询增量拉取） ━━ -->
+<div class="modal-overlay" id="chat-modal">
+  <div class="modal-card" style="max-width:480px;">
+    <button class="modal-close" onclick="closeFriendChat()">✕</button>
+    <h3 id="chat-friend-name" style="display:flex;align-items:center;gap:8px;">💬 好友私聊</h3>
+    <div id="chat-msg-list" style="height:320px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="chat-input" maxlength="500" placeholder="输入消息...（Enter 发送）"
+             style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+             onkeydown="if(event.key==='Enter')sendFriendChatMsg()">
+      <button class="btn" onclick="pickChatImage()" title="发送图片">📷</button>
+      <button class="btn btn-primary" onclick="sendFriendChatMsg()">发送</button>
+    </div>
+    <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="onChatImagePicked(this)">
+  </div>
+</div>
+
+<!-- ━━ 好友资料弹窗（v5.5：仅公开信息，私密字段不可见） ━━ -->
+<div class="modal-overlay" id="friend-profile-modal">
+  <div class="modal-card" style="max-width:480px;">
+    <button class="modal-close" onclick="document.getElementById('friend-profile-modal').classList.remove('show')">✕</button>
+    <h3>👤 好友资料</h3>
+    <div id="friend-profile-body" style="max-height:70vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script>
+var _currentUser = null;
+
+// 加载用户数据（从服务器API）
+function loadUserData(){
+  fetch('/api/auth/me').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok || !d.user) {
+      // 未登录，跳转首页
+      document.querySelector('.container').innerHTML = '<div class="page-title">请先登录</div><div class="card"><div class="card-body" style="text-align:center;padding:40px;"><p style="color:var(--text-dim);margin-bottom:16px;">请先在首页登录或注册账号</p><a href="/" class="btn btn-primary" style="display:inline-block;">返回首页</a></div></div>';
+      return;
+    }
+    _currentUser = d.user;
+    renderUser(d.user);
+  }).catch(function(e){
+    console.error('加载用户数据失败:', e);
+  });
+}
+
+function avatarLoadError(img){
+  // 头像文件缺失时回退默认占位（避免破图）
+  if (!img) return;
+  img.style.display = 'none';
+  var holder = document.getElementById('avatar-holder');
+  if (holder) holder.style.display = 'flex';
+  var delBtn = document.getElementById('avatar-del-btn');
+  if (delBtn) delBtn.style.display = 'none';
+}
+
+function renderAvatar(user){
+  var img = document.getElementById('info-avatar');
+  var holder = document.getElementById('avatar-holder');
+  var delBtn = document.getElementById('avatar-del-btn');
+  if (!img) return;
+  if (user && user.avatar_url) {
+    img.src = user.avatar_url;
+    img.style.display = 'block';
+    holder.style.display = 'none';
+    if (delBtn) delBtn.style.display = '';
+  } else {
+    img.style.display = 'none';
+    img.removeAttribute('src');
+    holder.style.display = 'flex';
+    if (delBtn) delBtn.style.display = 'none';
+  }
+}
+
+function uploadAvatar(input){
+  var f = input && input.files && input.files[0];
+  if (!f) return;
+  if (!f.type || f.type.indexOf('image/') !== 0) { Toast.show('请选择图片文件', 'error'); input.value = ''; return; }
+  if (f.size > 2 * 1024 * 1024) { Toast.show('图片过大（最大2MB）', 'error'); input.value = ''; return; }
+  openCrop(f, input);
+}
+
+/* ━━ 头像圆形裁剪 ━━ */
+var _crop = null; // {img, baseW, baseH, zoom, left, top, input}
+var CROP_SIZE = 300;   // 裁剪显示区（圆形）尺寸
+var EXPORT_SIZE = 512; // 导出尺寸
+
+function openCrop(file, input){
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var stage = document.getElementById('crop-stage');
+      var el = document.getElementById('crop-img');
+      // 初始：图片最小边铺满圆形区（cover）
+      var scale = CROP_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      var baseW = img.naturalWidth * scale;
+      var baseH = img.naturalHeight * scale;
+      _crop = { img: img, baseW: baseW, baseH: baseH, zoom: 100,
+                left: (CROP_SIZE - baseW) / 2, top: (CROP_SIZE - baseH) / 2, input: input };
+      el.src = e.target.result;
+      document.getElementById('crop-zoom').value = 100;
+      document.getElementById('crop-zoom').min = Math.ceil(CROP_SIZE / Math.min(baseW, baseH) * 100);
+      applyCropView();
+      document.getElementById('crop-modal').classList.add('show');
+      stage.style.visibility = 'hidden';
+      el.onload = function(){ stage.style.visibility = ''; };
+    };
+    img.onerror = function(){ Toast.show('图片加载失败，请换一张试试', 'error'); if (input) input.value = ''; };
+    img.src = e.target.result;
+  };
+  reader.onerror = function(){ Toast.show('图片读取失败', 'error'); if (input) input.value = ''; };
+  reader.readAsDataURL(file);
+}
+
+function applyCropView(){
+  if (!_crop) return;
+  var w = _crop.baseW * _crop.zoom / 100;
+  var h = _crop.baseH * _crop.zoom / 100;
+  var el = document.getElementById('crop-img');
+  el.style.width = w + 'px';
+  el.style.height = h + 'px';
+  el.style.left = _crop.left + 'px';
+  el.style.top = _crop.top + 'px';
+}
+
+function clampCropPos(){
+  if (!_crop) return;
+  var w = _crop.baseW * _crop.zoom / 100;
+  var h = _crop.baseH * _crop.zoom / 100;
+  // 图片必须完全覆盖圆形区
+  _crop.left = Math.min(0, Math.max(CROP_SIZE - w, _crop.left));
+  _crop.top = Math.min(0, Math.max(CROP_SIZE - h, _crop.top));
+}
+
+(function(){
+  var stage = document.getElementById('crop-stage');
+  if (!stage) return;
+  var dragging = null;
+  stage.addEventListener('pointerdown', function(e){
+    if (!_crop) return;
+    dragging = { x: e.clientX - _crop.left, y: e.clientY - _crop.top };
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    _crop.left = e.clientX - dragging.x;
+    _crop.top = e.clientY - dragging.y;
+    clampCropPos();
+    applyCropView();
+  });
+  stage.addEventListener('pointerup', function(){ dragging = null; });
+  stage.addEventListener('pointercancel', function(){ dragging = null; });
+  document.getElementById('crop-zoom').addEventListener('input', function(){
+    if (!_crop) return;
+    // 以圆心为锚点缩放
+    var oldW = _crop.baseW * _crop.zoom / 100;
+    var oldH = _crop.baseH * _crop.zoom / 100;
+    _crop.zoom = parseInt(this.value, 10);
+    var newW = _crop.baseW * _crop.zoom / 100;
+    var newH = _crop.baseH * _crop.zoom / 100;
+    _crop.left += (oldW - newW) / 2;
+    _crop.top += (oldH - newH) / 2;
+    clampCropPos();
+    applyCropView();
+  });
+})();
+
+function closeCrop(){
+  document.getElementById('crop-modal').classList.remove('show');
+  if (_crop && _crop.input) _crop.input.value = '';
+  _crop = null;
+}
+
+function confirmCrop(){
+  if (!_crop) return;
+  var img = _crop.img;
+  var w = _crop.baseW * _crop.zoom / 100;   // CSS 显示尺寸
+  var h = _crop.baseH * _crop.zoom / 100;
+  // CSS 坐标 → 原始像素坐标（drawImage 源坐标为图片原始尺寸）
+  var sx = -_crop.left * (img.naturalWidth / w);
+  var sy = -_crop.top * (img.naturalHeight / h);
+  var sw = CROP_SIZE * (img.naturalWidth / w);
+  var sh = CROP_SIZE * (img.naturalHeight / h);
+  var canvas = document.createElement('canvas');
+  canvas.width = EXPORT_SIZE;
+  canvas.height = EXPORT_SIZE;
+  var ctx = canvas.getContext('2d');
+  // 透明背景圆形裁剪
+  ctx.clearRect(0, 0, EXPORT_SIZE, EXPORT_SIZE);
+  ctx.beginPath();
+  ctx.arc(EXPORT_SIZE / 2, EXPORT_SIZE / 2, EXPORT_SIZE / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, EXPORT_SIZE, EXPORT_SIZE);
+  var input = _crop.input;
+  canvas.toBlob(function(blob){
+    if (!blob) { Toast.show('裁剪失败，请重试', 'error'); return; }
+    var fd = new FormData();
+    fd.append('avatar', blob, 'avatar.png');
+    fetch('/api/auth/avatar', {method:'POST', body: fd})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { Toast.show(d.error || '头像上传失败', 'error'); return; }
+        renderAvatar(d.user);
+        _currentUser = d.user;
+        closeCrop();
+      })
+      .catch(function(){ Toast.show('网络错误，上传失败', 'error'); });
+  }, 'image/png');
+}
+
+async function deleteAvatar(){
+  if (!await showConfirmDialog('确定删除当前头像吗？')) return;
+  fetch('/api/auth/avatar', {method:'DELETE'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) { Toast.show(d.error || '删除失败', 'error'); return; }
+      renderAvatar(d.user);
+      _currentUser = d.user;
+    })
+    .catch(function(){ Toast.show('网络错误，删除失败', 'error'); });
+}
+
+function renderUser(user){
+  document.getElementById('info-id').textContent = user.id || '—';
+  document.getElementById('info-username').textContent = user.username || '—';
+  setValue('info-email', user.email);
+  setValue('info-phone', user.phone);
+  document.getElementById('info-created').textContent = (user.created_at||'').slice(0,10) || '—';
+  document.getElementById('info-login').textContent = (user.last_login||'').slice(0,16) || '—';
+  setValue('info-bio', user.bio, '暂无简介');
+
+  renderAvatar(user);
+
+  // 真实数据
+  document.getElementById('stat-workshop').textContent = user.character_count || 0;
+  document.getElementById('stat-posts').textContent = '—';
+  document.getElementById('stat-replies').textContent = '—';
+  document.getElementById('stat-downloads').textContent = '—';
+
+  // 填充编辑框
+  document.getElementById('edit-username').value = user.username || '';
+  document.getElementById('edit-email').value = user.email || '';
+  document.getElementById('edit-phone').value = user.phone || '';
+  document.getElementById('edit-bio').value = user.bio || '';
+
+  loadMyFavorites();
+  loadNotifications();
+  refreshUnreadCount();
+  loadMyComments();
+  loadFriendsData();
+}
+
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ━━ 消息通知（被评论/被点赞提醒） ━━ */
+var _notifySeen = false;  // 是否已加载过列表（未读红点独立轮询）
+function loadNotifications(){
+  fetch('/api/notifications').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('notify-list');
+    if (!el) return;
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">请先登录</div>'; return; }
+    var list = d.notifications || [];
+    if (!list.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无消息</div>'; return; }
+    el.innerHTML = list.map(function(n){
+      var unread = n.read ? '' : ' style="border-left:3px solid var(--red);"';
+      var count = n.count || 1;
+      var who = count > 1 ? '<b style="color:var(--gold);">' + count + ' 人</b>'
+                          : '<b style="color:var(--accent);">' + escH(n.actor || '') + '</b>';
+      var icon = n.type === 'mention' ? '@️' : (n.type.indexOf('fav') >= 0 ? '⭐' : (n.type.indexOf('like') >= 0 ? '👍' : (n.type.indexOf('friend') >= 0 ? '🤝' : '💬')));
+      return '<div class="item-row"' + unread + ' style="flex-direction:column;align-items:flex-start;gap:4px;cursor:pointer;" onclick="openNotification(' + n.id + ',\'' + escH(n.link || '') + '\')">' +
+        '<div style="display:flex;width:100%;gap:8px;align-items:center;">' +
+          '<span>' + icon + '</span>' +
+          '<span style="color:var(--text);flex:1;font-size:0.8rem;">' + who + ' ' + escH(n.content) + '</span>' +
+          '<span style="color:var(--text-dim);font-size:0.7rem;white-space:nowrap;">' + escH((n.created_at||'').slice(5,16)) + '</span>' +
+        '</div>' +
+        (n.read ? '' : '<span style="font-size:0.68rem;color:var(--red);padding-left:28px;">未读</span>') +
+      '</div>';
+    }).join('');
+  }).catch(function(){});
+  _notifySeen = true;
+}
+function openNotification(id, link){
+  fetch('/api/notifications/read', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id})})
+    .then(function(){ refreshUnreadCount(); });
+  if (link) window.location.href = link;
+}
+function markAllNotificationsRead(){
+  fetch('/api/notifications/read', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({all: true})})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok) { loadNotifications(); refreshUnreadCount(); Toast.show('已全部标记为已读', 'success'); }
+    }).catch(function(){});
+}
+function refreshUnreadCount(){
+  fetch('/api/notifications/unread-count').then(function(r){ return r.json(); }).then(function(d){
+    var badge = document.getElementById('notify-badge');
+    if (!badge) return;
+    var c = (d.ok && d.count) ? d.count : 0;
+    if (c > 0) { badge.style.display = ''; badge.textContent = c + ' 未读'; }
+    else { badge.style.display = 'none'; }
+  }).catch(function(){});
+}
+
+/* ━━ 好友系统 ━━ */
+function searchFriendUser(){
+  var q = document.getElementById('friend-search-input').value.trim();
+  if (!q) { Toast.show('请输入用户名或用户ID', 'error'); return; }
+  fetch('/api/users/search?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-search-result');
+    if (!el) return;
+    if (!d.ok) { Toast.show(d.error || '搜索失败', 'error'); return; }
+    var list = d.users || [];
+    el.style.display = '';
+    if (!list.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:8px;font-size:0.8rem;">未找到该用户</div>';
+      return;
+    }
+    el.innerHTML = list.map(function(u){
+      var btn;
+      if (u.relation === 'friend') {
+        btn = '<span style="font-size:0.72rem;color:var(--gold);white-space:nowrap;">✓ 已是好友</span>';
+      } else if (u.relation === 'pending_out') {
+        btn = '<span style="font-size:0.72rem;color:var(--text-dim);white-space:nowrap;">⏳ 申请中</span>';
+      } else if (u.relation === 'pending_in') {
+        btn = '<button class="btn btn-sm btn-primary" onclick="sendFriendRequest(\'' + escH(u.username) + '\')">✓ 接受并互加</button>';
+      } else {
+        btn = '<button class="btn btn-sm btn-primary" onclick="sendFriendRequest(\'' + escH(u.username) + '\')">➕ 添加好友</button>';
+      }
+      return '<div class="item-row">' + friendAvatarHtml(u) +
+        '<span style="flex:1;font-size:0.82rem;">' + escH(u.username) +
+        ' <span style="color:var(--text-dim);font-size:0.7rem;">ID: ' + u.id + '</span></span>' + btn +
+      '</div>';
+    }).join('');
+  }).catch(function(){ Toast.show('网络错误，搜索失败', 'error'); });
+}
+
+function sendFriendRequest(targetUsername){
+  fetch('/api/friends/request', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({target_username: targetUsername}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '发送失败', 'error'); return; }
+    Toast.show(d.message || '好友申请已发送', 'success');
+    loadFriendsData();
+    searchFriendUser();  // 刷新搜索结果中的关系状态（已是好友/申请中）
+  }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+function respondFriend(requestId, action){
+  fetch('/api/friends/respond', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({request_id: requestId, action: action}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '操作失败', 'error'); return; }
+    Toast.show(action === 'accept' ? '已接受好友请求' : '已拒绝好友请求', 'success');
+    loadFriendsData();
+    loadNotifications();
+  }).catch(function(){ Toast.show('网络错误，操作失败', 'error'); });
+}
+
+async function deleteFriend(friendId, friendName){
+  if (!await showConfirmDialog('确定删除好友「' + friendName + '」吗？')) return;
+  fetch('/api/friends/' + friendId, {method: 'DELETE'})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { Toast.show(d.error || '删除失败', 'error'); return; }
+      Toast.show('已删除好友', 'success');
+      loadFriendsData();
+    }).catch(function(){ Toast.show('网络错误，删除失败', 'error'); });
+}
+
+/* ━━ 好友私聊（v5.5：文本+图片，3 秒轮询增量拉取） ━━ */
+var _chatFriend = null;    // 当前聊天好友 {id, username, avatar_url}
+var _chatLastId = 0;       // 已拉取的最大消息 id（增量轮询）
+var _chatTimer = null;
+
+function openFriendChat(friendId){
+  var f = _friendsList.find(function(x){ return x.id === friendId; });
+  if (!f) return;
+  _chatFriend = { id: f.id, username: f.username, avatar_url: f.avatar_url || '' };
+  _chatLastId = 0;
+  document.getElementById('chat-friend-name').innerHTML =
+    friendAvatarHtml(_chatFriend) + ' <b style="color:var(--accent);">' + escH(f.username) + '</b>';
+  var box = document.getElementById('chat-msg-list');
+  box.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:10px;font-size:0.8rem;">加载中...</div>';
+  document.getElementById('chat-modal').classList.add('show');
+  loadFriendChat(true);
+  if (_chatTimer) clearInterval(_chatTimer);
+  _chatTimer = setInterval(function(){ loadFriendChat(false); }, 3000);
+}
+
+function closeFriendChat(){
+  document.getElementById('chat-modal').classList.remove('show');
+  _chatFriend = null;
+  if (_chatTimer) { clearInterval(_chatTimer); _chatTimer = null; }
+  loadFriendsData();  // 刷新好友列表未读红点
+}
+
+function loadFriendChat(first){
+  if (!_chatFriend) return;
+  fetch('/api/friends/chat/' + _chatFriend.id + '?since_id=' + (_chatLastId || 0))
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) {
+        if (first) document.getElementById('chat-msg-list').innerHTML =
+          '<div style="color:var(--text-dim);text-align:center;padding:10px;font-size:0.8rem;">' + escH(d.error || '加载失败') + '</div>';
+        return;
+      }
+      appendFriendChatMessages(d.messages || [], first);
+    }).catch(function(){});
+}
+
+function appendFriendChatMessages(msgs, first){
+  var box = document.getElementById('chat-msg-list');
+  if (!box) return;
+  if (!msgs.length) {
+    if (first) box.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.8rem;">还没有消息，来打个招呼吧～</div>';
+    return;
+  }
+  var h = '';
+  msgs.forEach(function(m){
+    if (m.id > _chatLastId) _chatLastId = m.id;
+    var mine = m.sender_id !== _chatFriend.id;
+    var img = m.image_url
+      ? '<div><img src="' + escH(m.image_url) + '" alt="图片" style="max-width:220px;max-height:220px;border-radius:6px;margin-top:4px;cursor:pointer;display:block;" onclick="window.open(this.src)" onerror="this.outerHTML=\'<span style=font-size:0.75rem;color:var(--text-dim);>[图片已失效]</span>\'"></div>'
+      : '';
+    h += '<div style="display:flex;margin:6px 0;' + (mine ? 'justify-content:flex-end;' : '') + '">' +
+      '<div style="max-width:75%;padding:8px 12px;border-radius:10px;font-size:0.85rem;word-break:break-word;white-space:pre-wrap;' + (mine ? 'background:var(--accent);color:#fff;' : 'background:var(--surface2);color:var(--text);') + '">' +
+      (m.content ? escH(m.content) : '') + img +
+      '<div style="font-size:0.65rem;opacity:0.7;margin-top:3px;text-align:right;">' + (m.created_at || '').slice(5, 16) + '</div>' +
+      '</div></div>';
+  });
+  if (first) { box.innerHTML = h; } else { box.insertAdjacentHTML('beforeend', h); }
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendFriendChatMsg(){
+  if (!_chatFriend) return;
+  var input = document.getElementById('chat-input');
+  var content = input.value.trim();
+  if (!content) return;
+  fetch('/api/friends/chat/' + _chatFriend.id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: content}),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '发送失败', 'error'); return; }
+    input.value = '';
+    loadFriendChat(false);
+  }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+function pickChatImage(){
+  document.getElementById('chat-image-input').click();
+}
+
+function onChatImagePicked(input){
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !_chatFriend) return;
+  if (file.size > 2 * 1024 * 1024) { Toast.show('图片过大（最大2MB）', 'error'); return; }
+  var fd = new FormData();
+  fd.append('image', file);
+  Toast.show('图片上传中...', 'success');
+  fetch('/api/friends/chat/' + _chatFriend.id + '/image', {method: 'POST', body: fd})
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { Toast.show(d.error || '上传失败', 'error'); return null; }
+      return fetch('/api/friends/chat/' + _chatFriend.id, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({image_url: d.url}),
+      }).then(function(r){ return r.json(); });
+    }).then(function(d){
+      if (d && d.ok) loadFriendChat(false);
+    }).catch(function(){ Toast.show('网络错误，发送失败', 'error'); });
+}
+
+/* ━━ 好友资料（v5.5：仅头像/ID/用户名/上次登录/简介/酒馆工坊投稿/收藏） ━━ */
+function openFriendProfile(friendId){
+  fetch('/api/users/' + friendId + '/profile').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error || '加载失败', 'error'); return; }
+    var p = d.profile;
+    var av = p.avatar_url
+      ? '<img src="' + escH(p.avatar_url) + '" alt="" onerror="this.style.display=\'none\'" style="width:64px;height:64px;border-radius:50%;object-fit:cover;flex-shrink:0;">'
+      : '<span style="width:64px;height:64px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">⚔️</span>';
+    var html = '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">' + av +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:1.05rem;color:var(--accent);"><b>' + escH(p.username) + '</b></div>' +
+      '<div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">ID: ' + p.id + '</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">🕐 上次登录：' + (p.last_login ? escH(p.last_login) : '从未登录') + '</div>' +
+      '</div></div>';
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">📝 个人简介</div>';
+    html += '<div style="font-size:0.85rem;color:var(--text);white-space:pre-wrap;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:6px;word-break:break-word;">' +
+      (p.bio ? escH(p.bio) : '<span style="color:var(--text-dim);">暂无简介</span>') + '</div>';
+    // 酒馆帖子
+    var posts = p.posts || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">🍺 酒馆帖子（' + posts.length + '）</div>';
+    if (!posts.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">暂无帖子</div>'; }
+    else {
+      html += '<div style="margin-bottom:12px;">' + posts.map(function(t){
+        return '<div class="item-row" style="margin-bottom:4px;"><a href="/post/' + t.id + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(t.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + (t.created_at || '').slice(0, 10) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    // 工坊投稿
+    var works = p.workshop_items || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">🔧 工坊投稿（' + works.length + '）</div>';
+    if (!works.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">暂无投稿</div>'; }
+    else {
+      html += '<div style="margin-bottom:12px;">' + works.map(function(t){
+        return '<div class="item-row" style="margin-bottom:4px;"><a href="/workshop/' + t.id + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(t.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + (t.created_at || '').slice(0, 10) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    // 收藏
+    var favs = p.favorites || [];
+    html += '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:6px;">⭐ 收藏（' + favs.length + '）</div>';
+    if (!favs.length) { html += '<div style="font-size:0.8rem;color:var(--text-dim);">暂无收藏</div>'; }
+    else {
+      html += '<div>' + favs.map(function(f){
+        var link = f.type === 'post' ? '/post/' + f.item_id : '/workshop/' + f.item_id;
+        return '<div class="item-row" style="margin-bottom:4px;"><span>' + (f.type === 'post' ? '💬' : '📦') + '</span><a href="' + link + '" style="color:var(--cyan);flex:1;font-size:0.82rem;">' + escH(f.title) + '</a><span style="color:var(--text-dim);font-size:0.7rem;">' + escH(f.author || '') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    document.getElementById('friend-profile-body').innerHTML = html;
+    document.getElementById('friend-profile-modal').classList.add('show');
+  }).catch(function(){ Toast.show('网络错误，加载失败', 'error'); });
+}
+
+function friendAvatarHtml(f){
+  if (!f.avatar_url) return '<span style="width:26px;height:26px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;flex-shrink:0;">⚔️</span>';
+  return '<img src="' + escH(f.avatar_url) + '" onerror="this.style.display=\'none\'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;">';
+}
+
+var _friendsList = [];  // 好友列表缓存（私聊/资料弹窗取头像用户名用）
+
+function loadFriendsData(){
+  fetch('/api/friends').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-list');
+    if (!el) return;
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">请先登录</div>'; return; }
+    var list = d.friends || [];
+    _friendsList = list;
+    if (!list.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无好友，输入用户名搜索添加</div>';
+      return;
+    }
+    el.innerHTML = list.map(function(f){
+      var unreadBadge = f.unread > 0 ? '<span style="background:var(--red);color:#fff;border-radius:9px;padding:0 5px;font-size:0.65rem;margin-left:3px;flex-shrink:0;">' + f.unread + '</span>' : '';
+      // 好友在线状态点（绿=在线 灰=离线，30 秒轮询自动刷新）
+      var onlineDot = f.online
+        ? '<span title="在线" style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;box-shadow:0 0 6px rgba(76,175,80,0.8);"></span>'
+        : '<span title="离线" style="width:8px;height:8px;border-radius:50%;background:var(--text-light,#666);flex-shrink:0;"></span>';
+      return '<div class="item-row">' + friendAvatarHtml(f) +
+        '<span class="item-name" style="flex:1;color:var(--text);display:flex;align-items:center;gap:4px;min-width:0;">' + onlineDot + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escH(f.username) + '</span>' + unreadBadge + '</span>' +
+        '<button class="btn btn-sm btn-primary" onclick="openFriendChat(' + f.id + ')" title="与好友私聊">💬 私聊</button>' +
+        '<button class="btn btn-sm" onclick="openFriendProfile(' + f.id + ')" title="查看好友资料">👤 资料</button>' +
+        '<button class="btn btn-sm" onclick="deleteFriend(' + f.id + ',\'' + escH(f.username) + '\')" title="删除好友" style="border-color:var(--red);color:var(--red);">🗑</button>' +
+      '</div>';
+    }).join('');
+  }).catch(function(){});
+
+  fetch('/api/friends/pending').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('friend-requests');
+    if (!el || !d.ok) return;
+    var html = '';
+    (d.received || []).forEach(function(r){
+      html += '<div class="item-row" style="margin-bottom:6px;border-color:var(--accent);">' +
+        '<span>📩</span>' + friendAvatarHtml(r) +
+        '<span style="flex:1;font-size:0.82rem;"><b style="color:var(--accent);">' + escH(r.username) + '</b> 请求加你为好友</span>' +
+        '<button class="btn btn-sm btn-primary" onclick="respondFriend(' + r.request_id + ',\'accept\')">✓ 接受</button>' +
+        '<button class="btn btn-sm" onclick="respondFriend(' + r.request_id + ',\'reject\')">✕ 拒绝</button>' +
+      '</div>';
+    });
+    (d.sent || []).forEach(function(r){
+      html += '<div class="item-row" style="margin-bottom:6px;">' +
+        '<span>📤</span>' + friendAvatarHtml(r) +
+        '<span style="flex:1;font-size:0.82rem;color:var(--text-dim);">已向 <b style="color:var(--gold);">' + escH(r.username) + '</b> 发送申请，等待处理</span>' +
+      '</div>';
+    });
+    el.innerHTML = html;
+  }).catch(function(){});
+}
+
+// 我的收藏
+function loadMyFavorites(){
+  fetch('/api/favorites').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('fav-list');
+    if (!el) return;
+    if (!d.ok || !d.favorites || !d.favorites.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无收藏</div>';
+      return;
+    }
+    el.innerHTML = d.favorites.map(function(f){
+      var icon = f.type === 'post' ? '💬' : '📦';
+      var link = f.type === 'post' ? '/post/' + f.item_id : '/workshop/' + f.item_id;
+      return '<div class="item-row"><span>'+icon+'</span><a href="'+link+'" style="color:var(--cyan);flex:1;cursor:pointer;">'+escH(f.title)+'</a><span style="color:var(--text-dim);font-size:0.72rem;">'+(f.author||'')+' · '+(f.created_at||'').slice(0,10)+'</span></div>';
+    }).join('');
+  }).catch(function(){});
+}
+
+// 我的评论
+function loadMyComments(){
+  fetch('/api/my/comments').then(function(r){ return r.json(); }).then(function(d){
+    var el = document.getElementById('mycmt-list');
+    if (!el) return;
+    if (!d.ok || !d.comments || !d.comments.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.85rem;">暂无评论</div>';
+      return;
+    }
+    el.innerHTML = d.comments.map(function(c){
+      var icon = c.type === 'post' ? '💬' : '📦';
+      return '<div class="item-row" style="flex-direction:column;align-items:flex-start;gap:4px;">' +
+        '<div style="display:flex;width:100%;gap:8px;"><span>'+icon+'</span><span style="color:var(--cyan);flex:1;font-size:0.8rem;">'+escH(c.parent_title)+'</span><span style="color:var(--text-dim);font-size:0.7rem;">'+(c.created_at||'').slice(0,16)+'</span></div>' +
+        '<div style="color:var(--text-dim);font-size:0.78rem;padding-left:24px;">'+escH(c.content)+'</div></div>';
+    }).join('');
+  }).catch(function(){});
+}
+
+function setValue(id, val, emptyText){
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (val) { el.textContent = val; el.classList.remove('empty'); }
+  else { el.textContent = emptyText || '未设置'; el.classList.add('empty'); }
+}
+
+// 编辑弹窗
+function showEditModal(){ document.getElementById('edit-modal').classList.add('show'); }
+function hideEditModal(){ document.getElementById('edit-modal').classList.remove('show'); }
+document.getElementById('edit-modal').addEventListener('click',function(e){ if(e.target===this)hideEditModal(); });
+// 私聊/好友资料弹窗：点击遮罩关闭（v5.5）
+document.getElementById('chat-modal').addEventListener('click',function(e){ if(e.target===this)closeFriendChat(); });
+document.getElementById('friend-profile-modal').addEventListener('click',function(e){ if(e.target===this)this.classList.remove('show'); });
+
+function saveProfile(){
+  var data = {
+    username: document.getElementById('edit-username').value.trim(),
+    email: document.getElementById('edit-email').value.trim(),
+    phone: document.getElementById('edit-phone').value.trim(),
+    bio: document.getElementById('edit-bio').value.trim(),
+  };
+  fetch('/api/auth/update-profile', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok) { Toast.show(d.error, "error"); return; }
+    hideEditModal();
+    renderUser(d.user);
+  }).catch(function(e){ Toast.show('保存失败: ' + e.message, 'error'); });
+}
+
+function doLogout(){
+  fetch('/api/auth/logout', {method:'POST'}).then(function(){
+    window.location.href = '/';
+  }).catch(function(){ window.location.href = '/'; });
+}
+
+loadUserData();
+// 未读红点与通知列表每 30 秒轮询（新评论/点赞/收藏/好友请求自动出现）
+setInterval(function(){ refreshUnreadCount(); loadNotifications(); loadFriendsData(); }, 30000);
+
+function toggleTheme(){var t=document.documentElement;var cur=t.getAttribute('data-theme')||'dark';var next=cur==='dark'?'light':'dark';t.setAttribute('data-theme',next);var btn=document.querySelector('.theme-toggle');btn.textContent=next==='dark'?'🌓':'☀️';localStorage.setItem('theme',next);}
+(function(){var saved=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',saved);var btn=document.querySelector('.theme-toggle');if(btn)btn.textContent=saved==='dark'?'🌓':'☀️';})();
+
+</script>
+
+<button class="theme-toggle" onclick="toggleTheme()" title="切换深色/浅色模式">🌓</button>
+<script>
+// 离开跑团平台：清除跑团会话，重新进入时需重新选择身份
+(function(){try{sessionStorage.removeItem('dnd_joined_room');}catch(e){}})();
+</script>
+    <script src="/static/announcement-banner.js"></script>
+</body>
+</html>

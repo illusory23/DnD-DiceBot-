@@ -1,0 +1,36 @@
+2026-08-24_9_详情页浏览量热帖排行与分享链接
+═══════════════════════════════════════════
+
+【需求】6.1 详情页深化仅做两项：
+  1. 浏览量统计 + 热帖排行——单个用户反复点击进入只统计一次
+  2. 分享/复制链接
+  其余（相关推荐、帖子编辑）删除不做
+
+【实现】
+  后端（core/models.py + web/app.py）：
+    · 新表 content_views（content_type/content_id/user_id，
+      UNIQUE 约束 uq_content_view）——浏览量 = 表计数，
+      天然去重（每用户每内容仅计一次），不受帖子全删全插
+      写回影响
+    · POST /api/community/posts/<id>/view、
+      POST /api/workshop/items/<id>/view：登录用户先查 exists
+      再插入（双保险），未登录不统计；幂等
+    · _view_count_map(ctype, ids)：GROUP BY 批量计数
+    · 详情 API 附 views；列表 API 附 views 并支持 sort=hot
+      （分页前按浏览量降序，浏览量相同按 id 倒序）
+  前端：
+    · 详情页（post_detail / workshop_detail）：meta 区显示
+      👁️ 浏览量（title 提示"每用户计一次"），加载时上报浏览；
+      操作区新增 🔗 分享按钮（navigator.clipboard 复制链接 +
+      Toast 提示，降级 window.prompt）
+    · 首页（portal/index.html）：酒馆板块与工坊列表搜索行新增
+      「🔥 热门」排序切换按钮（激活态 accent 高亮，再点回最新）
+
+【验证】
+  · ContentView 模型导入与唯一约束确认；app.py py_compile 通过
+  · 模板脚本（剔除 Jinja 变量）node --check 全部通过
+  · 去重逻辑走查：UNIQUE 约束 + exists 预检双保险；浏览量
+    独立表不受 _save_json_file 全删全插影响
+
+【生效】改后端 models.py（新表 create_all 自动建）与 app.py
+      → 需重启服务器；前端模板刷新页面即可

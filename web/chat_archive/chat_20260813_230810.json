@@ -1,0 +1,32 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "22:35:15",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940515.285413,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "22:36:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940574.608549,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "22:36:32",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940592.6571434,
+    "system": true
+  }
+]

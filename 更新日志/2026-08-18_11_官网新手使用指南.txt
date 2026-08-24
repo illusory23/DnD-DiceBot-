@@ -1,0 +1,44 @@
+2026-08-18_11_官网新手使用指南
+════════════════════════════════════════════════════
+
+【需求】
+官网新增新手使用指南页（优化方向文档 2.2 第 2 项：使用文档/新手指南，
+更新日志页已完成，剩使用文档）。首页顶栏"帮助"与页脚"帮助文档"原为
+空链接占位，一并接通。
+
+【实现】
+一、新页面（web/templates/portal/guide.html）：
+  - 骨架复制 changelog.html（内联 CSS 双主题 / navbar / 容器）
+  - 内容为静态 HTML 章节（无需 API），五章折叠卡片（点击展开收起）：
+    1. 🚀 快速开始：注册登录 / 加入房间 / DM 与 PL 身份能力表
+    2. 🎲 跑团工具导航：8 个工具页功能速查表（3D掷骰/地图/角色卡/
+       战斗/法术书/事件表/资料库/聊天室）
+    3. ❄️ 探索北境玩法：事件探索 / 生存机制表（严寒/口粮/燃料/迷失/
+       昏迷）/ 营地系统 / 公会与存档
+    4. 🏛️ 官网社区：酒馆 / 工坊 / 每周话题 / 通知与好友 / 在线系统
+    5. ❓ 常见问题：身份锁定 / ID 占用 / 数据存档 / 迷雾 / 掷骰同步 /
+       法术书报错 / 好友申请处理
+  - 引入 online-presence / common-error-handler / announcement-banner
+    三个公共脚本（与其他 portal 页一致）
+
+二、路由（web/app.py）：
+  - /guide → render_template('portal/guide.html')（changelog 路由旁）
+
+三、入口链接（模板无继承，逐文件接入）：
+  - 首页顶栏"帮助"（原空链接）→ /guide
+  - 首页左侧功能栏新增"📖 新手指南"导航项
+  - 首页页脚"帮助文档"（原空链接）→ /guide
+  - user / notifications / announcements / changelog 四页 navbar 新增
+    "新手指南"链接
+
+【涉及文件】
+- web/templates/portal/guide.html（新建）
+- web/app.py（/guide 路由）
+- web/templates/portal/index.html（顶栏/侧栏/页脚三处入口）
+- web/templates/portal/{user,notifications,announcements,changelog}.html
+  （navbar 链接）
+
+【验证】
+- /guide 返回 200 且标题正确（curl 实测）
+- 全部 portal 页面路由 200 回归通过（首页/用户中心/通知/公告/更新
+  日志/指南均正常）

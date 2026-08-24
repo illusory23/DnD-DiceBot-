@@ -1,0 +1,27 @@
+2026-08-21 自建分组中删除角色改为"移出分组"（保留角色卡）
+
+【需求】
+在自创建的分组中删除角色时，不删除总角色组中对应的角色卡，
+只是将角色从该组移除；仅在总角色组中删除才是真正删除角色卡。
+
+【实现】
+web/static/character.js：
+1. renderCharItem(c, inDefaultGroup, groupName) 增加分组上下文：
+   - 总角色组（__all__）：保留 🗑 删除按钮 → deleteCharFromList
+     （确认弹窗不变："此操作不可撤销"）
+   - 自创建分组：改为 ➖ 移出按钮（橙色，title"移出分组（角色卡
+     保留）"）→ 新增 removeCharFromGroup()
+2. removeCharFromGroup(id, name, groupName)：
+   确认弹窗提示"角色卡不会被删除，仍可在总角色组中查看"，
+   调用 PUT /api/character/<id>/group {group_id: null} 移出分组，
+   成功后刷新列表
+3. renderGroupHTML 传参（isDefault / 组名）
+
+后端无需改动：PUT /api/character/<id>/group 本就支持
+group_id=null（移回未分组）；删除分组时角色也会自动移回未分组。
+
+【验证（端到端）】
+- 创建角色 → 移入分组（group_id=分组id）✓
+- 移出分组（group_id=null）→ 角色仍存在，回到总角色组 ✓
+- 删除整个分组 → 组内角色保留（自动移回未分组）✓
+- 总角色组删除 → 角色卡真正删除 ✓

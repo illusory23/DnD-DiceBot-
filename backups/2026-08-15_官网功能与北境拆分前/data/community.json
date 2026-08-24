@@ -1,0 +1,26 @@
+[
+  {
+    "id": 2,
+    "board": "discuss",
+    "title": "欢迎来到冒险者酒馆",
+    "content": "这是酒馆的第一帖，欢迎大家来讨论！",
+    "images": [],
+    "author": "IllusoryActor",
+    "created_at": "2026-08-09 04:28:26",
+    "reply_count": 0,
+    "comments": [
+      {
+        "id": 1,
+        "username": "IllusoryActor",
+        "content": "欢迎欢迎！",
+        "created_at": "2026-08-09 04:28:26"
+      },
+      {
+        "id": 2,
+        "username": "IllusoryActor",
+        "content": "收藏评论测试-1786722299729",
+        "created_at": "2026-08-14 23:44:59"
+      }
+    ]
+  }
+]

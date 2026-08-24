@@ -1,0 +1,28 @@
+2026-08-23 · Excel 人物卡导入 NoneType 崩溃修复
+
+■ 问题
+角色卡页导入 DND5E2024 模板人物卡（如 小柔人物卡-艾尔迪亚斯.xlsx）
+报错：TypeError: 'NoneType' object cannot be interpreted as an integer
+接口 /api/character/import 返回 500，无法导入。
+
+■ 根因
+utils/excel_importer.py _import_origin_sheet() 读取「起源」sheet 的
+个性/理念/羁绊/缺陷 区域时：
+    end = label_rows.get(sections[i + 1][0]) ...
+若某区域标签（如"缺陷"）不在预期的 O 列行范围内，end 取到 None，
+随后 range(start, end) 抛 TypeError（None 不能作整数）。
+该模板"羁绊"区域存在但"缺陷"标签行缺失，恰好触发。
+
+■ 修复
+下一区域标签未找到时，用 start + 3 兜底（与最后一个区域逻辑一致），
+杜绝 range(None) 崩溃。
+
+■ 验证
+· 直接调用导入 小柔人物卡-艾尔迪亚斯.xlsx：成功，角色「艾尔迪亚斯」
+  战士 Lv1，个性/理念/缺陷/背景特性/背景故事正确提取
+· HTTP 全链路 POST /api/character/import 上传同一文件：200，返回
+  完整角色数据（含种族特性/职业能力共 4 条）
+· 测试产生的数据库记录已清理，无残留
+
+■ 影响
+· 需重启服务器生效（后端改动，make_server 无热重载）

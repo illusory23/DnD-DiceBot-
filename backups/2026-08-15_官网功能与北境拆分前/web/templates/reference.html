@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参考 — 尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .item-result-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer; font-size: 0.82rem;
+        }
+        .item-result-row:hover { border-color: var(--accent); background: var(--surface); }
+        #global-search-results { max-height: 500px; overflow-y: auto; }
+        /* 自定义条目 */
+        .custom-tabs { display: flex; gap: 0; margin-bottom: 0.75rem; border-bottom: 2px solid var(--accent); }
+        .custom-tab {
+            flex: 1; padding: 0.5rem; background: var(--bg); border: none;
+            color: var(--text-dim); cursor: pointer; font-size: 0.82rem;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+            transition: all 0.15s;
+        }
+        .custom-tab:hover { color: var(--text); background: var(--surface2); }
+        .custom-tab.active { color: var(--gold); border-bottom-color: var(--gold); background: var(--surface); }
+        .custom-form-wrap {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.65rem; margin-bottom: 0.5rem;
+        }
+        .custom-list { font-size: 0.78rem; color: var(--text-dim); max-height: 200px; overflow-y: auto; }
+        .custom-list .custom-entry {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        .custom-list .custom-entry:hover { background: var(--surface2); }
+        .custom-list .custom-entry .custom-entry-name { flex: 1; color: var(--text); }
+        .custom-list .custom-entry .custom-entry-del {
+            background: none; border: 1px solid var(--border); color: var(--red);
+            cursor: pointer; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px;
+        }
+        .custom-list .custom-entry .custom-entry-del:hover { background: var(--red); color: #fff; }
+        .cf-input {
+            width: 100%; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.8rem; font-family: inherit;
+            box-sizing: border-box; transition: border-color 0.15s;
+        }
+        .cf-input:focus { border-color: var(--accent); outline: none; }
+        .cf-textarea { resize: vertical; min-height: 3rem; }
+        .cf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .cf-add-btn {
+            width: 100%; padding: 0.5rem; background: var(--accent); border: none;
+            border-radius: 4px; color: #fff; cursor: pointer; font-size: 0.85rem;
+            font-weight: bold; margin-top: 0.5rem; transition: opacity 0.15s;
+        }
+        .cf-add-btn:hover { opacity: 0.9; }
+        .cf-fields { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .cf-field-btn {
+            padding: 0.35rem 0.6rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text-dim); cursor: pointer; font-size: 0.78rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .cf-field-btn:hover { border-color: var(--gold); color: var(--text); }
+        .cf-field-btn.selected { border-color: var(--accent); color: #fff; background: var(--accent); }
+        .cf-field-btn.filled { border-color: var(--green); color: var(--green); }
+        .cf-field-btn.filled.selected { color: #fff; background: var(--accent); border-color: var(--accent); }
+        .search-toggle-btn {
+            display: block; width: 100%; padding: 0.3rem; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim);
+            cursor: pointer; font-size: 0.75rem; margin-top: 0.3rem; text-align: center;
+            transition: all 0.15s;
+        }
+        .search-toggle-btn:hover { color: var(--text); border-color: var(--accent); }
+        /* 资源库操作按钮 */
+        .res-action-btn {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text-dim); cursor: pointer; font-size: 0.7rem; padding: 0.2rem 0.45rem;
+            white-space: nowrap; transition: all 0.15s; line-height: 1.3;
+        }
+        .res-action-btn:hover { border-color: var(--accent); color: var(--text); }
+        .res-action-btn.preview-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+        .res-action-btn.download-btn:hover { border-color: var(--green); color: var(--green); }
+        /* 图片预览浮层 */
+        #image-preview-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.88); z-index: 10000; align-items: center; justify-content: center;
+            backdrop-filter: blur(6px); cursor: pointer;
+        }
+        #image-preview-overlay.show { display: flex; }
+        #image-preview-overlay img {
+            max-width: 92vw; max-height: 90vh; object-fit: contain;
+            border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); cursor: default;
+        }
+        #image-preview-close {
+            position: fixed; top: 16px; right: 20px; width: 42px; height: 42px;
+            background: rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 50%; color: #fff; font-size: 1.4rem; cursor: pointer;
+            z-index: 10001; display: none; align-items: center; justify-content: center;
+            transition: all 0.2s; line-height: 1;
+        }
+        #image-preview-close.show { display: flex; }
+        #image-preview-close:hover { background: var(--red); border-color: var(--red); transform: scale(1.1); }
+
+</style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar" style="position:relative;">
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+        <div class="navbar-links">
+
+            <a href="/dice3d">🎲 掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+                        <a href="/map">地图</a>
+            <a href="/reference" class="active">参考</a>
+            
+                <a href="/mods">🧩 Mod</a>
+                
+                <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- 全资料库综合搜索 -->
+        <div class="card" style="margin-bottom:1rem;">
+            <div class="card-header">🔍 全资料库综合搜索</div>
+            <div class="dice-input">
+                <input type="text" id="global-search-input" placeholder="搜索法术/怪物/规则/物品... 如: 战士 / 火球术 / 长剑"
+                       onkeydown="if(event.key==='Enter') doGlobalSearch()">
+                <button onclick="doGlobalSearch()">🔍 搜索</button>
+            </div>
+            <div id="global-search-results" style="margin-top:0.5rem;max-height:300px;overflow-y:auto;">
+                <div style="color:var(--text-dim);text-align:center;padding:0.5rem;">输入关键词搜索全资料库</div>
+            </div>
+            <div id="global-detail" style="margin-top:0.5rem;"></div>
+        </div>
+
+        <!-- 服务器资源库 -->
+        <div class="card" style="margin-bottom:1rem;">
+            <div class="card-header">📦 服务器资源库 <span style="font-weight:normal;font-size:0.75rem;color:var(--text-dim);">— 将文件放入 骰娘/resources/ 目录即可共享</span></div>
+            <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap;align-items:center;">
+                <button class="cf-field-btn" onclick="loadResources('')" id="res-btn-all">📦 全部</button>
+                <button class="cf-field-btn" onclick="loadResources('pdf')" id="res-btn-pdf">📄 PDF</button>
+                <button class="cf-field-btn" onclick="loadResources('img')" id="res-btn-img">🖼 图片</button>
+                <button class="cf-field-btn" onclick="loadResources('text')" id="res-btn-text">📝 文本</button>
+                <button class="cf-field-btn" onclick="loadResources('doc')" id="res-btn-doc">📋 文档</button>
+                <button class="cf-field-btn" onclick="loadResources('sheet')" id="res-btn-sheet">📊 表格</button>
+                <button class="cf-field-btn" onclick="loadResources('audio')" id="res-btn-audio">🎵 音频</button>
+                <span style="color:var(--border);margin:0 0.2rem;">|</span>
+                <button class="cf-field-btn" onclick="document.getElementById('resource-upload-input').click()" title="上传文件到资源库" style="border-color:var(--green);color:var(--green);">📤 导入资源</button>
+                <input type="file" id="resource-upload-input" style="display:none;" onchange="uploadResource(this)" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.json,.mp3,.wav,.ogg">
+            </div>
+            <div id="resources-list" style="max-height:300px;overflow-y:auto;">
+                <div style="color:var(--text-dim);text-align:center;padding:1rem;font-size:0.85rem;">点击上方按钮加载资源列表</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- 法术查询 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">📖 法术查询</div>
+                    <div class="dice-input">
+                        <input type="text" id="spell-query" placeholder="输入法术名... 如火球术 / fireball">
+                        <button onclick="searchSpell()">🔍 查询</button>
+                    </div>
+                    <div class="quick-dice">
+                        <button onclick="quickSpell('火球术')">火球术</button>
+                        <button onclick="quickSpell('魔法飞弹')">魔法飞弹</button>
+                        <button onclick="quickSpell('治疗伤口')">治疗伤口</button>
+                        <button onclick="quickSpell('护盾术')">护盾术</button>
+                        <button onclick="quickSpell('祝福术')">祝福术</button>
+                        <button onclick="quickSpell('闪电束')">闪电束</button>
+                        <button onclick="quickSpell('加速术')">加速术</button>
+                        <button onclick="quickSpell('变形术')">变形术</button>
+                        <button onclick="quickSpell('高等隐形术')">高等隐形</button>
+                    </div>
+                    <div id="spell-result" style="margin-top:1rem;"></div>
+                </div>
+            </div>
+
+            <!-- 怪物查询 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">👹 怪物查询</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-query" placeholder="输入怪物名... 如地精 / goblin">
+                        <button onclick="searchMonster()">🔍 查询</button>
+                    </div>
+                    <div class="quick-dice">
+                        <button onclick="quickMonster('地精')">地精</button>
+                        <button onclick="quickMonster('骷髅')">骷髅</button>
+                        <button onclick="quickMonster('僵尸')">僵尸</button>
+                        <button onclick="quickMonster('兽人')">兽人</button>
+                        <button onclick="quickMonster('食人魔')">食人魔</button>
+                        <button onclick="quickMonster('枭熊')">枭熊</button>
+                        <button onclick="quickMonster('绿龙')">绿龙</button>
+                        <button onclick="quickMonster('红龙')">红龙</button>
+                        <button onclick="quickMonster('巫妖')">巫妖</button>
+                    </div>
+                    <div id="monster-result" style="margin-top:1rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态参考 -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">⚕️ DND 状态参考</div>
+                    <div id="conditions-list" style="color:var(--text-dim)">加载中...</div>
+                </div>
+            </div>
+
+            <!-- 技能参考 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">🎯 技能列表</div>
+                    <div id="skills-list" style="color:var(--text-dim)">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自定义资料库 -->
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header">✏️ 自定义资料库条目</div>
+            <div class="custom-tabs">
+                <button class="custom-tab active" onclick="switchCustomTab('spells')" id="custom-tab-spells">📖 法术</button>
+                <button class="custom-tab" onclick="switchCustomTab('monsters')" id="custom-tab-monsters">👹 生物</button>
+                <button class="custom-tab" onclick="switchCustomTab('items')" id="custom-tab-items">📦 物品</button>
+            </div>
+            <div class="custom-form-wrap" id="custom-form"></div>
+            <div id="custom-list" class="custom-list"></div>
+        </div>
+    </div>
+
+    <!-- 图片预览浮层 -->
+    <div id="image-preview-overlay" onclick="closeImagePreview()">
+        <img id="image-preview-img" src="" alt="预览" onclick="event.stopPropagation()">
+    </div>
+    <button id="image-preview-close" onclick="closeImagePreview()" title="关闭预览">✕</button>
+
+    <script>
+        // ━━━ HTML 转义 ━━━
+        function escHtml(s) {
+            if (!s) return '';
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        // ━━━ 全资料库综合搜索 ━━━
+        let globalResults = [];
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim();
+            if (!q || q.length < 2) { alert('至少输入2个字'); return; }
+            const el = document.getElementById('global-search-results');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">搜索中...</div>';
+            try {
+                const data = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+                if (data.error) { el.innerHTML = `<div style="color:var(--red);">${data.error}</div>`; return; }
+                if (!data.results.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:0.5rem;">未找到匹配结果</div>'; return; }
+                globalResults = data.results;
+                const icons = {spell:'📖', monster:'👹', rule:'📋', item:'📦', feat:'⭐', file:'📁', doc:'📄'};
+                el.innerHTML = '<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:0.3rem;">共 ' + data.total + ' 条结果，点击查看详情</div>' +
+                    data.results.map((r, i) => {
+                        const icon = icons[r.type] || '📄';
+                        return '<div class="item-result-row" onclick="showGlobalDetail(' + i + ')" style="font-size:0.82rem;">' +
+                            '<span><span style="font-weight:bold;color:var(--gold);">' + icon + ' ' + escHtml(r.name) + '</span>' +
+                            '<span style="color:var(--text-dim);font-size:0.7rem;margin-left:0.4rem;">[' + escHtml(r.type) + ']</span></span>' +
+                        '</div>';
+                    }).join('');
+            } catch(e) { el.innerHTML = `<div style="color:var(--red);">搜索失败: ${e.message}</div>`; }
+        }
+
+        function closeGlobalDetail() {
+            document.getElementById('global-detail').innerHTML = '';
+        }
+
+        async function showGlobalDetail(index) {
+            var r = globalResults[index];
+            if (!r) return;
+            var el = document.getElementById('global-detail');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">加载详情...</div>';
+
+            if (r.type === 'spell') {
+                try {
+                    var resp = await fetch('/api/spell-detail/' + encodeURIComponent(r.name));
+                    var d = await resp.json();
+                    if (!d.error) {
+                        var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+                        html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.4rem;">📖 ' + escHtml(d.name) + (d.name_en ? ' <small style="color:var(--text-dim);">' + escHtml(d.name_en) + '</small>' : '') + '</div>';
+                        html += '<div style="color:var(--gold);font-size:0.85rem;margin-bottom:0.3rem;">' + escHtml(d.level||'?') + ' · ' + escHtml(d.school||'?') + ' | ⏱ ' + escHtml(d.casting_time||'?') + ' | 🧪 ' + escHtml(d.components||'?') + ' | 📋仪式:' + escHtml(d.ritual||'否') + ' | 🎯专注:' + escHtml(d.concentration||'否') + '</div>';
+                        if (d.classes) html += '<div style="font-size:0.78rem;color:var(--text-dim);">👤 ' + escHtml(d.classes) + '</div>';
+                        if (d.range) html += '<div style="font-size:0.78rem;color:var(--text-dim);">📏 ' + escHtml(d.range) + ' | ⏳ ' + escHtml(d.duration||'?') + '</div>';
+                        if (d.source) html += '<div style="font-size:0.75rem;color:var(--text-dim);">📚 ' + escHtml(d.source) + '</div>';
+                        if (d.detail_text) html += '<div style="color:var(--text-dim);font-size:0.8rem;line-height:1.6;white-space:pre-wrap;max-height:none;overflow-y:visible;margin-top:0.4rem;border-top:1px solid var(--border);padding-top:0.4rem;">' + escHtml(d.detail_text) + '</div>';
+                        html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+                        html += '</div>';
+                        el.innerHTML = html;
+                        return;
+                    }
+                } catch(e) { el.innerHTML = '<div style="color:var(--red);padding:0.5rem;">加载详情失败</div>'; }
+            }
+
+            if (r.type === 'monster') {
+                try {
+                    // 优先用 detail_link 获取详情（精确匹配），否则用名称搜索
+                    var apiUrl = r.path ? '/api/rule-detail?path=' + encodeURIComponent(r.path)
+                              : '/api/monster/' + encodeURIComponent(r.name);
+                    var resp = await fetch(apiUrl);
+                    var d = await resp.json();
+                    // 如果 rule-detail 返回的是 HTML 原文，包装成怪物格式
+                    if (d.content && !d.error) {
+                        var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+                        html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.4rem;">👹 ' + escHtml(r.name) + '</div>';
+                        html += '<div style="color:var(--gold);font-size:0.85rem;margin-bottom:0.3rem;">' + escHtml(r.detail||'') + '</div>';
+                        html += '<div style="color:var(--text-dim);font-size:0.8rem;line-height:1.6;white-space:pre-wrap;max-height:60vh;overflow-y:auto;margin-top:0.4rem;border-top:1px solid var(--border);padding-top:0.4rem;">' + escHtml(d.content) + '</div>';
+                        html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+                        html += '</div>';
+                        el.innerHTML = html;
+                        return;
+                    }
+                    if (!d.error) {
+                        var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+                        html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.4rem;">👹 ' + escHtml(d.name) + (d.name_en ? ' <small style="color:var(--text-dim);">' + escHtml(d.name_en) + '</small>' : '') + '</div>';
+                        html += '<div style="color:var(--gold);font-size:0.85rem;margin-bottom:0.3rem;">CR: ' + escHtml(d.cr||'?') + ' | ' + escHtml(d.size||'?') + ' ' + escHtml(d.type||'?') + (d.legendary ? ' | 传奇:' + escHtml(d.legendary) : '') + '</div>';
+                        if (d.source) html += '<div style="font-size:0.75rem;color:var(--text-dim);">📚 ' + escHtml(d.source) + '</div>';
+                        if (d.detail_text) html += '<div style="color:var(--text-dim);font-size:0.8rem;line-height:1.6;white-space:pre-wrap;max-height:none;overflow-y:visible;margin-top:0.4rem;border-top:1px solid var(--border);padding-top:0.4rem;">' + escHtml(d.detail_text) + '</div>';
+                        html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+                        html += '</div>';
+                        el.innerHTML = html;
+                        return;
+                    }
+                    // API未找到，回退显示搜索结果摘要
+                } catch(e) {}
+            }
+
+            // For rule/docs/files, try to fetch full page content if path is available
+            if (r.path) {
+                try {
+                    var apiUrl = (r.type === 'file') ? '/api/file-content?path=' : '/api/rule-detail?path=';
+                    var resp = await fetch(apiUrl + encodeURIComponent(r.path));
+                    var d = await resp.json();
+                    if (!d.error && d.type === 'image') {
+                        // 图片文件 → 直接展示图片
+                        var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+                        html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.3rem;">' + escHtml(r.name) + '</div>';
+                        html += '<img src="' + d.content + '" style="max-width:100%;max-height:70vh;display:block;margin:0 auto;border-radius:4px;" onerror="this.alt=\'图片加载失败\'">';
+                        html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+                        html += '</div>';
+                        el.innerHTML = html;
+                        return;
+                    }
+                    if (!d.error && d.content) {
+                        var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+                        html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.3rem;">' + escHtml(r.name) + '</div>';
+                        html += '<div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:0.3rem;">类型: ' + escHtml(r.type) + '</div>';
+                        html += '<div style="color:var(--text-dim);font-size:0.8rem;line-height:1.6;white-space:pre-wrap;max-height:60vh;overflow-y:auto;margin-top:0.3rem;border-top:1px solid var(--border);padding-top:0.3rem;">' + escHtml(d.content) + '</div>';
+                        html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+                        html += '</div>';
+                        el.innerHTML = html;
+                        return;
+                    }
+                } catch(e) {}
+            }
+
+            var html = '<div style="background:var(--bg);border:1px solid var(--accent);border-radius:6px;padding:0.75rem;">';
+            html += '<div style="font-weight:bold;color:var(--accent);margin-bottom:0.3rem;">' + escHtml(r.name) + '</div>';
+            html += '<div style="color:var(--text-dim);font-size:0.8rem;margin-bottom:0.3rem;">类型: ' + escHtml(r.type) + '</div>';
+            if (r.detail) html += '<div style="color:var(--text-dim);font-size:0.8rem;line-height:1.6;white-space:pre-wrap;max-height:60vh;overflow-y:auto;">' + escHtml(r.detail) + '</div>';
+            html += '<button class="btn btn-small" style="margin-top:0.4rem;background:var(--surface2);color:var(--text);" onclick="closeGlobalDetail()">✕ 关闭</button>';
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        // ━━━ 法术查询 ━━━
+        async function searchSpell() { quickSpell(document.getElementById('spell-query').value.trim()); }
+
+        function showSpellDetailCard(data, queryName) {
+            let detail = data.detail_text || data.description || '';
+            return `
+                <div class="info-card">
+                    <div class="info-title">📖 ${escHtml(data.name || queryName)} ${data.name_en ? '<small style="color:var(--gold)">'+escHtml(data.name_en)+'</small>' : ''}</div>
+                    <div class="info-subtitle">${escHtml(data.level||'?')} · ${escHtml(data.school||'?')} | ⏱ ${escHtml(data.casting_time||'?')} | 🧪 ${escHtml(data.components||'?')}</div>
+                    <div style="font-size:0.78rem;color:var(--text-dim);margin-top:0.3rem;">
+                        📋 仪式: ${escHtml(data.ritual||'否')} | 🎯 专注: ${escHtml(data.concentration||'否')} | 👤 ${escHtml(data.classes||'?')}
+                    </div>
+                    ${data.range ? `<div style="font-size:0.78rem;color:var(--text-dim);">📏 ${escHtml(data.range)} | ⏳ ${escHtml(data.duration||'?')}</div>` : ''}
+                    ${data.source ? `<div style="font-size:0.75rem;color:var(--text-dim);">📚 ${escHtml(data.source)}</div>` : ''}
+                    ${detail ? `<div style="color:var(--text-dim);font-size:0.82rem;line-height:1.6;white-space:pre-wrap;margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">${escHtml(detail)}</div>` : ''}
+                </div>`;
+        }
+
+        async function quickSpell(name, fromList) {
+            if (!name) return;
+            document.getElementById('spell-query').value = name;
+            const el = document.getElementById('spell-result');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">搜索中...</div>';
+
+            try {
+                // 从列表点击 → 直接获取详情
+                if (fromList) {
+                    const resp = await fetch(`/api/spell-detail/${encodeURIComponent(name)}`);
+                    const data = await resp.json();
+                    el.innerHTML = data.error
+                        ? `<div style="color:var(--red);">未找到: ${escHtml(name)}</div>`
+                        : showSpellDetailCard(data, name);
+                    return;
+                }
+
+                // 短关键词(<=2字) → 直接列列表
+                if (name.length <= 2) {
+                    const listResp = await fetch(`/api/spells/search?q=${encodeURIComponent(name)}`);
+                    const listData = await listResp.json();
+                    if (listData.results && listData.results.length) {
+                        renderSpellList(el, listData.results, name);
+                        return;
+                    }
+                }
+
+                // 1. 先尝试精确匹配
+                const resp = await fetch(`/api/spell-detail/${encodeURIComponent(name)}`);
+                const data = await resp.json();
+                if (!data.error) {
+                    const listResp = await fetch(`/api/spells/search?q=${encodeURIComponent(name)}`);
+                    const listData = await listResp.json();
+                    if (listData.results && listData.results.length > 1) {
+                        renderSpellList(el, listData.results, name);
+                    } else {
+                        el.innerHTML = showSpellDetailCard(data, name);
+                    }
+                    return;
+                }
+
+                // 2. 模糊搜索
+                const searchResp = await fetch(`/api/spells/search?q=${encodeURIComponent(name)}`);
+                const searchData = await searchResp.json();
+                const spells = (searchData.results || []);
+                if (!spells.length) {
+                    el.innerHTML = `<div style="color:var(--text-dim);">未找到匹配 "${escHtml(name)}" 的法术</div>`;
+                    return;
+                }
+                renderSpellList(el, spells, name);
+            } catch(e) {
+                el.innerHTML = `<div style="color:var(--red)">查询失败</div>`;
+            }
+        }
+
+        function renderSpellList(el, spells, queryName) {
+            const needCollapse = spells.length > 8;
+            const listId = 'spell-result-list-' + Date.now();
+            const toggleId = 'spell-toggle-' + Date.now();
+            el.innerHTML = `<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:0.3rem;">找到 ${spells.length} 个匹配 "${escHtml(queryName)}" 的法术（点击查看详情）</div>` +
+                `<div id="${listId}"${needCollapse ? ' style="max-height:280px;overflow-y:auto;"' : ''}>` +
+                spells.map(s => `
+                <div class="item-result-row" data-spell-name="${escHtml(s.name)}" onclick="quickSpell(this.dataset.spellName, true)" style="cursor:pointer;font-size:0.82rem;">
+                    <span style="font-weight:bold;color:var(--gold);">📖 ${escHtml(s.name)}</span>
+                    <span style="color:var(--text-dim);font-size:0.7rem;">${escHtml(s.detail||'')}</span>
+                </div>
+                `).join('') + '</div>' +
+                (needCollapse ? `<button class="search-toggle-btn" id="${toggleId}" onclick="toggleResultList('${listId}','${toggleId}',${spells.length})">▼ 展开全部 (${spells.length}条)</button>` : '');
+        }
+
+        // ━━━ 怪物查询 ━━━
+        async function searchMonster() { quickMonster(document.getElementById('monster-query').value.trim()); }
+
+        function showMonsterDetailCard(data, queryName) {
+            return `
+                <div class="info-card">
+                    <div class="info-title">👹 ${escHtml(data.name || queryName)} ${data.name_en ? '<small style="color:var(--gold)">'+escHtml(data.name_en)+'</small>' : ''}</div>
+                    <div class="info-subtitle">挑战等级: ${data.cr || '?'} | ${data.size || ''} ${data.type || ''} ${data.legendary ? '| 传奇: '+data.legendary : ''}</div>
+                    ${data.source ? `<div style="font-size:0.75rem;color:var(--text-dim);">📚 ${escHtml(data.source)}</div>` : ''}
+                    ${data.detail_text ? `<div style="color:var(--text-dim);font-size:0.82rem;line-height:1.6;white-space:pre-wrap;margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">${escHtml(data.detail_text)}</div>` : '<div style="color:var(--text-dim);margin-top:0.5rem;">暂无详细数据</div>'}
+                </div>`;
+        }
+
+        async function quickMonster(name, fromList) {
+            if (!name) return;
+            document.getElementById('monster-query').value = name;
+            const el = document.getElementById('monster-result');
+            el.innerHTML = '<div style="color:var(--cyan);text-align:center;padding:0.5rem;">搜索中...</div>';
+
+            try {
+                // 从列表点击的精确名称 → 直接获取详情
+                if (fromList) {
+                    const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
+                    const data = await resp.json();
+                    el.innerHTML = data.error
+                        ? `<div style="color:var(--red);">未找到: ${escHtml(name)}</div>`
+                        : showMonsterDetailCard(data, name);
+                    return;
+                }
+
+                // 短关键词(<=2字) → 直接列列表
+                if (name.length <= 2) {
+                    const listResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(name)}`);
+                    const listData = await listResp.json();
+                    if (listData.results && listData.results.length) {
+                        renderMonsterList(el, listData.results, name);
+                        return;
+                    }
+                }
+
+                // 1. 先尝试精确匹配
+                const resp = await fetch(`/api/monster/${encodeURIComponent(name)}`);
+                const data = await resp.json();
+                if (!data.error) {
+                    // 检查是否有多个匹配
+                    const listResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(name)}`);
+                    const listData = await listResp.json();
+                    if (listData.results && listData.results.length > 1) {
+                        renderMonsterList(el, listData.results, name);
+                    } else {
+                        el.innerHTML = showMonsterDetailCard(data, name);
+                    }
+                    return;
+                }
+
+                // 2. 精确匹配失败，模糊搜索
+                const searchResp = await fetch(`/api/monsters/search?q=${encodeURIComponent(name)}`);
+                const searchData = await searchResp.json();
+                const monsters = (searchData.results || []);
+
+                if (!monsters.length) {
+                    el.innerHTML = `<div style="color:var(--text-dim);">未找到匹配 "${escHtml(name)}" 的生物</div>`;
+                    return;
+                }
+                renderMonsterList(el, monsters, name);
+            } catch(e) {
+                el.innerHTML = `<div style="color:var(--red)">查询失败</div>`;
+            }
+        }
+
+        function renderMonsterList(el, monsters, queryName) {
+            const needCollapse = monsters.length > 8;
+            const listId = 'monster-result-list-' + Date.now();
+            const toggleId = 'monster-toggle-' + Date.now();
+            el.innerHTML = `<div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:0.3rem;">找到 ${monsters.length} 个匹配 "${escHtml(queryName)}" 的生物（点击查看详情）</div>` +
+                `<div id="${listId}"${needCollapse ? ' style="max-height:280px;overflow-y:auto;"' : ''}>` +
+                monsters.map(m => `
+                <div class="item-result-row" data-monster-name="${escHtml(m.name)}" onclick="quickMonster(this.dataset.monsterName, true)" style="cursor:pointer;font-size:0.82rem;">
+                    <span style="font-weight:bold;color:var(--gold);">👹 ${escHtml(m.name)}</span>
+                    <span style="color:var(--text-dim);font-size:0.7rem;">${escHtml(m.detail||'')}</span>
+                </div>
+                `).join('') + '</div>' +
+                (needCollapse ? `<button class="search-toggle-btn" id="${toggleId}" onclick="toggleResultList('${listId}','${toggleId}',${monsters.length})">▼ 展开全部 (${monsters.length}条)</button>` : '');
+        }
+
+        // ━━━ 状态列表（可点击展开/收起完整描述）━━
+        async function loadConditions() {
+            try {
+                const resp = await fetch('/api/conditions');
+                const data = await resp.json();
+                const el = document.getElementById('conditions-list');
+                el.innerHTML = Object.entries(data).map(([name, desc]) => `
+                    <div class="condition-item" onclick="toggleCondition(this)" style="cursor:pointer;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;margin-bottom:0.25rem;transition:all 0.15s;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <b style="color:var(--gold);">⚕️ ${escHtml(name)}</b>
+                            <span style="font-size:0.7rem;color:var(--text-dim);">点击展开 ▼</span>
+                        </div>
+                        <div class="condition-detail" style="display:none;margin-top:0.35rem;padding-top:0.35rem;border-top:1px solid var(--border);font-size:0.8rem;color:var(--text-dim);line-height:1.6;">${escHtml(desc)}</div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('conditions-list').innerHTML = '加载失败';
+            }
+        }
+
+        function toggleResultList(listId, toggleId, total) {
+            const list = document.getElementById(listId);
+            const btn = document.getElementById(toggleId);
+            if (!list || !btn) return;
+            if (list.style.maxHeight && list.style.maxHeight !== 'none') {
+                list.style.maxHeight = 'none';
+                list.style.overflowY = 'visible';
+                btn.textContent = '▲ 收起列表';
+            } else {
+                list.style.maxHeight = '280px';
+                list.style.overflowY = 'auto';
+                btn.textContent = '▼ 展开全部 (' + total + '条)';
+            }
+        }
+
+        function toggleCondition(el) {
+            const detail = el.querySelector('.condition-detail');
+            const arrow = el.querySelector('span');
+            if (detail.style.display === 'none') {
+                detail.style.display = 'block';
+                arrow.textContent = '点击收起 ▲';
+            } else {
+                detail.style.display = 'none';
+                arrow.textContent = '点击展开 ▼';
+            }
+        }
+
+        // ━━━ 技能列表 ━━━
+        async function loadSkills() {
+            try {
+                const resp = await fetch('/api/skills');
+                const data = await resp.json();
+                const el = document.getElementById('skills-list');
+
+                // 按属性分组
+                const groups = {};
+                Object.entries(data).forEach(([skill, ability]) => {
+                    if (!groups[ability]) groups[ability] = [];
+                    groups[ability].push(skill);
+                });
+
+                el.innerHTML = Object.entries(groups).map(([ability, skills]) => `
+                    <div style="margin-bottom:0.5rem;">
+                        <b style="color:var(--gold)">${ability}</b>
+                        <span style="color:var(--text-dim)">: ${skills.join(' / ')}</span>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('skills-list').innerHTML = '加载失败';
+            }
+        }
+
+        // ━━━ 自定义资料库 ━━━
+        let customKind = 'spells';
+
+        function switchCustomTab(kind) {
+            customKind = kind;
+            document.querySelectorAll('.custom-tab').forEach(b => b.classList.remove('active'));
+            document.getElementById('custom-tab-' + kind).classList.add('active');
+            renderCustomForm(kind);
+        }
+
+        // ━━━ 自定义条目编辑状态 ━━━
+        let customData = {};        // { fieldKey: value, ... }
+        let customSelectedField = ''; // 当前选中编辑的字段
+        const spellFields = [
+            {key:'name', label:'法术名 *'},{key:'name_en', label:'英文名'},{key:'level', label:'环位/等级'},
+            {key:'school', label:'学派'},{key:'casting_time', label:'施法时间'},{key:'range', label:'距离'},
+            {key:'duration', label:'持续时间'},{key:'components', label:'成分'},{key:'classes', label:'职业'},
+            {key:'ritual', label:'仪式'},{key:'concentration', label:'专注'},{key:'description', label:'法术描述'},
+        ];
+        const monsterFields = [
+            {key:'name', label:'生物名 *'},{key:'name_en', label:'英文名'},{key:'cr', label:'挑战等级'},
+            {key:'size', label:'体型'},{key:'type', label:'类型'},{key:'legendary', label:'传奇动作'},
+            {key:'detail_text', label:'详细数据'},
+        ];
+
+        function getCurrentFields() {
+            return customKind === 'monsters' ? monsterFields : spellFields;
+        }
+
+        function renderCustomForm(kind) {
+            customData = {};
+            customSelectedField = '';
+            const el = document.getElementById('custom-form');
+            if (kind === 'items') {
+                el.innerHTML = `
+                    <input id="cf-name" placeholder="物品名*" class="cf-input">
+                    <textarea id="cf-description" placeholder="物品介绍信息..." class="cf-input cf-textarea" rows="3" style="margin-top:0.5rem;"></textarea>
+                    <button class="cf-add-btn" onclick="addCustomEntry()">➕ 添加至资料库</button>
+                `;
+            } else {
+                const fields = getCurrentFields();
+                el.innerHTML = `
+                    <div class="cf-fields">${fields.map(f => {
+                        const filled = customData[f.key] ? ' filled' : '';
+                        const sel = customSelectedField === f.key ? ' selected' : '';
+                        return `<button class="cf-field-btn${filled}${sel}" data-field="${f.key}" onclick="selectCustomField('${f.key}')">${f.label}</button>`;
+                    }).join('')}</div>
+                    <div style="margin-top:0.5rem;">
+                        <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.2rem;" id="cf-edit-label">
+                            ${customSelectedField ? '编辑: ' + (fields.find(f=>f.key===customSelectedField)||{}).label : '点击上方按钮选择要编辑的字段'}
+                        </div>
+                        <textarea id="cf-textarea" class="cf-input cf-textarea" rows="4"
+                            placeholder="${customSelectedField ? '输入内容...' : '↑ 先点击上方按钮选择字段'}"
+                            ${!customSelectedField ? 'disabled' : ''}
+                            oninput="customData['${customSelectedField}']=this.value;updateFieldBtns()"></textarea>
+                        <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                            <button class="cf-add-btn" onclick="addCustomEntry()" style="flex:1;">➕ 添加至资料库</button>
+                        </div>
+                    </div>
+                `;
+            }
+            loadCustomList(kind);
+        }
+
+        function selectCustomField(fieldKey) {
+            customSelectedField = fieldKey;
+            const fields = getCurrentFields();
+            const field = fields.find(f => f.key === fieldKey);
+            document.getElementById('cf-edit-label').textContent = '编辑: ' + (field ? field.label : '');
+            const ta = document.getElementById('cf-textarea');
+            ta.disabled = false;
+            ta.value = customData[fieldKey] || '';
+            ta.placeholder = '输入 ' + (field ? field.label : '') + ' ...';
+            ta.oninput = function() { customData[fieldKey] = this.value; updateFieldBtns(); };
+            ta.focus();
+            updateFieldBtns();
+        }
+
+        function updateFieldBtns() {
+            document.querySelectorAll('.cf-field-btn').forEach(btn => {
+                const key = btn.getAttribute('data-field');
+                if (key) {
+                    btn.classList.toggle('filled', !!customData[key]);
+                    btn.classList.toggle('selected', key === customSelectedField);
+                }
+            });
+        }
+
+        async function addCustomEntry() {
+            // 先检查是否有未保存到 customData 的文本框内容
+            if (customSelectedField && customKind !== 'items') {
+                const ta = document.getElementById('cf-textarea');
+                if (ta) customData[customSelectedField] = ta.value;
+            }
+            if (customKind === 'items') {
+                customData.name = document.getElementById('cf-name')?.value || '';
+                customData.description = document.getElementById('cf-description')?.value || '';
+            }
+
+            const name = customData.name || '';
+            if (!name.trim()) { alert('请输入名称'); return; }
+            if (!confirm(`确定将 "${name.trim()}" 添加到资料库吗？`)) return;
+
+            const data = {};
+            if (customKind === 'items') {
+                data.name = name.trim();
+                data.description = customData.description || '';
+            } else {
+                const fields = getCurrentFields();
+                for (const f of fields) {
+                    const val = (customData[f.key] || '').trim();
+                    if (val || f.key === 'name') data[f.key] = val;
+                }
+                if (!data.name) { alert('请输入名称'); return; }
+            }
+
+            const resp = await fetch('/api/custom/' + customKind, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await resp.json();
+            if (result.error) { alert(result.error); return; }
+            alert('✅ "' + data.name + '" 已添加到资料库');
+            loadCustomList(customKind);
+            // 重置表单
+            customData = {};
+            customSelectedField = '';
+            renderCustomForm(customKind);
+        }
+
+        async function loadCustomList(kind) {
+            const el = document.getElementById('custom-list');
+            if (!el) return;
+            try {
+                const resp = await fetch('/api/custom/' + kind);
+                const data = await resp.json();
+                if (!data.results.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:0.5rem;">暂无自定义条目</div>'; return; }
+                el.innerHTML = data.results.map(e => `
+                    <div class="custom-entry">
+                        <span class="custom-entry-name">${escHtml(e.name)}</span>
+                        <button class="custom-entry-del" onclick="deleteCustom('${kind}','${escHtml(e.name).replace(/'/g,"\\'")}')">✕</button>
+                    </div>
+                `).join('');
+            } catch(e) {}
+        }
+
+        async function deleteCustom(kind, name) {
+            if (!confirm('删除 "' + name + '"？')) return;
+            await fetch('/api/custom/' + kind + '?name=' + encodeURIComponent(name), {method:'DELETE'});
+            loadCustomList(kind);
+        }
+
+        // 初始加载
+        loadConditions();
+        loadSkills();
+        switchCustomTab('spells');
+
+        // ━━━ 服务器资源库 ━━━
+        function uploadResource(input) {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            var maxSize = 50 * 1024 * 1024;
+            if (file.size > maxSize) { alert('文件过大 (' + (file.size/1024/1024).toFixed(1) + 'MB)，最大50MB'); input.value = ''; return; }
+            var formData = new FormData();
+            formData.append('file', file);
+            var listEl = document.getElementById('resources-list');
+            listEl.innerHTML = '<div style="color:var(--gold);text-align:center;padding:1rem;">⏳ 上传中...</div>';
+            fetch('/api/resources/upload', {method:'POST', body:formData})
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.success) {
+                    loadResources('');  // 刷新全部列表
+                    input.value = '';
+                } else {
+                    listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">上传失败: ' + (d.error || '未知错误') + '</div>';
+                }
+            }).catch(function(e) {
+                listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">上传失败: ' + e.message + '</div>';
+                input.value = '';
+            });
+        }
+
+        function loadResources(cat) {
+            cat = cat || '';
+            const listEl = document.getElementById('resources-list');
+            listEl.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1rem;">加载中...</div>';
+            // Highlight active category button
+            document.querySelectorAll('[id^="res-btn-"]').forEach(b => b.style.background = '');
+            const activeBtn = document.getElementById('res-btn-' + (cat || 'all'));
+            if (activeBtn) activeBtn.style.background = 'var(--accent)';
+
+            const url = '/api/resources' + (cat ? '?cat=' + cat : '');
+            fetch(url).then(r => r.json()).then(data => {
+                if (!data.resources || data.resources.length === 0) {
+                    listEl.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1rem;font-size:0.85rem;">暂无资源文件<br><small>将规则书/图片/笔记等放入 骰娘/resources/ 目录</small></div>';
+                    return;
+                }
+                listEl.innerHTML = data.resources.map(r => {
+                    const sizeColor = r.size_kb > 5000 ? 'var(--red)' : 'var(--text-dim)';
+                    const isImage = r.category === 'img';
+                    const encUrl = encodeURI(r.url);
+                    return '<div ' +
+                        'style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.6rem;background:var(--bg);border-radius:6px;margin-bottom:0.25rem;border:1px solid var(--border);font-size:0.85rem;transition:all 0.15s;" ' +
+                        'onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
+                        '<span style="font-size:1.3rem;">' + r.icon + '</span>' +
+                        '<span style="flex:1;font-weight:bold;">' + r.name + '</span>' +
+                        '<span style="color:' + sizeColor + ';font-size:0.7rem;">' + r.size_display + '</span>' +
+                        '<span style="color:var(--text-dim);font-size:0.7rem;margin-right:0.3rem;">.' + r.ext + '</span>' +
+                        (isImage ? '<button class="res-action-btn preview-btn" onclick="previewResource(\'' + encUrl + '\',\'' + escHtml(r.name).replace(/'/g,"\\'") + '\')" title="预览图片">👁 预览</button>' : '') +
+                        '<button class="res-action-btn download-btn" onclick="downloadResource(\'' + encUrl + '\',\'' + escHtml(r.name).replace(/'/g,"\\'") + '\')" title="下载文件">⬇ 下载</button>' +
+                        '</div>';
+                }).join('');
+            }).catch(() => {
+                listEl.innerHTML = '<div style="color:var(--red);text-align:center;padding:1rem;">加载失败</div>';
+            });
+        }
+
+        // ━━━ 图片预览 ━━━
+        function previewResource(url, name) {
+            const overlay = document.getElementById('image-preview-overlay');
+            const img = document.getElementById('image-preview-img');
+            const closeBtn = document.getElementById('image-preview-close');
+            img.src = url;
+            img.alt = name;
+            overlay.classList.add('show');
+            closeBtn.classList.add('show');
+            // 按 ESC 关闭
+            document.addEventListener('keydown', _onPreviewKeydown);
+        }
+
+        function closeImagePreview() {
+            const overlay = document.getElementById('image-preview-overlay');
+            const closeBtn = document.getElementById('image-preview-close');
+            overlay.classList.remove('show');
+            closeBtn.classList.remove('show');
+            document.getElementById('image-preview-img').src = '';
+            document.removeEventListener('keydown', _onPreviewKeydown);
+        }
+
+        function _onPreviewKeydown(e) {
+            if (e.key === 'Escape') { closeImagePreview(); }
+        }
+
+        // ━━━ 资源下载 ━━━
+        function downloadResource(url, name) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-username').value=_d.name;document.getElementById('join-overlay').classList.add('hidden');if(typeof window._chatUser!=='undefined')window._chatUser=_d.name;var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>

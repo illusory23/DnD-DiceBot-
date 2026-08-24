@@ -1,0 +1,38 @@
+[
+  {
+    "name": "白芸",
+    "text": "🎲 2d20 = [34]",
+    "time": "21:15:21",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785503721.324107
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [14]",
+    "time": "04:51:39",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785617499.495227
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [19]",
+    "time": "04:51:40",
+    "is_dm": false,
+    "color": "#ffd700",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785617500.8849633
+  }
+]

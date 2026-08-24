@@ -1,0 +1,23 @@
+2026-08-18_5_酒馆告示板公告区
+════════════════════════════════════════════════════
+
+【需求】
+官网酒馆内增加公告区（酒馆告示板）：展示所有已发布公告内容，
+从新到旧从上到下排列。
+
+【实现】
+- portal/index.html 酒馆视图（renderCommunity）顶部新增
+  "📢 酒馆告示板"区块（位于每周话题上方）
+- 新增 loadCommunityAnnouncements()：
+  * 数据源 GET /api/announcements/history（全部启用公告）
+  * 前端按 id 倒序排序（新到旧，接口顺序 + 本地排序双重保证）
+  * 公告卡片：金色左边框 + 📌 标题 + 发布时间 + 完整内容
+    （pre-wrap 保留排版，hEscape 转义防 XSS）
+  * 无公告显示"告示板上空无一物"，失败显示错误提示
+- 区块标题带公告数量徽章（board-ann-count）
+
+【涉及文件】
+- web/templates/portal/index.html（renderCommunity + loadCommunityAnnouncements）
+
+【验证】
+- 仅前端模板改动，刷新页面即可；数据来自已上线的公告接口

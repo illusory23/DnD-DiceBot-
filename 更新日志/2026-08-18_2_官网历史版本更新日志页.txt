@@ -1,0 +1,38 @@
+2026-08-18_2_官网历史版本更新日志页
+════════════════════════════════════════════════════
+
+【需求】
+官网门户增加"历史版本更新"页（优化方向文档第一阶段第 4 项）：
+读取 骰娘/更新日志/ 目录展示全部历史更新。
+
+【实现】
+一、后端（web/app.py 新增 3 个路由）：
+  1. GET /api/changelog —— 列出 更新日志/ 目录下全部 *.txt，
+     按文件名正则 YYYY-MM-DD_序号_主题.txt 解析（自动日期+序号倒序），
+     返回 {filename, date, seq, title, size} 列表；目录不存在/异常时返回空列表
+  2. GET /api/changelog/<path:filename> —— 读取单个日志纯文本内容；
+     安全校验：basename 截断 + .txt 后缀 + 文件名正则匹配（防路径穿越）；
+     UTF-8 读取 errors='replace' 兜底；404/400/500 分类返回
+  3. GET /changelog —— 渲染 portal/changelog.html
+
+二、前端（web/templates/portal/changelog.html，新模板）：
+  - 沿用 announcements.html 官网风格（冰霜暗色/浅色主题 + 导航栏 + 公告横幅脚本）
+  - 按日期分组显示（📅 日期 + 条数 + 分隔线）
+  - 日志卡片：📜 标题 + 序号 + 展开箭头；点击懒加载内容
+    （fetch 单文件，加载后缓存，二次展开不重复请求）
+  - "▾ 全部展开 / ▴ 全部收起"按钮（全部展开时批量懒加载）
+  - 内容 pre-wrap 保留 TXT 原始排版，HTML 转义防 XSS
+
+三、入口：
+  - portal/index.html 页脚链接改为真实入口（更新日志/平台公告/用户中心）
+  - portal/announcements.html 导航栏增加"更新日志"链接
+
+【涉及文件】
+- web/app.py（changelog 3 路由 + _CHANGELOG_DIR/_CHANGELOG_RE 常量）
+- web/templates/portal/changelog.html（新建）
+- web/templates/portal/index.html（页脚链接）
+- web/templates/portal/announcements.html（导航链接）
+
+【验证】
+- python -m py_compile web/app.py 通过
+- 注意：后端 make_server 无热重载，需重启服务后访问 /changelog

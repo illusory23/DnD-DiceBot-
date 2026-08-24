@@ -1,0 +1,26 @@
+2026-08-14 第20次更新：角色卡特性分类显示修复（导入后前端看不到特性）
+
+【问题】
+DND5E24 导入后：种族特性/专长/职业能力已写入数据库，
+但角色卡界面不显示；起源信息（个性/理念等）也不显示。
+
+【根因】
+API（get_character）返回的 features 是数组，
+而前端按分类字典渲染：char.features['class_feature'/'feat'/
+'racial_trait'/'special_ability'/'other'] —— 数组索引字符串
+得到 undefined → 特性区永远空白。
+
+【修改】（core/character.py get_character）
+- features 改为按分类分组的字典：
+  class_feature（职业能力）/ feat（专长）/ racial_trait（种族特性）/
+  special_ability（特殊能力）/ other（其他）
+  category 中文名（职业能力/专长/种族特性/特殊能力）映射到英文分组键
+
+【验证】（端到端实测）
+- features 返回 dict 分组：racial_trait 4条（黑暗视觉/异界存在/
+  邪魔遗赠/幽冥）、feat 1条（两道戏法）、class_feature 19条 ✅
+- 前端角色卡「🧬 种族特性」「⭐ 专长」「🎯 职业能力」区块正常显示 ✅
+- 起源信息（个性/理念/羁绊/缺陷/人物形象/背景故事）正常返回显示 ✅
+
+【说明】
+- 法术位"已用数量0"是正确初始状态（未施法=未消耗，长休后全满）

@@ -1,0 +1,52 @@
+【2026-08-20_11】怪物数据规则版本标注（5r / 5e，不覆盖不删除）
+
+修改文件：
+- web/app.py（_rule_version_of 版本映射 + 搜索/详情 API 输出
+  rule_version 字段）
+- web/static/combat-monsters.js（战斗页怪物面板来源处显示版本）
+- web/static/character-monsters.js（角色卡怪物面板来源处显示版本）
+- web/templates/reference.html（资料库怪物详情/卡片来源处显示版本）
+- web/templates/combat.html（脚本缓存版本号 v30→v31）
+- web/templates/character.html（脚本缓存版本号 v12→v13）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+背景与规则
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+资源数据库存在两套规则版本的怪物数据，为避免混淆：
+- 5r 规则 = 2025 新版规则（CHM 怪物图鉴2025，MM25）
+- 5e 规则 = 2014 规则（LMoP 附录B / SRD 标准怪物 / 自定义）
+按用户要求：**只标注版本，不修正/覆盖/删除任何数据**。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+变更内容
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 后端（web/app.py）
+   - 新增 _rule_version_of(source) 版本映射：
+     · MM25 → 「5r 规则（怪物图鉴2025）」
+     · FR → 「5r 规则（被遗忘的国度）」
+     · SRD → 「5e 规则（SRD 标准怪物）」
+     · 凡度尔的失落矿坑 → 「5e 规则（LMoP 附录B）」
+     · 自定义 → 「5e 规则（自定义）」
+     · 其他 → 原样返回
+   - /api/monsters/search 与 /api/monster/<name> 全部返回
+     新增 rule_version 字段；搜索列表 custom 分支 source 改为
+     读取 e.get('source')（原硬编码「自定义」，便于版本映射）。
+
+2. 前端（三处面板展示）
+   - 战斗页 combat-monsters.js：详情「📚 来源」后追加
+     [5r 规则（怪物图鉴2025）] 金色版本标签
+   - 角色卡 character-monsters.js：同上
+   - 资料库 reference.html：全局搜索怪物详情 + 独立怪物查询
+     卡片来源处追加版本标签（法术无此字段不受影响）
+
+3. 数据文件均未改动：custom/monsters.json、srd_monsters.json、
+   monsters_full.json、CHM 图鉴2025 HTML 全部保持原样。
+
+验证：
+- python -m py_compile web/app.py 通过；
+- _rule_version_of 映射单测：凡度尔的失落矿坑→5e（LMoP 附录B）、
+  MM25→5r（怪物图鉴2025）、FR→5r（被遗忘的国度）、
+  SRD→5e（SRD 标准怪物）、自定义→5e（自定义）、其他→原样；
+- node --check combat-monsters.js / character-monsters.js 通过；
+- 版本号 combat v31 / character v13 已同步；
+- 后端改动需重启服务生效（make_server 无热重载）。

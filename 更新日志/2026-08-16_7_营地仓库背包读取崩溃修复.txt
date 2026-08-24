@@ -1,0 +1,41 @@
+2026-08-16 第7次更新：营地仓库背包读取崩溃修复
+
+【问题现象】
+- 北境营地切换「📦 营地仓库」标签时控制台报错：
+  north-main.js:3639 Uncaught TypeError: (inv || []).map is not a function
+  → 仓库物品区与角色背包区全部无法显示（表现为"读不到角色背包物品"）
+
+【根因】
+- 存档中 campStorage 被存成了对象（{}），而代码按数组处理
+  （正常应为 [{name, qty}]；历史存档数据格式异常，SQLite/PG 中 user1 存档均为 dict）
+- 第6次更新（五项优化）为仓库/背包渲染新增的变化检测 _invRenderKey
+  使用 (inv || []).map 遍历，未兼容非数组入参 → 渲染仓库时抛异常
+  → 中断执行，后续 storageRenderBackpack 背包渲染从未运行
+
+【修复内容】（web/static/north-main.js）
+1. _invRenderKey 容错：Array.isArray 判断，非数组按空数组处理（不再崩溃）
+2. key 计算修正：it.qty || it.quantity || 1
+   （原 it.quantity || 1 对 qty 字段的物品恒为 1，数量变化不触发重绘）
+3. 新增 normalizeCampStorage()：对象格式 {物品名: 数量} 转回数组 [{name, qty}]
+   - 服务器读档 loadNorthFromServer、文件导入 importSave 时规范化
+   - 保存时兜底规范化（collectNorthSaveData / exportSave），防止坏数据写回
+   - 注意：首次修复时误放在营地 UI 初始化层（16 空格嵌套作用域），
+     存档函数在 12 空格层调用不到 → ReferenceError: normalizeCampStorage is not defined
+     （切换界面触发保存时报错）。已移至 campStorage 声明旁（存档函数同一层）
+4. 数据库修复：north_saves 中 user1 存档 campStorage {} → []
+   （SQLite 旧库保留不动，作为回滚依据；旧缓存代码会再次写回 dict，需强制刷新）
+
+【验证】
+- node --check 语法检查通过
+- 无头浏览器回归（fetch mock 模拟已登录 + dict 坏数据存档）：
+  - 打开仓库标签无 JS 错误
+  - dict {测试物品:3, 治疗药水:{qty:2}} 被规范化 → 仓库显示 测试物品×3/治疗药水×2
+  - 背包区正常渲染物品（修复前此路径必抛 (inv||[]).map is not a function）
+- 数据库确认两条存档 campStorage 均为数组；验证产生的测试存档已清理
+
+【重要】服务器请勿改动（代码为前端静态文件）；用户端需强制刷新
+（Ctrl+Shift+R 或清缓存）加载新代码，否则旧缓存会把 dict 格式再次写回存档
+
+【涉及文件】
+- 骰娘/web/static/north-main.js
+- 数据库 dicebot.north_saves（user1 存档数据修复）

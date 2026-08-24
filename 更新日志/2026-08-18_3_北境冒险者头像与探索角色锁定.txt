@@ -1,0 +1,48 @@
+2026-08-18_3_北境冒险者头像与探索角色锁定
+════════════════════════════════════════════════════
+
+【需求】
+1. 北境冒险者头像（徽章）支持导入图片
+2. 探索过程中锁定角色切换，回到营地/昏迷倒下后才可切换
+
+【实现】
+一、冒险者头像（徽章）导入图片：
+  1. 后端（web/app.py 新增 POST /api/north/avatar）：
+     - multipart/form-data 字段 'avatar'，复用官网头像校验规则
+       （仅 JPG/PNG/GIF/WEBP/BMP，最大 2MB）
+     - 登录用户：north_u<user_id>.<ext> 命名，上传时自动删除同用户旧头像
+     - 未登录：north_temp.<ext> 单文件覆盖（仅当前会话生效，与北境存档行为一致）
+     - 文件保存至 web/static/avatars/，返回 {ok, url}
+  2. 前端：
+     - north-expedition.html：冒险者面板头部新增圆形头像元素
+       #advAvatar（默认 🐺 徽章）+ 隐藏文件输入 #advAvatarInput
+     - north-expedition.css：.adv-header-left / .adv-avatar 样式
+       （冰蓝描边圆形，hover 显示 📷 覆盖提示）
+     - north-main.js：
+       * 状态变量 _advAvatarUrl
+       * applyAdvAvatar()：有 URL 显示图片，无则恢复默认 🐺 徽章
+       * uploadAdvAvatar(file)：上传 → 成功更新头像 → 系统日志提示
+         → 触发 2 秒防抖自动存档
+       * 存档集成：collectNorthSaveData 写入 _advAvatar；
+         loadNorthFromServer 恢复；importSave（JSON 导入）恢复；
+         exportSave（JSON 导出）包含
+       * init 中绑定点击头像 → 选择图片 → 上传
+
+二、探索中锁定角色切换：
+  1. north-main.js 新增 canSwitchChar()：
+     探索深度 > 0（离开营地）且未昏迷倒下时禁止切换；
+     回到营地（深度归零）或昏迷倒下（isKnockedDown）后解锁
+  2. 两个角色选择器（探索界面 charSelect + 营地界面 campCharSelect）
+     的 change 事件加锁：锁定状态下切换被拒绝，回滚原选择值，
+     系统日志提示"🚫 探索中无法切换角色，请先返回营地"
+
+【涉及文件】
+- web/app.py（POST /api/north/avatar）
+- web/templates/north-expedition.html（头像元素）
+- web/static/north-expedition.css（头像样式）
+- web/static/north-main.js（头像上传/存档集成 + canSwitchChar 锁定）
+
+【验证】
+- node --check north-main.js 通过
+- python -m py_compile web/app.py 通过
+- 注意：后端 make_server 无热重载，需重启服务后生效

@@ -1,0 +1,47 @@
+2026-08-18_9_北境回响后台生命骰token缩放修复
+════════════════════════════════════════════════════
+
+【问题一】北境探索切换角色后事件回响不更新
+【根因】
+- renderDisplayLog 增量渲染只处理"push 追加"场景：
+  条件为 `forceFull || _displayRendered > displayLog.length` 才全量重绘
+- displayLog 满 MAX_DISPLAY（16条）后，新事件 push 再 shift 掉最旧一条，
+  条数不变（仍16），_displayRendered 也等于 16 → slice(16) 为空 →
+  直接 return，新事件永远不显示
+- 切换角色后连续游玩使日志快速积满，即触发此现象
+【修复】
+- north-main.js renderDisplayLog：条件改为 `_displayRendered >= displayLog.length`
+  即全量重绘（日志满员后每次全量重绘 16 条，性能无感），
+  确保 push+shift 场景下新事件立即可见
+
+【问题二】管理员后台角色管理所有角色生命骰都显示 11d8
+【根因】
+- admin/character_detail.html 详情显示为 `${c.hd_count || 1}${c.hit_dice || 'd8'}`
+  ——hd_count（默认1）与 hit_dice（默认"1d8"，本身已含数量前缀）
+  直接拼接 → "1"+"1d8"="11d8"，所有角色显示相同
+- 附带发现 core/character.py long_rest 中
+  `char.hd_count = int(char.hit_dice.split('d')[1])` 取的是骰面数（如8）
+  而非最大数量（如"3d8"的3），长休恢复生命骰数量错误
+【修复】
+- character_detail.html：详情显示改为 `${c.hit_dice || '1d8'}`
+  （hit_dice 本身即完整格式"1d8"/"3d10"）
+- character.py long_rest：split('d')[0] 取数量前缀，
+  长休后 hd_count 恢复为最大生命骰数量
+
+【优化】提高地图角色 token 放大最大值
+- map.js token 拖拽缩放上限 Math.min(200, ...) → Math.min(400, ...)
+  （大体积 boss/大型怪物 token 支持 400px）
+- 检查确认：token 网络序列化（tokenNetData）与远程应用（applyState）
+  均无额外尺寸限制，仅此一处
+
+【涉及文件】
+- web/static/north-main.js（renderDisplayLog 满员重绘）
+- web/templates/admin/character_detail.html（生命骰显示）
+- core/character.py（长休生命骰恢复）
+- web/static/map.js（token 缩放上限 400）+ web/templates/map.html（v=71）
+
+【验证】
+- node --check north-main.js / map.js 通过
+- python -m py_compile core/character.py 通过
+- 注意：character.py 为后端改动，需重启服务生效；
+  前端改动强刷页面即可

@@ -1,0 +1,18 @@
+{
+  "id": "example-hello",
+  "name": "示例Mod - Hello",
+  "version": "1.0.0",
+  "description": "最简单的Mod示例，添加一个自定义API端点",
+  "author": "骰娘开发组",
+  "dicebot_version": ">=1.0.0",
+  "dependencies": {},
+  "backend": {
+    "enabled": true,
+    "router": "backend.router:register",
+    "on_load": null,
+    "on_unload": null
+  },
+  "frontend": {
+    "enabled": false
+  }
+}

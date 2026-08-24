@@ -1,0 +1,18 @@
+{
+  "id": "dicebot-mod",
+  "name": "骰娘动态掷骰Mod (FastAPI)",
+  "version": "2.1.0",
+  "description": "骰娘 V2 增强版 — FastAPI 后端 + Vue 前端。提供 Mod 系统、规则引擎抽象、角色卡复制/可见性、0环戏法等增强功能。",
+  "author": "骰娘开发组",
+  "dicebot_version": ">=1.0.0",
+  "dependencies": {},
+  "backend": {
+    "enabled": true,
+    "router": "backend.router:register",
+    "on_load": null,
+    "on_unload": null
+  },
+  "frontend": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "name": "iling",
+    "text": "🎲 1d20+6 = [10]",
+    "time": "22:16:22",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248182.9411032
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d10+1 = [4]",
+    "time": "22:17:42",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248262.5285149
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+6 = [7]",
+    "time": "22:18:23",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248303.4213314
+  },
+  {
+    "name": "凌羽",
+    "text": "@厄内",
+    "time": "22:18:39",
+    "is_dm": false,
+    "color": "#9c27b0",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785248319.6167278
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 2d6+4 = [7]",
+    "time": "22:18:58",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248338.9990163
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 d20 adv = [16]",
+    "time": "22:22:24",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248544.5527933
+  }
+]

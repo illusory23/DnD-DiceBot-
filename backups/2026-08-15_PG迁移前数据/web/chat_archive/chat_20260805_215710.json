@@ -1,0 +1,38 @@
+[
+  {
+    "name": "厄内",
+    "text": "🎲 1d20 = [5]",
+    "time": "21:52:01",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246721.3847084
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20+5 = [16]",
+    "time": "21:52:03",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246723.330771
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d20-1 = [4]",
+    "time": "21:52:11",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246731.127566
+  }
+]

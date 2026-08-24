@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}数据备份{% endblock %}
+{% block page_title %}🗄️ 数据备份{% endblock %}
+
+{% block content %}
+<!-- 立即备份 -->
+<div class="card">
+    <div class="card-header">💾 立即备份</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+        一键备份数据库、聊天记录、统计、画布与日志到 <code>backups/</code> 目录。数据库使用在线备份方式，服务器运行中也可操作。
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-primary" id="btn-backup">📦 立即备份</button>
+        <span id="backup-result" style="font-size:13px;"></span>
+    </div>
+</div>
+
+<!-- 备份列表 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>备份列表</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="total-display"></span>
+            <button class="btn btn-sm btn-secondary" onclick="loadBackups()">🔄 刷新</button>
+        </span>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>备份名</th><th>创建时间</th><th>大小</th><th>文件数</th><th>来源</th><th>操作</th></tr>
+            </thead>
+            <tbody id="backups-tbody">
+                <tr><td colspan="6" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 日志清理 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">🧹 日志清理</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+        删除 <code>logs/</code> 目录下超过 N 天的轮转日志文件（如 <code>dicebot.log.2026-08-05</code>）。当天的日志不受影响。
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <input type="number" id="cleanup-days" value="30" min="1" max="365"
+               style="width:100px;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:13px;">
+        <span style="font-size:13px;color:var(--text-muted);">天前</span>
+        <button class="btn btn-danger" onclick="cleanupLogs()">🧹 清理轮转日志</button>
+        <span id="cleanup-result" style="font-size:13px;"></span>
+    </div>
+</div>
+
+<script>
+async function loadBackups() {
+    const tbody = document.getElementById('backups-tbody');
+    try {
+        const data = await Admin.get('/admin/api/backups');
+        document.getElementById('total-display').textContent = `共 ${data.backups.length} 个备份`;
+
+        if (!data.backups.length) {
+            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🗄️</div><div class="empty-text">暂无备份，点击上方「立即备份」创建</div></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.backups.map(b => `
+            <tr>
+                <td style="font-size:12px;">📁 ${Admin.escHtml(b.name)}</td>
+                <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(b.time)}</td>
+                <td style="font-size:12px;">${b.size_mb} MB</td>
+                <td style="font-size:12px;">${b.file_count}</td>
+                <td>${b.is_auto ? '<span class="badge badge-warning">后台备份</span>' : '<span class="badge badge-user">手动备份</span>'}</td>
+                <td>
+                    <a class="btn btn-sm btn-secondary" href="/admin/api/backups/${Admin.escHtml(b.name)}/download">下载</a>
+                    <button class="btn btn-sm btn-primary" onclick="restoreBackup('${Admin.escHtml(b.name)}')">恢复</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteBackup('${Admin.escHtml(b.name)}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function createBackup() {
+    const btn = document.getElementById('btn-backup');
+    const resultEl = document.getElementById('backup-result');
+    btn.disabled = true;
+    btn.textContent = '备份中...';
+    resultEl.textContent = '';
+    try {
+        const data = await Admin.post('/admin/api/backups');
+        const failedText = data.failed && data.failed.length
+            ? `<span style="color:var(--danger);"> 失败: ${Admin.escHtml(data.failed.join('; '))}</span>` : '';
+        resultEl.innerHTML = `<span style="color:var(--success);">✅ 备份完成「${Admin.escHtml(data.name)}」，共 ${data.created.length} 项</span>${failedText}`;
+        loadBackups();
+    } catch (e) {
+        resultEl.innerHTML = '<span style="color:var(--danger);">备份失败</span>';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📦 立即备份';
+    }
+}
+
+async function restoreBackup(name) {
+    const ok = await Admin.confirm('恢复备份', `确定要用备份「${name}」覆盖当前数据吗？\n\n⚠️ 恢复前会自动备份当前数据库到 backups/pre_restore_*，但正在运行的会话数据可能丢失！`);
+    if (!ok) return;
+    try {
+        const data = await Admin.post(`/admin/api/backups/${name}/restore`);
+        let msg = `✅ 恢复完成，共 ${data.restored.length} 项`;
+        if (data.safety_backup) msg += `（当前状态已存到 ${data.safety_backup}）`;
+        if (data.failed && data.failed.length) msg += `，失败: ${data.failed.join('; ')}`;
+        if (data.restart_required) msg += ' ⚠️ 请重启服务器，否则内存中的聊天/画布数据仍为旧状态！';
+        Admin.toast(msg, data.failed && data.failed.length ? 'error' : 'success', 8000);
+        loadBackups();
+    } catch (e) {}
+}
+
+async function deleteBackup(name) {
+    const ok = await Admin.confirm('删除备份', `确定要删除备份「${name}」吗？此操作不可恢复！`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/backups/${name}`);
+        Admin.toast(`已删除备份「${name}」`, 'success');
+        loadBackups();
+    } catch (e) {}
+}
+
+async function cleanupLogs() {
+    const days = parseInt(document.getElementById('cleanup-days').value) || 30;
+    const ok = await Admin.confirm('清理日志', `确定要删除 ${days} 天前的所有轮转日志吗？`);
+    if (!ok) return;
+    const resultEl = document.getElementById('cleanup-result');
+    resultEl.textContent = '';
+    try {
+        const data = await Admin.post(`/admin/api/logs/cleanup?days=${days}`);
+        resultEl.innerHTML = `<span style="color:var(--success);">✅ 已清理 ${data.cleaned.length} 个文件</span>`;
+    } catch (e) {
+        resultEl.innerHTML = '<span style="color:var(--danger);">清理失败</span>';
+    }
+}
+
+document.getElementById('btn-backup').addEventListener('click', createBackup);
+
+loadBackups();
+</script>
+{% endblock %}

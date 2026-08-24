@@ -1,0 +1,32 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "21:16:32",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935792.6604695,
+    "system": true
+  },
+  {
+    "name": "凌羽",
+    "text": "澡伱冯",
+    "time": "21:16:41",
+    "is_dm": false,
+    "color": "#9c27b0",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785935801.0634828
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "21:17:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935834.7348151,
+    "system": true
+  }
+]

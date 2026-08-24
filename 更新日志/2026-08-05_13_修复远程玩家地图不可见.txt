@@ -1,0 +1,55 @@
+修复远程玩家无法看到地图
+=========================
+日期：2026-08-05
+
+问题诊断：
+---------
+远程玩家（通过FRP连接）打开地图页面后看不到地图内容（图层/标记等）。
+
+根因分析（共3个问题叠加）：
+1. _localStateRestored 竞态：PL玩家从localStorage恢复后，该标志阻塞了WS init
+   和HTTP轮询，导致服务端地图数据无法到达客户端。该保护只对DM有意义
+   （DM本地数据可能比服务器新），但PL玩家应以服务器数据为准。
+
+2. WS onmessage 空catch块：init处理中任何异常都被静默丢弃，导致远程玩家
+   即使收到数据也看不到，且零错误提示。
+
+3. 图层图片文件丢失：shared_canvas.json引用的/maps/layers/1.png在磁盘上
+   不存在。DM能看到是因为IndexedDB有dataURL缓存，远程玩家无缓存只能
+   请求服务器文件→404。layerNetData只在url为空时才带dataURL→文件
+   丢失后永不自动恢复。
+
+修复内容（web/static/map.js + web/app.py）：
+---------
+1. WS init _localStateRestored 保护仅对DM生效
+   - 条件从 if(_localStateRestored) 改为 if(_localStateRestored && _isDM)
+   - DM被跳过时启动500ms轮询检查标志，清除后自动发sync对账
+
+2. HTTP轮询 _localStateRestored 保护同样仅对DM生效
+   - 条件从 if(_localStateRestored) 改为 if(_localStateRestored && _isDM)
+
+3. WS onmessage 空catch加上console.error日志
+   - 方便排查线上问题
+
+4. fog init 条件修复
+   - 原state.fog.length>0对字典格式永远为false
+   - 改为兼容 dict({layers,visible}) 和 array 两种格式
+
+5. layerNetData 始终携带dataURL（≤500KB）
+   - 服务端文件丢失时下次推送自动重建
+   - 未上传成功的图层不受大小限制
+
+6. DM端WS连接后自动重新上传图层图片（onWsOpen）
+   - 遍历本地mapLayers，有dataURL则POST到/api/shared-canvas/layer-image
+   - 每次WS连接（含重连）自动触发，无需手动操作
+
+7. 服务端serve_map图层文件自愈（app.py）
+   - /maps/layers/<file> 404时自动从共享画布状态的dataURL恢复
+   - 恢复后异步写回磁盘文件
+
+影响范围：
+---------
+- ✅ 远程PL玩家能看到完整地图（图层、标记、笔画）
+- ✅ DM本地修改不受影响（_localStateRestored保护仍生效）
+- ✅ 图层文件丢失后由DM端自动修复
+- ✅ WS处理异常现在有日志输出

@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战术地图 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --toolbar-h: 48px;
+            --toolbar-total: var(--toolbar-h);  /* JS 切换行数时更新 */
+        }
+        body { overflow: hidden; }
+
+        /* ━━ 工具栏（双行可折叠）━━ */
+        .map-toolbar {
+            position: fixed; top: 0; left: 0; right: 0;
+            background: var(--surface);
+            border-bottom: 2px solid var(--accent);
+            display: flex; flex-direction: column;
+            z-index: 200;
+        }
+        .toolbar-row {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0 0.75rem; height: var(--toolbar-h);
+            justify-content: space-between;
+        }
+        .toolbar-left, .toolbar-right {
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .toolbar-row-2 { border-top: 1px solid var(--border); }
+        .toolbar-row-2.collapsed { display: none; }
+        .map-toolbar .brand { font-weight: bold; color: var(--accent); margin-right: 0.25rem; text-decoration: none; }
+        .map-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 0.15rem; }
+        .nav-tab {
+            font-size: 0.8rem; padding: 0.3rem 0.55rem;
+        }
+        .toolbar-toggle {
+            padding: 0.2rem 0.45rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text-dim);
+            border-radius: 4px; cursor: pointer; font-size: 0.7rem;
+            transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+            margin-left: 0.15rem;
+        }
+        .toolbar-toggle:hover { background: var(--surface2); color: var(--text); }
+        .tool-btn {
+            padding: 0.3rem 0.6rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+            border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .tool-btn:hover { background: var(--surface2); }
+        .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .brush-color { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; padding: 0; }
+        .brush-size { width: 100px; }
+
+        /* ━━ 地图容器 ━━ */
+        .map-area {
+            position: fixed; top: var(--toolbar-total); left: 0; right: 0; bottom: 0;
+            background: #0a0a14; overflow: hidden;
+            transition: right 0.3s ease, bottom 0.2s;
+        }
+                .map-area.sidebar-open { right: 260px; }
+        .map-area.cursor-grab { cursor: grab; }
+        .map-area.cursor-grabbing { cursor: grabbing; }
+        .map-area.cursor-text { cursor: text; }
+        .map-area.cursor-brush { cursor: crosshair; }
+
+        .map-canvas-wrap {
+            position: absolute; transform-origin: 0 0;
+        }
+        canvas#map-canvas { display: block; }
+        canvas#draw-canvas {
+            position: absolute; top: 0; left: 0; display: block;
+            pointer-events: none;
+        }
+        canvas#fog-canvas {
+            position: absolute; top: 0; left: 0; display: block;
+            pointer-events: none;
+        }
+        .map-overlay {
+            position: absolute; top: 0; left: 0;
+            pointer-events: none;
+        }
+        .map-overlay > * { pointer-events: auto; }
+
+        /* ━━ 角色侧边栏 ━━ */
+        .char-sidebar {
+            position: fixed; top: var(--toolbar-h); right: -260px; bottom: 0;
+            width: 260px; background: var(--surface);
+            border-left: 2px solid var(--accent);
+            transition: right 0.3s ease; z-index: 150;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .char-sidebar.open { right: 0; }
+
+        /* 侧边栏标签页 */
+        .sidebar-tabs {
+            display: flex; align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding: 0;
+        }
+        .sidebar-tab {
+            flex: 1; padding: 0.6rem 0.4rem;
+            background: var(--bg); border: none; border-bottom: 2px solid transparent;
+            color: var(--text-dim); cursor: pointer; font-size: 0.8rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .sidebar-tab:hover { color: var(--text); background: var(--surface2); }
+        .sidebar-tab.active {
+            color: var(--gold); border-bottom-color: var(--accent);
+            background: var(--surface);
+        }
+        .sidebar-panel {
+            display: none; flex: 1; flex-direction: column; overflow: hidden;
+        }
+        .sidebar-panel.active { display: flex; }
+
+        .char-sidebar-header {
+            padding: 0.75rem 1rem; font-weight: bold; color: var(--gold);
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .char-sidebar-list {
+            flex: 1; overflow-y: auto; padding: 0.5rem;
+        }
+        .char-token-card {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.5rem; margin-bottom: 0.35rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; cursor: grab;
+            transition: all 0.15s; user-select: none;
+        }
+        .char-token-card:hover { border-color: var(--accent); background: var(--surface2); }
+        .char-token-card:active { cursor: grabbing; }
+        .char-token-card .token-thumb {
+            width: 40px; height: 40px; border-radius: 50%;
+            object-fit: cover; border: 2px solid var(--border);
+            background: var(--surface2);
+            flex-shrink: 0;
+        }
+        .char-token-card .token-thumb.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; color: var(--text-dim);
+        }
+        .char-token-card .token-info { flex: 1; min-width: 0; }
+        .char-token-card .token-name { font-weight: bold; font-size: 0.9rem; }
+        .char-token-card .token-meta { font-size: 0.75rem; color: var(--text-dim); }
+        .char-sidebar-hint {
+            padding: 0.5rem; font-size: 0.75rem; color: var(--text-dim);
+            text-align: center; border-top: 1px solid var(--border);
+        }
+
+        /* ━━ 地图上的角色标记 ━━ */
+        .map-token {
+            position: absolute; width: 48px; height: 48px;
+            border-radius: 50%; border: 3px solid var(--gold);
+            cursor: move; user-select: none;
+            background-size: cover; background-position: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .map-token.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(233,68,96,0.6); }
+        .map-token.multi-selected { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,188,212,0.5); }
+        .map-token.highlighted { border-color: var(--red); box-shadow: 0 0 14px rgba(244,67,54,0.7); }
+        @keyframes arrow-bounce {
+            0%, 100% { top: -22px; }
+            50% { top: -28px; }
+        }
+        .map-token .token-arrow {
+            position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid var(--red);
+            display: none; pointer-events: none; z-index: 10;
+        }
+        .map-token.highlighted .token-arrow {
+            display: block;
+            border-top-color: var(--red);
+            animation: arrow-bounce 1.2s ease-in-out infinite;
+        }
+        .map-token.selected .token-arrow {
+            display: block;
+            border-top-color: var(--accent);
+            animation: arrow-bounce 1.2s ease-in-out infinite;
+        }
+        .map-token .token-label {
+            position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            white-space: nowrap; font-size: 0.7rem; color: #fff;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8); margin-top: 2px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.55); padding: 1px 5px; border-radius: 3px;
+            line-height: 1.3;
+        }
+        .map-token .token-label .hp-mini { color: var(--red); font-size: 0.65rem; }
+
+        /* ━━ 左侧角色信息面板 ━━ */
+        .token-info-panel {
+            position: fixed; top: calc(var(--toolbar-total) + 0.5rem);
+            left: 0.5rem; width: 220px; max-height: calc(100vh - var(--toolbar-total) - 1rem);
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 8px; padding: 0.65rem; z-index: 180;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            display: none; overflow-y: auto; font-size: 0.78rem;
+        }
+        .token-info-panel.show { display: block; }
+        .token-info-panel .tip-header {
+            font-weight: bold; color: var(--accent); font-size: 0.9rem;
+            margin-bottom: 0.4rem; text-align: center;
+        }
+        .token-info-panel .tip-hp-bar {
+            height: 14px; background: var(--bg); border-radius: 7px;
+            overflow: hidden; margin-bottom: 0.4rem; position: relative;
+        }
+        .token-info-panel .tip-hp-fill {
+            height: 100%; background: linear-gradient(90deg, var(--red), var(--green));
+            border-radius: 7px; transition: width 0.3s;
+        }
+        .token-info-panel .tip-hp-text {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            font-size: 0.65rem; font-weight: bold; color: #fff;
+            line-height: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .token-info-panel .tip-abilities {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+            margin-bottom: 0.4rem;
+        }
+        .token-info-panel .tip-ab {
+            text-align: center; background: var(--bg); border-radius: 3px;
+            padding: 0.15rem 0; font-size: 0.65rem;
+        }
+        .token-info-panel .tip-ab .abn { color: var(--text-dim); font-size: 0.55rem; }
+        .token-info-panel .tip-ab .abs { font-weight: bold; color: var(--gold); font-size: 0.75rem; }
+        .token-info-panel .tip-ab .abm { color: var(--cyan); font-size: 0.6rem; }
+        .token-info-panel .tip-section {
+            margin-bottom: 0.3rem; border-top: 1px solid var(--border); padding-top: 0.3rem;
+        }
+        .token-info-panel .tip-section-title {
+            font-weight: bold; color: var(--gold); font-size: 0.7rem; margin-bottom: 0.15rem;
+        }
+        .token-info-panel .tip-item {
+            font-size: 0.65rem; color: var(--text-dim); line-height: 1.5;
+        }
+        .map-token .token-resize {
+            position: absolute; bottom: -8px; right: -8px;
+            width: 16px; height: 16px; background: var(--accent);
+            border-radius: 50%; cursor: nwse-resize; display: none;
+        }
+        .map-token.selected .token-resize { display: block; }
+        .map-token .token-rotate {
+            position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+            width: 14px; height: 14px; background: var(--gold);
+            border-radius: 50%; cursor: grab; display: none;
+            border: 2px solid var(--accent); z-index: 5;
+        }
+        .map-token.selected .token-rotate { display: block; }
+        .map-token .token-rotate:active { cursor: grabbing; }
+        .map-token .token-rotate-line {
+            position: absolute; top: -6px; left: 50%;
+            width: 2px; height: 10px; background: var(--gold);
+            transform: translateX(-50%); display: none;
+        }
+        .map-token.selected .token-rotate-line { display: block; }
+
+        /* ━━ 选择框 ━━ */
+        .selection-rect {
+            position: absolute;
+            border: 2px dashed var(--cyan);
+            background: rgba(0, 188, 212, 0.08);
+            pointer-events: none; z-index: 100;
+        }
+
+        /* ━━ 选择模式下拉菜单 ━━ */
+        .select-dropdown-wrap {
+            position: relative; display: inline-flex;
+        }
+        .select-dropdown-btn {
+            padding: 0.3rem 0.6rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+            border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+            transition: all 0.15s; white-space: nowrap;
+            display: flex; align-items: center; gap: 0.25rem;
+        }
+        .select-dropdown-btn:hover { background: var(--surface2); }
+        .select-dropdown-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .select-dropdown-btn .arrow { font-size: 0.6rem; margin-left: 0.15rem; }
+        .select-dropdown-menu {
+            display: none; position: absolute; top: 100%; left: 0;
+            margin-top: 2px; background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 4px; z-index: 300; min-width: 130px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden;
+        }
+        .select-dropdown-menu.show { display: block; }
+        .select-dropdown-menu .menu-item {
+            padding: 0.45rem 0.75rem; cursor: pointer; font-size: 0.82rem;
+            color: var(--text); transition: background 0.15s;
+            white-space: nowrap; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .select-dropdown-menu .menu-item:hover { background: var(--surface2); }
+        .select-dropdown-menu .menu-item.checked { color: var(--gold); }
+        .select-dropdown-menu .menu-item.checked::before { content: '✓ '; font-weight: bold; }
+
+        /* ━━ 浮动掷骰按钮 ━━ */
+        .dice-float-btn {
+            position: fixed; bottom: 1rem; right: 1rem;
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--accent); color: #fff; border: 2px solid var(--gold);
+            font-size: 1.4rem; cursor: pointer; z-index: 190;
+            box-shadow: 0 4px 16px rgba(233,68,96,0.4);
+            transition: transform 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .dice-float-btn:hover { transform: scale(1.1); }
+
+        /* ━━ 掷骰弹窗 ━━ */
+        .dice-popup {
+            display: none; position: fixed; bottom: 70px; right: 1rem;
+            width: 320px; max-height: 420px; background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 12px; z-index: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            flex-direction: column; overflow: hidden;
+        }
+        .dice-popup.show { display: flex; }
+        .dice-popup-header {
+            padding: 8px 12px; background: var(--accent); color: #fff;
+            font-weight: bold; font-size: 0.9rem; display: flex;
+            justify-content: space-between; align-items: center;
+            cursor: move; user-select: none; flex-shrink: 0;
+        }
+        .dice-popup-body { padding: 10px 12px; overflow-y: auto; flex: 1; }
+        .dicepop-result {
+            min-height: 28px; font-weight: bold; color: var(--cyan);
+            font-size: 1rem; text-align: center; padding: 6px;
+            background: var(--bg); border-radius: 6px;
+        }
+        .dice-popup .dice-quick { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+        .dice-popup .dice-quick button {
+            padding: 0.2rem 0.4rem; font-size: 0.72rem;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 3px; color: var(--text); cursor: pointer;
+        }
+        .dice-popup .dice-quick button:hover { background: var(--accent); color: #fff; }
+        .dice-popup .adv-toggle-mini { display: flex; gap: 0; }
+        .dice-popup .adv-toggle-mini button {
+            padding: 0.2rem 0.5rem; font-size: 0.75rem;
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; flex: 1;
+        }
+        .dice-popup .adv-toggle-mini button:first-child { border-radius: 3px 0 0 3px; }
+        .dice-popup .adv-toggle-mini button:last-child { border-radius: 0 3px 3px 0; }
+        .dice-popup .adv-toggle-mini button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ━━ 缩放指示器 ━━ */
+        .zoom-indicator {
+            position: fixed; bottom: 60px; right: 1rem;
+            background: rgba(0,0,0,0.7); color: var(--text-dim);
+            padding: 0.25rem 0.6rem; border-radius: 4px;
+            font-size: 0.8rem; pointer-events: none; z-index: 50;
+        }
+
+        /* ━━ 图层管理面板 ━━ */
+        .layer-panel {
+            position: fixed; top: var(--toolbar-total); left: 0.5rem; width: 200px;
+            max-height: 40vh; background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 8px; z-index: 190; display: none; flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-size: 0.75rem;
+        }
+        .layer-panel.show { display: flex; }
+        .layer-panel-header {
+            padding: 0.4rem 0.5rem; font-weight: bold; color: var(--gold);
+            border-bottom: 1px solid var(--border); display: flex;
+            justify-content: space-between; align-items: center; font-size: 0.8rem;
+        }
+        .layer-panel-list { flex: 1; overflow-y: auto; padding: 0.3rem; }
+        .layer-item {
+            display: flex; align-items: center; gap: 0.25rem; padding: 0.3rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer;
+        }
+        .layer-item:hover { border-color: var(--gold); }
+        .layer-item.active { border-color: var(--accent); background: var(--surface2); }
+        .layer-item .layer-name {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; font-size: 0.72rem; color: var(--text);
+        }
+        .layer-item .layer-name input {
+            width: 100%; padding: 0.1rem 0.2rem; background: var(--bg);
+            border: 1px solid var(--accent); border-radius: 2px;
+            color: var(--text); font-size: 0.72rem;
+        }
+        .layer-item .layer-btn {
+            background: var(--surface2); border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 0.6rem; padding: 0.15rem 0.25rem; border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .layer-item .layer-btn:hover { background: var(--accent); color: #fff; }
+        .layer-panel-footer { padding: 0.3rem; border-top: 1px solid var(--border); }
+        .layer-panel-footer button {
+            width: 100%; padding: 0.25rem; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); cursor: pointer; font-size: 0.75rem;
+        }
+        .layer-panel-footer button:hover { background: var(--accent); color: #fff; }
+
+        /* ━━ 存档下拉菜单 ━━ */
+        #save-dropdown-menu { min-width: 220px; }
+        #save-dropdown-menu .save-divider {
+            border-top: 1px solid var(--border); margin: 0.2rem 0;
+        }
+        #save-dropdown-menu .save-section-label {
+            padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--text-dim);
+            pointer-events: none;
+        }
+        #save-list-items .save-entry {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.6rem; cursor: default; font-size: 0.78rem;
+            color: var(--text); transition: background 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        #save-list-items .save-entry:hover { background: var(--surface2); }
+        #save-list-items .save-entry.active { background: rgba(233,68,96,0.12); }
+        #save-list-items .save-entry .save-name {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        #save-list-items .save-entry .save-name .active-dot {
+            color: var(--green); font-size: 0.6rem; margin-right: 0.2rem;
+        }
+        #save-list-items .save-entry .save-action {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; font-size: 0.6rem;
+            padding: 0.1rem 0.3rem; border-radius: 3px; flex-shrink: 0;
+        }
+        #save-list-items .save-entry .save-action:hover { background: var(--accent); color: #fff; }
+        #save-list-items .save-entry .save-action.delete:hover { background: var(--red); }
+        #save-list-items .save-entry .save-action.switch { color: var(--gold); font-size: 0.65rem; }
+        #save-list-items .save-entry .save-action.switch:hover { background: var(--gold); color: #000; }
+        #save-list-items .save-entry .save-action.save-overwrite { color: var(--cyan); }
+        #save-list-items .save-entry .save-action.save-overwrite:hover { background: var(--cyan); color: #000; }
+        #save-btn.has-active { border-color: var(--green); }
+        #save-btn .save-name-badge {
+            max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: inline-block; vertical-align: middle; color: var(--green);
+        }
+
+        /* ━━ 聊天面板 ━━ */
+        .chat-panel {
+            position: fixed; left: 0; top: var(--toolbar-total); bottom: 0;
+            width: 280px; background: var(--surface); border-right: 2px solid var(--accent);
+            z-index: 199; display: flex; flex-direction: column;
+            transform: translateX(-280px); transition: transform 0.3s ease;
+        }
+        .chat-panel.open { transform: translateX(0); }
+        .chat-toggle {
+            position: fixed; left: 0; top: calc(var(--toolbar-total) + 10px);
+            width: 32px; height: 90px; background: var(--accent); border: none;
+            border-radius: 0 10px 10px 0; color: #fff; cursor: pointer; z-index: 200;
+            font-size: 16px; font-weight: bold; line-height: 1.3;
+            transition: left 0.3s ease; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            writing-mode: horizontal-tb; letter-spacing: 0;
+            padding: 6px 4px; gap: 2px;
+        }
+        .chat-panel.open ~ .chat-toggle,
+        .chat-toggle.shifted { left: 280px; }
+        .chat-header {
+            padding: 8px 10px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+        }
+        .chat-header b { color: var(--gold); font-size: 0.85rem; flex: 1; }
+        .chat-header button {
+            background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem;
+        }
+        .chat-user-row {
+            padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px;
+        }
+        .chat-user-row {
+            padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px; flex-wrap: wrap;
+        }
+        .chat-user-row input {
+            flex: 1; min-width: 80px; padding: 5px 8px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.8rem;
+        }
+        .chat-user-row input:focus { border-color: var(--accent); outline: none; }
+        .chat-user-row .color-picker-wrap {
+            position: relative; display: flex; align-items: center;
+        }
+        .chat-user-row .color-btn {
+            width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+            cursor: pointer; padding: 0; flex-shrink: 0; transition: all 0.15s;
+        }
+        .chat-user-row .color-btn:hover { border-color: #fff; transform: scale(1.15); }
+        .chat-user-row .color-palette {
+            display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
+            background: var(--surface); border: 2px solid var(--accent); border-radius: 8px;
+            padding: 6px; z-index: 500; gap: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .chat-user-row .color-palette.show { display: flex; flex-wrap: wrap; width: 140px; }
+        .chat-user-row .color-swatch {
+            width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s;
+        }
+        .chat-user-row .color-swatch:hover { border-color: #fff; transform: scale(1.2); }
+        .chat-user-row .color-swatch.selected { border-color: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+        .chat-user-row button {
+            padding: 5px 10px; background: var(--accent); border: none; border-radius: 4px;
+            color: #fff; cursor: pointer; font-size: 0.75rem; white-space: nowrap;
+        }
+        .chat-msgs {
+            flex: 1; overflow-y: auto; padding: 6px 8px;
+            display: flex; flex-direction: column; gap: 3px;
+        }
+        .chat-msg {
+            font-size: 0.78rem; line-height: 1.4; padding: 3px 6px;
+            background: var(--bg); border-radius: 6px; word-break: break-word;
+        }
+        .chat-msg .cm-time { color: var(--text-dim); font-size: 0.65rem; margin-right: 4px; }
+        .chat-msg .cm-name { font-weight: bold; }
+        .chat-msg .cm-text { color: var(--text); }
+        .chat-msg.system { text-align: center; color: var(--text-dim); font-size: 0.7rem; background: transparent; font-style: italic; }
+        .chat-input-row {
+            padding: 6px 8px; border-top: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px;
+        }
+        .chat-input-row input {
+            flex: 1; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.8rem;
+        }
+        .chat-input-row input:focus { border-color: var(--accent); outline: none; }
+        .chat-input-row button {
+            padding: 6px 12px; background: var(--accent); border: none; border-radius: 4px;
+            color: #fff; cursor: pointer; font-size: 0.8rem;
+        }
+        /* 聊天面板打开时：右推其他面板，不推地图 */
+        .chat-panel.open ~ .chat-toggle,
+        .chat-toggle.shifted { left: 280px; }
+
+        /* ━━ @提及通知弹窗 ━━ */
+        .mention-toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #1a1a2e, #2a1a3e);
+            border: 2px solid var(--gold); border-radius: 12px;
+            padding: 14px 20px; z-index: 1000;
+            box-shadow: 0 8px 32px rgba(255,215,0,0.3);
+            display: none; align-items: center; gap: 12px;
+            animation: mentionSlideIn 0.4s ease;
+            cursor: pointer; max-width: 500px;
+        }
+        .mention-toast.show { display: flex; }
+        @keyframes mentionSlideIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .mention-toast .mention-icon { font-size: 2rem; animation: mentionPulse 0.6s infinite alternate; }
+        @keyframes mentionPulse { from { transform: scale(1); } to { transform: scale(1.2); } }
+        .mention-toast .mention-body { flex: 1; }
+        .mention-toast .mention-title { color: var(--gold); font-weight: bold; font-size: 0.95rem; }
+        .mention-toast .mention-detail { color: var(--text-dim); font-size: 0.8rem; margin-top: 2px; }
+        .mention-toast .mention-close {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 1.2rem; padding: 4px;
+        }
+        .mention-toast .mention-close:hover { color: var(--red); }
+
+        /* @提及高亮 */
+        .cm-text .mention { color: var(--gold); font-weight: bold; background: rgba(255,215,0,0.1); padding: 0 2px; border-radius: 2px; }
+
+        /* ━━ 资源库操作按钮 ━━ */
+        .res-action-btn {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; font-size: 0.65rem;
+            padding: 0.2rem 0.4rem; border-radius: 3px; flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .res-action-btn:hover { background: var(--accent); color: #fff; }
+        .res-action-btn.delete:hover { background: var(--red); }
+        .res-action-btn.load-map { color: var(--cyan); }
+        .res-action-btn.load-map:hover { background: var(--cyan); color: #000; }
+    </style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="DM" id="join-role-dm"> 👑 DM</label><label style="color:var(--text);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="PL" id="join-role-pl" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <!-- 工具栏（双行可折叠，左右分区） -->
+    <div class="map-toolbar">
+        <!-- 第一行：绘图和功能工具（始终可见） -->
+        <div class="toolbar-row toolbar-row-1">
+            <div class="toolbar-left">
+                <a href="/" class="brand">🎲 骰娘</a>
+                <span class="sep"></span>
+                <div class="select-dropdown-wrap" id="select-dropdown-wrap">
+                    <button class="select-dropdown-btn active" id="select-btn" onclick="toggleSelectDropdown()" title="选择工具">
+                        🖱 选择<span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="select-dropdown-menu">
+                        <div class="menu-item checked" data-mode="single" onclick="setSelectMode('single')">🖱 单体选择</div>
+                        <div class="menu-item" data-mode="box" onclick="setSelectMode('box')">⬜ 框选</div>
+                    </div>
+                </div>
+                <button class="tool-btn" data-tool="brush" onclick="setTool('brush')" title="画笔 (B)">✏️ 画笔</button>
+                <button class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" title="橡皮 (E)">🧹 橡皮</button>
+                <button class="tool-btn" data-tool="fill" onclick="setTool('fill')" title="填充 (F)">🪣 填充</button>
+                <div class="select-dropdown-wrap" id="fog-dropdown-wrap">
+                    <button class="select-dropdown-btn" id="fog-btn" onclick="toggleFogDropdown()" title="战争迷雾">
+                        🌫 迷雾<span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="fog-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" data-mode="draw" onclick="setFogMode('draw')">✏️ 绘制迷雾</div>
+                        <div class="menu-item" data-mode="show" onclick="setFogMode('show')">👁 启用迷雾</div>
+                        <div class="menu-item" data-mode="hide" onclick="setFogMode('hide')">🚫 隐藏迷雾</div>
+                        <div class="menu-item" data-mode="delete" onclick="setFogMode('delete')">🗑 删除迷雾</div>
+                    </div>
+                </div>
+                <button class="tool-btn" data-tool="text" onclick="setTool('text')" title="文字 (T)">🔤 文字</button>
+                <span class="sep"></span>
+                <input type="color" class="brush-color" id="brush-color" value="#ff0000" title="画笔颜色" onchange="updateBrush()">
+                <input type="range" class="brush-size" id="brush-size" min="1" max="1000" value="3" title="画笔大小" onchange="updateBrush()">
+                <span class="sep"></span>
+                <button class="tool-btn" onclick="importImage()">🖼 导入</button>
+                <button class="tool-btn" onclick="showServerMaps()">📂 地图</button>
+                <button class="tool-btn" onclick="showResourceLibrary()" title="服务器资源库">📚 资源库</button>
+                <div class="select-dropdown-wrap" id="save-dropdown-wrap">
+                    <button class="select-dropdown-btn" id="save-btn" onclick="toggleSaveDropdown()" title="存档管理">
+                        💾<span class="save-name-badge" id="save-name-badge">存档</span><span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="save-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" onclick="saveMapAs()">➕ 保存当前为...</div>
+                        <div class="save-divider"></div>
+                        <div class="save-section-label">📂 已保存的场景</div>
+                        <div id="save-list-items" style="max-height:260px;overflow-y:auto;">
+                            <div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">（暂无存档）</div>
+                        </div>
+                    </div>
+                </div>
+                <button class="tool-btn" id="layer-panel-btn" onclick="toggleLayerPanel()">📐 图层</button>
+            </div>
+            <div class="toolbar-right">
+                <button class="tool-btn" onclick="zoomFit()">📐 适应</button>
+                <button class="tool-btn" onclick="resetView()">🏠 重置</button>
+                <span id="identity-badge" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:0.75rem;color:var(--text);white-space:nowrap;margin:0 4px;">
+                    <span id="identity-dot" style="width:8px;height:8px;border-radius:50%;background:#888;flex-shrink:0;"></span>
+                    <span id="identity-name" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;">未登录</span>
+                    <span id="identity-role" style="font-size:0.65rem;color:var(--text-dim);">—</span>
+                </span>
+                <button class="tool-btn" id="lock-btn" onclick="toggleMapLock()" title="锁定地图（禁止平移/缩放）">🔓</button>
+                <button class="tool-btn" id="push-btn" onclick="window._pushMapState&&window._pushMapState()" title="推送当前画布到共享画布（DM备用）" style="display:none;">📤 推送</button>
+                <button class="tool-btn" id="sync-btn" onclick="if(!window._syncMapState){this.textContent='⏳ 加载中...';this.disabled=true;setTimeout(function(){var b=document.getElementById('sync-btn');if(b){b.textContent='🔄 同步';b.disabled=false;}},3000);return;}window._syncMapState()" title="从共享画布拉取最新状态（PL备用）">🔄 同步</button>
+                <button class="tool-btn" onclick="zoomIn()">🔍+</button>
+                <button class="tool-btn" onclick="zoomOut()">🔍-</button>
+                <span class="sep"></span>
+                <button class="tool-btn" id="char-panel-btn" onclick="toggleCharPanel()">👤 角色</button>
+                <div class="select-dropdown-wrap" id="clear-dropdown-wrap">
+                    <button class="tool-btn" onclick="toggleClearDropdown()" title="清除">🗑 清除<span style="font-size:0.6rem;margin-left:2px;">▾</span></button>
+                    <div class="select-dropdown-menu" id="clear-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" onclick="clearDrawings()">🗑 清除标注</div>
+                        <div class="menu-item" onclick="clearAll()" style="color:var(--red);">💣 全部清除</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 第二行：导航链接（可折叠） -->
+        <div class="toolbar-row toolbar-row-2 collapsed" id="toolbar-row-2">
+            <div class="toolbar-left">
+                <a href="/" class="tool-btn nav-tab" style="text-decoration:none;">🎲 掷骰</a>
+                <a href="/character" class="tool-btn nav-tab" style="text-decoration:none;">👤 角色卡</a>
+                <a href="/combat" class="tool-btn nav-tab" style="text-decoration:none;">⚔️ 战斗</a>
+                <a href="/spells" class="tool-btn nav-tab" style="text-decoration:none;">📖 法术</a>
+                <a href="/events" class="tool-btn nav-tab" style="text-decoration:none;">🗺️ 事件</a>
+                <a href="/reference" class="tool-btn nav-tab" style="text-decoration:none;">📚 参考</a>
+                <a href="/chat" class="tool-btn nav-tab" style="text-decoration:none;">💬 聊天室</a>
+            </div>
+            <div class="toolbar-right">
+                <button class="toolbar-toggle" id="toolbar-toggle-btn" onclick="toggleToolbarRow2()" title="折叠工具栏">▲</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- @提及通知弹窗 -->
+    <div class="mention-toast" id="mention-toast" onclick="dismissMention()">
+        <span class="mention-icon">🔔</span>
+        <div class="mention-body">
+            <div class="mention-title" id="mention-title">呼叫</div>
+            <div class="mention-detail" id="mention-detail"></div>
+        </div>
+        <button class="mention-close" onclick="event.stopPropagation();dismissMention();">✕</button>
+    </div>
+
+    <!-- 聊天面板 -->
+    <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+            <b>💬 聊天</b>
+            <span id="chat-online-count" style="font-size:0.7rem;color:var(--green);"></span>
+            <button onclick="toggleChat()" title="折叠聊天面板">◀</button>
+        </div>
+        <div class="chat-user-row">
+            <input type="text" id="chat-username" placeholder="输入你的ID" maxlength="20" enterkeyhint="done">
+            <div class="color-picker-wrap">
+                <button class="color-btn" id="chat-color-btn" style="background:#00bcd4;" onclick="toggleColorPalette()" title="选择ID颜色"></button>
+                <div class="color-palette" id="color-palette">
+                    <!-- JS 动态生成色块 -->
+                </div>
+            </div>
+            <button onclick="setChatUser()">加入</button>
+        </div>
+        <!-- 在线用户列表 -->
+        <div id="chat-online-users" style="padding:4px 10px;border-bottom:1px solid var(--border);font-size:0.7rem;color:var(--text-dim);display:flex;gap:6px;flex-wrap:wrap;min-height:22px;flex-shrink:0;">
+            <span>—</span>
+        </div>
+        <div class="chat-msgs" id="chat-msgs">
+            <div class="chat-msg system">输入ID后即可参与聊天</div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="输入消息..." disabled enterkeyhint="send">
+            <button onclick="sendChatMsg()" id="chat-send-btn" disabled>发送</button>
+        </div>
+    </div>
+    <button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" title="展开聊天">💬<br>聊<br>天</button>
+
+    <!-- 地图区域 -->
+    <div class="map-area cursor-grab" id="map-area">
+        <!-- 左侧角色信息面板 -->
+        <div class="token-info-panel" id="token-info-panel">
+            <div class="layer-panel-header" id="tip-header" style="cursor:move;user-select:none;">
+                📋 角色信息
+                <button onclick="hideTokenInfoPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1rem;">✕</button>
+            </div>
+            <div id="tip-body" style="padding:0.5rem;overflow-y:auto;max-height:calc(100vh - 200px);"></div>
+        </div>
+
+        <!-- 图层管理面板 -->
+        <div class="layer-panel" id="layer-panel">
+            <div class="layer-panel-header" id="layer-panel-header-drag" style="cursor:move;user-select:none;">
+                📐 图层管理
+                <button onclick="toggleLayerPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;">✕</button>
+            </div>
+            <div class="layer-panel-list" id="layer-list"></div>
+            <div class="layer-panel-footer">
+                <button id="move-layer-btn" onclick="toggleMoveLayer()" style="margin-bottom:0.2rem;">📌 移动当前图层</button>
+                <button onclick="addNewLayer()">➕ 导入地图图层</button>
+            </div>
+        </div>
+        <div class="map-canvas-wrap" id="canvas-wrap">
+            <canvas id="map-canvas"></canvas>
+            <canvas id="draw-canvas"></canvas>
+            <canvas id="fog-canvas"></canvas>
+            <div class="map-overlay" id="map-overlay"></div>
+        </div>
+    </div>
+
+    <!-- 右侧多功能侧边栏 -->
+    <div class="char-sidebar" id="char-sidebar">
+        <!-- 标签页切换 -->
+        <div class="sidebar-tabs">
+            <button class="sidebar-tab active" data-tab="chars" onclick="switchSidebarTab('chars')">👤 角色</button>
+            <button class="sidebar-tab" data-tab="combat" onclick="switchSidebarTab('combat')">⚔️ 战斗</button>
+            <button onclick="toggleCharPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;padding:0.35rem 0.5rem;">✕</button>
+        </div>
+
+        <!-- 角色面板 -->
+        <div class="sidebar-panel active" id="sidebar-panel-chars">
+            <div class="char-sidebar-list" id="char-token-list">
+                <div style="color:var(--text-dim);text-align:center;padding:1rem;">加载中...</div>
+            </div>
+            <div class="char-sidebar-hint">🖱 拖拽角色到地图上 | 滚轮调整大小</div>
+        </div>
+
+        <!-- 战斗面板 -->
+        <div class="sidebar-panel" id="sidebar-panel-combat">
+            <div style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;overflow-y:auto;flex:1;">
+                <!-- 添加参战者 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;margin-bottom:0.25rem;">➕ 添加参战者</div>
+                <select id="map-combat-char-select" onchange="onMapCombatCharSelect()"
+                        class="pl-allowed"
+                        style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <option value="">— 选择导入的角色 —</option>
+                </select>
+                <input type="text" id="map-combatant-name" placeholder="名称" class="pl-allowed"
+                       style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                              border-radius:4px;color:var(--text);font-size:0.82rem;">
+                <div style="display:flex;gap:0.35rem;" class="pl-allowed">
+                    <input type="number" id="map-combatant-ac" placeholder="AC"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;" value="10">
+                </div>
+                <div style="display:flex;gap:0.35rem;" class="pl-allowed">
+                    <input type="number" id="map-combatant-hp" placeholder="HP"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <input type="number" id="map-combatant-hp-max" placeholder="最大HP"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;">
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary btn-small pl-allowed" onclick="mapAddCombatant()" style="flex:1;">➕ 加入战斗</button>
+                </div>
+
+                <!-- 分隔线 -->
+                <div style="border-top:1px solid var(--border);margin:0.25rem 0;"></div>
+
+                <!-- 先攻列表 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;display:flex;align-items:center;gap:0.5rem;">
+                    ⚔️ 战斗
+                    <span id="map-round-info" style="color:var(--gold);font-size:0.8rem;"></span>
+                    <button class="btn btn-success btn-small" onclick="mapStartCombat()" style="font-size:0.65rem;padding:0.15rem 0.4rem;">▶ 开始</button>
+                </div>
+                <div id="map-initiative-list" style="font-size:0.8rem;color:var(--text-dim);text-align:center;padding:0.5rem;max-height:200px;overflow-y:auto;">
+                    添加参与者后点击"开始"
+                </div>
+                <div style="display:flex;gap:0.25rem;flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-small" onclick="mapPrevRound()" style="flex:1;font-size:0.7rem;" title="上一回合">⏮ 上回合</button>
+                    <button class="btn btn-primary btn-small" onclick="mapPrevCombatant()" style="flex:1;font-size:0.7rem;" title="返回上一位">◀ 上一位</button>
+                    <button class="btn btn-primary btn-small" onclick="mapNextCombatant()" style="flex:1;font-size:0.7rem;" title="下一位角色">下一位 ▶</button>
+                    <button class="btn btn-primary btn-small" onclick="mapNextRound()" style="flex:1;font-size:0.7rem;" title="下一回合">⏭ 下回合</button>
+                    <button class="btn btn-danger btn-small" onclick="mapClearCombat()" style="font-size:0.7rem;">🗑 清空</button>
+                </div>
+
+                <!-- 分隔线 -->
+                <div style="border-top:1px solid var(--border);margin:0.25rem 0;"></div>
+
+                <!-- 伤害/治疗 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;">💥 伤害/治疗</div>
+                <select id="map-dmg-target"
+                        style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <option value="">— 选择目标 —</option>
+                </select>
+                <div style="display:flex;gap:0.35rem;">
+                    <input type="number" id="map-dmg-amount" placeholder="数值"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;" min="0">
+                    <button class="btn btn-danger btn-small" onclick="mapApplyDamage()">💥</button>
+                    <button class="btn btn-success btn-small" onclick="mapApplyHeal()">💚</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 浮动掷骰按钮 -->
+    <button class="dice-float-btn" id="dice-float-btn" onclick="toggleDicePopup()" title="快速掷骰">🎲</button>
+
+    <!-- 掷骰弹窗 -->
+    <div class="dice-popup" id="dice-popup">
+        <div class="dice-popup-header" id="dice-popup-drag">
+            🎲 快速掷骰
+            <button onclick="toggleDicePopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="dice-popup-body">
+            <select id="dicepop-char" onchange="dicePopupSetChar()"
+                    style="width:100%;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--gold);font-size:0.8rem;margin-bottom:8px;">
+                <option value="">⚡ 选择角色</option>
+            </select>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <input type="text" id="dicepop-expr" placeholder="如 3d6 / d20+5"
+                       style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+                       onkeydown="if(event.key==='Enter') dicePopupRoll()">
+                <button onclick="dicePopupRoll()" style="padding:0.35rem 0.75rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.85rem;">投掷</button>
+            </div>
+            <div class="adv-toggle-mini" id="dicepop-adv" style="margin-bottom:6px;">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:0.75rem;color:var(--text-dim);cursor:pointer;">
+                <input type="checkbox" id="dicepop-hidden"> 🌫 暗骰（仅DM可见）
+            </label>
+            <div class="dice-quick" style="margin-bottom:6px;">
+                <button onclick="dicePopupQuick('d20')">d20</button>
+                <button onclick="dicePopupQuick('d20 优势')">优势</button>
+                <button onclick="dicePopupQuick('d20 劣势')">劣势</button>
+                <button onclick="dicePopupQuick('d6')">d6</button>
+                <button onclick="dicePopupQuick('d8')">d8</button>
+                <button onclick="dicePopupQuick('3d6')">3d6</button>
+                <button onclick="dicePopupQuick('4d6k3')">4d6k3</button>
+                <button onclick="dicePopupQuick('2d6+3')">2d6+3</button>
+                <button onclick="dicePopupQuickCheck('察觉')">察觉</button>
+                <button onclick="dicePopupQuickCheck('隐匿')">隐匿</button>
+            </div>
+            <div class="dicepop-result" id="dicepop-result"></div>
+        </div>
+    </div>
+
+    <div class="zoom-indicator" id="zoom-label">100%</div>
+
+    <!-- 服务器地图选择弹窗 -->
+    <div id="server-maps-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:12px;padding:20px;max-width:420px;width:90%;max-height:70vh;display:flex;flex-direction:column;border:2px solid var(--accent);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="color:var(--gold);font-size:1.1rem;">📂 服务器地图</b>
+          <button onclick="closeServerMaps()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;">✕</button>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.75rem;margin-bottom:8px;">图片放入 骰娘/maps/ 目录即可在此选择</div>
+        <div id="server-maps-list" style="flex:1;overflow-y:auto;max-height:350px;">
+          <div style="color:var(--text-dim);text-align:center;padding:20px;">加载中...</div>
+        </div>
+        <div style="margin-top:8px;color:var(--text-dim);font-size:0.7rem;">💡 点击地图即可加载到当前场景</div>
+      </div>
+    </div>
+
+    <!-- 资源库弹窗 -->
+    <div id="resource-library-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:12px;padding:20px;max-width:600px;width:90%;max-height:75vh;display:flex;flex-direction:column;border:2px solid var(--accent);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="color:var(--gold);font-size:1.1rem;">📚 服务器资源库</b>
+          <button onclick="closeResourceLibrary()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="resource-cat-filter" onchange="fetchResourceLibrary()"
+                  style="padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.82rem;">
+            <option value="">全部类型</option>
+            <option value="image">🖼 图片</option>
+            <option value="pdf">📄 PDF</option>
+            <option value="text">📝 文本</option>
+            <option value="doc">📋 文档</option>
+            <option value="sheet">📊 表格</option>
+            <option value="audio">🎵 音频</option>
+            <option value="other">📦 其他</option>
+          </select>
+          <button onclick="uploadResource()" style="padding:0.35rem 0.75rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.82rem;white-space:nowrap;">📤 上传文件</button>
+          <button onclick="showSaveUploadPanel()" style="padding:0.35rem 0.75rem;background:var(--gold);border:none;border-radius:4px;color:#000;cursor:pointer;font-size:0.82rem;white-space:nowrap;font-weight:bold;">💾 上传存档</button>
+          <input type="file" id="resource-file-input" style="display:none" onchange="handleResourceUpload(event)" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.json">
+        </div>
+        <div id="save-upload-panel" style="display:none;margin-bottom:8px;padding:8px;background:var(--bg);border:1px solid var(--gold);border-radius:8px;max-height:200px;overflow-y:auto;">
+          <div style="font-size:0.75rem;color:var(--gold);margin-bottom:4px;font-weight:bold;">选择要上传的存档（文件名为 存档名_用户名.json）</div>
+          <div id="save-upload-list" style="font-size:0.78rem;color:var(--text-dim);">加载中...</div>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.75rem;margin-bottom:8px;">上传或使用服务器资源库中的文件。支持图片、PDF、文档、表格等格式。</div>
+        <div id="resource-library-list" style="flex:1;overflow-y:auto;max-height:400px;">
+          <div style="color:var(--text-dim);text-align:center;padding:20px;">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
+
+    <script src="/static/map.js?v=7"></script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},3000);var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');var _cu=document.getElementById('chat-username');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;if(_cu)_cu.value=_d.name;window._chatUser=_d.name;return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharTokens==='function')loadCharTokens();if(typeof loadMapCombatCharSelect==='function')loadMapCombatCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});window._isDM=d.is_dm;window._roleLocked=true;if(window.applyRoleRestrictions)window.applyRoleRestrictions();else setTimeout(function(){if(window.applyRoleRestrictions)window.applyRoleRestrictions();},1000);try{if(d.is_dm){var pb=document.getElementById('push-btn');var sb=document.getElementById('sync-btn');if(pb)pb.style.display='';if(sb)sb.style.display='none';var fw=document.getElementById('fog-dropdown-wrap');if(fw)fw.style.display='';var cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _i=0;_i<cbt.length;_i++)cbt[_i].style.display='';}else{var _pb=document.getElementById('push-btn');var _sb=document.getElementById('sync-btn');if(_pb)_pb.style.display='none';if(_sb)_sb.style.display='';var _fw=document.getElementById('fog-dropdown-wrap');if(_fw)_fw.style.display='none';var _cbt=document.querySelectorAll('[onclick*=\"clearDrawings\"],[onclick*=\"clearAll\"]');for(var _j=0;_j<_cbt.length;_j++)_cbt[_j].style.display='none';}}catch(ex){}try{var ci=document.getElementById('chat-input');var cs=document.getElementById('chat-send-btn');var cu=document.getElementById('chat-username');if(ci)ci.disabled=false;if(cs)cs.disabled=false;if(cu)cu.value=n;}catch(ex){}}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>

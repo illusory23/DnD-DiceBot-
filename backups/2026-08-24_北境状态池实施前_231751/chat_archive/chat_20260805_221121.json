@@ -1,0 +1,26 @@
+[
+  {
+    "name": "凌羽",
+    "text": "🎲 1d12 = [6]",
+    "time": "22:25:19",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248719.1058075
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 d20 adv = [15]",
+    "time": "22:27:24",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248844.1151147
+  }
+]

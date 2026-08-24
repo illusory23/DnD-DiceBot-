@@ -1,0 +1,49 @@
+【2026-08-20_6】好友私聊（含图片）+ 好友资料查看（仅公开信息）
+
+修改文件：
+- core/models.py（新增 FriendMessage 私聊消息表）
+- web/app.py（私聊/图片上传/未读数/好友资料 API）
+- web/templates/portal/user.html（好友行按钮、私聊弹窗、资料弹窗）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 好友私聊（文本 + 图片）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 好友列表每行新增「💬 私聊」按钮（好友发来未读消息时名字旁
+  显示红色数字徽章）；
+- 私聊弹窗：消息区 + 输入框（Enter 发送）+ 📷 图片按钮 +
+  发送按钮；3 秒轮询增量拉取（since_id），打开时自动将对方
+  消息标记已读；消息气泡区分左右（自己右侧 accent 色）；
+- 图片：先上传（POST .../image，复用官网头像校验规则 2MB /
+  JPG/PNG/GIF/WEBP/BMP），再以 image_url 发送；图片存
+  web/static/chat-images/fm_<uid>_<时间戳>.<ext>，点击放大；
+- 数据表 friend_messages（sender_id / receiver_id / content /
+  image_url / read / created_at），由 db.create_all 自动建表；
+- 仅好友之间可发/可读（403 拦截），image_url 仅允许本站
+  /static/ 路径（防外部链接注入）。
+
+API（均需登录）：
+- GET  /api/friends/chat/<friend_id>?since_id=   拉取记录并标记已读
+- POST /api/friends/chat/<friend_id>             {content?, image_url?}
+- POST /api/friends/chat/<friend_id>/image       multipart 'image'
+- GET  /api/friends/chat/unread-count            未读总数
+- GET  /api/friends 返回的每个好友附 unread 字段（红点）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 好友资料查看（仅公开信息）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 好友列表每行新增「👤 资料」按钮，弹窗展示好友资料；
+- 可见信息（仅这些）：头像、用户 ID、用户名、上次登录时间、
+  个人简介、🍺 酒馆帖子（标题+日期，可跳详情页）、
+  🔧 工坊投稿（可跳详情页）、⭐ 收藏（含标题/作者，可跳详情）；
+- 私密信息（邮箱、手机号、登录 IP、密码等）一律不返回；
+- 仅好友（或本人）可查看：GET /api/users/<id>/profile，
+  非好友返回 403「仅好友之间可以查看信息」；
+- 收藏数据与官网"我的收藏"同源读取（Favorite 表 + 帖子/工坊
+  标题补全），保证列表不为空。
+
+验证：
+- python -m py_compile 通过；node --check（提取 user.html 内联
+  JS）通过；
+- 端到端测试（生产库好友对）：发送/拉取/自动已读/未读数全部
+  正确；非好友发送与查看均 403；资料返回字段严格为公开 8 项
+  无 email/phone/last_login_ip；测试消息已清理。

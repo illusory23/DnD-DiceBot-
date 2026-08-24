@@ -1,0 +1,24 @@
+2026-08-14 第21次更新：角色卡特性标题 undefined 与背景信息空白修复
+
+【问题】
+1. 导入后特性列表正常显示，但每条特性的标题显示为 undefined
+2. 背景信息区域全空（个性/理念/羁绊/缺陷/背景故事等不显示）
+
+【根因】
+1. 前端渲染特性标题用 f.name，API 返回的字段是 feature_name
+2. 前端背景区读取 char.background.personality_traits 等（期望字典），
+   API 返回的是平铺字段（d['personality_traits']），没有 d['background'] 字典
+
+【修改】（core/character.py get_character）
+1. features 输出补充 name 字段（与 feature_name 相同值，兼容前端编辑）
+2. 新增 d['background'] 字典（personality_traits/ideals/bonds/flaws/
+   background_feature/appearance/origin/languages/tool_proficiencies/
+   backstory/personality_traits_ext），无背景时返回 {}
+
+【验证】（端到端实测）
+- 特性标题显示正常（如"黑暗视觉"）✅
+- 背景信息（个性/理念/羁绊/缺陷/人物形象/背景故事）全部显示 ✅
+
+【说明】
+- 法术位"已用 0 / 最大 2"是平台标准初始状态：
+  used 表示"已消耗数量"，初始 0 = 法术位全满可用（与手工创建角色一致）

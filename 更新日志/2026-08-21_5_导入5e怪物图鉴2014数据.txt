@@ -1,0 +1,41 @@
+2026-08-21 导入 5e 怪物图鉴2014（5e.kiwee.top 中文站）450 条怪物数据
+
+【数据来源】
+https://5e.kiwee.top/bestiary.html（5etools 中文站，已汉化数据）
+数据文件: data/bestiary/bestiary-mm.json（怪物图鉴 MM 2014，5e 规则）
+
+【导入内容】
+- monsters_full.json 557 → 1007 条（新增 450 条 5e MM 2014 怪物，
+  含完整属性/特性/动作/传奇动作/HP骰子公式，source='MM' 标注
+  "5e 规则（怪物图鉴2014）"）
+- data/chm_extracted/怪物图鉴2014/ 生成 450 个词条 html
+  （detail_link 指向，read_detail_page 直接读取）
+- 导入脚本 web/_import_kiwee_bestiary.py（可复用，支持其他书籍
+  文件：--source/--dir 参数）
+
+【版本并存机制（同名 5e/5r 怪物）】
+5e MM（2014）与 5r MM25（2025）同名怪物（如"巫妖""黑熊"）并存，
+source 区分版本：
+1. /api/monsters/search 去重键改为 (name, source) —— 同名多版本
+   都显示，列表行标注来源（MM/MM25/SRD/凡度尔…）
+2. /api/monster/<name> 支持 ?source= 精确打开指定版本词条
+3. 前端三处（角色卡/参考页/战斗页）列表点击带 source 参数
+4. core/chm_search.search_monster 去重键加 source
+   （此前同名不同版本被 name_cn 去重丢弃）
+
+【其他修复】
+- kiwee 数据 cr 为对象（{"cr":"21","lair":"22"} 巢穴怪物共10条）
+  已兼容处理，取 cr 键值
+- _RULE_VERSION_MAP 新增 'MM' → '5e 规则（怪物图鉴2014）'
+- 全库点击一致性：1007 条逐一验证无错配
+
+【验证】
+- 词条正确：鸟羽人 CR1/4 AC12 HP13(3d8) / 底栖魔鱼 CR10 AC17
+  HP135 / 巫妖 CR21 AC17 HP135(18d8+54) / 眼魔 CR13 AC18
+  HP180(19d10+76) / 成年红龙 CR17 AC19 HP256 / 地精头目 CR1
+  AC17 HP21 —— 与 5e 官方数据一致
+- 版本选版：?source=MM 与 ?source=MM25 分别返回对应版本
+- 创建角色卡：HP 按词条骰子自动投掷（鸟羽人 3d8、巫妖
+  18d8+54、眼魔 19d10+76 范围正确），AC/属性正确写入，
+  词条全文写入背景特性
+- 老数据（MM25/凡度尔/SRD/自定义 557 条）无回归

@@ -1,0 +1,34 @@
+北境Excel角色导入完全隔离
+=========================
+日期：2026-08-05
+
+问题：
+------
+北境营地导入Excel角色时调用的是 POST /api/character/import，
+该端点会将角色写入共享的 characters 表，导致跑团平台也看到北境导入的角色。
+
+修改内容：
+---------
+后端（web/app.py）：
+1. 新增 POST /api/tavern/character/import 端点
+   - 复用 Excel 解析逻辑（import_character_from_excel）
+   - 以 JSON 格式返回完整角色数据（属性、技能、武器、物品、法术、特性、背景等）
+   - 不调用 import_from_excel_data，不写入 characters 表
+   - 与跑团平台角色数据库完全隔离
+
+前端（web/templates/north-expedition.html）：
+1. importFromExcel 函数全面重写：
+   - API 调用改为 POST /api/tavern/character/import
+   - 单次请求获取完整数据（原来需要两次：import + GET /api/character/{id}）
+   - 角色 ID 前缀改为 camp_（原 svr_，不再关联服务端 characters 表）
+   - 移除 _serverId 字段
+   - 移除多余的 charData 属性硬编码，全部从 API 响应直接读取
+
+影响范围：
+---------
+- ✅ 北境Excel导入的角色不再写入 characters 表
+- ✅ 跑团平台无法看到北境导入的角色
+- ✅ 北境导入的角色通过 /api/north/save 正常持久化
+- ✅ 跑团平台 character.html 的 Excel 导入不受影响（仍用 /api/character/import）
+- ✅ 北境营地新建角色（camp_）不受影响
+- ✅ 北境内置角色（1/2/3）不受影响

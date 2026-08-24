@@ -1,0 +1,56 @@
+# ━━━ 尘封之卷 · Git 属性配置 ━━━
+# 统一行尾 (CRLF on Windows, LF on Linux/Mac)
+* text=auto
+# Python 文件强制 LF
+*.py text eol=lf
+# Web 文件统一 LF
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.cfg text eol=lf
+# 二进制文件
+*.db binary
+*.xlsx binary
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.gif filter=lfs diff=lfs merge=lfs -text
+*.webp filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.wasm binary
+*.pyc binary
+*.tgz binary
+# GitHub Linguist 配置
+# 标记第三方库目录，不计入语言统计
+web/static/three/* linguist-vendored
+web/static/dice-box/* linguist-vendored
+web/static/dice-box-backup-v2/* linguist-vendored
+web/static/dice-v2/* linguist-vendored
+web/static/dice3d/* linguist-vendored
+web/static/dice3d-backup-v2/* linguist-vendored
+web/static/dice-engine-v3/* linguist-vendored
+web/static/dice-deterministic/* linguist-vendored
+data/chm_extracted/* linguist-vendored
+# 标记生成/文档文件
+backups/* linguist-generated
+更新日志/* linguist-documentation
+优化方向/* linguist-documentation
+营地功能/* linguist-documentation
+*.ico filter=lfs diff=lfs merge=lfs -text
+*.tiff filter=lfs diff=lfs merge=lfs -text
+*.bmp filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.mkv filter=lfs diff=lfs merge=lfs -text
+*.avi filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.rar filter=lfs diff=lfs merge=lfs -text
+*.7z filter=lfs diff=lfs merge=lfs -text
+*.pak filter=lfs diff=lfs merge=lfs -text
+*.dat filter=lfs diff=lfs merge=lfs -text
+*.psd filter=lfs diff=lfs merge=lfs -text
+*.ai filter=lfs diff=lfs merge=lfs -text

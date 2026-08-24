@@ -1,0 +1,38 @@
+[
+  {
+    "name": "白枫",
+    "text": "🎲 d6 adv = [2]",
+    "time": "22:28:33",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248913.5416727
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 d4 adv = [2]",
+    "time": "22:28:38",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248918.3063955
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d4 = [2]",
+    "time": "22:29:09",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785248949.566369
+  }
+]

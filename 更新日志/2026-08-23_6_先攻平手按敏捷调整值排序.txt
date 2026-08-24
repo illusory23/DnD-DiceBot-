@@ -1,0 +1,27 @@
+2026-08-23 · 先攻平手按敏捷调整值排序（DND5E 规则）
+
+■ 需求
+DND5E 规则：先攻相同时，敏捷调整值高者优先行动。
+
+■ 改动
+· map.js（战术地图战斗面板）：
+  - mapAddCombatant 添加参战者时从角色缓存读取敏捷值，
+    计算并记录 dexMod（(dex-10)//2，敏捷调整值）
+  - mapStartCombat 排序：先攻降序，平手时比较 dexMod，
+    调整值高者优先（(b.initiative-a.initiative) || (b.dexMod-a.dexMod)）
+  - mapConfirmInitiative（战斗中临时加入重排）：同样加 dexMod 比较
+· combat.js（战斗追踪器页）：addCombatant / startCombat /
+  confirmInitiative 三处同步修改，与地图面板行为一致
+· 兼容：无 dexMod 的旧数据/手动添加的参战者按 0 处理
+  （dexMod || 0 兜底），不影响原有排序稳定性
+
+■ 验证
+· 排序单测：先攻 15/18/15/15/12、敏调 +2/0/+4/-1/+5 →
+  18 → 15(+4) → 15(+2) → 15(-1) → 12，平手按敏调排序正确 ✓
+· 旧数据（无 dexMod）按 0 处理兼容 ✓
+· map.js / combat.js 语法检查通过
+
+■ 影响
+· 仅前端 map.js / combat.js 改动
+  （map.html v=74→75、combat.html v=32→33）
+· 无需重启服务器，浏览器强刷（Ctrl+F5）即可生效

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "iling",
+    "text": "🎲 1d20+3 = [7]",
+    "time": "23:42:14",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785253334.021573
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "23:43:51",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785253431.1064017,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "23:44:21",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785253461.4434195,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "23:45:21",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785253521.0984206,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "23:52:05",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785253925.4103718,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "26",
+    "time": "23:53:39",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785254019.9694865
+  },
+  {
+    "name": "白枫",
+    "text": "大成功",
+    "time": "23:53:48",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785254028.5147326
+  }
+]

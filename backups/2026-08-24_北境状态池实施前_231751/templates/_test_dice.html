@@ -1,0 +1,34 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><title>Dice Test</title>  <script src="/static/common-dialog.js"></script>
+</head>
+<body>
+<h1>Dice-box Test</h1>
+<div id="c" style="width:400px;height:300px;background:#111;"></div>
+<div id="log"></div>
+
+<!-- Test 1: ESM import -->
+<script type="module">
+var log=document.getElementById('log');
+try{
+ var m=await import('/static/dice-box/dice-box.es.min.js');
+ log.innerHTML+='ESM import OK: '+Object.keys(m).join(',')+'<br>';
+ var DB=m.default||m.DiceBox||m;
+ log.innerHTML+='Default export: '+(typeof DB)+'<br>';
+ var db=new DB({container:'#c',assetPath:'/static/dice-box/assets/',scale:6,theme:'default'});
+ await db.init();
+ log.innerHTML+='Init OK<br>';
+}catch(e){log.innerHTML+='ESM ERROR: '+e.message+'<br>';}
+</script>
+
+<!-- Test 2: dice-box UMD -->
+<script src="/static/dice-box/Dice.min.js"></script>
+<script>
+var log2=document.getElementById('log');
+setTimeout(function(){
+ var globals=[];
+ for(var k in window){if(k.toLowerCase().indexOf('dice')>=0||k.toLowerCase().indexOf('box')>=0)globals.push(k);}
+ log2.innerHTML+='<br>Global dice names: '+globals.join(',')+'<br>';
+ log2.innerHTML+='window.DiceBox: '+(typeof window.DiceBox)+'<br>';
+},500);
+</script>
+</body></html>

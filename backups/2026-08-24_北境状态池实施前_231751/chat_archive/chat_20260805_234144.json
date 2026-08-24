@@ -1,0 +1,72 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 菜鸟CaiNiao 退出房间",
+    "time": "20:30:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933039.717206,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:30:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933058.8525739,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:31:01",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933061.8540924,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 菜鸟CaiNiao 退出房间",
+    "time": "20:31:53",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933113.035957,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:32:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933134.8201025,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:32:26",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933146.8198535,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:32:58",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933178.871411,
+    "system": true
+  }
+]

@@ -1,0 +1,465 @@
+================================================================================
+  骰娘动态掷骰 Mod — 外置 Mod 接口系统 完整文档
+================================================================================
+  更新日期：2026-07-22
+  版本：v2.1.0
+
+================================================================================
+  目录
+================================================================================
+  一、系统概述
+  二、Mod 目录结构
+  三、mod.json 格式规范
+  四、后端 Mod 开发指南
+  五、规则引擎扩展指南
+  六、Mod API 钩子系统
+  七、Mod 管理 API 端点
+  八、示例 Mod
+  九、导入与使用方式
+  十、新增/修改文件清单
+  十一、回滚方法
+
+================================================================================
+  一、系统概述
+================================================================================
+
+  骰娘 v2.1.0 起支持外置 Mod 系统。Mod 存放在 backend/mods/ 目录下，
+  服务器启动时自动发现并加载，无需修改核心代码。
+
+  支持两种 Mod 类型：
+  - 后端 Mod：扩展 API 端点、添加新规则系统
+  - 前端 Mod：添加新页面、组件（框架已就绪，后续完善）
+
+  Mod 之间通过 ModRegistry 注册表实现服务发现和钩子通信。
+
+================================================================================
+  二、Mod 目录结构
+================================================================================
+
+  backend/mods/
+  └── <mod-id>/                    # Mod 目录名 = Mod ID（英文、数字、连字符）
+      ├── mod.json                 # 【必需】Mod 元数据清单
+      ├── backend/                 # 后端代码（可选）
+      │   ├── __init__.py
+      │   ├── router.py            # FastAPI APIRouter 实例
+      │   ├── rules.py             # 规则引擎实现（继承 BaseRulesEngine）
+      │   └── ...                  # 任意 Python 模块
+      ├── frontend/                # 前端代码（可选，后续完善）
+      │   ├── manifest.json
+      │   ├── index.ts
+      │   ├── components/
+      │   └── views/
+      └── assets/                  # 静态资源（可选）
+
+================================================================================
+  三、mod.json 格式规范
+================================================================================
+
+  完整示例（所有字段说明）：
+
+  {
+    // ━━ 基本信息（必填）━━
+    "id": "coc7e",                         // Mod 唯一标识，与目录名一致
+    "name": "克苏鲁的呼唤 7版",             // 显示名称
+    "version": "1.0.0",                    // 语义化版本 SemVer
+    "description": "COC 7E 规则检定系统",   // 功能描述
+    "author": "作者名",                     // 作者
+
+    // ━━ 兼容性 ━━
+    "dicebot_version": ">=2.1.0",          // 依赖的骰娘最低版本
+    "dependencies": {                      // 依赖的其他 Mod（可选）
+      "other-mod": ">=1.0.0"
+    },
+
+    // ━━ 后端扩展 ━━
+    "backend": {
+      "enabled": true,                     // 是否启用后端
+      "router": "backend.router:router",   // FastAPI Router 路径
+                                           //   格式: "模块路径:变量名"
+      "rules_engine": "backend.rules:COC7ERules",
+                                           // 规则引擎路径（可选）
+                                           //   格式: "模块路径:类名或实例名"
+      "on_load": "backend:on_load",        // Mod 加载回调（可选）
+      "on_unload": "backend:on_unload"     // Mod 卸载回调（可选）
+    },
+
+    // ━━ 前端扩展（后续完善）━━
+    "frontend": {
+      "enabled": false,
+      "entry": "frontend/index.ts",
+      "routes": [],
+      "nav_items": []
+    }
+  }
+
+================================================================================
+  四、后端 Mod 开发指南
+================================================================================
+
+  4.1 最简 Mod（纯 API 端点）
+
+  目录结构：
+    mods/my-mod/
+    ├── mod.json
+    └── backend/
+        ├── __init__.py         # 空文件
+        └── router.py
+
+  mod.json：
+    {
+      "id": "my-mod",
+      "name": "我的Mod",
+      "version": "1.0.0",
+      "description": "演示Mod",
+      "author": "作者",
+      "dicebot_version": ">=2.1.0",
+      "backend": {
+        "enabled": true,
+        "router": "backend.router:router"
+      },
+      "frontend": { "enabled": false }
+    }
+
+  backend/router.py：
+    from fastapi import APIRouter
+
+    router = APIRouter(tags=["我的Mod"])
+
+    @router.get("/hello")
+    async def hello():
+        return {"message": "Hello!"}
+
+    @router.get("/calc")
+    async def calc(a: int, b: int):
+        return {"result": a + b}
+
+  启动后访问：
+    http://localhost:8001/api/mod/my-mod/hello
+    http://localhost:8001/api/mod/my-mod/calc?a=3&b=5
+
+  注意：
+  - Router 不需要设置 prefix，系统会自动添加 /api/mod/{mod-id}
+  - 所有端点在 Mod 自己的 Router 内路径冲突由 FastAPI 处理
+
+  4.2 生命周期回调
+
+  backend/__init__.py：
+    def on_load():
+        \"\"\"Mod 被加载时调用\"\"\"
+        print("我的Mod 已加载！可以在这里做初始化工作")
+
+    def on_unload():
+        \"\"\"Mod 被卸载时调用\"\"\"
+        print("我的Mod 已卸载！可以在这里做清理工作")
+
+  在 mod.json 中添加：
+    "backend": {
+      ...
+      "on_load": "backend:on_load",
+      "on_unload": "backend:on_unload"
+    }
+
+================================================================================
+  五、规则引擎扩展指南
+================================================================================
+
+  5.1 概述
+
+  要添加新的 TRPG 规则系统（如 COC、Pathfinder、SWADE 等），
+  需要继承 BaseRulesEngine 并实现抽象方法。
+
+  基类位置：app/core/rules_base.py
+
+  5.2 完整示例：COC 7E 规则引擎
+
+  mods/coc7e/backend/rules.py：
+
+    from app.core.rules_base import BaseRulesEngine, DiceResult
+    import random
+
+    class COC7ERules(BaseRulesEngine):
+        \"\"\"克苏鲁的呼唤 7版 规则引擎\"\"\"
+
+        @property
+        def system_name(self) -> str:
+            return "克苏鲁的呼唤 7版"
+
+        @property
+        def system_version(self) -> str:
+            return "7E"
+
+        def roll(self, expression: str, context: dict | None = None) -> DiceResult:
+            \"\"\"COC 掷骰：主要使用 d100（百分骰）\"\"\"
+            # 解析表达式（简化示例）
+            if expression.lower() == "d100" or expression == "1d100":
+                d1 = random.randint(0, 9)  # 十位骰
+                d2 = random.randint(0, 9)  # 个位骰
+                value = d1 * 10 + d2
+                if value == 0:
+                    value = 100
+
+                result = DiceResult(
+                    expression=expression,
+                    rolls=[d1, d2],
+                    total=value,
+                )
+
+                # COC 特殊成功等级
+                if context and 'skill_value' in context:
+                    skill = context['skill_value']
+                    if value <= skill // 5:
+                        result.extra['success_level'] = '极难成功'
+                    elif value <= skill // 2:
+                        result.extra['success_level'] = '困难成功'
+                    elif value <= skill:
+                        result.extra['success_level'] = '普通成功'
+                    else:
+                        result.extra['success_level'] = '失败'
+
+                    if value >= 96:
+                        result.is_crit_failure = True
+                        result.extra['success_level'] = '大失败'
+
+                return result
+
+            # 其他骰子委托给默认处理
+            return super().roll(expression, context)
+
+        def parse_expression(self, expression: str) -> dict:
+            \"\"\"COC 特有表达式解析\"\"\"
+            exp = expression.lower().strip()
+            if exp in ('d100', '1d100', '百分骰'):
+                return {'type': 'd100', 'sides': 100}
+            return {'type': 'unknown', 'raw': exp}
+
+  mod.json 配置：
+    {
+      "id": "coc7e",
+      "name": "克苏鲁的呼唤 7版",
+      "version": "1.0.0",
+      "description": "COC 7E 规则支持",
+      "dicebot_version": ">=2.1.0",
+      "backend": {
+        "enabled": true,
+        "router": "backend.router:router",
+        "rules_engine": "backend.rules:COC7ERules"
+      },
+      "frontend": { "enabled": false }
+    }
+
+  5.3 激活规则引擎
+
+  Mod 加载后，通过 API 切换：
+    POST /api/rules/activate/coc7e
+
+  查询所有可用引擎：
+    GET /api/rules/engines
+
+================================================================================
+  六、Mod API 钩子系统
+================================================================================
+
+  钩子允许 Mod 在其他 Mod 或核心系统的特定事件发生时插入逻辑。
+
+  6.1 注册钩子
+
+    from app.mods.registry import ModRegistry
+
+    def my_after_roll(expression, result):
+        print(f"掷骰完成: {expression} = {result.total}")
+        # 可以修改 result 并返回
+
+    # 注册
+    ModRegistry.on('after_roll', my_after_roll)
+
+    # 移除
+    ModRegistry.off('after_roll', my_after_roll)
+
+  6.2 支持的钩子事件
+
+  事件名               触发时机              参数
+  ──────────────────────────────────────────────────────────
+  before_roll          掷骰之前              expression, context
+  after_roll           掷骰之后              expression, result
+  before_server_stop   服务器关闭前          (无)
+
+  6.3 触发钩子
+
+    ModRegistry.emit('after_roll', expression='3d6', result=dice_result)
+
+================================================================================
+  七、Mod 管理 API 端点
+================================================================================
+
+  方法    路径                          说明
+  ──────────────────────────────────────────────────────────
+  GET    /api/mods                     列出所有已加载 Mod
+  GET    /api/mods/{mod_id}            获取 Mod 详细信息
+  POST   /api/mods/{mod_id}/reload     重新加载 Mod
+  GET    /api/rules/engines            列出所有规则引擎
+  POST   /api/rules/activate/{mod_id}  切换当前规则引擎
+  GET    /health                       系统健康检查（含 Mod 状态）
+
+  7.1 响应示例
+
+  GET /api/mods：
+    {
+      "mods": [
+        {
+          "id": "example-hello",
+          "name": "示例 Mod - Hello",
+          "version": "1.0.0",
+          "description": "...",
+          "author": "骰娘开发组",
+          "backend_enabled": true,
+          "frontend_enabled": false,
+          "engine": false,
+          "active_engine": false
+        }
+      ]
+    }
+
+  GET /api/rules/engines：
+    {
+      "engines": {
+        "dnd5e": {
+          "name": "龙与地下城 5版",
+          "version": "5E",
+          "active": true
+        }
+      }
+    }
+
+  GET /health：
+    {
+      "status": "ok",
+      "version": "2.1.0",
+      "active_engine": "dnd5e",
+      "mods_loaded": 1
+    }
+
+================================================================================
+  八、示例 Mod
+================================================================================
+
+  系统自带一个示例 Mod，位于 backend/mods/example-hello/
+
+  功能：
+  - GET /api/mod/example-hello/hello → 返回 Hello 消息
+  - GET /api/mod/example-hello/ping   → 健康检查
+
+  此 Mod 展示了最简 Mod 的完整结构，可作为开发模板。
+
+================================================================================
+  九、导入与使用方式
+================================================================================
+
+  9.1 安装 Mod
+
+  1. 将 Mod 文件夹复制到 backend/mods/ 目录下
+  2. 确保目录结构正确（mod.json 在 Mod 根目录）
+  3. 重启骰娘服务器：
+       python run.py
+
+  服务器启动日志会显示 Mod 加载情况：
+    [dicebot] INFO: 发现 2 个 Mod
+    [dicebot.mod_loader] INFO: 加载 Mod: coc7e v1.0.0 — 克苏鲁的呼唤 7版
+    [dicebot.mod_loader] INFO:   路由已注册: /api/mod/coc7e
+    [dicebot.mod_loader] INFO:   规则引擎已注册: 克苏鲁的呼唤 7版 v7E
+    [dicebot.mod_loader] INFO: Mod 加载成功: coc7e
+
+  9.2 启用/禁用 Mod
+
+  方式一：修改 mod.json 中 backend.enabled 为 false，重启服务器
+  方式二：删除或移出 Mod 目录，重启服务器
+
+  9.3 查看已加载 Mod
+
+  浏览器访问：http://localhost:8001/api/mods
+  或 API 文档页：http://localhost:8001/docs
+
+  9.4 切换规则系统
+
+  POST http://localhost:8001/api/rules/activate/coc7e
+
+  切换后，后续掷骰调用将使用新引擎（需前端配合发送 system 参数）。
+
+================================================================================
+  十、新增/修改文件清单
+================================================================================
+
+  新增文件：
+    backend/app/core/rules_base.py      — 规则引擎抽象基类
+    backend/app/core/dnd5e_engine.py    — DND5E 引擎适配器
+    backend/app/core/mod_loader.py      — Mod 发现与加载引擎
+    backend/app/mods/__init__.py        — Mod 注册表模块
+    backend/app/mods/registry.py        — 全局注册表 + 钩子系统
+    backend/app/routers/mods.py         — Mod 管理 API
+    backend/mods/example-hello/         — 示例 Mod
+      ├── mod.json
+      └── backend/
+          ├── __init__.py
+          └── router.py
+
+  修改文件：
+    backend/app/main.py                 — 集成 Mod 系统
+                                          新增 ModLoader 初始化
+                                          新增内置 DND5E 引擎注册
+                                          新增 mods 路由注册
+                                          health 端点增加 Mod 状态信息
+
+  未修改（保持兼容）：
+    backend/app/core/dice_engine.py     — 原有函数仍可直接使用
+    backend/app/core/dnd5e_rules.py     — 原有规则常量/函数不变
+    backend/app/core/character.py       — 角色卡系统不变
+    backend/app/routers/dice.py         — 掷骰 API 不变
+    backend/app/routers/character.py    — 角色 API 不变
+
+================================================================================
+  十一、回滚方法
+================================================================================
+
+  如果 Mod 系统出现问题，可通过以下方式回滚：
+
+  方法一：使用备份
+    备份位于：骰娘动态掷骰mod/backend_backup_20260722/
+    恢复命令：
+      rm -rf backend/
+      mv backend_backup_20260722/ backend/
+
+  方法二：手动恢复
+    1. 恢复 backend/app/main.py（从备份）
+    2. 删除以下新增文件/目录：
+       - backend/app/core/rules_base.py
+       - backend/app/core/dnd5e_engine.py
+       - backend/app/core/mod_loader.py
+       - backend/app/mods/
+       - backend/app/routers/mods.py
+       - backend/mods/
+
+  方法三：禁用所有 Mod
+    将 backend/mods/ 目录重命名为 backend/mods_disabled/
+    重启服务器即可回到纯 DND5E 模式（Mod 系统本身不会报错）
+
+================================================================================
+  附录：BaseRulesEngine 完整接口参考
+================================================================================
+
+  class BaseRulesEngine(ABC):
+
+      # ━━ 必须实现 ━━
+      @property
+      def system_name(self) -> str: ...
+      @property
+      def system_version(self) -> str: ...
+      def roll(self, expression: str, context: dict | None = None) -> DiceResult: ...
+
+      # ━━ 可选覆盖 ━━
+      def parse_expression(self, expression: str) -> dict: ...
+      def create_character(self, data: dict) -> dict: ...
+      def get_character(self, char_id: str | int) -> dict | None: ...
+      def get_custom_endpoints(self) -> list[dict]: ...
+      def on_activate(self) -> None: ...
+      def on_deactivate(self) -> None: ...
+
+================================================================================

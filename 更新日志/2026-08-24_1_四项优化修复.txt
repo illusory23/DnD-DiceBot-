@@ -1,0 +1,52 @@
+2026-08-24_1_四项优化修复
+═══════════════════════════════════════════
+
+【1】自定义掷骰支持混合多重骰子（如 1d20+1d4+3）
+  问题：自定义表达式只解析第一个骰子组，1d20+1d4+3 被误解析为
+        1d20 +1（+1d4 的 1 被当成调整值），d4+3 被丢弃
+  根因：core/dice_engine.py parse_dice_expression 仅匹配单个 XdY，
+        不支持多个骰子组
+  修复：
+    · parse_dice_expression 按 +/- 拆分为多个独立子段，每段解析为
+      骰子组（XdY/dY + k/dl/dh/! 后缀）或调整值，返回 groups 数组
+      + 第一组的兼容字段（count/sides/modifier/keep/drop/advantage/
+      exploding 保持原语义，调用方无感）
+    · roll() 逐组投掷：每组独立应用保留/丢弃/爆炸，rolls 拼接全部
+      骰子值，modifier 求和，total 正确汇总
+    · 优势/劣势仍作用于第一组（投2取高/低，与原行为一致）
+    · 暴击判定扩展到任一组 d20（原仅第一组）
+    · 修复子段正号前缀（+1d4）导致 re.match 开头匹配失败；
+      纯数字表达式（如 "5"）保持原行为掷 1d20+调整值
+  验证：单测覆盖 1d20+1d4+3 / 2d8+1d6+3 / 4d6k3+1d8+2 /
+        d20 adv/dis / 4d6d1 / 4d6dh1 / 1d6! / 1d20!+1d4 / 5 等
+        （解析、total 求和、保留丢弃、暴击判定全部通过）
+  生效：改后端 core/dice_engine.py → 需重启服务器
+        前端各页面共用 /api/roll，无需改前端
+
+【2】法术界面详情显示遮挡修复（spells.html）
+  问题：点击法术书法术后的详情面板，下半页显示无效的遮挡文本区域
+  根因：
+    · 描述文本（CHM 提取纯文本含 \n）直接 innerHTML 渲染，换行
+      丢失（.sd-body 的 pre-wrap 依赖 .spell-detail-card 父类，
+      详情面板父级是 .card 不生效），3000 字挤成堆叠文本
+    · 文本未转义，含 < > 时被浏览器当标签吞掉造成错乱
+    · 卡片 min-height:55vh 在描述短时撑出大片无效空白
+  修复：描述转义（& < >）+ white-space:pre-wrap + overflow-wrap；
+        去掉 min-height:55vh
+  生效：改模板（内联 JS），刷新页面即可，无需重启
+
+【3】地图角色侧边栏关闭按钮被统计栏按钮遮挡（map.js / map-page.js）
+  问题：打开角色侧边栏后，右上角 ✕ 关闭按钮点不到，点到统计栏按钮
+  根因：统计按钮 .stats-toggle 固定 right:0/top:66px、z-index 199
+        高于侧边栏 150，恰好压在侧边栏顶部 ✕ 位置
+  修复：新增 window._syncStatsToggle —— 统计面板或角色侧边栏任一
+        打开时统计按钮右移 260px；toggleCharPanel 与 toggleStats
+        均调用（两状态联动，互不覆盖）
+  生效：改前端静态文件 → 刷新页面即可（缓存版本号 map.js v76 /
+        map-page.js v76，map.html 已同步），无需重启
+
+【4】删除战斗界面快速骰（combat.html / combat.js）
+  移除：左下栏「🎯 快速骰」卡片、combat.js quickRoll 函数、
+        PL 提示文案中的"使用快速骰"
+  生效：刷新页面即可（combat.js v34，combat.html 已同步），
+        无需重启

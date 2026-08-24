@@ -1,0 +1,70 @@
+2026-07-29_2 同步延迟优化.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+问题：多个同步通道存在不必要的延迟，从3000ms轮询到
+      100ms防抖累积，影响实时协作体验。
+
+━━━ 优化方案A：战斗状态接入 WebSocket ━━━
+问题：战斗状态使用纯 HTTP 轮询（每3秒），无实时推送
+
+改动：
+  - combat.js：新增独立 WebSocket 连接（共用 /ws 端点）
+    · combatWsConnect() 建立连接并自动重连
+    · WS 收到 combat_update 时立即更新本地状态
+    · saveCombatState() 包装为同时走 WS 广播 + HTTP 持久化
+  - app.py：WS handler 新增 combat_update 消息类型处理
+    · 接收后更新服务端状态并广播给其他客户端
+
+效果：战斗同步延迟 3000ms → ~100ms（WebSocket实时推送）
+
+━━━ 优化方案B：精确脏标记 ━━━
+问题：每次笔画完成调用 _onLocalChange() 标记全部5类数据
+      为脏，导致 pushSharedCanvas 推送全量状态（含图层
+      base64 dataURL，可达数MB）
+
+改动：
+  - map.js 笔画 mouseup：_onLocalChange() 替换为仅
+    markDirty('strokes')，只标记笔画为脏
+  - 低频操作（填充/图层）保留 _onLocalChange()
+
+效果：笔画同步消息体积降低 10-100 倍
+
+━━━ 优化方案E：轻量同步快照 ━━━
+问题：collectState() 在同步和持久化中共用，同步消息包含
+      图层 base64 dataURL
+
+改动：
+  - map.js 新增 collectSyncState()：与 collectState() 相同
+    但图层只保留 url，去除 dataURL
+  - pushSharedCanvas 改用 collectSyncState() 收集数据
+
+效果：WS 同步消息体积大幅缩减，不再传输 base64 图片
+
+━━━ 优化方案C：Token 拖拽节流同步 ━━━
+问题：拖拽 token 时，位置只在 mouseup 时同步一次，
+      远程看到的是跳跃式移动
+
+改动：
+  - map.js mousemove token 拖拽段：新增 50ms 节流的
+    wsSendOp 位置更新，拖拽期间持续同步中间位置
+
+效果：远程客户端看到流畅的 token 实时移动
+
+━━━ 优化方案D：saveState 异步化 ━━━
+问题：saveState() 调用 dbSetAndWait 等待 IndexedDB
+      事务确认，竞争主线程
+
+改动：
+  - map.js saveState()：立即执行 localStorage 轻量保存，
+    IndexedDB 写入通过 requestIdleCallback 延迟到空闲执行
+  - 用 dbSetSync 替代 dbSetAndWait（不等待事务完成）
+
+效果：主线程不再被持久化阻塞，同步消息处理更及时
+
+修改文件：
+  - web/static/combat.js             (战斗WS同步)
+  - web/static/map.js                (精确脏标记/轻量快照/拖拽节流/异步保存)
+  - web/app.py                       (combat_update WS处理)
+
+备份位置：
+  backups/同步延迟优化前_20260729_010448/

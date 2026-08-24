@@ -1,0 +1,10 @@
+2026-07-30 — 首页随机事件卡片新增跳转按钮
+
+修改文件: 骰娘\官网门户\index.html
+
+修改内容:
+1. buildFeatCards() 函数的 events 对象新增 btn 属性，渲染"❄️ 进入北境雪原"按钮
+2. forEach 模板末尾追加 (f.btn||"") 以支持可选按钮渲染
+3. 按钮 onclick 使用 event.stopPropagation() 阻止事件冒泡，防止点击按钮时同时触发卡片详情的 showFeatureDetail()
+
+跳转目标: test4.html（北境雪原全屏视频背景页面）

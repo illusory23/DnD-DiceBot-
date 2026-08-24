@@ -1,0 +1,24 @@
+[
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d20 = [13]",
+    "time": "21:12:47",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935567.1257029
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "21:12:48",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935568.0010712,
+    "system": true
+  }
+]

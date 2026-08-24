@@ -1,0 +1,76 @@
+[
+  {
+    "name": "白枫",
+    "text": "🎲 2d6 = [9]",
+    "time": "00:15:40",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785255340.1499705
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "00:20:22",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785255622.3577886,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "17",
+    "time": "00:21:17",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785255677.1884716
+  },
+  {
+    "name": "iling",
+    "text": "🎲 1d20+3 = [16]",
+    "time": "00:21:36",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785255696.663327
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "00:23:46",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785255826.3644824,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "00:25:59",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785255959.530634,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "00:27:06",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785256026.2678237,
+    "system": true
+  }
+]

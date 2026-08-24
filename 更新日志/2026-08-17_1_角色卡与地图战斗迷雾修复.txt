@@ -1,0 +1,353 @@
+【2026-08-17_1】角色卡编辑失效 / 迷雾擦除粗细不同步 / PL信息越权 / 战斗回弹 批量修复
+
+修改文件：
+- core/character.py
+- web/app.py
+- web/static/map.js
+- web/static/map-fog.js
+- web/templates/map.html（缓存版本号 v=54 → v=55）
+
+一、角色卡界面无法修改部分数据（属性/豁免）
+问题：core/character.py 的 set_ability 调用 normalize_ability 后拿到的是中文属性名
+（如"力量"），但 field_map 只认英文键，setattr 抛 AttributeError 被上层吞掉；
+set_save_proficiency 同样以中文键查询/写入，与 create_character 存的英文键不一致，
+导致豁免修改不生效并产生重复数据。后端返回 success 但 GET 读到的仍是旧值，
+前端 selectChar 刷新后界面回退，表现为"无法修改"。
+修复：
+1. set_ability：中文属性名转回英文数据库列键后再 setattr。
+2. set_save_proficiency：统一存英文键（与 create_character 一致），
+   旧中文键数据自动迁移为英文键，不再产生重复行。
+验证：PUT score=21 → GET str=21/mod=5；豁免切换读回 is_proficient/bonus 正确。
+
+二、战争迷雾主机粗笔擦除后远程看到最细笔擦痕
+问题：fogErasures 只保存轨迹点，不保存擦除时的橡皮半径；远程端渲染/判定用本地
+当前画笔粗细计算 eraserRadius()，默认细笔 8px，导致远程看到的洞是最细的。
+修复：
+1. removeFogByErasePath 记录擦除时的 radius。
+2. fogPointInEraseDisk 按每条擦除轨迹自己的半径判定（实时轨迹用当前粗细）。
+3. 渲染挖洞用各自半径；map.js 序列化/恢复/远程合并保留 radius。
+验证：粗笔(brushSize=10→半径15)保存 radius=15，10px 处命中、40px 处不命中；
+切回细笔后已保存洞仍按 15px 判定。
+
+三、地图界面 PL 仍能看到其他玩家/角色的信息
+问题：08-14 只拦截了 token 信息面板，地图上其他玩家 token 的角色名与头像仍可见。
+修复：
+1. 新增 refreshTokenPrivacy：PL 视角下非本人 token 显示 ❓ 占位、隐藏真实头像；
+   DM 视角全部恢复真实名字与头像。
+2. fetchCharData / mergeRemoteTokens / applyRoleRestrictions 后自动刷新脱敏状态。
+验证：PL 视角 labels=["❓","❓"]、无真实头像；DM 视角恢复"亚当斯"等真实名字。
+
+四、战斗界面功能反复回弹 / 角色信息多处不同步
+问题1（角色信息不同步）：set_ability 写入失效，角色卡/地图token/战斗列表读到的
+都是旧值，表现"多处不同步"（见第一条，已随其修复）。
+问题2（战斗回弹）：POST /api/combat-state 与 WS combat_update 无条件覆盖服务器状态，
+网络延迟下旧状态覆盖新状态，轮询把界面"弹回"旧值。
+修复：
+1. 后端加版本保护：客户端携带 _ts（本地已知最新时间戳），若晚于服务器当前时间戳
+   则拒绝（返回 409 + 当前状态），_force 标记可主动覆盖（清空战斗）。
+2. 前端 pushCombatState 处理 409：应用服务器最新战斗状态并提示；
+   WS 新增 combat_update_conflict 分支同步处理。
+验证：旧状态推送被拒(409)，本地状态被替换为"服务器新状态"、轮次同步为"第 9 轮"。
+
+五、map.js 拆分遗留的 _dirtyFlags 作用域错误
+问题：_dirtyFlags/_pushDebounce/_pushInFlight 声明在 boot IIFE 内，但 initSaveSystem
+恢复本地状态后的 5 秒强制推送引用它们，运行时 ReferenceError，导致 DM 本地状态
+无法推送到服务器（远程同步丢失）。
+修复：声明提升到 boot 外的顶层作用域。
+验证：恢复本地状态后 5 秒不再抛 ReferenceError。
+
+六、DM/PL 加入后权限不刷新
+问题：applyRoleRestrictions 定义在 boot IIFE 内未暴露到 window，doJoin 里的
+window.applyRoleRestrictions 检查永远失败；DM 加入后战斗输入框仍保持 PL 禁用状态。
+修复：boot 内暴露 window.applyRoleRestrictions，加入房间后按新身份重新应用权限。
+验证：DM 加入后战斗输入框解禁（combatDisabled=0）、迷雾菜单显示。
+
+【备注】map.js 拆分本身加载顺序与函数引用正确（CDP 实测无 JS 异常），
+以上问题均为历史遗留，本次一并修复；北境/官网拆分经验证无回归。
+
+【补充：2026-08-17 同日二次修复】战斗面板先攻值保存后偶发回弹消失
+问题：本地 _mapCombatLastTs（本地已知的服务器时间戳）落后于服务器时，
+输入先攻点击 ✓ 后 pushCombatState 被服务器以 409 冲突拒绝，冲突处理
+无条件用服务器旧状态覆盖本地，刚输入的先攻随之消失；此外点击 ✓ 时
+输入框可能仍在聚焦，mapRenderInitiative 的防闪回保护会跳过重渲染。
+修复（web/static/map.js，map.html 版本号 v55 → v56）：
+1. applyRemoteCombatState 增加本地编辑合并：3 秒内本地改动的先攻/HP/
+   回合标记在应用服务器状态时保留；服务器状态为空但本地刚有编辑时
+   保留本地内容，由重推同步。
+2. pushCombatState 收到 409 后先合并再基于服务器最新时间戳重推一次，
+   确保本地先攻最终写入服务器。
+3. mapConfirmInitiative 点击 ✓ 时主动 blur 输入框，确保立即重渲染显示新值。
+4. boot 启动后立即 syncCombatFromServer 与服务器对齐战斗状态与时间戳，
+   从根源减少时间戳落后导致的 409。
+验证（真实 UI 点击 ✓ + 等待跨轮询周期）：
+- 服务器状态较新 + 本地时间戳落后 → 输入先攻 25 保存后本地/服务器均保留 ✓
+- 服务器空 + 本地新增战斗者输先攻 18 → 保存成功 ✓
+- 正常输入先攻 22 点击 ✓ → 跨 4.5 秒轮询周期后 UI 仍显示 22、本地/服务器一致 ✓
+
+【补充：2026-08-17 延迟优化】远程玩家同步延迟大幅降低（不影响任何功能）
+修改文件：
+- web/static/map.js
+- web/static/map-fog.js
+- web/shared_state.py
+- web/app.py
+
+一、战斗状态改 WebSocket 实时推送（原 3 秒 HTTP 轮询）
+- pushCombatState：WS 在线时直接发 combat_update（毫秒级到达），WS 断开自动
+  降级 HTTP POST（409 版本保护/合并逻辑不变）。
+- 前端新增 combat_update 接收分支：其他玩家的战斗操作（伤害/先攻/回合/清空）
+  实时应用（保留本地 3 秒内编辑，防止覆盖正在输入的内容）。
+- 后端 combat_update 处理后给发起者回 combat_update_ack（同步服务器时间戳），
+  避免后续推送被误判为旧状态；conflict 回执逻辑保留。
+- 3 秒 HTTP 轮询保留为 WS 断开兜底，WS 在线时跳过（减少无效请求）。
+- 页面启动后立即 syncCombatFromServer 对齐一次，进入即可用。
+
+二、战争迷雾改增量推送（原每次全量重传所有雾笔+擦除轨迹）
+- 雾笔/擦除轨迹新增唯一 id（genStrokeId）。
+- 绘制/擦除完成时发送 fog_incr 增量消息（只含新增元素），远程按 id 合并，
+  不再全量重传；WS 断开自动降级全量 fog_update（行为不变）。
+- 后端 shared_state.apply_fog_incremental 按 id 合并/删除，兼容旧无 id 数据
+  （旧列表格式自动规范为 {strokes, erasures, visible}）。
+- 清空/显示隐藏/删除迷雾仍走全量 fog_update，语义不变。
+
+三、验证（双页面 WebSocket 实测，DM 操作 → PL 端接收）
+- 战斗：DM 添加战斗者+输入先攻 → PL 端 2 秒内同步（先攻 19 一致，服务器一致）✓
+- 迷雾：DM 绘制一笔雾 → PL 端 2 秒内收到（id 一致）✓
+- 擦除：DM 擦除轨迹 → PL 端 fogErasures 增加（id 一致）✓
+- 回归：先攻保存跨轮询不回弹、属性编辑 18→19→18、无 JS 异常 ✓
+- 断线降级：WS 断开时战斗走 3 秒 HTTP 轮询、迷雾走全量，功能不丢失 ✓
+
+【补充：2026-08-17 战斗顺序优化】战斗中临时加入角色 → 填完先攻自动按先攻进入回合顺序
+修改文件：web/static/map.js（map.html 版本号 v56 → v57）
+
+需求：战斗中临时加入的角色，填完先攻后自动按先攻值排序进入当前战斗顺序，
+并在下一轮开始按新顺序行动（本轮不打断、不插队）。
+
+实现：
+1. mapAddCombatant：战斗已开始时加入的角色标记 joinedLate（"临时加入"）。
+2. mapConfirmInitiative：战斗已开始且确认先攻后，整个列表按先攻值降序重排
+   （未填先攻排最后），临时加入的角色立即出现在正确的先攻位置；当前回合标记
+   保持不动，本轮不打断。
+3. mapNextCombatant / mapPrevCombatant：轮转时跳过 joinedLate 角色（本轮不参与）；
+   若本轮剩余均为临时加入角色，自动进入下一轮（轮次 +1、清除标记、从最高先攻
+   开始行动）。
+4. mapNextRound / mapPrevRound：清除 joinedLate，全部角色从下一轮起按先攻行动。
+5. 战斗列表中临时加入角色显示 ⏳ 提示（悬停说明"下一轮开始生效"）。
+
+验证（真实页面流程）：
+- 添加 A(10)、B(20) → 开始战斗 → 顺序 [B(当前), A] ✓
+- 战斗中临时加入 C(25) 确认先攻 → 顺序 [C(⏳), B(当前), A]，C 按先攻排第一 ✓
+- B 行动完下一位 → 轮到 A（C 本轮被跳过，不插队）✓
+- A 行动完下一位 → 自动进入第 2 轮，C 先行动，⏳ 清除 ✓
+- 先攻未填的角色排序时排最后，不影响已填角色 ✓
+
+【补充：2026-08-17 角色头像】PL 在角色卡详情上传/导入头像（含防覆盖与防缓存加固）
+修改文件：web/app.py、web/static/character.js、web/templates/character.html
+（character.js 版本号 v7 → v8）
+
+现状核实：PL 在角色卡角色详情界面上传头像本身已开放（前端上传区域无条件显示、
+后端接口无角色权限拦截）。本次针对两个真实隐患加固，确保 PL 上传可靠：
+1. 头像文件命名带角色 id（角色名_id.ext）：不同角色（含 PL 与 DM 同名角色）
+   不再互相覆盖头像文件。
+2. 上传成功后头像 URL 加时间戳 + GET 头像接口返回 no-cache：
+   上传新头像后立即显示新图，不会命中浏览器旧缓存。
+验证（PL 身份真实上传文件）：
+- PL 创建角色 → 选择角色 → 上传 PNG → portrait_path 保存为"角色名_id.png" ✓
+- 上传后详情页头像立即刷新（URL 带 ?t= 时间戳）✓
+- GET /api/character/<id>/portrait 返回 Cache-Control: no-cache, no-store ✓
+
+【补充：2026-08-17 战斗同步深度修复】临时加入排序不生效 / 清空后回弹
+修改文件：web/static/map.js、web/static/combat.js、web/app.py、
+web/templates/map.html（v57→v58）、web/templates/combat.html（combat.js v27→v28）
+
+问题一：战斗中临时加入角色填完先攻后排序不生效（尤其刷新/重进页面后）
+根因：mapCombatStarted（"战斗已开始"标记）不持久化。战斗开始后刷新页面或
+远程玩家恢复状态时该标记回到 false，mapConfirmInitiative 的排序条件不成立。
+修复：
+1. 战斗状态序列化增加 started 字段：saveMapCombatLocal（localStorage）、
+   pushCombatState（服务器/WS 同步）、collectState 地图存档均保存；
+   restoreMapCombatLocal / applyRemoteCombatState / syncCombatFromServer /
+   轮询恢复时统一应用 mapCombatStarted。
+2. combat.js（独立战斗页）同步同样的 started 持久化 + 临时加入排序 + 跳过轮转。
+
+问题二：点击清空后战斗状态回弹
+根因1（WS 通道清空被忽略）：后端 WS combat_update 用
+"if state and state.get('combatants')" 判断，空列表被当 falsy，清空操作
+（combatants:[]）被直接忽略，服务器保留旧状态。
+根因2（WebSocket 半开丢消息）：页面 WS readyState 显示 OPEN 但消息实际
+未送达（frp 远程/网络波动常见），WS 推送的战斗更新全部丢失，服务器永远
+是旧状态，轮询/其他客户端同步后回弹。
+修复：
+1. 后端 WS combat_update 改为接受空状态（'combatants' in state 判断）。
+2. pushCombatState 的 WS 推送携带 _cid，1.5 秒内未收到 combat_update_ack
+   自动降级 HTTP POST 兜底，保证服务器最终一致；ack 携带 _cid 回执。
+3. 战斗轮询恢复为始终执行（WS 在线也轮询，作为 WS 半开时的兜底同步源）。
+4. mapClearCombat 清空后置 started=false 并加 3 秒本地保护；
+   applyRemoteCombatState 在本地刚清空（3 秒内）且服务器为非空旧状态时
+   忽略服务器状态，防止"清空后回弹"。
+5. combat.js 同步：clearCombat 清空推送（空状态带 _force）、轮询 3 秒
+   本地修改保护、WS 接收 3 秒保护 + 空状态 + started。
+
+验证（真实页面流程）：
+- 地图面板：战斗中临时加入 C(25) → 排序 [C(⏳), B(当前), A] ✓
+- 刷新后 started 恢复 true，再临时加入 D(30) → 排序 [D(⏳), C, B, A] ✓
+- 清空战斗 → 本地/服务器均清空，跨轮询周期不回弹 ✓
+- 独立战斗页：临时加入丙(25) 排序 [丙(⏳), 乙(当前), 甲]；清空后本地/服务器一致 ✓
+- WebSocket 半开场景：WS 推送丢消息时 1.5 秒后 HTTP 兜底保存服务器 ✓
+
+【补充：2026-08-17 角色头像上传按钮不可见修复】
+修改文件：web/static/character.js（character.js 版本 v8 → v9）
+
+问题：PL（和 DM）在角色详情上传头像的按钮位于左侧列最底部，被
+max-height:82vh + overflow-y:auto 压缩进滚动区域外，实测按钮在视口外
+约 1300px，完全不可见，导致"无法上传头像"。
+修复：把"上传头像 / 清除"区域从左侧列最底部移到头像正下方（紧跟圆形
+头像），打开角色详情即可直接看到并点击；对 PL 和 DM 一致生效。
+验证（1280x800 桌面视口、PL 身份真实上传）：
+- 上传按钮 visible=true，位于头像正下方（nearPortrait=true）✓
+- PL 上传 PNG 成功：头像文件保存为"角色名_id.png"，详情页头像立即
+  刷新（URL 带时间戳防缓存）✓
+- 窄视口下详情面板随响应式布局换行到下方，但上传按钮仍紧跟头像，
+  滚动到详情即可见 ✓
+
+【补充：2026-08-17 新功能】DM 公开/私有角色可见性
+修改文件：core/models.py、core/character.py、web/app.py、web/static/character.js、
+web/static/map.js、web/templates/character.html（character.js v9→v10）、
+web/templates/map.html（v58→v59）
+
+功能：DM 可以把部分私有角色设为"公开"，使全体玩家可见（PL 只读），
+未公开的私有角色 PL 依旧看不到。
+
+实现：
+1. 数据模型：characters 表新增 is_public 布尔列（默认 false，启动时幂等补列）。
+2. 后端：
+   - /api/characters：PL 查询返回"自己创建 + DM 公开"的角色；
+   - 新增 POST /api/character/<id>/visibility（仅 DM，role=DM 校验）切换公开/私有；
+   - _char_to_dict 输出 is_public。
+3. 角色卡界面（character.js）：
+   - DM 打开角色详情：头像下方显示"🔒 私有（仅DM可见）/ 🔓 公开（全体可见）"
+     切换按钮；
+   - PL 角色列表：可见 DM 公开角色，带"🔓 公开"标记；私有 DM 角色不出现；
+   - PL 打开公开角色：渲染只读视图（无任何编辑/上传/删除入口）；
+   - PL 不可拖拽/复制/删除公开角色。
+4. 地图：canViewCharInfo 增加 is_public 判断——PL 可查看 DM 公开角色的
+   token 信息面板（私有角色依旧不可见）。
+
+验证（真实双页面流程）：
+- DM 创建"公开角色甲"+"私有角色乙" → 详情显示私有切换按钮 → 切换公开 ✓
+- PL 列表只见"公开角色甲"（🔓 标记），"私有角色乙"不可见 ✓
+- PL 打开公开角色：只读徽章显示、无属性编辑、无上传/删除控件 ✓
+- 地图权限：公开角色 is_public=true → PL 可查看 token 信息 ✓
+
+【补充：2026-08-17 新功能】冒险者名可在公会中修改
+修改文件：web/templates/north-expedition.html、web/static/north-expedition.css、
+web/static/north-main.js、web/static/north-guild.js
+
+功能：首次进入探索北境输入的冒险者名，可在公会（冒险者大厅）中随时修改。
+
+实现：
+1. 公会"等级与积分"面板顶部新增冒险者名行（🧭 冒险者 [名字] ✏️）。
+2. 点击 ✏️ 弹出输入框（沿用现有 prompt 风格）：
+   - 实时更新页面顶栏/营地顶栏的冒险者名与公会面板显示；
+   - 已登录官网账号：先加载现有北境存档，合并 _northName 后整体保存
+     （防止只写名字覆盖整个存档数据）；
+   - 未登录：仅本次会话生效（与首次输入行为一致）。
+3. north-guild.js renderGuild 同步渲染冒险者名（NORTH_CTX.username）。
+
+验证（真实页面流程）：
+- 公会面板显示当前冒险者名 ✓
+- 修改为"新冒险者名" → 公会面板、页面顶栏、营地顶栏全部同步更新 ✓
+- 打开公会界面后名字正确渲染（等级/积分正常）✓
+- 已登录保存走"load → merge _northName → save"完整存档合并，不覆盖存档 ✓
+
+【补充：2026-08-17 修复】酒馆/创意工坊点赞收藏后发布者收不到消息通知
+修改文件：web/app.py、web/templates/portal/user.html、
+web/templates/portal/notifications.html
+
+问题与修复：
+1. 收藏无通知：api_toggle_favorite 收藏成功后没有通知作者。
+   修复：收藏帖子/工坊时按 JSON 数据源（community/workshop）查作者，
+   写入 post_fav / workshop_fav 通知（自己收藏自己不通知、同项聚合）。
+2. 我的收藏列表读不到标题/作者：_favorite_title 用 PostgreSQL 模型查询，
+   与帖子/工坊实际存储（_load_json_file 即 PostgreSQL 封装）不一致。
+   修复：统一走 _load_json_file 同源读取，收藏列表正常显示标题与作者。
+3. 改用户名后收不到通知：帖子/工坊 author 仍是旧用户名，_notify_author
+   按旧名查不到作者。
+   修复：修改用户名时同步更新 community_posts / workshop_items 的
+   author 字段，历史帖子的点赞/收藏/评论通知仍能送达。
+4. 通知图标：收藏通知在 user.html 与 notifications.html 显示 ⭐
+   （原先收藏类型会落入默认 💬）。
+
+验证（双账号真实流程）：
+- B 点赞 A 的帖子 → A 收到 post_like ✓
+- B 收藏 A 的帖子 → A 收到 post_fav ✓
+- B 点赞/收藏 A 的工坊投稿 → A 收到 workshop_like / workshop_fav ✓
+- B 的"我的收藏"正常显示帖子/工坊标题与作者 ✓
+- A 改用户名 → 帖子/工坊 author 同步更新为用户名 ✓
+
+【补充：2026-08-17 优化】酒馆帖子 / 工坊资源点击进入独立详情页
+修改文件：web/templates/portal/index.html
+
+问题：酒馆帖子点击标题弹出小窗（modal）显示详情；创意工坊投稿点击
+在页内切换显示详情。用户希望点击后进入独立详细内容界面。
+修复（独立详情页路由 /post/<id>、/workshop/<id> 原本已存在）：
+1. openPostDetail(id)：改为直接跳转 /post/<id>（帖子独立详情页，含
+   点赞/收藏/评论/删除/返回，与原先弹窗功能一致）。
+2. wsDetailCard(el)：社区投稿（有 id）点击跳转 /workshop/<id>；
+   无 id 的内置资源保留原页内展示逻辑。
+3. 所有入口统一生效：板块帖子列表、首页工坊精选、我的收藏、
+   消息通知跳转均已指向独立详情页。
+验证：
+- 板块帖子标题点击 → 跳转 /post/<id> ✓
+- 工坊投稿卡片点击 → 跳转 /workshop/<id> ✓
+- 帖子详情页渲染完整：标题/作者/内容/点赞/收藏/评论均正常 ✓
+- 每周话题本就是独立页，不受影响 ✓
+
+【补充：2026-08-17 修复】地图 token 旋转开始后无法停止
+修改文件：web/static/map.js（map.html 版本号 v59→v60）
+
+根因：
+1. tokenNetData / textNetData 定义在 boot IIFE 内，但 addMapToken、拖拽、
+   旋转 endRotate 等顶层代码引用它们 → ReferenceError。endRotate 里
+   tokenNetData 抛错后，isRotating=false 与 rotToken=null 永远执行不到，
+   旋转状态卡死，之后每次鼠标移动都继续转动 token，无法停止。
+2. 旋转过程中 mouseup 丢失（鼠标拖出窗口/窗口失焦/触摸）时没有任何兜底，
+   isRotating 同样卡住。
+修复：
+1. tokenNetData / textNetData 移到顶层作用域（顺带修复 token/文本框的
+   WS 同步失败）。
+2. endRotate 内 WS 推送加 try/catch，任何同步异常不再中断状态重置。
+3. 新增旋转兜底：window mouseleave（鼠标离开窗口）、window blur（失焦）、
+   地图任意 mousedown（点击他处）都会结束旋转。
+4. 旋转手柄补 touch 支持（touchstart/touchmove/touchend），触屏也能
+   拖拽旋转且松手必停止。
+验证（真实事件模拟）：
+- 正常 mousedown→mousemove→mouseup：旋转 270°，isRotating=false ✓
+- mouseup 丢失（模拟鼠标拖出窗口）→ mouseleave 触发后旋转停止 ✓
+- 窗口 blur → 旋转停止 ✓
+- 旋转中途点击地图他处 → 旋转停止 ✓
+
+【补充：2026-08-17 修复】消息通知显示链路 + 角色详情右侧栏溢出
+修改文件：web/app.py、web/static/style.css、web/templates/portal/index.html、
+web/templates/portal/user.html、web/templates/portal/notifications.html
+
+一、消息通知（评论/点赞/收藏）
+实测结论：后端写入与前端显示均正常（双账号真实流程 + 浏览器实测）：
+- B 评论/点赞/收藏 A 的帖子 → A 收到 post_comment/post_like/post_fav ✓
+- /notifications 页、用户中心通知区、首页导航均正确显示 ✓
+- 真实用户 IllusoryActor 已有 4 条未读通知 ✓
+增强（让通知更容易被看到、可定位问题）：
+1. 首页导航新增"🔔 消息通知"入口 + 未读红点（30 秒轮询）；
+2. 用户中心与通知页的通知列表每 30 秒自动刷新（新通知自动出现）；
+3. _notify 写入失败、_notify_author 找不到作者（帖子作者名与账号用户名
+   不一致，如改过名）现在记录日志，便于定位。
+提示：若发布者改过用户名，历史帖子的 author 需与账号一致才会收到通知
+（改名接口已同步更新帖子/投稿作者；旧数据可联系维护处理）。
+
+二、角色卡详情右侧信息栏展开后下方内容超出界面不可见
+根因：#char-detail 面板 max-height 85vh + overflow:hidden，而右侧栏
+固定 max-height 82vh，面板实际可用高度小于 82vh，右侧栏底部超出面板
+被裁剪且无法滚动查看。
+修复：面板改为 flex 纵向布局，grid 区域 flex:1 + min-height:0，左右信息栏
+max-height:100%（相对面板实际高度），内容超长在面板内滚动。
+验证（1280x800 实测）：右侧栏完整收在面板内（bottom 764 < 面板 773），
+滚动到底后最后一个信息栏完整可见 ✓

@@ -1,0 +1,22 @@
+2026-08-24_8_事件回响日志格式统一
+═══════════════════════════════════════════
+
+【问题】事件回响中两条「🏕️ 冒险者已返回」系统消息格式不一致：
+  存档恢复的显示正常（"19:18:58系统 / 🏕️ 冒险者已返回"），
+  实时产生的显示错乱（时间/系统/消息分行缩进 + 多余空行）
+【根因】`.output-area` 样式为 `white-space: pre-wrap`（north-
+  expedition.css 258 行）：
+  · 实时消息（addSystemLog / displayResult / 治疗伤害日志）用
+    模板字符串生成 html（含换行与缩进）→ pre-wrap 下换行被
+    原样显示，出现分行+缩进+空行
+  · 存档恢复重建（loadNorthFromServer / importSave）用单行
+    紧凑字符串拼接 → 不受影响，格式正常
+【修复】north-main.js 三处模板字符串 html 改为紧凑单行拼接
+  （与存档重建格式一致：时间+系统同行、内容下行）：
+  1. addSystemLog（系统消息，log-content 保留 type-msg 类）
+  2. displayResult（事件结果消息）
+  3. 治疗/伤害日志（营地按钮调整 HP）
+【验证】node --check 语法通过；格式走查（单行 html 在 pre-wrap
+  下不再产生可见换行/缩进，与存档恢复格式一致）
+【生效】纯前端（north-main.js v60，north-expedition.html 已同步），
+        刷新页面即可，无需重启

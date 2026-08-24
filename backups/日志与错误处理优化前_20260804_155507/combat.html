@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战斗追踪 — 尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* 怪物搜索结果 */
+        .search-results { margin-top: 0.5rem; max-height: 200px; overflow-y: auto; }
+        .search-result-item {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .search-result-item:hover { background: var(--surface2); border-color: var(--accent); }
+        .search-result-item .name { font-weight: bold; color: var(--gold); }
+        .search-result-item .meta { font-size: 0.8rem; color: var(--text-dim); }
+        .monster-info-card {
+            background: var(--bg); border: 1px solid var(--accent);
+            border-radius: 8px; padding: 1rem; margin-top: 0.75rem;
+        }
+        .monster-info-card .title { font-size: 1.1rem; color: var(--accent); font-weight: bold; margin-bottom: 0.5rem; }
+        .monster-info-card .detail { font-size: 0.85rem; color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .monster-info-card .btn-row { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
+        .damage-row { display: flex; gap: 0.5rem; align-items: center; }
+        .damage-row select { flex: 1; }
+        .damage-row input { flex: 0.5; }
+    
+</style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    
+</style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar" style="position:relative;">
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+        <div class="navbar-links">
+
+            <a href="/dice3d">🎲 掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat" class="active">战斗</a>
+            <a href="/spells">法术</a>
+                        <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            
+                <a href="/mods">🧩 Mod</a>
+                
+                <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 左栏：添加参与者 + 怪物搜索 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">⚔️ 添加战斗参与者</div>
+
+                    <!-- 从角色卡导入 -->
+                    <div class="form-group pl-allowed">
+                        <label>📋 从角色卡导入</label>
+                        <select id="char-select" onchange="onCharSelect()" style="width:100%;">
+                            <option value="">— 手动输入 —</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>名称</label>
+                        <input type="text" id="combatant-name" placeholder="角色/怪物名" class="pl-allowed">
+                    </div>
+                    <div class="form-group">
+                        <label>HP</label>
+                        <input type="number" id="combatant-hp" placeholder="当前HP" class="pl-allowed">
+                    </div>
+                    <div class="form-group">
+                        <label>最大HP</label>
+                        <input type="number" id="combatant-hp-max" placeholder="最大HP" class="pl-allowed">
+                    </div>
+                    <div class="form-group">
+                        <label>AC</label>
+                        <input type="number" id="combatant-ac" placeholder="10" value="10" class="pl-allowed">
+                    </div>
+                    <button class="btn btn-primary pl-allowed" onclick="addCombatant()">➕ 加入战斗</button>
+                </div>
+
+                <!-- 怪物/生物搜索 -->
+                <div class="card pl-allowed">
+                    <div class="card-header">👹 资料库搜索生物</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-search" placeholder="搜索怪物/生物名称..."
+                               onkeydown="if(event.key==='Enter') searchMonster()">
+                        <button onclick="searchMonster()">🔍 搜索</button>
+                    </div>
+                    <div class="search-results" id="search-results"></div>
+                    <div id="monster-info"></div>
+                </div>
+
+                <div class="card pl-allowed">
+                    <div class="card-header">🎯 快速骰</div>
+                    <div class="dice-input">
+                        <input type="text" id="quick-dice" placeholder="d20+5 / 3d6 / adv d20...">
+                        <button onclick="quickRoll()">投掷</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右栏：先攻列表 + 伤害处理 -->
+            <div class="col" style="flex: 2;">
+                <div class="card">
+                    <div class="card-header">
+                        ⚔️ 战斗
+                        <span id="round-info" style="color:var(--gold);margin-left:1rem;"></span>
+                        <button class="btn btn-success" onclick="startCombat()" style="margin-left:0.5rem;font-size:0.8rem;padding:0.2rem 0.6rem;">▶ 开始</button>
+                    </div>
+                    <div id="initiative-list" style="color:var(--text-dim); text-align:center; padding:2rem;">
+                        添加参与者后点击"开始"
+                    </div>
+                    <div style="margin-top:1rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="prevRound()" style="flex:1;min-width:60px;">⏮ 上回合</button>
+                        <button class="btn btn-primary" onclick="prevCombatant()" style="flex:1;min-width:60px;">◀ 上一位</button>
+                        <button class="btn btn-primary" onclick="nextCombatant()" style="flex:1;min-width:60px;">下一位 ▶</button>
+                        <button class="btn btn-primary" onclick="nextRound()" style="flex:1;min-width:60px;">⏭ 下回合</button>
+                        <button class="btn btn-danger" onclick="clearCombat()">🗑 清空</button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- 伤害追踪 -->
+                <div class="card">
+                    <div class="card-header">💥 伤害处理</div>
+                    <div class="damage-row" style="display:flex;flex-direction:column;gap:0.35rem;">
+                        <select id="dmg-target" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                            <option value="">— 选择目标 —</option>
+                        </select>
+                        <input type="number" id="dmg-amount" placeholder="伤害/治疗值" min="0" style="padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);">
+                        <div style="display:flex;gap:0.35rem;">
+                            <button class="btn btn-danger" onclick="applyDamage()" style="flex:1;">💥 伤害</button>
+                            <button class="btn btn-success" onclick="applyHeal()" style="flex:1;">💚 治疗</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/combat.js?v=16"></script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharSelect==='function')loadCharSelect();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+<script>
+(function(){
+    try{var s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));var role=s?s.role||'PL':'PL';
+    fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm)role='DM';
+    if(role==='PL'){
+        // PL: 禁用DM专属控件，保留PL可用控件（.pl-allowed 或 join-overlay 内）
+        var btns=document.querySelectorAll('button:not(.navbar-brand):not([onclick*=\"toggleJoin\"])');
+        var inps=document.querySelectorAll('input:not([type=\"hidden\"]),select,textarea');
+        btns.forEach(function(b){
+            if(b.form||b.closest('#join-overlay')||b.closest('.pl-allowed')) return;
+            b.disabled=true; b.style.opacity='0.4';
+        });
+        inps.forEach(function(i){
+            if(i.closest('#join-overlay')||i.closest('.pl-allowed')) return;
+            i.disabled=true; i.style.opacity='0.5';
+        });
+        var h=document.createElement('div');h.style.cssText='text-align:center;color:var(--gold);padding:0.5rem;font-size:0.85rem;';
+        h.textContent='🎭 PL模式：可添加参战者、填入先攻、使用快速骰。其余战斗操作仅DM可用。';
+        document.querySelector('.main-container').insertBefore(h,document.querySelector('.main-container').firstChild);
+    }});
+    }catch(e){}
+})();
+</script>
+</body>
+</html>

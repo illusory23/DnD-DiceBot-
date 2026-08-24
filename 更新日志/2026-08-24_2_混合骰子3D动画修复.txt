@@ -1,0 +1,33 @@
+2026-08-24_2_混合骰子3D动画修复
+═══════════════════════════════════════════
+
+【问题】混合骰子 1d20+1d4+3 掷骰时，3D 动画播出两个二十面骰，
+      下方结果文字（1d20+1d4+3 = 23 [17, 3]）正确
+【根因】前端 buildDetNotation（dice3d-e.html）只用 UI 选择的骰子
+      面数 S 构造动画："rolls.length + 'd' + S + '@' + values"，
+      rolls 是混合面数的值数组（[17, 3]），S 是 UI 当前选择（d20），
+      于是生成 "2d20@17,3"，把 d4 的值 3 也当成了 d20
+【修复】
+  后端（core/dice_engine.py + web/app.py）：
+    · DiceResult 新增 groups_detail 字段：每组 {sides, rolls}
+      （按组记录的投掷值，混合骰子动画用）
+    · /api/roll 响应新增 groups_detail
+  前端（dice3d-e.html buildDetNotation）：
+    · 优先按分组信息构造单 @ 多组确定性格式：
+      "1d20+1d4@17,3"（引擎 parseSets 按 + 拆组、强制结果按骰子
+      顺序分配，已验证支持）
+    · d100 单组仍拆两个 d10（取值用实际骰子值，不再用 total 含加值）
+    · 无分组信息（旧场景）回退原逻辑
+  附带修正：自定义表达式动画的骰子面数不再跟随 UI 选择，
+    4d6k3 播 4 个 d6、d20 adv 播 2 个 d20，均按表达式真实面数
+【验证】
+  · 后端：1d20+1d4+3 → groups_detail=[{sides:20,rolls:[4]},
+    {sides:4,rolls:[1]}]，total=8（4+1+3）✓
+  · 前端真实 buildDetNotation 输出 + 引擎 DiceNotation 解析，
+    6 组用例全部通过：
+    1d20+1d4+3 → 1d20+1d4@17,3 ✓
+    3d6 → 3d6@6,3,2 ✓ / 4d6k3 → 4d6@2,2,6,1 ✓
+    d20 adv → 2d20@18,3 ✓ / d100 → 2d10@7,6 ✓
+    2d8+1d6+3 → 2d8+1d6@5,4,2 ✓
+【生效】改后端 core/dice_engine.py 与 web/app.py → 需重启服务器；
+        dice3d-e.html 为模板内联 JS，刷新页面即可

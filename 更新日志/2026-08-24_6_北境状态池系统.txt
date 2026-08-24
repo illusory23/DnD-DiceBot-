@@ -1,0 +1,37 @@
+2026-08-24_6_北境状态池系统
+═══════════════════════════════════════════
+
+【需求】探索北境添加角色状态池：使用道具后的状态（如下次体质
+      检定优势）存入状态池，下一次匹配检定时自动视为优势检定，
+      检定后自动从状态池移除对应加成
+【可行性分析结论】可行——已有同类先例（survival.coldResist
+      计数型状态 + 严寒检定优势），挂接点明确，存档结构可扩展
+【实现】
+  · 状态池数据：save_data.statusPool = [{key, name, source, uses}]
+    - 键规则：adv:<属性>（str/dex/con/int/wis/cha）属性检定优势；
+              adv:skill:<技能名> 技能检定优势
+    - 同名状态叠加次数；uses 归零整条移除
+  · north-main.js：
+    - statusPool 声明 + findStatus/consumeStatus/grantStatuses
+    - applyUseBackpackItem 支持 cfg.status（物品使用→写入状态池）
+    - handleStepCheck（事件检定）：掷骰前按 step.skill/step.ability
+      匹配状态 → 掷两次取高（3D 路径掷两次，取消则回退单次；
+      rand 路径 max(rand,rand)）→ 检定后 consumeStatus（无论成败）
+    - 检定显示加 [状态优势 a/b] 标记
+    - 生存面板徽章区追加 ✨ 状态池徽章（紫粉色 status-pool 样式，
+      含剩余次数 ×N）
+    - 存档：collectNorthSaveData / exportSave（JSON）保存，
+      loadNorthFromServer / importSave 恢复（旧档无字段默认空数组）
+  · north-survival.js checkCold：体质豁免前查 adv:con →
+    状态优势（优先于驱寒药膏，不叠加）→ 检定后自动消耗
+  · north-data.js ITEM_USE_TABLE 新增状态类物品：
+    - 松茸：力量检定优势 + 体质检定优势（各 1 次）
+    - 魔法泉水：智力检定优势（1 次）
+【验证】node 功能测试全部通过：
+  ① 物品表数据（松茸/魔法泉水状态键）✓
+  ② 状态池核心（获取/叠加/消耗/归零移除）✓
+  ③ checkCold 真实函数：无状态单掷 / 有状态两次取高+自动移除 /
+     状态优先于药膏 / 失败也消耗 / 药膏兼容 ✓
+  语法检查：north-main.js / north-survival.js / north-data.js OK
+【生效】纯前端（版本号 north-data/main/survival → v59 +
+      CSS 已加 status-pool 样式），刷新页面即可，无需重启

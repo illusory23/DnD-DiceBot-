@@ -1,0 +1,42 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-07-20 更新 2: 画笔修复 + PL图层限制 + 按钮功能优化
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【修改文件】
+    web/static/map.js       (画笔上下文恢复 / PL图层限制 / 重置按钮)
+    web/templates/map.html  (图层面板底部id / 按钮标题)
+
+【修复 1: 画笔 Canvas 上下文恢复】
+    问题: applyState() 恢复状态时会重新设置 canvas 宽高，HTML5 Canvas
+          的 width/height 变更会重置所有上下文状态(globalCompositeOperation、
+          lineCap、lineJoin 等回到默认值)，导致画笔绘制异常。
+    修复: applyState() 中 canvas 尺寸重置后立即恢复 drawCtx 的关键属性:
+          globalCompositeOperation='source-over', lineCap='round',
+          lineJoin='round'。后续 redrawDrawCanvas() 调用前确保画笔属性正确。
+
+【修复 2: PL 玩家图层按钮限制】
+    问题: PL 玩家可以看到并操作图层的缩放、排序、删除、重命名等按钮，
+          只有迷雾功能被限制。图层控制权应仅属于 DM。
+    修复:
+      - renderLayerList(): PL 玩家只显示图层名称和缩放比例(只读视图)，
+        不渲染任何操作按钮
+      - applyRoleRestrictions(): PL 隐藏 layer-panel-footer(导入/移动按钮)
+      - map.html: 给 layer-panel-footer 添加 id 以支持 JS 控制
+
+【优化 3: 适应 vs 重置按钮差异化】
+    分析结果:
+      - 适应(zoomFit): 缩放使全部内容 + 内边距适配视口，max 5x
+      - 重置(旧 resetView): 同上但 max 3x，有内容时几乎没有区别
+    修复: 重置按钮改为真正"重置"——
+      - 有内容时: 回到 100% 原始比例(scale=1)，内容居中
+      - 无内容时: 回到默认原点(scale=1, 0,0)
+      - 适应按钮: 保持原有行为(适配视口)
+    更新 HTML title 属性: 适应="自适应适配窗口" 重置="回到100%原始比例"
+
+【填充功能分析】
+    填充工具操作在 drawCanvas(画笔图层)上，点击位置周围 800×800 像素
+    区域内执行洪水填充: 将同色相连像素替换为画笔颜色。
+    - 透明区域点击: 画实心圆(回退)
+    - 非透明区域: 洪水填充，上限 50 万像素，溢出则 fillRect 补充
+    适用场景: 快速填充画笔绘制的封闭轮廓内部(如地下城房间上色)
+    注意: 填充仅作用于画笔层，不会影响地图图层图片

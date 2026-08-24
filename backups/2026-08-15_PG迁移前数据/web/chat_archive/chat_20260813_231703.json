@@ -1,0 +1,82 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "22:42:20",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940940.410125,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "22:42:41",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940961.6732411,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "22:42:56",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940976.1618636,
+    "system": true
+  },
+  {
+    "name": "iling",
+    "text": "凯撒克斯·燃麟  威吓(魅力) = 9 | d20:6",
+    "time": "22:43:12",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785940992.1730988
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "22:43:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785940994.8349476,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "22:44:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785941054.8305228,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "22:45:01",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785941101.6349263,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "潘多拉·拉·索比亚  调查(智力) = 21 | d20:20 大成功！",
+    "time": "22:45:10",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785941110.7214277
+  }
+]

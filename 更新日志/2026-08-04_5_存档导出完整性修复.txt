@@ -1,0 +1,20 @@
+2026-08-04 存档导出完整性修复 — 商店/熔炼状态纳入存档
+
+【问题】导出存档缺少商店资金、库存、商队状态、熔炼炉状态等信息，
+导致读档后商店资金重置、熔炼炉进度丢失。
+
+【修复】
+1. 将以下变量从局部作用域提升至全局：
+   - shopFundsGP / shopFundsSP / shopFundsCP（商店资金）
+   - shopCurrentPrices / shopCurrentStock（商店定价与库存）
+   - shopCaravanItems（商队商品列表）
+   - caravanReturnCounter（商队返回计数）
+   - wsSmeltOre / wsSmeltCoal / wsSmeltBars / wsSmeltIngot（熔炼炉）
+   - wsSmeltTimer / wsSmeltProgress（熔炼进度）
+
+2. exportSave() 新增导出的字段：
+   - 商店：shopFundsGP/SP/CP、shopCurrentPrices、shopCurrentStock、
+     shopCaravanItems、caravanReturnCounter
+   - 熔炼：wsSmeltOre、wsSmeltCoal、wsSmeltBars、wsSmeltIngot
+
+3. importSave() 新增恢复逻辑（含 undefined 检查兼容旧存档）

@@ -1,0 +1,118 @@
+[
+  {
+    "name": "白枫",
+    "text": "🎲 潘多拉·拉·索比亚 d6 = [1]",
+    "time": "21:37:17",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785245837.527453
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 潘多拉·拉·索比亚 d6 = [5]",
+    "time": "21:37:27",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785245847.3216412
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 潘多拉·拉·索比亚 d4 = [3]",
+    "time": "21:37:30",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785245850.889313
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "21:39:45",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785245985.5331876,
+    "system": true
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 d20 adv = [19]",
+    "time": "21:41:33",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246093.7537732
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 d20 adv = [6]",
+    "time": "21:41:58",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246118.7057543
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 d20 adv = [11]",
+    "time": "21:42:16",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246136.3195653
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d8-1 = [7]",
+    "time": "21:42:29",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246149.9709902
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "21:48:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785246494.7275507,
+    "system": true
+  },
+  {
+    "name": "iling",
+    "text": "🎲 1d20+1 = [4]",
+    "time": "21:51:48",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785246708.0184987
+  }
+]

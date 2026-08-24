@@ -1,0 +1,22 @@
+[
+  {
+    "name": "菜鸟CaiNiao",
+    "text": "搞什么",
+    "time": "20:30:05",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785933005.1482353
+  },
+  {
+    "name": "系统",
+    "text": "🔴 菜鸟CaiNiao 退出房间",
+    "time": "20:30:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933014.0657816,
+    "system": true
+  }
+]

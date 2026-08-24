@@ -1,0 +1,56 @@
+P0致命问题批量修复 + P1战斗先攻闪回修复
+=========================================
+日期：2026-08-06
+
+已备份至：backups/P0修复前_20260806/
+
+━━━ P0 致命修复 ━━━
+
+1. api_room_join DM身份绑定修复（app.py:3510）
+   - 补 global _dm_ip, _dm_user_id 声明
+   - 修复后改名保持DM身份功能正常
+
+2. 路径穿越漏洞修复（app.py:2897-2900, 2944-2946）
+   - /api/file-content 和 /api/file-raw 添加 realpath 校验
+   - 禁止读取项目目录外的任意文件
+
+3. CLI .char import 扁平化修复（dnd_bot.py:530-585）
+   - 添加Excel嵌套结构→扁平结构转换（与web端一致）
+   - 修复后CLI导入不再取默认值/报错
+
+4. create_character 签名修复（core/character.py:229-235）
+   - 新增 background 和 group_id 参数
+   - 修复 web POST /api/character 的 500 错误
+
+5. .longrest / .shortrest CLI 返回值修复（dnd_bot.py:1436-1488）
+   - long_rest 只返回 {hp_current, hp_max}，CLI端改写匹配
+   - short_rest 只返回 {hp_current, hp_max, spent_hd, healed}，CLI端简化
+
+6. 缺失函数修复
+   - get_db → SQLAlchemy ORM（app.py:837）
+   - 新增 update_feature / delete_feature（core/character.py:845-862）
+
+7. _cleanup_online_users → _prune_stale_users（app.py:4058）
+
+8. .char hp set/max TypeError 修复（dnd_bot.py:925-960）
+   - set_hp返回bool，改为重新get_character读取
+
+9. .char coin add KeyError 修复（dnd_bot.py:809-818, 2166-2169）
+   - adjust_coin返回{ok, cp, sp, ep, gp, pp}，CLI端改写匹配
+
+10. _char_to_dict 补充 spell_slots（core/character.py:207-210）
+    - 前后端现在能正确读取法术位
+
+25. long_rest 崩溃修复（core/character.py:509）
+    - int(char.hit_dice[1:]) → int(char.hit_dice.split('d')[1])
+
+━━━ P1 战斗先攻闪回修复 ━━━
+
+11. 战斗广播回环修复（map.js）
+    - mapConfirmInitiative 添加 pushCombatState() 立即推送
+    - mapRenderInitiative 添加输入框聚焦保护（打字时跳过重渲染）
+    - 3秒轮询添加 _mapLocalChangeTs 保护（本地编辑3秒内不覆盖）
+
+13. XSS防护 - 在线用户名HTML转义（map.js）
+    - 新增 _escHtml 工具函数
+    - renderOnlineUsers 中的用户名进行转义

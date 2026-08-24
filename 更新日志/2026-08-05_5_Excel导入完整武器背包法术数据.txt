@@ -1,0 +1,35 @@
+主题：import_from_excel_data 补充导入武器/背包/法术
+
+问题：
+- Excel 导入时只创建了角色基础信息和属性，武器、背包物品（含护甲/冒险用品）、
+  已准备法术等均未写入数据库
+
+修改内容：
+
+1. core/character.py（import_from_excel_data 函数）：
+
+   a. 武器导入（新增）：
+      - 遍历 data['weapons']，逐把创建 Weapon 记录
+      - 映射字段：name / attack_bonus / damage_dice / damage_type /
+        is_proficient / ammo / description / effect / weight
+
+   b. 背包物品导入（新增）：
+      - 遍历 data['inventory']，逐件创建 InventoryItem 记录
+      - 映射字段：item_name / quantity / weight / location / notes(description)
+
+   c. 已准备法术导入（新增）：
+      - 遍历 data['prepared_spells']，逐条创建 PreparedSpell 记录
+      - 映射字段：spell_name / spell_level
+
+   d. 新增 import json as _json（用于 background_data 反序列化）
+
+2. 之前已修复（2026-08-05_4）：
+   - web/app.py：Excel 解析结果扁平化，background 字典→JSON 字符串
+   - core/character.py：BackgroundDetail 兼容字符串/字典双格式
+
+说明：
+- 武器名称、攻击加值、伤害骰、伤害类型均来自 Excel 对应单元格
+- 背包物品来自 Excel 的「背包」或「物品」sheet（B列=名称，I列=描述）
+- 已准备法术目前仅导入法术名和环级（来自 Excel 法术书 sheet）
+- _char_to_dict 已正确返回 weapons/inventory/prepared_spells，
+  前端 /api/character/<id> 可获取完整数据

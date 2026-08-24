@@ -1,0 +1,77 @@
+2026-07-29_1 五大功能修复与优化
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+本次修复涉及5个问题的综合更新：
+
+━━━ 1. 掷骰角色选择独立化 ━━━
+问题：检定/豁免面板中，一位玩家选择角色后会修改全局 active_char_id，
+      导致下一位玩家的检定自动沿用上一位选择的角色。
+
+修复：
+  - dice3d-e.html：setActiveChar / setSaveChar 改为本地存储角色选择
+    （_localActiveChar / _localSaveChar 变量），不再调用全局
+    /api/character/<id>/use 接口
+  - doCheck / doSave 将本地选择的 char_id 传递给 API
+  - web/app.py：/api/check 新增可选 char_id 参数，优先于全局
+    active_char_id
+
+━━━ 2. 检定/豁免消息播报 ━━━
+问题：技能检定和属性豁免的结果只在本地显示，没有发送到聊天室
+      供其他玩家查看。
+
+修复：
+  - 新增 broadcastCheckResult() 函数，同时通过 HTTP
+    (/api/chat/send) 和 WebSocket (dice_roll_det) 广播
+  - doCheck 和 doSave 在显示结果后自动调用广播
+
+━━━ 3. 删除冗余3D骰子入口 ━━━
+问题：旧的 /dice3d 路由指向已合并的页面，首页navbar中3D掷骰
+      链接自指无效。
+
+修复：
+  - web/app.py：/dice3d 改为 302 重定向到 /dice3d-e
+  - dice3d-e.html：navbar 中移除自指的"3D掷骰"链接
+  - 所有旧模板中的 /dice3d 引用均通过重定向正常工作
+
+━━━ 4. 角色列表拖动排序修复 ━━━
+问题：角色列表面板的拖动排序功能不工作，总角色组内的角色
+      无法拖动排序。
+
+修复：
+  - character.js：移除"总角色组"的拖放限制，允许在全部视图中
+    排序角色
+  - 优化 drop 处理：总角色组内仅排序不改变分组归属
+  - 移除 group-body 的 __all__ 过滤，允许拖放到任意组
+
+━━━ 5. 战斗轮自动+1 ━━━
+问题：战斗中点击"下一位"，当已是本轮最后一人时没有自动
+      进入下一轮，需要手动点"下一回合"。
+
+修复：
+  - combat.js nextCombatant()：检测当 nextIdx===0 且非首轮时，
+    自动递增轮数显示
+
+━━━ 资源库分类修复 ━━━
+问题：服务器资源库中，点击分类按钮（图片/PDF等）显示为空，
+      只有"全部"中能看到文件。
+
+修复：
+  - web/app.py _RESOURCE_CATEGORIES：图片分类从 'image' 改为
+    'img'，与前端 loadResources('img') 匹配
+  - 新增 .svg、.pptx、.ppt、.csv、.flac 等格式支持
+
+━━━ 资源库导入上传功能 ━━━
+功能：参考界面 → 服务器资源库区域新增"📤 导入资源"按钮，
+      支持上传图片/PDF/文档/文本/表格/JSON等文件
+
+实现：
+  - reference.html：新增上传按钮 + 隐藏 <input type="file">
+  - 新增 uploadResource() 函数，调用 /api/resources/upload
+  - 上传后自动刷新资源列表
+
+修改文件：
+  - web/templates/dice3d-e.html      (角色选择/广播/导航)
+  - web/templates/reference.html     (资源上传按钮)
+  - web/static/combat.js             (战斗轮自动+1)
+  - web/static/character.js          (拖动排序修复)
+  - web/app.py                       (API修改/重定向/分类修复)

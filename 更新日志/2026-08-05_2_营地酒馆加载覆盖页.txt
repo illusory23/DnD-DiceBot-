@@ -1,0 +1,35 @@
+主题：营地与酒馆界面增加加载覆盖页
+
+修改内容：
+- web/templates/portal/index.html：
+
+  1. CSS：新增 .loading-overlay / .loading-bg / .loading-content / .loading-title-lg /
+     .loading-sub / .loading-bar-track / .loading-bar-fill / .loading-hint 样式
+     （全屏固定覆盖层，z-index 最高，带淡出过渡动画）
+
+  2. HTML：新增加载覆盖页结构（loading-overlay），包含：
+     - 全屏背景图（loading-bg）
+     - 金色标题「尘封之卷」
+     - 副标题（根据页面变化）
+     - 渐变金色进度条
+     - 提示文字（随进度变化）
+
+  3. 侧边栏新增导航项：🏕️ 营地（位于创意工坊与关于平台之间）
+
+  4. JS：
+     - 修改 navTo()：community 和 camp 导航先调用 showLoading()，回调中再渲染内容
+     - 新增 showLoading(type, callback)：显示加载覆盖页，1.5 秒进度条动画，
+       进度分阶段提示文字（正在准备→即将抵达→准备就绪→欢迎光临），
+       完成后淡出并执行回调
+     - 新增 renderCamp()：营地主页面（制作台/铁砧/熔炼炉/炼药锅 四区卡片）
+     - 新增 showCampFeature(id)：营地各工作区详情页
+
+- web/static/portal/loading_tavern.png：酒馆加载页背景图
+- web/static/portal/loading_camp.png：营地加载页背景图
+
+说明：
+- 酒馆加载页背景：暖色调酒馆内景图
+- 营地加载页背景：夜色篝火营地场景图
+- 加载动画 1.5 秒，进度条 0→100%，支持阶段性提示
+- 加载完成后 0.4 秒淡出过渡
+- 营地页面为功能占位，详细的工作间（制作台/铁砧/熔炼炉/炼药锅）待后续实现

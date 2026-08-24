@@ -1,0 +1,68 @@
+2026-08-16 第5次更新：八项优化实施（地图治理/北境拆分/存档加固/通知/Toast）
+
+【1. 地图代码治理】
+- 消除重复函数：removeFogByErasePath 定义两次（1592/1599，函数体相同，
+  前者为死代码）→ 删除重复定义
+- 模块拆分：战争迷雾系统（fogLineWidth→floodFillOnCanvas，319 行）
+  → 新文件 web/static/map-fog.js；map.js 5142 → 4823 行
+- map.html 加载顺序：map-fog.js 在 map.js 之前（boot 启动时立即调用
+  迷雾函数）；版本号 v=52 → v=53
+
+【2. 北境公会标签（界面就绪，与官网账号绑定）】
+- 根因：init() 未调用 updateRankUI，探索/营地头衔徽章（#charStatus/
+  #campCharStatus）初始不渲染，仅在事件后刷新
+- 修复：init() 中调用 window.NORTH_GUILD.updateRankUI()；等级基于
+  存档 statsData（north_saves 按 user_id 保存），登录账号自动恢复
+- 验证：探索端徽章初始显示"青羽"
+
+【3. north-main.js 继续拆分（公会系统）】
+- 公会系统（RANK_LEVELS 注入 + getRankIndex/getCurrentRank/getNextRank/
+  checkRankUp/renderGuild/guildSubTab/updateRankUI，102 行）
+  → 新文件 web/static/north-guild.js（沿用 NORTH_CTX 注入模式）
+- main.js 末尾新增 statsData getter 注入（存档恢复可能重赋值）
+- 9 处外部调用点改写 window.NORTH_GUILD.xxx；静态对比 0 语义差异
+- north-main.js 6051 → 5949 行；HTML 引入顺序 main → guild → tavern → fx
+
+【4. 北境渲染优化（事件日志增量更新）】
+- renderDisplayLog 由整体 innerHTML 重绘改为增量 append
+  （_displayRendered 计数 + insertAdjacentHTML，截断/全量场景自动回退）
+- 存档恢复（importSave/loadNorthFromServer）强制全量重绘
+- 商店背包为低频调用，保持整体重绘（收益小，留待后续）
+
+【5. 服务端存档异常处理】
+- saveNorthToServer 静默 catch → 失败计数 + addSystemLog 提示
+  （首次"正在自动重试…"，连续 3 次"请检查网络"）+ 指数退避重试
+  （10s/30s/60s 封顶，恢复成功后提示"存档已恢复同步"）
+
+【6. 存档日志裁剪与版本迁移】
+- 存档版本 2 → 3：fullLog 裁剪上限 MAX_SAVE_LOG=500（超出丢最旧，
+  存档体积不再无限膨胀），新增 logTrimmed 标记
+- 加载兼容：字段级容错已支持 v2/v3（v2 旧档直接可读）
+
+【7. 评论通知（被评论/被点赞提醒）】
+- 新表 notifications（PG，第 31 表）：user_id/type/actor/content/link/read/created_at
+- 触发点：帖子被评论、工坊被评论、帖子被点赞、工坊被点赞
+  （自己操作不通知自己；作者无官网账号跳过）
+- API：GET /api/notifications（最新 50 条）、GET /api/notifications/unread-count
+  （红点数）、POST /api/notifications/read（单条/全部已读）
+- 用户中心：新增"🔔 消息通知"卡片（未读红点+红边高亮+点击跳转详情+
+  "全部已读"按钮），未读红点 30 秒轮询
+- 修复：_notify helper 被点赞路由装饰器误装饰导致的 500（装饰器归位）
+
+【8. 错误提示统一 Toast】
+- portal 5 页面（index/user/announcements/post_detail/workshop_detail）
+  引入 common-error-handler.js（Toast.show API）
+- 34 处 alert → Toast（error/warning 类型区分），删除确认框 confirm 保留
+- 修复中发现并修复：_notify 被 @app.route 误装饰 bug
+
+【验证】
+- 数据：通知链路 API 全过（A 发帖→B 评论/点赞→A 收 3 条通知、
+  未读计数、全部已读、B 无自通知）
+- 无头浏览器 13 项全过：地图页（迷雾函数/顶层函数/加载顺序/无JS错误）、
+  北境页（guild 模块/statsData getter/公会标签"青羽"/无JS错误）、
+  用户中心（通知卡片 4 条/未读红点 1/Toast）
+- 原有回归：_verify_all_features、_verify_north_page 全部通过
+- 静态对比：north-guild 拆分语义 0 差异；测试数据已清理
+
+【备份】backups/2026-08-16_八项优化前/
+【文档】优化方向分析更新为 v4（剔除 8 项已完成，新增深化方向）

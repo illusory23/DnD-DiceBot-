@@ -1,0 +1,81 @@
+【2026-08-20_1】地图五项修复：PL移动限制 / 信息面板 / 切页清空 / 清除全部 / HP一致性
+
+修改文件：
+- web/static/map.js（权限辅助函数、信息面板、保存与同步逻辑）
+- web/templates/map.html（脚本缓存版本号 v71→v72）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PL 不能移动其他玩家的角色 token（DM公开角色除外）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：PL 可以拖动/旋转/缩放/双击删除地图上任何玩家的角色标记。
+
+修复：新增 canMoveToken(token) / ensureTokenCharData(token)——
+DM 可操作全部；PL 仅可操作自己创建的角色（created_by 或角色名
+与玩家 ID 一致）或 DM 公开角色（is_public）。拖动（mousedown）、
+旋转手柄、缩放手柄、双击删除四处入口统一校验，操作前先确保角色
+数据已加载（异步 fetchCharData），拦截时 Toast 提示
+「无法移动其他玩家的角色标记（DM公开角色除外）」。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 角色信息小界面增加等级/职业/种族
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：点击侧边栏角色右侧红色 📋 按钮弹出的信息界面缺少
+等级/职业/种族。
+
+修复：showTokenInfoPanel 头部下方新增一行
+「🎯 Lv.X 职业 · 种族」（金色小字），数据取 charData 的
+level/class/race 字段。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 主机DM切换页面后返回地图有时被清空
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：DM 从地图切到其他页面再切回，有时 token/文字被清空。
+
+根因（两处竞态）：
+- 本地恢复保护标志 _localStateRestored 在 applyState（含图层图片
+  异步加载）完成后才设置。期间 WS init/HTTP 轮询到达时标志未设置，
+  服务端旧状态（缺最后改动，因离开页面前防抖推送被页面卸载中断）
+  以"全量语义"（removeMissing=true）删除服务端没有的本地 token。
+- 离开页面前最后的共享画布推送走 100ms 防抖，页面卸载时定时器
+  未触发，服务端拿不到最新状态。
+
+修复：
+- 找到本地存档后立即设置 _localStateRestored = true（不等 applyState
+  完成），恢复失败时再解除（允许服务端状态兜底）；
+- saveOnUnload（pagehide/beforeunload）改为绕过防抖立即推送
+  （_pushSharedCanvas(true)），HTTP 通道 fetch 加 keepalive: true
+  保证卸载时也能送达；
+- pushSharedCanvas 重构支持 immediate 参数。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 右上角"清除全部"不清除角色 token
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：点击清除全部后角色 token 仍在（或过一会复活）。
+
+根因：本地与 WS clear_all 都清除了 token，但 WS 断开时 clear_all
+只进入待发队列；服务端旧状态（仍含 token）经 1.5 秒 HTTP 轮询
+以全量语义合并回来，token 复活。
+
+修复：clearAll 中在发送 clear_all 后，将 layers/tokens/texts/fog
+标记脏数据并立即推送空状态（WS 断开时走 HTTP 通道），服务端
+立刻拿到空 token 列表，轮询不再复活。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 战斗HP与左上角角色信息小界面HP不一致
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：战斗中角色在战斗面板的 HP 与点击 token 弹出的信息界面
+HP 不一致（信息面板读角色卡缓存，远端战斗更新后缓存滞后）。
+
+修复：
+- showTokenInfoPanel：战斗中（角色在 mapCombatants 中）优先
+  显示战斗列表的 hp/hpMax，非战斗取角色卡缓存——与战斗面板
+  始终一致；
+- getTokenHp（倒地标识）：同样改为战斗值优先，替代原先取
+  两来源最大值（曾掩盖倒地状态）；
+- applyRemoteCombatState：远端战斗 HP 变化时同步更新
+  charDataCache，并刷新倒地标识与已打开的信息面板。
+
+验证：
+- node --check 语法通过；
+- 权限判断复用现有 canViewCharInfo 同源的归属规则（created_by/
+  is_public），与信息面板可见性口径一致。

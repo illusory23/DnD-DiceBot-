@@ -1,0 +1,38 @@
+2026-08-18_6_治疗按钮物品法术选择流程
+════════════════════════════════════════════════════
+
+【需求】
+地图界面点击 💚 治疗按钮：监测背包中可回血治疗的物品
+或已准备的治疗相关法术，弹窗选择后进入治疗掷骰。
+
+【实现】
+一、map.html：
+  1. 新增"治疗方式选择"弹窗 heal-picker-popup（复用攻击选择弹窗样式）：
+     - 治疗者下拉（与侧边栏角色列表同源，排除目标角色）
+     - Tab 切换：🎒 治疗物品 / ✨ 治疗法术
+     - 底部"💚 自由治疗"按钮保留原手动流程
+  2. 治疗掷骰弹窗（heal-popup）新增"💚 治疗者：xxx（物品/法术 · xxx）"显示行
+  3. 五个 JS 缓存版本号 v=68 → v=69
+
+二、map.js：
+  1. 💚 按钮点击 → openHealPicker（替代直接 openHealPopup）
+  2. 治疗物品监测：背包 inventory 按名称/效果/描述匹配
+     "治疗|回复|恢复|疗伤|治愈"关键词；显示数量与治疗骰
+  3. 治疗法术监测：prepared_spells 按法术名匹配同组关键词
+  4. extractHealDice()：从物品 effect/description 或法术描述中
+     提取治疗骰表达式（如 2d4+2 / 1d8），提取失败默认 1d8
+  5. pickHealSource：选中后关闭选择弹窗 → openHealPopup 自动
+     带入治疗表达式（heal-expr 仍可手动修改）
+  6. heal-picker-popup 注册拖拽（makeDraggable）
+
+【涉及文件】
+- web/templates/map.html（治疗选择弹窗 + heal-popup 治疗者行 + 版本号）
+- web/static/map.js（openHealPicker/closeHealPicker/switchHealTab/
+  loadHealPickerChar/renderHealSourceList/isHealItem/isHealSpell/
+  extractHealDice/healSpellDesc/pickHealSource/openFreeHeal；
+  openHealPopup 增加 healerCfg 参数）
+
+【验证】
+- node --check map.js 通过
+- 流程：选中 token → 💚 → 选择治疗者 → 选治疗物品/法术
+  → 治疗弹窗（自动带入治疗骰）→ 3D 掷骰回血结算不变

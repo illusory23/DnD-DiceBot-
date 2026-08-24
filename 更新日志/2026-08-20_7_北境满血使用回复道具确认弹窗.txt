@@ -1,0 +1,47 @@
+【2026-08-20_7】北境满血使用回复型道具：独立确认弹窗，事件回响不再显示道具使用信息
+
+修改文件：
+- web/static/north-main.js（新增 showConfirmPopup 确认弹窗；useBackpackItem
+  拆分出 applyUseBackpackItem；探索页治疗药水按钮满血不禁用）
+- web/static/north-expedition.css（确认弹窗按钮样式 .confirm-popup*）
+- web/templates/north-expedition.html（脚本缓存版本号 v55→v56）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+变更内容
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 满血使用回复型道具 → 独立确认弹窗
+   - 原逻辑：纯治疗物品（heal 且无寒冷抗性）满血时直接拦截，
+     addSystemLog 提示「血量已满，无需使用」，无法强行使用；
+   - 现改为：所有回复型道具（heal 类，含绒蜂蜜这类
+     治疗+抗性复合道具）满血时弹出独立小界面
+     「您现在状态完好无损，确定要使用XX吗？」，
+     「✅ 确定使用」继续执行（扣物品、掷治疗骰、抗性生效），
+     「✕ 取消」关闭弹窗不消耗；
+   - 探索页「🧪 治疗药水」按钮满血时不再 disabled（原禁用逻辑
+     移除），点击后同样走确认弹窗。
+
+2. 事件回响不再显示道具使用信息
+   - 使用成功后的 addSystemLog（「🧪 使用了 XX，恢复 N 点
+     血量」「❄️ XX 带来寒冷抗性…」）全部移除，事件回响只
+     保留事件信息；效果通过生存面板/角色面板变化体现；
+   - 原「💡 血量已满」拦截日志随确认弹窗取代而删除；
+   - 防护性错误提示（未选角色/背包无此物品）改为 alert
+     （与探索页既有风格一致，north-main.js 请先选择角色
+     同款），不再污染事件回响。
+
+实现要点：
+- 新增 showConfirmPopup(msg, onConfirm)：复用 .depth-popup
+  弹窗样式 + .confirm-popup 纵向布局，独立小界面不自动关闭，
+  点击按钮才消失，不写入事件回响（不调 addSystemLog）；
+- useBackpackItem 拆分为：满血判定分支（弹窗）→
+  applyUseBackpackItem（实际扣减/掷骰/抗性/刷新，无日志）；
+- 驱寒药膏（ointment）仍走既有 doUseOintment 全套逻辑，不属
+  回复型道具，不在本次改动范围。
+
+验证：
+- node --check north-main.js 语法通过；
+- 三处背包（补给站/仓库/角色卡）"使用"按钮与探索页药水按钮
+  均经 window.NORTH_CAMP_CTX.useBackpackItem 入口，改动一处
+  全覆盖；
+- 满血确认后使用：物品正常扣减、治疗骰溢出（不超 hpMax）、
+  绒蜂蜜寒冷抗性正常生效。

@@ -1,0 +1,68 @@
+2026-08-15 第2次更新：全量迁移 PostgreSQL 数据库
+
+【背景】
+- 此前：SQLAlchemy 主库 SQLite（data/characters.db 17 表）+ 12 个运行数据 JSON 文件 +
+  282 个聊天归档文件（web/chat_archive/），JSON 并发无锁/直读点散落，存在丢写与竞态
+- 本次：所有运行数据迁入本机 PostgreSQL 9.3.25（localhost:5432，库 dicebot，
+  账号 postgres，UTF8），JSON 文件退役（保留为只读备份）
+
+【一、数据库与表】
+- 新建 dicebot 数据库（UTF8）
+- core/models.py 新增 13 张表（核心列 + data JSON 列兜底，保留原始 dict）：
+  chat_messages（聊天/酒馆，channel 区分）、chat_archives（归档）、
+  dm_events、dm_published_events、event_stats、dice_stats、combat_state（单行）、
+  shared_canvas（单行，ver/ts）、topics、announcements、community_posts、
+  workshop_items、favorites
+- 原 17 表不变（users/characters/.../north_saves）
+- characters.background_field 由 VARCHAR(100) 改为 TEXT（实际存背景 JSON 全文 2106 字符）
+
+【二、数据迁移（web/_migrate_pg.py，幂等，--force 重迁）】
+1. SQLite 17 表 → PG：756 行，显式 id 插入 + setval 重置序列；布尔 0/1 → bool
+2. JSON → PG：chat 500 条逐条（完整 dict 存 data 列）、dm 事件、统计（event/dice）、
+   战斗状态、共享画布、话题、公告、酒馆帖子、工坊投稿、收藏
+3. chat_archive 282 个文件 → chat_archives 表 282 行
+- 核对脚本 web/_verify_migration.py：30 项检查全部通过（行数+逐行全字段对比，
+  含 JSON 嵌套、datetime 格式、float 精度容差）
+
+【三、代码改造（保持 load/save 函数签名不变，内部改 ORM）】
+- config.py：DATABASE_URL 默认指向 PostgreSQL（环境变量仍可覆盖）
+- web/app.py：
+  - 聊天/酒馆（_load/_save/_archive/裁剪）、DM 事件、统计、战斗状态、
+    话题、公告、酒馆/工坊（_load_json_file 内部按路径分发）、收藏
+    全部改 ORM 读写；撤回事件改 PG 内更新 _recalled（消息表+归档表）
+  - 修复 ORM 迁移遗留的坏代码：3 处 from core.character import get_db
+    （get_db 已不存在，调用即 500）改为 ORM；api_update_spell_slots
+    直连旧 SQLite 改为 ORM；统计接口归档数改 PG 计数
+  - 模块级加载函数包 app.app_context()（ORM 查询需要 context）
+  - 异步线程保存函数（_save_chat_log 等）函数内自建 context，失败记日志
+- web/shared_state.py：画布持久化改 PG 单行 upsert；独立 SQLAlchemy 引擎
+  （模块级初始化无 Flask context，不依赖 Flask-SQLAlchemy）
+- web/admin.py：
+  - topics 双套读写合并到 app.py ORM 入口（顺带修复原无锁竞态）
+  - chat-archives 列表/清理、仪表盘统计改 ORM
+  - 备份中心：SQLite 备份改为 PG 全库快照导出/导入（JSON 快照，
+    含安全网 pre_restore 自动备份）；移除已退役 JSON 文件清单
+  - 数据库大小显示改 pg_database_size 查询
+- dnd_bot.py：法术位 restore 命令改 ORM
+- requirements.txt：增加 psycopg2-binary>=2.9
+- 清理：11 个死常量（_CHAT_LOG_FILE 等）+ 10 个未使用导入 +
+  临时诊断脚本 _debug_banner.mjs
+
+【四、验证结果】
+- 数据完整性：30 项核对全过（SQLite 17 表逐行一致、JSON 12 组逐条一致、
+  归档 282 行一致，仅 float 时间戳 0.000004 秒精度损失属 PG float64 正常）
+- 启动回归：服务器正常启动，PG 30 张表
+- API 回归：聊天 50 条、画布 version 4、战斗状态、板块/帖子/工坊/话题/
+  统计/骰子榜/DM 事件/角色列表全部正常
+- 写操作落 PG：发帖/评论/点赞/聊天/酒馆/工坊投稿/战斗状态/法术位
+  全部写入 PG 成功；JSON 文件 mtime 不再变化（确认退役）
+- 裁剪归档：聊天超 500 条自动裁剪并入档（PG chat_archives 283 行）
+- 无头浏览器：官网（头像/点赞/搜索分页/横幅）、北境页（tavern/fx 模块/
+  16 事件表/雪花特效）、原有 _verify_north_page.mjs 全部通过
+- 测试数据已全部清理（测试账号/帖子/工坊/消息/点赞/收藏）
+
+【五、说明与注意事项】
+- PG 9.3 无 JSONB/ON CONFLICT，JSON 列与查-插-改模式已适配
+- 备份：backups/2026-08-15_PG迁移前数据/（characters.db + 全部 JSON + 归档）
+- 回滚：config.py 改回 sqlite:///data/characters.db 即可整体回滚
+- 迁移脚本可重复执行（幂等）；核对脚本可随时重跑

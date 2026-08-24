@@ -1,0 +1,32 @@
+2026-08-09 更新 · 帖子与工坊投稿评论系统
+═══════════════════════════════════════════
+
+一、功能：酒馆帖子与工坊投稿支持评论
+───────────────────────────────────────────
+• 评论存储：data/community.json（帖子 comments）、data/workshop.json（投稿 comments）
+• 帖子评论：
+  - POST /api/community/posts/<id>/comments        发表（需登录，≤500字）
+  - DELETE /api/community/posts/<id>/comments/<cid> 删除（作者或管理员）
+• 投稿评论：
+  - POST /api/workshop/items/<id>/comments         发表（需登录，≤500字）
+  - DELETE /api/workshop/items/<id>/comments/<cid>  删除（作者或管理员）
+  - 新增 GET /api/workshop/items/<id> 投稿详情（含评论）
+• 防刷：同一用户 15 秒内仅可评论一次（与每周话题共用）
+
+二、前端
+───────────────────────────────────────────
+• 通用评论区组件（commentBlockHTML/renderComments/loadComments/submitComment/deleteComment）
+• 帖子详情弹窗：内容下方显示评论区（列表 + 输入框）
+• 工坊投稿详情页：介绍/附件下方显示评论区
+• 删除按钮仅作者或管理员可见
+
+三、改动文件
+───────────────────────────────────────────
+• web/app.py（4 个评论 API + 投稿详情 API + 评论构造/防刷函数）
+• web/templates/portal/index.html（评论组件 + 帖子弹窗/工坊详情接入）
+
+四、测试情况
+───────────────────────────────────────────
+12/12 通过：帖子评论/防刷/空评论/删除/404、投稿评论/删除、
+未登录 401 全部验证
+线上验证：帖子评论 200、投稿评论 200、详情含评论、官网组件加载正常

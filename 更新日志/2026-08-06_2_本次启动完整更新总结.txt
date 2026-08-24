@@ -1,0 +1,81 @@
+本次启动完整更新总结
+=====================
+日期：2026-08-05 ～ 2026-08-06
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+一、功能隔离（跑团平台 ↔ 探索北境）
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 聊天室与酒馆聊天完全隔离（08-05_10）
+   - 新增酒馆独立存储：_tavern_messages + tavern_chat_log.json
+   - 新增 API：POST /api/tavern/chat/send、GET /api/tavern/chat/messages
+   - 北境前端改用新端点，移除🍺前缀过滤
+
+2. 北境Excel角色导入完全隔离（08-05_11）
+   - 新增 POST /api/tavern/character/import（只解析不写表）
+   - 北境前端 importFromExcel 改用独立端点，单次请求获取完整数据
+   - 不再写入 characters 表，跑团平台不可见
+
+3. 地图token移除血量显示（08-05_12）
+   - updateTokenHpLabel 改为仅显示名称
+   - 移除 refreshTokenHP 定时器和 syncCombatantHP 中的HP标签更新
+   - 左侧信息面板HP血条不受影响
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+二、远程玩家地图修复（08-05_13）
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. _localStateRestored 竞态修复
+   - WS init 保护仅对DM生效（PL始终以服务端为准）
+   - HTTP轮询保护同样仅对DM生效
+   - DM保护期内跳过时自动对账机制
+
+5. 图层操作同步修复
+   - 6个图层操作函数 + 拖拽移动全部加 markDirty('layers')
+   - DM端 WS 连接后自动重新上传图层图片修复文件丢失
+   - layerNetData 始终携带 dataURL（≤500KB）实现自愈
+   - 服务端 serve_map 添加 dataURL 回退恢复
+
+6. 其他修复
+   - WS onmessage 空catch加 console.error 日志
+   - fog init 条件兼容字典格式
+   - api_room_leave 补 _dm_ip global 声明
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+三、P0 致命问题批量修复（08-06_1）
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. app.py 修复
+   - api_room_join 补 global _dm_ip, _dm_user_id
+   - api_room_leave 补 global _dm_ip
+   - /api/file-content + /api/file-raw 路径穿越防护
+   - get_db → SQLAlchemy ORM 替换
+   - _cleanup_online_users → _prune_stale_users
+   - 多处 request.get_json() 统一加 silent=True
+
+8. core/character.py 修复
+   - create_character 签名加 background + group_id 参数
+   - _char_to_dict 补充 spell_slots 序列化
+   - long_rest 骰子面数解析修复（int('d8') → split('d')）
+   - 新增 update_feature / delete_feature 函数
+
+9. dnd_bot.py 修复
+   - CLI .char import 添加 Excel 嵌套结构扁平化
+   - .longrest / .shortrest 返回值重写匹配
+   - .char hp set/max bool 返回值处理修复
+   - .char coin add dict 返回值处理修复
+
+10. P1 战斗先攻闪回修复
+    - mapConfirmInitiative 加 pushCombatState() 立即推送
+    - mapRenderInitiative 加输入框聚焦保护
+    - 3秒轮询加 _mapLocalChangeTs 保护
+    - 在线用户名HTML转义（XSS防护）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+修改文件清单
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+web/app.py              — 15+ 处修改
+web/templates/north-expedition.html — 聊天+导入共计6处
+web/static/map.js       — 20+ 处修改（图层同步+闪回+转义+WS日志）
+core/character.py       — 5处修改（签名+序列化+函数+崩溃修复）
+dnd_bot.py              — 5处修改（CLI导入+休息+HP+金币）

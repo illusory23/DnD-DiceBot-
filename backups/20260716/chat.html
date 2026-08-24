@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室 — DND5E 骰娘</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --gold: #ffd700;
+            --accent: #e94460;
+            --bg: #12121a;
+            --surface: #1a1a28;
+            --surface2: #222236;
+            --border: #2a2a44;
+            --text: #ddd;
+            --text-dim: #888;
+            --cyan: #00bcd4;
+            --green: #4caf50;
+            --red: #f44336;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        /* ━━ 顶部导航栏 ━━ */
+        .top-nav {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0 1rem; height: 48px; flex-shrink: 0;
+            background: var(--surface); border-bottom: 2px solid var(--accent);
+        }
+        .top-nav .brand {
+            font-weight: bold; color: var(--accent); text-decoration: none;
+            font-size: 1rem; margin-right: 0.5rem;
+        }
+        .top-nav .sep { width: 1px; height: 24px; background: var(--border); margin: 0 0.25rem; }
+        .nav-tab {
+            font-size: 0.82rem; padding: 0.35rem 0.6rem; border-radius: 4px;
+            text-decoration: none; color: var(--text-dim); transition: all 0.15s;
+            border: 1px solid transparent; white-space: nowrap;
+        }
+        .nav-tab:hover { background: var(--surface2); color: var(--text); }
+        .nav-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ━━ 主内容区 ━━ */
+        .main-content {
+            flex: 1; display: flex; overflow: hidden;
+        }
+
+        /* ━━ 聊天区域 ━━ */
+        .chat-container {
+            flex: 1; display: flex; flex-direction: column;
+            background: var(--bg); max-width: 900px; margin: 0 auto; width: 100%;
+        }
+        .chat-header {
+            padding: 10px 16px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+        }
+        .chat-header b { color: var(--gold); font-size: 1rem; flex: 1; }
+        .chat-header .online-badge {
+            font-size: 0.75rem; color: var(--green); background: rgba(76,175,80,0.15);
+            padding: 2px 8px; border-radius: 10px;
+        }
+
+        /* 加入行 */
+        .chat-join-row {
+            padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+        }
+        .chat-join-row input[type="text"] {
+            flex: 1; min-width: 100px; padding: 7px 10px;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 5px; color: var(--text); font-size: 0.85rem;
+        }
+        .chat-join-row input:focus { border-color: var(--accent); outline: none; }
+        .color-picker-wrap { position: relative; display: flex; align-items: center; }
+        .color-btn {
+            width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border);
+            cursor: pointer; padding: 0; flex-shrink: 0; transition: all 0.15s;
+        }
+        .color-btn:hover { border-color: #fff; transform: scale(1.15); }
+        .color-palette {
+            display: none; position: absolute; top: 100%; left: 0; margin-top: 6px;
+            background: var(--surface); border: 2px solid var(--accent); border-radius: 8px;
+            padding: 8px; z-index: 500; gap: 5px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+        }
+        .color-palette.show { display: flex; flex-wrap: wrap; width: 160px; }
+        .color-swatch {
+            width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s;
+        }
+        .color-swatch:hover { border-color: #fff; transform: scale(1.2); }
+        .color-swatch.selected { border-color: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+        .chat-join-row button {
+            padding: 7px 16px; background: var(--accent); border: none; border-radius: 5px;
+            color: #fff; cursor: pointer; font-size: 0.85rem; white-space: nowrap;
+        }
+        .chat-join-row button:hover { opacity: 0.9; }
+
+        /* 在线用户列表 */
+        .online-users {
+            padding: 6px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            font-size: 0.75rem; color: var(--text-dim); display: flex; gap: 8px;
+            align-items: center; flex-wrap: wrap; min-height: 28px;
+        }
+        .online-users .user-dot {
+            display: inline-flex; align-items: center; gap: 3px;
+        }
+        .online-users .user-dot::before {
+            content: ''; display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; flex-shrink: 0;
+        }
+
+        /* 消息区 */
+        .chat-msgs {
+            flex: 1; overflow-y: auto; padding: 10px 16px;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .chat-msg {
+            font-size: 0.82rem; line-height: 1.5; padding: 5px 10px;
+            background: var(--surface); border-radius: 8px; word-break: break-word;
+            animation: msgFadeIn 0.2s ease;
+        }
+        @keyframes msgFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .chat-msg .cm-time { color: var(--text-dim); font-size: 0.7rem; margin-right: 5px; }
+        .chat-msg .cm-name { font-weight: bold; }
+        .chat-msg .cm-text { color: var(--text); }
+        .chat-msg.system {
+            text-align: center; color: var(--text-dim); font-size: 0.75rem;
+            background: transparent; font-style: italic; padding: 3px 10px;
+        }
+
+        /* 输入区 */
+        .chat-input-row {
+            padding: 10px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 6px;
+        }
+        .chat-input-row input {
+            flex: 1; padding: 8px 12px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); font-size: 0.85rem;
+        }
+        .chat-input-row input:focus { border-color: var(--accent); outline: none; }
+        .chat-input-row button {
+            padding: 8px 18px; background: var(--accent); border: none;
+            border-radius: 6px; color: #fff; cursor: pointer; font-size: 0.85rem;
+        }
+        .chat-input-row button:hover { opacity: 0.9; }
+        .chat-input-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ━━ 侧边栏 ━━ */
+        .chat-sidebar {
+            width: 240px; background: var(--surface); border-left: 1px solid var(--border);
+            padding: 16px; display: flex; flex-direction: column; gap: 12px;
+            overflow-y: auto; flex-shrink: 0;
+        }
+        .chat-sidebar h3 { color: var(--gold); font-size: 0.85rem; }
+        .chat-sidebar .tip {
+            font-size: 0.75rem; color: var(--text-dim); line-height: 1.6;
+        }
+        .chat-sidebar .tip code {
+            background: var(--bg); padding: 2px 6px; border-radius: 3px;
+            font-size: 0.7rem; color: var(--cyan);
+        }
+
+        /* ━━ @提及通知弹窗 ━━ */
+        .mention-toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #1a1a2e, #2a1a3e);
+            border: 2px solid var(--gold); border-radius: 12px;
+            padding: 14px 20px; z-index: 1000;
+            box-shadow: 0 8px 32px rgba(255,215,0,0.3);
+            display: none; align-items: center; gap: 12px;
+            animation: mentionSlideIn 0.4s ease;
+            cursor: pointer; max-width: 500px;
+        }
+        .mention-toast.show { display: flex; }
+        @keyframes mentionSlideIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .mention-toast .mention-icon { font-size: 2rem; animation: mentionPulse 0.6s infinite alternate; }
+        @keyframes mentionPulse { from { transform: scale(1); } to { transform: scale(1.2); } }
+        .mention-toast .mention-body { flex: 1; }
+        .mention-toast .mention-title { color: var(--gold); font-weight: bold; font-size: 0.95rem; }
+        .mention-toast .mention-detail { color: var(--text-dim); font-size: 0.8rem; margin-top: 2px; }
+        .mention-toast .mention-close {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 1.2rem; padding: 4px;
+        }
+        .mention-toast .mention-close:hover { color: var(--red); }
+        .cm-text .mention { color: var(--gold); font-weight: bold; background: rgba(255,215,0,0.1); padding: 0 2px; border-radius: 2px; }
+    </style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 DND5E 骰娘</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <!-- 顶部导航 -->
+    <div class="top-nav">
+        <a href="/" class="brand">🎲 骰娘</a>
+        <span class="sep"></span>
+        <a href="/" class="nav-tab">🎲 掷骰</a>
+        <a href="/character" class="nav-tab">👤 角色卡</a>
+        <a href="/combat" class="nav-tab">⚔️ 战斗</a>
+        <a href="/map" class="nav-tab">🗺️ 地图</a>
+        <a href="/spells" class="nav-tab">📖 法术</a>
+        <a href="/events" class="nav-tab">🗺️ 事件</a>
+        <a href="/reference" class="nav-tab">📚 参考</a>
+        <a href="/chat" class="nav-tab active">💬 聊天室</a>
+    </div>
+
+    <!-- @提及通知弹窗 -->
+    <div class="mention-toast" id="mention-toast" onclick="dismissMention()">
+        <span class="mention-icon">🔔</span>
+        <div class="mention-body">
+            <div class="mention-title" id="mention-title">呼叫</div>
+            <div class="mention-detail" id="mention-detail"></div>
+        </div>
+        <button class="mention-close" onclick="event.stopPropagation();dismissMention();">✕</button>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="chat-header">
+                <b>💬 聊天室</b>
+                <span class="online-badge" id="online-badge">0 人在线</span>
+            </div>
+
+            <!-- 加入行 -->
+            <div class="chat-join-row" id="join-row">
+                <input type="text" id="chat-username" placeholder="输入你的ID" maxlength="20" enterkeyhint="done">
+                <div class="color-picker-wrap">
+                    <button class="color-btn" id="chat-color-btn" style="background:#00bcd4;" onclick="toggleColorPalette()" title="选择ID颜色"></button>
+                    <div class="color-palette" id="color-palette"></div>
+                </div>
+                <button id="join-btn" onclick="joinChat()">加入聊天</button>
+            </div>
+
+            <!-- 在线用户 -->
+            <div class="online-users" id="online-users">
+                <span style="color:var(--text-dim);">—</span>
+            </div>
+
+            <!-- 消息列表 -->
+            <div class="chat-msgs" id="chat-msgs">
+                <div class="chat-msg system">输入ID后即可参与聊天</div>
+            </div>
+
+            <!-- 输入区 -->
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="输入消息..." disabled enterkeyhint="send">
+                <button onclick="sendMsg()" id="chat-send-btn" disabled>发送</button>
+            </div>
+        </div>
+
+        <!-- 侧边栏提示 -->
+        <div class="chat-sidebar">
+            <h3>📋 聊天室说明</h3>
+            <div class="tip">
+                <p>💬 与地图界面的聊天室<strong>消息同步</strong>，所有房间成员都能看到。</p>
+                <br>
+                <p>👑 <strong style="color:var(--gold);">金色ID</strong> = 主持人 (DM)</p>
+                <p>🎨 其他玩家可选择自己的ID颜色</p>
+                <br>
+                <p>📌 提示：</p>
+                <p>• 按 <code>Enter</code> 发送消息</p>
+                <p>• 消息在所有页面同步</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ━━━ 状态 ━━━
+        let chatUser = '';
+        let chatColor = '#00bcd4';
+        let isDM = false;
+        let onlineUsers = [];
+
+        // ━━━ 颜色调色板 ━━━
+        const COLOR_PRESETS = [
+            '#00bcd4', '#4caf50', '#ff9800', '#e91e63', '#9c27b0',
+            '#2196f3', '#ff5722', '#607d8b', '#795548', '#cddc39',
+            '#00e5ff', '#76ff03', '#ffd740', '#ff4081', '#b388ff',
+            '#448aff', '#ff6e40', '#90a4ae', '#8d6e63', '#ffff00',
+        ];
+
+        function buildColorPalette() {
+            const palette = document.getElementById('color-palette');
+            palette.innerHTML = COLOR_PRESETS.map(c =>
+                `<div class="color-swatch${c === chatColor ? ' selected' : ''}"
+                     style="background:${c};" onclick="selectColor('${c}')"
+                     title="${c}"></div>`
+            ).join('');
+        }
+
+        window.toggleColorPalette = function() {
+            const palette = document.getElementById('color-palette');
+            buildColorPalette();
+            palette.classList.toggle('show');
+        };
+
+        window.selectColor = function(color) {
+            chatColor = color;
+            document.getElementById('chat-color-btn').style.background = color;
+            document.getElementById('color-palette').classList.remove('show');
+            // 立即同步颜色到 sessionStorage 和服务端
+            try {
+                var s = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                if (s) { s.color = color; sessionStorage.setItem('dnd_joined_room', JSON.stringify(s)); }
+            } catch(e) {}
+            if (chatUser) {
+                fetch('/api/room/heartbeat', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: chatUser, color: color, role: userRole || 'PL'})
+                }).catch(function(){});
+            }
+        };
+
+        // 点击其他地方关闭调色板
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.color-picker-wrap')) {
+                document.getElementById('color-palette').classList.remove('show');
+            }
+        });
+
+        // ━━━ 加入聊天 ━━━
+        window.joinChat = function() {
+            const input = document.getElementById('chat-username');
+            const name = input.value.trim();
+            if (!name) return;
+
+            var oldName = chatUser;
+            chatUser = name;
+            document.getElementById('chat-input').disabled = false;
+            document.getElementById('chat-send-btn').disabled = false;
+            document.getElementById('chat-input').focus();
+            // 修改按钮文字
+            document.getElementById('join-btn').textContent = '✏️ 修改';
+
+            // 首次加入时从sessionStorage恢复颜色
+            if (chatColor === '#00bcd4') {
+                try {
+                    const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                    if (saved && saved.color && saved.color !== '#00bcd4') {
+                        chatColor = saved.color;
+                        document.getElementById('chat-color-btn').style.background = chatColor;
+                    }
+                } catch(e) {}
+            }
+
+            // 检测DM状态
+            fetch('/api/dm-status').then(r => r.json()).then(data => {
+                isDM = data.is_dm;
+                window._dmName = data.dm_name || '';
+                if (isDM) userRole = 'DM';
+                renderOnlineUsers();
+                if (isDM) {
+                    addSystemMsg('👑 你是主持人 (DM)');
+                }
+            });
+
+            // 改名时先离开旧名
+            if (oldName && oldName !== name) {
+                fetch('/api/room/leave', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: oldName})
+                });
+            }
+
+            // 加入房间
+            const joinColor = (chatColor !== '#00bcd4') ? chatColor : '';
+            fetch('/api/room/join', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name, color: joinColor, role: userRole || 'PL'})
+            });
+
+            // 更新sessionStorage
+            try {
+                sessionStorage.setItem('dnd_joined_room', JSON.stringify({name: name, color: chatColor, is_dm: isDM, role: userRole || 'PL'}));
+            } catch(e) {}
+
+            addSystemMsg(oldName ? '✅ 已改名为「' + name + '」' : '✅ 你已以「' + name + '」加入聊天室');
+
+            // 首次加入时启动心跳
+            if (!oldName) startHeartbeat();
+        };
+
+        // ━━━ 发送消息 ━━━
+        window.sendMsg = function() {
+            if (!chatUser) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            fetch('/api/chat/send', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: chatUser, text: text, color: chatColor, role: userRole || 'PL'})
+            });
+        };
+        var userRole = 'PL';
+
+        // ━━━ 渲染消息 ━━━
+        function addSystemMsg(text) {
+            const div = document.createElement('div');
+            div.className = 'chat-msg system';
+            div.textContent = text;
+            const msgs = document.getElementById('chat-msgs');
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function renderMsg(msg) {
+            const msgs = document.getElementById('chat-msgs');
+            const div = document.createElement('div');
+            if (msg.system) {
+                div.className = 'chat-msg system';
+                div.textContent = msg.text;
+                msgs.appendChild(div);
+                msgs.scrollTop = msgs.scrollHeight;
+                return;
+            }
+            div.className = 'chat-msg';
+            var roleBadge = '';
+            var msgRole = msg.role || (msg.is_dm ? 'DM' : 'PL');
+            if (msgRole === 'DM') roleBadge = ' <span style="background:var(--gold);color:#000;font-size:0.6rem;padding:0 4px;border-radius:3px;">DM</span>';
+            else roleBadge = ' <span style="background:#555;color:#ccc;font-size:0.6rem;padding:0 4px;border-radius:3px;">PL</span>';
+            const nameColor = msg.color || (msgRole === 'DM' ? '#ffd700' : '#00bcd4');
+            const escapedName = msg.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            let displayText = msg.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            displayText = displayText.replace(/@(\S+)/g, '<span class="mention">@$1</span>');
+            div.innerHTML = '<span class="cm-time">[' + msg.time + ']</span>' +
+                '<span class="cm-name" style="color:' + nameColor + ';">' +
+                escapedName + roleBadge + '</span>' +
+                '：<span class="cm-text">' + displayText + '</span>';
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function renderOnlineUsers() {
+            const el = document.getElementById('online-users');
+            const badge = document.getElementById('online-badge');
+            if (onlineUsers.length === 0) {
+                el.innerHTML = '<span style="color:var(--text-dim);">—</span>';
+                badge.textContent = '0 人在线';
+                return;
+            }
+            badge.textContent = onlineUsers.length + ' 人在线';
+            el.innerHTML = onlineUsers.map(u => {
+                var isDmUser = (u.role === 'DM');
+                var color = u.color || (isDmUser ? '#ffd700' : '#00bcd4');
+                var roleBadge = isDmUser ? ' <span style="background:var(--gold);color:#000;font-size:0.55rem;padding:0 2px;border-radius:2px;">DM</span>' : ' <span style="background:#555;color:#ccc;font-size:0.55rem;padding:0 2px;border-radius:2px;">PL</span>';
+                return `<span class="user-dot" style="color:${color};"><span style="color:${color};">●</span> ${u.name}${roleBadge}</span>`;
+            }).join(' ');
+        }
+
+        // ━━━ 心跳 ━━━
+        let heartbeatTimer = null;
+        function startHeartbeat() {
+            if (heartbeatTimer) clearInterval(heartbeatTimer);
+            heartbeatTimer = setInterval(() => {
+                if (!chatUser) return;
+                fetch('/api/room/heartbeat', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: chatUser, color: chatColor, role: userRole || 'PL'})
+                }).then(r => r.json()).then(data => {
+                    if (data.ok && data.online_users) {
+                        onlineUsers = data.online_users;
+                        renderOnlineUsers();
+                    }
+                }).catch(() => {});
+            }, 10000);
+        }
+
+        function leaveRoom() {
+            if (!chatUser) return;
+            const data = JSON.stringify({name: chatUser});
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/room/leave', new Blob([data], {type: 'application/json'}));
+            } else {
+                fetch('/api/room/leave', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: data
+                }).catch(() => {});
+            }
+        }
+
+        // ━━━ 聊天轮询 ━━━
+        let lastChatTs = Date.now() / 1000;
+        function pollChat() {
+            fetch('/api/chat/messages?since=' + lastChatTs)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok && data.messages) {
+                        data.messages.forEach(function(msg) {
+                            if (msg._ts > lastChatTs) lastChatTs = msg._ts;
+                            if (msg.name === chatUser && (msg.text === '加入了聊天' || msg.text === '进入了聊天室')) return;
+                            renderMsg(msg);
+                        });
+                    }
+                });
+        }
+
+        // ━━━ @提及通知 ━━━
+        let lastMentionTs = Date.now() / 1000;
+        let mentionQueue = [];
+        let showingMention = false;
+
+        function pollMentions() {
+            if (!chatUser) return;
+            fetch('/api/mentions?name=' + encodeURIComponent(chatUser) + '&since=' + lastMentionTs)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok && data.mentions && data.mentions.length > 0) {
+                        data.mentions.forEach(function(m) {
+                            if (m._ts > lastMentionTs) lastMentionTs = m._ts;
+                            mentionQueue.push(m);
+                        });
+                        if (!showingMention) showNextMention();
+                    }
+                }).catch(() => {});
+        }
+
+        function showNextMention() {
+            if (mentionQueue.length === 0) { showingMention = false; return; }
+            showingMention = true;
+            const m = mentionQueue.shift();
+            const toast = document.getElementById('mention-toast');
+            document.getElementById('mention-title').textContent = '📢 呼叫 ' + m.from_name + '，有人找你';
+            document.getElementById('mention-detail').textContent = '「' + m.text + '」 — ' + m.time;
+            toast.classList.add('show');
+            // 提示音
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.frequency.value = 880; osc.type = 'sine';
+                gain.gain.value = 0.3;
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+                setTimeout(() => {
+                    const osc2 = audioCtx.createOscillator();
+                    osc2.connect(gain); gain.connect(audioCtx.destination);
+                    osc2.frequency.value = 1100; osc2.type = 'sine';
+                    osc2.start(); osc2.stop(audioCtx.currentTime + 0.2);
+                }, 180);
+            } catch(e) {}
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => showNextMention(), 500);
+            }, 4000);
+        }
+
+        window.dismissMention = function() {
+            document.getElementById('mention-toast').classList.remove('show');
+            setTimeout(() => showNextMention(), 500);
+        };
+
+        // ━━━ 自动恢复心跳（如果已通过加入覆盖层登录）━━
+        function autoRestoreSession() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                if (saved && saved.name) {
+                    chatUser = saved.name;
+                    if (saved.color) {
+                        chatColor = saved.color;
+                        document.getElementById('chat-color-btn').style.background = saved.color;
+                    }
+                    if (saved.role) userRole = saved.role;
+                    document.getElementById('chat-username').value = saved.name;
+                    document.getElementById('chat-input').disabled = false;
+                    document.getElementById('chat-send-btn').disabled = false;
+                    document.getElementById('join-row').style.display = 'none';
+                    document.getElementById('chat-color-btn').style.background = chatColor;
+                    startHeartbeat();
+                    fetch('/api/dm-status').then(r => r.json()).then(data => {
+                        isDM = data.is_dm;
+                        window._dmName = data.dm_name || '';
+                        if (isDM) userRole = 'DM';
+                        renderOnlineUsers();
+                        if (isDM) {
+                            if (!btnBg || btnBg === 'rgb(0, 188, 212)' || btnBg === '#00bcd4') {
+                                document.getElementById('chat-color-btn').style.background = '#ffd700';
+                            }
+                        }
+                    });
+                    addSystemMsg('✅ 已恢复会话「' + saved.name + '」');
+                }
+            } catch(e) {}
+        }
+
+        // ━━━ 初始化 ━━━
+        function init() {
+            autoRestoreSession();
+            // 回车发送
+            const chatInput = document.getElementById('chat-input');
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') sendMsg();
+            });
+            document.getElementById('chat-username').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') joinChat();
+            });
+
+            // 加载历史消息
+            fetch('/api/chat/messages').then(r => r.json()).then(data => {
+                if (data.ok && data.messages) {
+                    data.messages.forEach(function(msg) {
+                        if (msg._ts > lastChatTs) lastChatTs = msg._ts;
+                        renderMsg(msg);
+                    });
+                }
+            });
+
+            // 启动轮询
+            setInterval(pollChat, 1500);
+            setInterval(pollMentions, 2000);
+
+            // 页面离开
+            window.addEventListener('pagehide', (e) => { if (!e.persisted) leaveRoom(); });
+        }
+
+        init();
+    </script>
+<script>
+(function(){
+var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-overlay').classList.add('hidden');setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>

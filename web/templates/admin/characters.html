@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}角色管理{% endblock %}
+{% block page_title %}🎭 角色管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>全局角色列表</span>
+        <span style="font-size:12px;color:var(--text-muted);" id="total-display"></span>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="search-input" placeholder="搜索角色名/玩家/创建者...">
+        <input type="text" id="class-filter" placeholder="职业筛选..." style="max-width:150px;">
+        <input type="text" id="race-filter" placeholder="种族筛选..." style="max-width:150px;">
+        <button class="btn btn-primary" id="btn-search">🔍 搜索</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>创建者</th>
+                    <th>玩家</th>
+                    <th>等级</th>
+                    <th>职业</th>
+                    <th>种族</th>
+                    <th>HP</th>
+                    <th>AC</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="chars-tbody">
+                <tr><td colspan="11" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- 角色统计 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">📊 角色统计</div>
+    <div id="stats-area" class="loading">加载中...</div>
+</div>
+
+<script>
+let currentPage = 1;
+let currentQuery = '';
+let currentClass = '';
+let currentRace = '';
+
+async function loadChars(page = 1) {
+    const tbody = document.getElementById('chars-tbody');
+    tbody.innerHTML = '<tr><td colspan="11" class="loading">加载中...</td></tr>';
+
+    try {
+        const params = new URLSearchParams({
+            page, per_page: 20,
+            q: currentQuery, class: currentClass, race: currentRace,
+        });
+        const data = await Admin.get('/admin/api/characters?' + params);
+
+        document.getElementById('total-display').textContent = `共 ${data.total} 个角色`;
+
+        if (!data.characters.length) {
+            tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">🎭</div><div class="empty-text">暂无角色</div></div></td></tr>';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = data.characters.map(c => `
+            <tr>
+                <td>${c.id}</td>
+                <td><a href="/admin/characters/${c.id}" style="color:var(--accent);text-decoration:none;">${Admin.escHtml(c.name)}</a></td>
+                <td>${Admin.escHtml(c.created_by || '-')}</td>
+                <td>${Admin.escHtml(c.player || '-')}</td>
+                <td>${c.level}</td>
+                <td>${Admin.escHtml(c.class_ || '-')}</td>
+                <td>${Admin.escHtml(c.race || '-')}</td>
+                <td>${c.hp_current}/${c.hp_max}</td>
+                <td>${c.ac}</td>
+                <td>${Admin.formatDate(c.created_at)}</td>
+                <td>
+                    <a href="/admin/characters/${c.id}" class="btn btn-sm btn-secondary">详情</a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteChar(${c.id}, '${Admin.escHtml(c.name)}')">删除</button>
+                </td>
+            </tr>
+        `).join('');
+
+        Admin.renderPagination('pagination', data.page, data.pages, (p) => {
+            currentPage = p;
+            loadChars(p);
+        });
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function loadStats() {
+    const area = document.getElementById('stats-area');
+    try {
+        const data = await Admin.get('/admin/api/characters/stats');
+        if (!data.total) {
+            area.innerHTML = '<div class="empty-state"><div class="empty-text">暂无角色数据</div></div>';
+            return;
+        }
+
+        // 职业分布
+        const topClasses = Object.entries(data.class_distribution)
+            .sort((a, b) => b[1] - a[1]).slice(0, 10);
+        // 等级分布
+        const levels = Object.entries(data.level_distribution)
+            .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+
+        area.innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:12px;">
+                <div>
+                    <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">🏷️ 职业分布 (Top 10)</h4>
+                    ${topClasses.map(([name, count]) => `
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                            <span style="font-size:13px;color:var(--text-secondary);">${Admin.escHtml(name)}</span>
+                            <span style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:${Math.max(4, count/data.total*200)}px;height:8px;background:var(--accent);border-radius:4px;"></div>
+                                <span style="font-size:12px;color:var(--text-muted);min-width:24px;">${count}</span>
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div>
+                    <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">📈 等级分布</h4>
+                    ${levels.map(([lvl, count]) => `
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                            <span style="font-size:13px;color:var(--text-secondary);">Lv.${lvl}</span>
+                            <span style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:${Math.max(4, count/data.total*200)}px;height:8px;background:var(--info);border-radius:4px;"></div>
+                                <span style="font-size:12px;color:var(--text-muted);min-width:24px;">${count}</span>
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+    } catch (e) {
+        area.innerHTML = '<div style="text-align:center;color:var(--danger);">加载失败</div>';
+    }
+}
+
+async function deleteChar(id, name) {
+    const ok = await Admin.confirm('删除角色', `确定要删除角色「${name}」吗？此操作不可恢复！`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/characters/${id}`);
+        Admin.toast(`已删除角色「${name}」`, 'success');
+        loadChars(currentPage);
+        loadStats();
+    } catch (e) {}
+}
+
+document.getElementById('btn-search').addEventListener('click', () => {
+    currentQuery = document.getElementById('search-input').value.trim();
+    currentClass = document.getElementById('class-filter').value.trim();
+    currentRace = document.getElementById('race-filter').value.trim();
+    currentPage = 1;
+    loadChars(currentPage);
+});
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btn-search').click();
+});
+
+loadChars();
+loadStats();
+</script>
+{% endblock %}

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mod 管理 — 尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .mod-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.15s;
+        }
+        .mod-card:hover { border-color: var(--accent); }
+        .mod-card.loaded { border-left: 3px solid var(--green); }
+        .mod-card.unloaded { border-left: 3px solid var(--text-dim); opacity: 0.7; }
+        .mod-header {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.4rem; flex-wrap: wrap;
+        }
+        .mod-name { font-size: 1.05rem; font-weight: bold; color: var(--gold); }
+        .mod-version {
+            font-size: 0.8rem; color: var(--text-dim);
+            background: var(--surface2); padding: 0.1rem 0.4rem; border-radius: 4px;
+        }
+        .mod-status {
+            font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: bold;
+        }
+        .mod-status.loaded-status { background: #1a3a1a; color: var(--green); }
+        .mod-status.unloaded-status { background: #3a1a1a; color: var(--red); }
+        .mod-desc { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }
+        .mod-meta { font-size: 0.75rem; color: var(--text-dim); }
+        .mod-actions { margin-top: 0.5rem; display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .mod-actions button {
+            padding: 0.25rem 0.7rem; font-size: 0.8rem; border-radius: 4px; cursor: pointer;
+            border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+            transition: all 0.15s;
+        }
+        .mod-actions button:hover { border-color: var(--accent); background: var(--surface); }
+        .mod-actions .btn-reload { color: var(--cyan); }
+        .mod-actions .btn-disable { color: var(--red); }
+        .import-section {
+            background: var(--bg); border: 2px dashed var(--border);
+            border-radius: 10px; padding: 1.5rem; text-align: center;
+            margin-top: 2rem; transition: all 0.15s;
+        }
+        .import-section:hover { border-color: var(--accent); }
+        .import-section h3 { margin: 0 0 0.5rem; color: var(--gold); }
+        .import-section p { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem; }
+        .import-btn {
+            display: inline-block; padding: 0.6rem 1.5rem;
+            background: var(--accent); color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: bold;
+            transition: opacity 0.15s; text-decoration: none;
+        }
+        .import-btn:hover { opacity: 0.9; }
+        .path-hint {
+            font-size: 0.8rem; color: var(--text-dim); margin-top: 0.8rem;
+            background: var(--surface2); padding: 0.5rem; border-radius: 4px;
+            font-family: monospace;
+        }
+    
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+  <script src="/static/common-dialog.js"></script>
+</head>
+<body>
+    <nav class="navbar" style="position:relative;">
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+        <div class="navbar-links">
+
+            <a href="/dice3d">🎲 掷骰</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+                        <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            <a href="/mods" class="active">🧩 Mod</a>
+            <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <div class="col" style="flex:1; max-width:800px; margin:0 auto;">
+                <!-- 已安装Mod -->
+                <div class="card">
+                    <div class="card-header">🧩 已安装 Mod <span id="mod-count" style="color:var(--text-dim);font-size:0.85rem;"></span></div>
+                    <div id="mod-list" style="color:var(--text-dim);">加载中...</div>
+                </div>
+
+                <!-- 导入Mod说明 -->
+                <div class="import-section">
+                    <h3>📥 导入新 Mod</h3>
+                    <p>将 Mod 文件夹放入 <code>mods/</code> 目录后，点击下方按钮刷新加载</p>
+                    <button class="import-btn" onclick="refreshMods()">🔄 扫描并加载 Mod</button>
+                    <div class="path-hint">
+                        📁 Mod 存放路径：<br>
+                        <code id="mod-path">mods/</code><br>
+                        <span style="font-size:0.75rem;">每个 Mod 一个子文件夹，内含 mod.json</span>
+                    </div>
+                </div>
+
+                <!-- Mod格式说明 -->
+                <div class="card" style="margin-top:1rem;">
+                    <div class="card-header">📋 Mod 开发格式说明</div>
+                    <div style="font-size:0.85rem;color:var(--text-dim);line-height:1.6;">
+                        <p><b>目录结构：</b></p>
+                        <pre style="background:var(--surface2);padding:0.5rem;border-radius:4px;overflow-x:auto;font-size:0.8rem;">
+mods/
+└── your-mod/
+    ├── mod.json          ← Mod元数据
+    └── backend/
+        ├── __init__.py
+        └── router.py     ← 注册函数: def register(app, mod_id, mod_info)</pre>
+                        <p><b>mod.json 格式：</b></p>
+                        <pre style="background:var(--surface2);padding:0.5rem;border-radius:4px;overflow-x:auto;font-size:0.8rem;">
+{
+  "id": "my-mod",
+  "name": "我的Mod",
+  "version": "1.0.0",
+  "description": "Mod描述",
+  "author": "作者",
+  "backend": {
+    "enabled": true,
+    "router": "backend.router:register"
+  }
+}</pre>
+                        <p>详细文档见：<code>骰娘/骰娘Mod外置接口系统说明.txt</code></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 加载Mod列表
+        async function loadModList() {
+            const el = document.getElementById('mod-list');
+            try {
+                const resp = await fetch('/api/mods');
+                const data = await resp.json();
+                const mods = data.mods || [];
+                document.getElementById('mod-count').textContent = `(${mods.length}个)`;
+
+                if (mods.length === 0) {
+                    el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:1.5rem;">暂无已安装的Mod</div>';
+                    return;
+                }
+
+                el.innerHTML = mods.map(m => {
+                    const isLoaded = m.id !== '?' && m.backend_enabled;
+                    const statusClass = isLoaded ? 'loaded' : 'unloaded';
+                    const statusLabel = isLoaded ? '✅ 已加载' : '⏸ 未启用';
+                    const statusCls = isLoaded ? 'loaded-status' : 'unloaded-status';
+                    return `
+                    <div class="mod-card ${statusClass}">
+                        <div class="mod-header">
+                            <span class="mod-name">${m.name}</span>
+                            <span class="mod-version">v${m.version}</span>
+                            <span class="mod-status ${statusCls}">${statusLabel}</span>
+                        </div>
+                        <div class="mod-desc">${m.description || '无描述'}</div>
+                        <div class="mod-meta">ID: ${m.id} | 作者: ${m.author || '未知'}</div>
+                        ${isLoaded ? `
+                        <div class="mod-actions">
+                            <button class="btn-reload" onclick="reloadMod('${m.id}')">🔄 重新加载</button>
+                        </div>` : ''}
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                el.innerHTML = '<div style="color:var(--red);">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        async function reloadMod(modId) {
+            try {
+                const resp = await fetch(`/api/mods/${modId}/reload`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                alert(`Mod "${modId}" 已重新加载`);
+                loadModList();
+            } catch(e) {
+                alert('重新加载失败: ' + e.message);
+            }
+        }
+
+        async function refreshMods() {
+            try {
+                const resp = await fetch('/api/mods/reload-all', { method: 'POST' });
+                const data = await resp.json();
+                alert(`扫描完成：发现 ${data.total} 个Mod，成功加载 ${data.loaded} 个`);
+                location.reload();
+            } catch(e) {
+                // 如果没有 reload-all 端点，直接刷新页面
+                location.reload();
+            }
+        }
+
+        // 显示Mod路径
+        document.getElementById('mod-path').textContent = window.location.origin + '/mods/ 目录';
+
+        loadModList();
+    </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+2026-08-18_12_北境背包物品直接使用
+════════════════════════════════════════════════════
+
+【需求】
+探索北境背包中的可交互物品支持直接点击"使用"（优化方向文档 4.2 第 3
+项）。本期按用户确认范围为治疗/驱寒类：药草、绒蜂蜜、白花藤、治疗
+药水、驱寒药膏。效果与 wp 物品表对齐（治疗药水 2d4+2）。霜羽雉的蛋
+（可孵化/出售）无恢复血量效果，不纳入。
+
+【实现】
+一、效果表（web/static/north-data.js）：
+  - 新增 ITEM_USE_TABLE 并挂到 window.NORTH_DATA：
+    药草 heal 1d2 / 绒蜂蜜 heal 1d4 + coldResist 3 / 白花藤 heal 1d4 /
+    治疗药水 heal 2d4+2 / 驱寒药膏 ointment（走既有全套逻辑）
+
+二、使用函数（web/static/north-main.js）：
+  - useBackpackItem(itemName)：昏迷守卫 → 查效果表 → 驱寒药膏走
+    doUseOintment()（扣减/严寒/6次抵抗全套）→ 其余按名扣减背包
+    （qty-- ≤0 splice，照 doUseOintment 模式）→ rollDiceExpr 掷治疗
+    骰回血（Math.min 封顶 hpMax，满血提示）→ coldResist 取较大值 →
+    回写 charData 引用 → refreshBagUseUI()
+  - refreshBagUseUI()：updateSurvivalUI + renderCharDetail +
+    营地角色卡（campCharDetail 存在时）+ NORTH_CAMP 三背包重绘 +
+    仓库重绘；addSystemLog 自动触发 2 秒防抖存档
+  - NORTH_CAMP_CTX 桥新增 useBackpackItem（north-camp.js 运行时
+    解析，不缓存桥引用）
+  - 营地角色卡 renderCampCharDetail 物品行新增"使用"按钮（仅可交互
+    物品渲染，title 显示效果描述）
+  - updateSurvivalUI 新增治疗药水按钮状态（背包有货才 enabled）
+
+三、背包 UI（web/static/north-camp.js）：
+  - renderShopBackpack（补给站/铁匠/炼金背包）物品块新增"使用"小
+    按钮，event.stopPropagation 防止触发出售
+  - storageRenderBackpack（营地仓库背包）同模式，防止触发存入仓库
+  - 仅 ITEM_USE_TABLE 命中的物品渲染按钮，其余物品不变
+
+四、探索页快捷入口（web/templates/north-expedition.html）：
+  - 生存面板按钮组"🧴 涂药膏"旁新增"🧪 治疗药水"按钮（探索中
+    受伤可直接使用），点击调 useBackpackItem('治疗药水')
+  - north-main.js 绑定点击事件（与涂药膏/进食按钮同处）
+
+【涉及文件】
+- web/static/north-data.js（ITEM_USE_TABLE + NORTH_DATA 挂载）
+- web/static/north-main.js（useBackpackItem / refreshBagUseUI /
+  NORTH_CAMP_CTX 桥 / 营地角色卡使用按钮 / 探索页按钮状态与绑定）
+- web/static/north-camp.js（两处背包渲染加使用按钮）
+- web/templates/north-expedition.html（治疗药水按钮）
+
+【验证】
+- node --check north-data.js / north-main.js / north-camp.js 全部通过
+- /north-expedition 页面 200 回归通过
+- 逻辑核对：使用后数量扣减触发 _invRenderKey 变化 → 背包自动重绘；
+  splice 后立即重绘防下标失效；按钮 onclick 经 NORTH_CAMP_CTX 桥
+  运行时解析（拆分硬规则）；north-expedition.html 脚本无缓存版本号
+  无需 bump
+
+【问题修复（同日用户实测反馈：点击使用按钮"没反应"）】
+现象：点击背包/探索页"使用"按钮后 UI 无变化。
+排查：服务器日志显示点击后 /api/north/save 正常触发（防抖存档），
+说明扣减与日志均执行，问题出在 UI 刷新与满血边界：
+  1. 满血时使用纯治疗物品：扣减发生在治疗计算之前，满血 heal=0、
+     HP 面板无变化、药水白扣 → 感知"没反应"。
+  2. refreshBagUseUI 无异常隔离：任一步渲染抛错会中断后续区域刷新。
+  3. renderCharDetail 对无效 id 会把 activeChar 置 null（副作用），
+     无条件调用有风险。
+修复：
+  1. useBackpackItem：纯治疗物品（heal 且无 coldResist）满血时先于
+     扣减拦截并提示"血量已满"（绒蜂蜜含寒冷抗性收益不拦截）；
+     探索页药水按钮满血时同步 disabled。
+  2. refreshBagUseUI 四步渲染各自 try-catch 隔离，单步失败不影响
+     其他区域；renderCharDetail 增加 activeCharId 有效性守卫。
+  3. common-error-handler.js：window error 上报改用 Blob 方式携带
+     Content-Type——原 sendBeacon 直接发字符串导致服务端 get_json
+     解析失败、所有真实前端错误被记成空字段（此次排查发现的既有
+     缺陷，一并修复）。
+验证：node --check 通过；服务端确认提供最新静态文件。

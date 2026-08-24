@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>北境雪原 · 尘封之卷</title>
+    <script src="/static/common-error-handler.js"></script>
+    <link rel="stylesheet" href="/static/north-expedition.css">
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+</head>
+<body>
+
+<!-- ━━ 加载覆盖页 ━━ -->
+<div class="north-loading-overlay hidden" id="northLoadingOverlay">
+  <div class="north-loading-bg" id="northLoadingBg"></div>
+  <div class="north-loading-content">
+    <div class="north-loading-title">尘封之卷</div>
+    <div class="north-loading-sub" id="northLoadingSub"></div>
+    <div class="north-loading-bar-track">
+      <div class="north-loading-bar-fill" id="northLoadingBarFill"></div>
+    </div>
+    <div class="north-loading-hint" id="northLoadingHint">正在准备...</div>
+  </div>
+</div>
+
+    <video id="bgVideo" class="bg-video" autoplay muted playsinline>
+        <source src="/static/portal/snow.mp4" type="video/mp4">
+    </video>
+
+    <!-- 声音开启提示（浮于视频之上，仅未开启时显示） -->
+    <div class="sound-prompt" id="soundPrompt" onclick="toggleNorthSound()">
+        <span class="sound-icon" id="soundPromptIcon">🔇</span>
+        <span id="soundPromptText">点击开启声音</span>
+    </div>
+
+    <canvas id="snowCanvas" class="canvas-overlay"></canvas>
+    <canvas id="auroraCanvas" class="canvas-overlay"></canvas>
+
+    <div class="app-container">
+
+        <header class="top-bar">
+            <a class="brand" href="/" title="返回官网">❄️ <span>尘封之卷</span> · 北境雪原</a>
+            <div class="nav-links">
+                <a id="exploreTab">🏕️ 探索</a>
+                <a id="campTab">⛺ 营地</a>
+                <a id="guildTab" title="公会 · 冒险者大厅">⚔️ 公会</a>
+                <a id="tavernTab">🍺 酒馆</a>
+                <a id="mapPlaceholder" title="地图功能即将开放" style="opacity:0.5;cursor:not-allowed;">🗺️ 地图</a>
+                <a id="soundToggleBtn" onclick="toggleNorthSound()" title="声音开关" style="cursor:pointer;">🔇</a>
+                <a id="videoToggleBtn" onclick="toggleBgVideo()" title="暂停/播放背景" style="cursor:pointer;">⏯️</a>
+            </div>
+        </header>
+        <script>
+        // 立即恢复标签状态，避免闪烁
+        (function(){var t=sessionStorage.getItem('north_active_tab');if(t){var el=document.getElementById(t==='camp'?'campTab':t==='guild'?'guildTab':t==='tavern'?'tavernTab':'exploreTab');if(el)el.classList.add('active');}else{document.getElementById('exploreTab').classList.add('active');}})();
+        </script>
+
+        <div class="hero-title">
+            <h1>苍白大地 <small>❄️ 揭开这片大地的面纱 ❄️</small></h1>
+        </div>
+
+        <!-- ====== 探索主视图 ====== -->
+        <div id="exploreView">
+        <div class="main-grid">
+
+            <!-- ====== 左栏 ====== -->
+            <div class="left-col">
+
+                <div class="north-panel">
+                    <div class="panel-header">
+                        <span>📜 事件回响 <span style="font-weight:300;font-size:0.7rem;color:#6a9ac8;margin-left:0.5rem;">最近16条</span></span>
+                        <span class="badge" id="rollCounter">掷表 0 次</span>
+                    </div>
+                    <div id="outputArea" class="output-area">
+                        <div class="empty-hint">❄️ 寒风低语，等待你的骰声……<br>点击下方事件卡开始冒险</div>
+                    </div>
+                    <div class="camp-toolbar" style="margin-top:0.6rem;">
+                        <button id="clearOutputBtn">🗑 清空显示</button>
+                    </div>
+                </div>
+
+                <div class="event-drawer">
+                    <div class="drawer-content" id="drawerContent">
+                        <div id="eventTabContainer" class="event-tabs"></div>
+                        <div id="eventCardContainer" class="event-cards"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== 右栏 ====== -->
+            <div class="side-panel">
+
+                <!-- 冒险者面板 -->
+                <div class="north-panel char-card">
+                    <div class="panel-header">
+                        <span>👤 冒险者 <span id="charNameInHeader" style="font-weight:300;color:#7aacd8;">—</span></span>
+                        <span class="badge" id="charStatus">未选择</span>
+                    </div>
+                    <div class="char-selector">
+                        <select id="charSelect">
+                            <option value="">— 选择角色 —</option>
+                        </select>
+                    </div>
+                    <div id="charDetailContainer">
+                        <div style="color:#5a7a9a; font-size:0.8rem; text-align:center; padding:0.8rem 0;">请选择或创建角色</div>
+                    </div>
+                    <div class="char-toolbar">
+                        <button id="healBtn" class="primary">❤️ 治疗</button>
+                        <button id="damageBtn" class="danger">⚔️ 伤害</button>
+                    </div>
+                </div>
+
+                <!-- 生存状态面板 -->
+                <div class="north-panel survival-panel">
+                    <div class="panel-header">
+                        <span>🏕️ 生存状态</span>
+                        <span class="badge" id="survivalBadge">正常</span>
+                    </div>
+
+                    <!-- 时间 + 探索深度 -->
+                    <div class="survival-row">
+                        <span class="survival-icon" id="timeIcon">☀️</span>
+                        <div class="survival-info">
+                            <span class="label">时间 · 深度 <b id="depthDisplay" style="color:#f0d080;">0</b></span>
+                            <span class="value" id="timeDisplay">上午 5:00</span>
+                            <span class="sub-text" id="timeDetail">白天</span>
+                        </div>
+                    </div>
+
+                    <!-- 严寒等级 -->
+                    <div class="survival-row">
+                        <span class="survival-icon">❄️</span>
+                        <div class="survival-info">
+                            <span class="label">严寒等级</span>
+                            <div class="cold-meter" id="coldMeter">
+                                <span class="cold-dot" data-i="0"></span>
+                                <span class="cold-dot" data-i="1"></span>
+                                <span class="cold-dot" data-i="2"></span>
+                            </div>
+                            <span class="value" id="coldDisplay">0/3</span>
+                            <span class="sub-text" id="coldEffect">无效果</span>
+                        </div>
+                    </div>
+
+                    <!-- 口粮 -->
+                    <div class="survival-row">
+                        <span class="survival-icon">🍖</span>
+                        <div class="survival-info">
+                            <span class="label">口粮</span>
+                            <span class="value" id="rationDisplay">3 份</span>
+                            <span class="value" id="bpFoodDisplay" style="font-size:0.72rem;color:#9cc8f0;">食物 0 份</span>
+                            <span class="sub-text" id="rationCountdown">下次消耗: 4次事件后</span>
+                        </div>
+                    </div>
+
+                    <!-- 燃料 -->
+                    <div class="survival-row">
+                        <span class="survival-icon">🔥</span>
+                        <div class="survival-info">
+                            <span class="label">燃料</span>
+                            <span class="value" id="fuelDisplay">无</span>
+                            <span class="sub-text" id="fuelStatus">未点燃</span>
+                        </div>
+                    </div>
+
+                    <!-- 方向感 -->
+                    <div class="survival-row">
+                        <span class="survival-icon">🧭</span>
+                        <div class="survival-info">
+                            <span class="label">方向感</span>
+                            <span class="value success" id="orientDisplay">✅ 正常</span>
+                            <span class="sub-text" id="orientDetail">下次检定: 5次事件后</span>
+                        </div>
+                    </div>
+
+                    <!-- 负重 -->
+                    <div class="survival-row">
+                        <span class="survival-icon">⚖️</span>
+                        <div class="survival-info">
+                            <span class="label">负重</span>
+                            <span class="value" id="weightDisplay">0 / 150 磅</span>
+                            <span class="sub-text" id="weightDetail">—</span>
+                        </div>
+                    </div>
+
+                    <!-- 快捷操作 -->
+                    <div class="survival-actions">
+                        <button data-action="orient" id="orientBtn">🧭 方向判断</button>
+                        <button data-action="light" id="lightBtn">🔥 生火</button>
+                        <button data-action="consume_ration" id="consumeRationBtn">🍖 进食</button>
+                        <button data-action="use_ointment" id="useOintmentBtn" title="使用驱寒药膏">🧴 涂药膏</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        </div><!-- /exploreView -->
+
+        <!-- ====== 营地视图 ====== -->
+        <div id="campView" style="display:none;">
+            <div class="camp-layout">
+                <!-- 左侧：皮革旧书 -->
+                <div class="book-wrapper">
+                    <div class="book-cover" id="bookCover" onclick="openBook()"></div>
+                    <div class="book-open" id="bookOpen">
+                        <div class="book-back"></div>
+                        <div class="book-left-page">
+                            <div class="book-page-header">
+                                <span class="book-tab active" data-booktab="rules">📜 生存法则</span>
+                                <span class="book-tab" data-booktab="notes">📖 冒险记录</span>
+                                <span class="book-tab" data-booktab="journal">📝 冒险笔记</span>
+                                <span class="book-tab" data-booktab="gifts">🎁 雪原馈赠</span>
+                                <span class="book-tab" data-booktab="creatures">🐺 冰原生物</span>
+                            </div>
+                            <div class="book-page-content" id="bookPageContent">
+                                <!-- 动态填充 -->
+                            </div>
+                            <div style="position:absolute;bottom:12px;right:14px;font-size:0.62rem;" id="bookPageNum">第 1 页</div>
+                        </div>
+                        <div class="book-right-page">
+                            <div class="book-page-content" id="bookRightContent">
+                                <!-- 冒险笔记的编辑区 -->
+                            </div>
+                        </div>
+                        <div class="book-close-btn" onclick="closeBook()" title="合上">✕ 合上</div>
+                    </div>
+                </div>
+
+                <!-- 右侧：角色卡 -->
+                <div class="char-sheet-panel north-panel" id="campCharSheet">
+                    <div class="panel-header">
+                        <span>👤 冒险者 <span id="campCharNameInHeader" style="font-weight:300;color:#7aacd8;">—</span></span>
+                        <span class="badge" id="campCharStatus">未选择</span>
+                        <span style="margin-left:auto;display:flex;gap:3px;">
+                            <button id="exportSaveBtn" style="background:rgba(100,160,210,0.12);color:#88bbee;border:1px solid rgba(100,160,210,0.2);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">💾 导出</button>
+                            <button id="importExcelBtn" style="background:rgba(80,180,130,0.12);color:#7acc9a;border:1px solid rgba(80,180,130,0.2);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">📊 导入Excel</button>
+                            <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">
+                            <button id="importSaveBtn" style="background:rgba(100,160,210,0.06);color:#7aacd8;border:1px solid rgba(100,160,210,0.12);padding:1px 7px;border-radius:3px;cursor:pointer;font-size:0.62rem;font-family:inherit;">📥 导入</button>
+                            <input type="file" id="importFileInput" accept=".json" style="display:none;">
+                        </span>
+                    </div>
+                    <div class="char-selector">
+                        <select id="campCharSelect">
+                            <option value="">— 选择角色 —</option>
+                        </select>
+                        <button id="campCreateCharBtn">+ 新建</button>
+                    </div>
+                    <div id="campCharDetail" class="camp-char-detail"></div>
+                    <div class="char-toolbar" style="margin-top:0.4rem;">
+                        <button id="campLongRestBtn">🛌 长休</button>
+                        <button id="campShortRestBtn">☕ 短休</button>
+                        <button id="campHealBtn" class="primary">❤️ 治疗</button>
+                        <button id="campDamageBtn" class="danger">⚔️ 伤害</button>
+                        <button id="campDeleteCharBtn" class="danger" style="margin-left:auto;">🗑 删除</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 营地底部标签 -->
+            <div class="camp-bottom-tabs" id="campBottomTabs">
+                <button class="camp-bottom-tab active" data-bottomtab="supply">🧑‍🤝‍🧑 冒险补给站</button>
+                <button class="camp-bottom-tab" data-bottomtab="craft">🔧 工作间</button>
+                <button class="camp-bottom-tab" data-bottomtab="smith">⚒️ 铁匠工房</button>
+                <button class="camp-bottom-tab" data-bottomtab="alchemy">🧪 炼金工坊</button>
+                <button class="camp-bottom-tab" data-bottomtab="storage">📦 营地仓库</button>
+            </div>
+
+            <!-- 冒险补给站（商店） -->
+            <div id="supplyShop">
+                <div class="ws-cover" id="supplyCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/supply_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('supply')">💰 进入冒险补给站</button>
+                </div>
+                <div class="ws-content" id="supplyContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('supply')">↩ 返回封面</button>
+                    <h3>🧑‍🤝‍🧑 冒险补给站</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="shopGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 补给品待上架 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="supplyBackpack">
+                            <button class="shop-bp-toggle" id="supplyBpToggle" onclick="toggleShopBackpack('supply')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="supplyBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 工作间 -->
+            <div id="craftingWorkshop" style="display:none;">
+                <div class="ws-cover" id="craftCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/craft_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('craft')">⚒ 进入工作间</button>
+                </div>
+                <div class="ws-content" id="craftContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('craft')">↩ 返回封面</button>
+                    <h3>🔧 工作间</h3>
+                <!-- 工作间子标签 -->
+                <div class="workshop-subtabs">
+                    <button class="ws-tab active" data-wstab="craft">🛠️ 制作台</button>
+                    <button class="ws-tab" data-wstab="anvil">⚒️ 铁砧</button>
+                    <button class="ws-tab" data-wstab="smelt">🔥 熔炼炉</button>
+                    <button class="ws-tab" data-wstab="brew">🧪 炼药锅</button>
+                </div>
+                <div class="workshop-body">
+                    <!-- 左侧：配方/操作区 -->
+                    <div class="ws-left">
+                        <!-- 制作台 -->
+                        <div class="ws-panel" id="wsCraft">
+                            <div class="ws-recipe-title">📜 合成配方</div>
+                            <div class="ws-recipe-list" id="craftRecipeList">
+                                <div class="ws-empty-hint">你的灵感等待激发…</div>
+                            </div>
+                            <div class="ws-craft-area">
+                                <div class="brew-hexagram" id="craftHexagram">
+                                    <div class="brew-slot" data-slot="0" onclick="wsPlaceItem('craft','0')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','0')">✕</button></div>
+                                    <div class="brew-slot" data-slot="1" onclick="wsPlaceItem('craft','1')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','1')">✕</button></div>
+                                    <div class="brew-slot" data-slot="2" onclick="wsPlaceItem('craft','2')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','2')">✕</button></div>
+                                    <div class="brew-slot" data-slot="3" onclick="wsPlaceItem('craft','3')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','3')">✕</button></div>
+                                    <div class="brew-slot" data-slot="4" onclick="wsPlaceItem('craft','4')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','4')">✕</button></div>
+                                    <div class="brew-slot" data-slot="5" onclick="wsPlaceItem('craft','5')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('craft','5')">✕</button></div>
+                                    <div class="brew-center">
+                                        <div class="brew-result-slot" id="craftResult">?</div>
+                                        <button class="craft-take-btn" id="craftTakeBtn" onclick="wsTakeResult('craft')" style="display:none;">拿取</button>
+                                    </div>
+                                </div>
+                                <button class="craft-do-btn" onclick="wsDoCraft()">🔨 制作</button>
+                                <div class="craft-msg" id="craftMsg"></div>
+                            </div>
+                        </div>
+                        <!-- 铁砧 -->
+                        <div class="ws-panel" id="wsAnvil" style="display:none;">
+                            <div class="ws-recipe-title">⚒️ 锻造配方</div>
+                            <div class="ws-recipe-list" id="anvilRecipeList">
+                                <div class="ws-empty-hint">你的灵感等待激发…</div>
+                            </div>
+                            <div class="ws-craft-area">
+                                <div class="anvil-area">
+                                    <div class="anvil-placeholder">⚒️ 铁砧功能待开放</div>
+                                </div>
+                                <button class="craft-do-btn" disabled style="opacity:0.4;cursor:not-allowed;">⚒️ 锻造</button>
+                                <div class="craft-msg" id="anvilMsg"></div>
+                            </div>
+                        </div>
+                        <!-- 熔炼炉 -->
+                        <div class="ws-panel" id="wsSmelt" style="display:none;">
+                            <div class="ws-recipe-title">🔥 熔炼配方</div>
+                            <div class="ws-recipe-list" id="smeltRecipeList">
+                                <div class="ws-empty-hint">你的灵感等待激发…</div>
+                            </div>
+                            <div class="ws-craft-area">
+                                <div class="smelt-triangle">
+                                    <div class="smelt-slot ore-slot" data-slot="ore" onclick="wsPlaceItem('smelt','ore')" title="放入矿物"><span class="slot-label">矿物</span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('smelt','ore')">✕</button></div>
+                                    <div class="smelt-fire-bars" id="smeltFireBars">
+                                        <div class="fire-bar"></div><div class="fire-bar"></div><div class="fire-bar"></div>
+                                    </div>
+                                    <div class="smelt-slot ingot-slot" id="smeltResult" title="熔炼产物">锭</div>
+                                    <button class="smelt-take-btn" id="smeltTakeBtn" onclick="wsTakeResult('smelt')" style="display:none;position:absolute;top:108px;right:18px;">拿取</button>
+                                    <div class="smelt-slot coal-slot" data-slot="coal" onclick="wsPlaceItem('smelt','coal')" title="放入煤矿"><span class="slot-label">煤矿</span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('smelt','coal')">✕</button></div>
+                                    <div class="smelt-progress"><div class="smelt-progress-fill" id="smeltProgressFill"></div></div>
+                                </div>
+                                <button class="craft-do-btn smelt-btn" onclick="wsDoSmelt()">🔥 熔炼</button>
+                                <div class="craft-msg" id="smeltMsg"></div>
+                            </div>
+                        </div>
+                        <!-- 炼药锅 -->
+                        <div class="ws-panel" id="wsBrew" style="display:none;">
+                            <div class="ws-recipe-title">🧪 炼药配方</div>
+                            <div class="ws-recipe-list" id="brewRecipeList">
+                                <div class="ws-empty-hint">你的灵感等待激发…</div>
+                            </div>
+                            <div class="ws-craft-area">
+                                <div class="brew-hexagram">
+                                    <div class="brew-slot" data-slot="0" onclick="wsPlaceItem('brew','0')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','0')">✕</button></div>
+                                    <div class="brew-slot" data-slot="1" onclick="wsPlaceItem('brew','1')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','1')">✕</button></div>
+                                    <div class="brew-slot" data-slot="2" onclick="wsPlaceItem('brew','2')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','2')">✕</button></div>
+                                    <div class="brew-slot" data-slot="3" onclick="wsPlaceItem('brew','3')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','3')">✕</button></div>
+                                    <div class="brew-slot" data-slot="4" onclick="wsPlaceItem('brew','4')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','4')">✕</button></div>
+                                    <div class="brew-slot" data-slot="5" onclick="wsPlaceItem('brew','5')"><span class="slot-label"></span><button class="slot-remove-btn" onclick="event.stopPropagation();wsRemoveFromSlot('brew','5')">✕</button></div>
+                                    <div class="brew-center">
+                                        <div class="brew-result-slot" id="brewResult">?</div>
+                                        <button class="craft-take-btn" id="brewTakeBtn" onclick="wsTakeResult('brew')" style="display:none;">拿取</button>
+                                    </div>
+                                </div>
+                                <button class="craft-do-btn brew-btn" onclick="wsDoBrew()">🧪 调配</button>
+                                <div class="craft-msg" id="brewMsg"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 右侧：背包 -->
+                    <div class="ws-right">
+                        <div class="ws-backpack-title">🎒 冒险者背包</div>
+                        <div class="ws-backpack-grid" id="wsBackpackGrid">
+                            <div class="ws-empty-hint" style="grid-column:1/-1;">背包空空如也…</div>
+                        </div>
+                    </div>
+                </div>
+                </div><!-- /ws-content -->
+            </div>
+
+            <!-- 铁匠工房 -->
+            <div id="smithForge" style="display:none;">
+                <div class="ws-cover" id="smithCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/smith_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('smith')">🔨 进入铁匠工房</button>
+                </div>
+                <div class="ws-content" id="smithContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('smith')">↩ 返回封面</button>
+                    <h3>⚒️ 铁匠工房</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="smithGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 锻造服务待开放 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="smithBackpack">
+                            <button class="shop-bp-toggle" id="smithBpToggle" onclick="toggleShopBackpack('smith')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="smithBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 炼金工坊 -->
+            <div id="alchemyLab" style="display:none;">
+                <div class="ws-cover" id="alchemyCover">
+                    <div class="ws-cover-bg" style="background-image:url('/static/images/alchemy_cover.png')"></div>
+                    <button class="ws-cover-enter" onclick="enterWorkshop('alchemy')">🧪 进入炼金工坊</button>
+                </div>
+                <div class="ws-content" id="alchemyContent" style="display:none;">
+                    <button class="ws-back-btn visible" onclick="leaveWorkshop('alchemy')">↩ 返回封面</button>
+                    <h3>🧪 炼金工坊</h3>
+                    <div class="shop-layout">
+                        <div class="shop-left">
+                            <div class="shop-grid" id="alchemyGrid">
+                                <div style="color:#5a7a9a;text-align:center;padding:2rem;grid-column:1/-1;">— 炼金服务待开放 —</div>
+                            </div>
+                        </div>
+                        <div class="shop-backpack collapsed" id="alchemyBackpack">
+                            <button class="shop-bp-toggle" id="alchemyBpToggle" onclick="toggleShopBackpack('alchemy')" title="打开背包">🎒</button>
+                            <span class="shop-bp-label">打开背包</span>
+                            <div class="shop-backpack-inner">
+                                <div class="shop-backpack-title">🎒 冒险者背包</div>
+                            </div>
+                            <div class="shop-bp-grid-wrap">
+                                <div class="shop-backpack-grid" id="alchemyBackpackGrid">
+                                    <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 营地仓库 -->
+            <div id="campStorage" style="display:none;">
+                <h3>📦 营地仓库</h3>
+                <!-- 仓库资金 -->
+                <div style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0.8rem;margin-bottom:0.5rem;background:rgba(0,0,0,0.2);border-radius:6px;flex-wrap:wrap;font-size:0.75rem;">
+                    <span style="color:#d4b896;font-weight:600;">💰 库存资金：</span>
+                    <span id="storageCoinsDisplay" style="color:#c0b090;"></span>
+                    <button onclick="storageDepositCoins()" style="background:rgba(255,215,0,0.2);border:1px solid #b8941e;color:#ffd700;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.68rem;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='rgba(255,215,0,0.35)'" onmouseout="this.style.background='rgba(255,215,0,0.2)'">📥 存入</button>
+                    <button onclick="storageWithdrawCoins()" style="background:rgba(192,192,192,0.2);border:1px solid #a0a0a0;color:#d4d4d4;padding:0.2rem 0.7rem;border-radius:4px;font-size:0.68rem;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='rgba(192,192,192,0.35)'" onmouseout="this.style.background='rgba(192,192,192,0.2)'">📤 取出</button>
+                </div>
+                <div class="storage-body">
+                    <!-- 左侧：仓库物品（10列） -->
+                    <div class="storage-left">
+                        <div class="storage-title">🏕️ 仓库存储</div>
+                        <div class="storage-grid" id="storageGrid">
+                            <div style="color:#6a5a4a;text-align:center;padding:1rem;grid-column:1/-1;">仓库空空如也…</div>
+                        </div>
+                    </div>
+                    <!-- 右侧：冒险者背包（6列） -->
+                    <div class="storage-right">
+                        <div class="storage-backpack-title">🎒 冒险者背包</div>
+                        <div class="storage-backpack-grid" id="storageBackpackGrid">
+                            <div style="color:#7a6a5a;text-align:center;padding:1rem;grid-column:1/-1;">背包空空如也…</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /campView -->
+
+        <!-- ⚔️ 公会面板（冒险者大厅：等级与积分 / 委托栏 / 积分商店） -->
+        <div id="guildBg" style="display:none;"></div>
+        <div id="guildView" style="display:none;">
+            <div class="guild-header">
+                <div class="guild-title">⚔️ 公会 · 冒险者大厅</div>
+                <div class="guild-subtabs">
+                    <button class="guild-subtab active" data-gtab="rank" onclick="guildSubTab('rank')">📊 等级与积分</button>
+                    <button class="guild-subtab" data-gtab="quest" onclick="guildSubTab('quest')">📋 冒险者委托</button>
+                    <button class="guild-subtab" data-gtab="shop" onclick="guildSubTab('shop')">🛒 积分商店</button>
+                </div>
+            </div>
+
+            <!-- 子面板 1：冒险者等级与晋升进程 + 积分 -->
+            <div id="guildRankPanel" class="guild-panel">
+                <div class="guild-rank-card">
+                    <div class="guild-rank-top">
+                        <div class="guild-rank-badge" id="guildRankBadge">青羽</div>
+                        <div class="guild-rank-info">
+                            <div class="guild-rank-name" id="guildRankName">青羽冒险者</div>
+                            <div class="guild-rank-stats">
+                                <span class="guild-stat">🗺️ 累计事件 <b id="guildStatEvents">0</b> 次</span>
+                                <span class="guild-stat">⭐ 冒险者积分 <b id="guildStatPoints">0</b> 分</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="guild-rank-progress" id="guildRankProgress">
+                        <div class="grp-label"><span id="guildRankNextLabel">→ 黑羽</span><span id="guildRankNeed">还需 50 次事件</span></div>
+                        <div class="grp-bar"><div class="grp-fill" id="guildRankFill"></div></div>
+                    </div>
+                </div>
+
+                <div class="guild-section-title">🏔️ 晋升之路</div>
+                <div class="guild-ladder" id="guildLadder"></div>
+
+                <div class="guild-section-title">📜 冒险者积分说明</div>
+                <div class="guild-points-rules">
+                    <div class="gpr-item">🏕️ 每完成 <b>1</b> 次冒险事件，获得 <b>+1</b> 冒险者积分</div>
+                    <div class="gpr-item">🎖️ 晋升奖励：黑羽 +10 / 蓝羽 +30 / 银羽 +60 / 金羽 +120 / 赤羽 +200 / 白羽 +400</div>
+                    <div class="gpr-item">🛒 积分可在「积分商店」兑换冒险补给（筹备中）</div>
+                </div>
+            </div>
+
+            <!-- 子面板 2：冒险者委托栏（空界面） -->
+            <div id="guildQuestPanel" class="guild-panel" style="display:none;">
+                <div class="guild-empty">
+                    <div class="guild-empty-icon">📋</div>
+                    <div class="guild-empty-title">冒险者委托栏</div>
+                    <div class="guild-empty-desc">公会委托系统筹备中，敬请期待…</div>
+                </div>
+            </div>
+
+            <!-- 子面板 3：冒险者积分商店（空界面） -->
+            <div id="guildShopPanel" class="guild-panel" style="display:none;">
+                <div class="guild-empty">
+                    <div class="guild-empty-icon">🛒</div>
+                    <div class="guild-empty-title">冒险者积分商店</div>
+                    <div class="guild-empty-desc">积分商店筹备中，完成冒险积累积分后即可兑换…</div>
+                </div>
+            </div>
+        </div><!-- /guildView -->
+
+        <!-- 酒馆面板 -->
+        <div id="tavernPanel">
+            <div class="tavern-layout">
+                <!-- 左侧酒馆菜单（默认收拢） -->
+                <button class="tavern-menu-btn" id="tavernMenuBtn" onclick="toggleTavernMenu()" title="酒馆菜单">🍺</button>
+                <aside class="tavern-menu" id="tavernMenu">
+                    <div class="tavern-menu-body">
+                        <div class="tm-title">🍻 瑟伦瑞达菜单</div>
+                        <div class="tm-section">☕ 热饮</div>
+                        <div class="tm-item"><span>热蜂蜜酒</span><span class="tm-price">5 CP</span></div>
+                        <div class="tm-item"><span>苔原茶</span><span class="tm-price">8 CP</span></div>
+                        <div class="tm-item"><span>焦糖奶酒</span><span class="tm-price">12 CP</span></div>
+                        <div class="tm-section">🍖 食物</div>
+                        <div class="tm-item"><span>黑面包</span><span class="tm-price">3 CP</span></div>
+                        <div class="tm-item"><span>炖鹿肉</span><span class="tm-price">15 CP</span></div>
+                        <div class="tm-item"><span>烤雪兔</span><span class="tm-price">18 CP</span></div>
+                        <div class="tm-section">✨ 特调</div>
+                        <div class="tm-item"><span>霜酿烈酒</span><span class="tm-price">25 CP</span></div>
+                        <div class="tm-item"><span>松脂蜜酒</span><span class="tm-price">30 CP</span></div>
+                        <div class="tm-note">菜单仅展示，点单功能筹备中…</div>
+                    </div>
+                </aside>
+                <!-- 右侧聊天主区 -->
+                <div class="tavern-main">
+                    <div class="tavern-header">瑟伦瑞达酒馆</div>
+                    <div class="tavern-online" id="tavernOnline">🍺 酒馆内暂无其他旅人</div>
+                    <div class="tavern-body">
+                        <div class="tavern-chat">
+                            <div class="tavern-messages" id="tavernMessages">
+                                <div class="tavern-msg system"><span class="tm-text">🕯️ 炉火噼啪作响，酒馆老板娘擦拭着吧台...</span></div>
+                            </div>
+                            <div class="tavern-input-area">
+                                <input type="text" id="tavernInput" placeholder="说点什么..." maxlength="200" onkeydown="if(event.key==='Enter')northTavernSend()">
+                                <button onclick="northTavernSend()">🍺 发言</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:1.2rem; text-align:center; font-size:0.7rem; color:#3a5a7a; letter-spacing:1px; border-top:1px solid rgba(74,128,184,0.08); padding-top:0.8rem;">
+            ❄️ 尘封之卷 · 北境雪原 &nbsp;|&nbsp; 冰霜之下，万物皆寂
+        </div>
+    </div>
+
+    <script src="/static/north-data.js"></script>
+    <script src="/static/north-main.js"></script>
+    <script src="/static/north-tavern.js"></script>
+    <script src="/static/north-fx.js"></script>
+    <script type="module">
+        window._diceReady = false;
+        window._initDice = async function() {
+            if (window._diceReady) return;
+            try {
+                var bridge = await import('/static/dice3d/dice-bridge.js');
+                await bridge.initDiceOverlay();
+                window._diceReady = true;
+            } catch(e) { console.warn('3D骰子初始化失败:', e.message); }
+        };
+        window._initDice();
+    </script>
+</body>
+</html>
+

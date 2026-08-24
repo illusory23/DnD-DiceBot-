@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色卡 — 尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+    <style>
+        .item-result-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer; font-size: 0.82rem;
+        }
+        .item-result-row:hover { border-color: var(--accent); background: var(--surface); }
+        /* 背景编辑 */
+        .bg-edit-row { margin-bottom: 0.5rem; }
+        .bg-edit-label { font-size: 0.78rem; color: var(--gold); margin-bottom: 0.15rem; font-weight: bold; }
+        .bg-edit-input {
+            width: 100%; padding: 0.35rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.78rem; font-family: inherit;
+            box-sizing: border-box;
+        }
+        .bg-edit-input:focus { border-color: var(--accent); outline: none; }
+        .bg-textarea { resize: vertical; min-height: 2.5rem; }
+        /* 怪物搜索结果折叠 */
+        .search-collapsed { max-height: 220px !important; overflow-y: auto !important; }
+        .search-toggle-btn {
+            display: block; width: 100%; padding: 0.3rem; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim);
+            cursor: pointer; font-size: 0.75rem; margin-top: 0.3rem; text-align: center;
+            transition: all 0.15s;
+        }
+        .search-toggle-btn:hover { color: var(--text); border-color: var(--accent); }
+        .monster-result-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer; font-size: 0.82rem;
+            transition: all 0.15s;
+        }
+        .monster-result-row:hover { border-color: var(--accent); background: var(--surface); }
+        .editable-field {
+            cursor: pointer; border-bottom: 1px dashed var(--text-dim);
+            padding: 0.05rem 0.15rem; border-radius: 2px; transition: all 0.15s;
+        }
+        .editable-field:hover { background: var(--surface2); border-bottom-color: var(--accent); color: var(--accent); }
+        .spell-slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+        .spell-slot-item { display: flex; align-items: center; gap: 0.2rem; font-size: 0.8rem; }
+        .spell-slot-item input {
+            width: 28px; padding: 0.15rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 3px; color: var(--text); font-size: 0.75rem; text-align: center;
+        }
+        .spell-slot-item input:focus { border-color: var(--accent); outline: none; }
+        /* 防止角色名过长撑破卡片 */
+        #char-detail .card-header {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        /* 角色列表拖拽排序 */
+        .char-list-item {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.5rem; margin-bottom: 0.25rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; cursor: default; font-size: 0.85rem;
+            transition: all 0.15s, transform 0.1s;
+        }
+        .char-list-item:hover { background: var(--surface2); }
+        .char-list-item.dragging { opacity: 0.4; border-style: dashed; }
+        .char-list-item.drag-over {
+            border-color: var(--accent); border-style: solid;
+            background: var(--surface2);
+            box-shadow: 0 0 6px rgba(233,68,96,0.3);
+        }
+        .drag-handle {
+            cursor: grab; color: var(--text-dim); font-size: 1rem;
+            user-select: none; flex-shrink: 0; line-height: 1;
+            padding: 0 0.15rem; transition: color 0.15s;
+        }
+        .drag-handle:hover { color: var(--gold); }
+        .drag-handle:active { cursor: grabbing; }
+        /* 角色分组 */
+        .char-group {
+            margin-bottom: 0.35rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+        .char-group.group-dragging { opacity: 0.4; border-style: dashed; }
+        .char-group.group-drag-over {
+            border-color: var(--accent);
+            box-shadow: 0 0 6px rgba(233,68,96,0.3);
+        }
+        .group-header {
+            display: flex; align-items: center; gap: 0.35rem;
+            padding: 0.4rem 0.5rem;
+            background: var(--surface2);
+            cursor: pointer; user-select: none;
+            font-size: 0.82rem; font-weight: bold;
+            color: var(--gold); transition: background 0.15s;
+        }
+        .group-header:hover { background: #1a4a7a; }
+        .group-header.collapsed { border-radius: 6px; }
+        .group-arrow {
+            font-size: 0.55rem; transition: transform 0.2s;
+            display: inline-block; width: 10px;
+            color: var(--text-dim);
+        }
+        .group-header.collapsed .group-arrow { transform: rotate(0deg); }
+        .group-header:not(.collapsed) ~ .group-body { display: block; }
+        .group-header.collapsed ~ .group-body { display: none; }
+        .group-body {
+            padding: 0.25rem 0.3rem;
+            min-height: 2px;
+            transition: all 0.2s;
+            max-height: 340px;
+            overflow-y: auto;
+        }
+        /* 总角色组可以更高一些 */
+        .char-group[data-group-id="__all__"] .group-body {
+            max-height: 380px;
+        }
+        .group-body.drag-target-group {
+            background: rgba(233,68,96,0.08);
+            border: 1px dashed var(--accent);
+            border-radius: 4px;
+            min-height: 36px;
+        }
+        .group-drag-handle { cursor: grab; min-width: 12px; }
+        .group-drag-handle:active { cursor: grabbing; }
+        .group-action-btn {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 0.7rem; padding: 0.1rem 0.25rem;
+            border-radius: 3px; transition: all 0.15s;
+            opacity: 0.5;
+        }
+        .group-header:hover .group-action-btn { opacity: 1; }
+        .group-action-btn:hover { background: var(--surface); color: var(--text); }
+        .group-delete-btn:hover { background: var(--red) !important; color: #fff !important; }
+        .group-name-input:focus { outline: none; }
+    
+</style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <nav class="navbar" style="position:relative;">
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+        <div class="navbar-links">
+
+            <a href="/dice3d">🎲 掷骰</a>
+            <a href="/character" class="active">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+                        <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+            
+                <a href="/mods">🧩 Mod</a>
+                
+                <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 创建角色 -->
+            <div class="col" style="flex:1; min-width:200px; max-width:320px;">
+                <div class="card">
+                    <div class="card-header">📜 创建角色</div>
+                    <div class="form-group">
+                        <label>角色名称 *</label>
+                        <input type="text" id="char-name" placeholder="输入角色名...">
+                    </div>
+                    <div class="form-group">
+                        <label>职业</label>
+                        <input type="text" id="char-class" placeholder="如: 战士 / 法师 / 游荡者">
+                    </div>
+                    <div class="form-group">
+                        <label>种族</label>
+                        <input type="text" id="char-race" placeholder="如: 人类 / 精灵 / 半身人">
+                    </div>
+                    <div class="form-group">
+                        <label>等级</label>
+                        <input type="number" id="char-level" value="1" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>分组</label>
+                        <select id="new-char-group" style="width:100%;padding:0.5rem 0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.95rem;">
+                            <option value="">— 无分组 —</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="createChar()">✨ 创建角色</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📥 导入角色文件</div>
+                    <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.5rem;">
+                        支持从 Excel (.xlsx) 人物卡文件导入角色
+                    </div>
+                    <input type="file" id="import-file-input" accept=".xlsx,.xls"
+                           style="display:none;" onchange="handleCharFileImport(event)">
+                    <button class="btn btn-primary" onclick="document.getElementById('import-file-input').click()"
+                            style="width:100%;">
+                        📤 选择文件并导入
+                    </button>
+                    <div id="import-status" style="margin-top:0.5rem;font-size:0.8rem;"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">👥 角色列表
+                        <button class="btn btn-small btn-primary" onclick="window.createNewGroup()" title="创建分组" style="margin-left:0.5rem;font-size:0.7rem;padding:0.15rem 0.4rem;">📁 新建分组</button>
+                    </div>
+                    <div id="char-list" style="color:var(--text-dim)">加载中...</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">👹 资料库查询生物</div>
+                    <div class="dice-input">
+                        <input type="text" id="monster-search" placeholder="搜索怪物/生物..."
+                               onkeydown="if(event.key==='Enter') searchMonster()">
+                        <button onclick="searchMonster()">🔍</button>
+                    </div>
+                    <div id="search-results" style="margin-top:0.5rem;"></div>
+                    <div id="monster-info"></div>
+                </div>
+            </div>
+
+            <!-- 角色详情 + 物品搜索 -->
+            <div class="col" style="flex: 3; display:flex; flex-direction:column; gap:0.5rem; max-width:100%; min-width:0;">
+                <div id="char-detail" class="card" style="flex:1; overflow:hidden; max-height:85vh; padding:0.5rem 1rem;">
+                    <div class="card-header">📋 角色详情</div>
+                    <div style="color:var(--text-dim); text-align:center; padding:2rem;">
+                        请创建或选择一个角色
+                    </div>
+                </div>
+
+                <!-- 物品/装备搜索面板 -->
+                <div class="card" style="flex:1; overflow-y:auto; max-height:40vh;">
+                    <div class="card-header">⚔️ 武器装备/物品搜索</div>
+                    <div class="dice-input" style="margin-bottom:0.5rem;">
+                        <input type="text" id="item-search-input" placeholder="搜索武器、装备、物品..."
+                               onkeydown="if(event.key==='Enter') doItemSearch()">
+                        <button onclick="doItemSearch()">🔍</button>
+                    </div>
+                    <div id="item-search-results" style="max-height:200px;overflow-y:auto;font-size:0.82rem;">
+                        <div style="color:var(--text-dim);text-align:center;padding:0.5rem;">输入关键词搜索</div>
+                    </div>
+                    <div id="item-detail"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/character.js?v=17"></script>
+    <script src="/static/character-monsters.js?v=15"></script>
+    <script src="/static/character-features.js?v=16"></script>
+    <script src="/static/character-inventory.js?v=16"></script>
+<script>
+(function(){
+window._portalUserId=null;fetch("/api/auth/me").then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById("join-username").value=d.user.username;}}).catch(function(){});var K='dnd_joined_room';
+var _raw=sessionStorage.getItem(K);if(_raw){try{var _d=JSON.parse(_raw);if(_d&&_d.name){document.getElementById('join-username').value=_d.name;document.getElementById('join-overlay').classList.add('hidden');if(typeof window._chatUser!=='undefined')window._chatUser=_d.name;var _ci=document.getElementById('chat-input');var _cs=document.getElementById('chat-send-btn');if(_ci)_ci.disabled=false;if(_cs)_cs.disabled=false;setInterval(function(){var s=JSON.parse(sessionStorage.getItem(K));if(s&&s.name){fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).catch(function(){});}},10000);return;}}catch(e){}}
+var C='#00bcd4';
+var P=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+function B(){var p=document.getElementById('join-color-palette');p.innerHTML=P.map(function(c){return '<div class="join-color-swatch'+(c===C?' selected':'')+'" style="background:'+c+';" onclick="window._selectJoinColor(\''+c+'\')"></div>';}).join('');}
+B();
+window.toggleJoinColorPalette=function(){B();document.getElementById('join-color-palette').classList.toggle('show');};
+window._selectJoinColor=function(c){C=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){C='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+window.doJoin=function(){var n=document.getElementById('join-username').value.trim();if(!n){document.getElementById('join-error').textContent='请输入你的ID';return;}var b=document.getElementById('join-btn');b.disabled=true;b.textContent='连接中...';fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,color:C,role:document.querySelector('input[name=\"join-role\"]:checked').value})}).then(function(r){return r.json();}).then(function(d){if(d.ok){sessionStorage.setItem(K,JSON.stringify({name:n,color:C,is_dm:d.is_dm,role:document.querySelector('input[name=\"join-role\"]:checked').value}));document.getElementById('join-overlay').classList.add('hidden');if(typeof loadCharList==='function')loadCharList();fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,text:'进入了骰娘',color:C})});}else{document.getElementById('join-error').textContent='加入失败: '+(d.error||'');b.disabled=false;b.textContent='进入骰娘';}}).catch(function(e){document.getElementById('join-error').textContent='网络错误';b.disabled=false;b.textContent='进入骰娘';});};
+document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+</script>
+</body>
+</html>
+
+
+

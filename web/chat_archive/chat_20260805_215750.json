@@ -1,0 +1,24 @@
+[
+  {
+    "name": "厄内",
+    "text": "🎲 1d20 = [20]",
+    "time": "21:57:33",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785247053.752784
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "22:00:38",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785247238.665693,
+    "system": true
+  }
+]

@@ -1,0 +1,30 @@
+2026-08-04 生存物资燃料与背包同步修复 + 商店背包金币显示
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【问题】生存物资面板的燃料数量（松枝、松脂、荧光苔等）与背包物品数量不同步。
+
+【根因】survival.fuel 和 activeChar.inventory 是两个独立数据存储，
+在多个操作中只更新了其中一个：
+  1. 商店购买/出售 → 只更新 inventory，未更新 survival.fuel
+  2. 营地编辑燃料数值 → 只更新 survival.fuel，未更新 inventory
+  3. 营地编辑/添加/删除物品 → 只更新 inventory，未更新 survival.fuel
+  4. 休息消耗燃料（短休/长休） → 只更新 survival.fuel，未扣减背包
+  5. 生火消耗燃料 → 只更新 survival.fuel，未扣减背包
+
+【修复】
+1. 新增全局常量 FUEL_NAME_TO_KEY / FUEL_KEY_TO_NAME（物品名↔燃料键双向映射）
+2. 新增 reconcileSurvivalFuel() — 从背包物品累加同步 survival.fuel
+   → 在 updateSurvivalUI() 和 renderCampCharDetail() 中自动调用
+3. 新增 consumeFuelFromInventory(fk, qty) — 从背包扣减燃料物品
+   → 在 consumeFuel()、consumeRestCosts()、shortRest()、doLight() 中调用
+4. campEditNum 编辑 _fuel_* 字段 → 同步更新背包物品数量
+5. campEditItem / campAddItem / campDelItem → 同步 activeChar 并触发 reconcile
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【新增】补给站/铁匠工房/炼金工坊/营地仓库的背包展开界面
+现在显示玩家持有的 GP / SP / CP 金币信息。
+
+新增 renderShopCoinsBar() 通用金币栏渲染函数，
+在 renderShopBackpack() 和 storageRenderBackpack() 中使用。

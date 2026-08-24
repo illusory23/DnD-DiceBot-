@@ -1,0 +1,32 @@
+# 外置 Mod 接口系统实施
+
+## 概述
+骰娘 v2.1.0 起支持外置 Mod 系统。Mod 放入 backend/mods/ 目录后，
+服务器启动时自动发现并加载，无需修改核心代码。
+
+## 新增文件（7个）
+- backend/app/core/rules_base.py — 规则引擎抽象基类 BaseRulesEngine + DiceResult
+- backend/app/core/dnd5e_engine.py — DND5E 引擎适配器（包装原有函数）
+- backend/app/core/mod_loader.py — Mod 发现/验证/加载/卸载引擎
+- backend/app/mods/__init__.py
+- backend/app/mods/registry.py — 全局注册表 + 钩子系统
+- backend/app/routers/mods.py — Mod 管理 API 路由
+- backend/mods/example-hello/ — 示例 Mod（含 mod.json + Hello World API）
+
+## 修改文件（1个）
+- backend/app/main.py — 集成 ModLoader，注册内置 DND5E 引擎
+
+## 新增 API 端点
+- GET /api/mods — 列出所有已加载 Mod
+- GET /api/mods/{id} — Mod 详情
+- POST /api/mods/{id}/reload — 重新加载 Mod
+- GET /api/rules/engines — 列出所有规则引擎
+- POST /api/rules/activate/{id} — 切换规则引擎
+- GET /api/mod/{mod_id}/... — Mod 自定义端点（自动路由）
+
+## Mod 接入格式
+参见：骰娘/骰娘Mod外置接口系统说明.txt
+
+## 备份
+- backend_backup_20260722/
+- frontend_backup_20260722/

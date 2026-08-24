@@ -1,0 +1,40 @@
+2026-08-21 怪物词条查询错配修复（角色卡/资料库/战斗页通用）
+
+【问题】
+角色卡界面的资料库查询生物时，点击一个角色的词条会跳转到另一个
+不匹配的词条卡。例：搜索"地精"→ 列表第一行"地精"（SRD）→
+点击后却显示"熊地精"的词条卡。
+
+【根因】
+web/app.py 的 /api/monster/<name> 查询匹配链有缺陷：
+  1. 自定义怪物"包含匹配"（name 包含查询词即返回第一个）排在
+     CHM/SRD 精确匹配之前。自定义库里没有"地精"但有"熊地精"，
+     于是查询"地精"被包含匹配劫持 → 返回"熊地精"。
+  2. 同类隐患：CHM 详情 / CHM 模糊 / SRD 兜底 均为"模糊命中取
+     第一个"，点击列表项时同样可能错配。
+
+【修复】
+1. web/app.py api_search_monster 重构为两轮匹配：
+   第1轮 精确匹配：自定义(name/name_en) → CHM(name_cn/name/name_en，
+   先用评分搜索验证精确命中再读详情页) → SRD(name/name_en)
+   第2轮 模糊兜底（仅当全部数据源精确失败）：
+   自定义最短包含 → CHM 评分第一 → SRD 首个包含
+   新增辅助函数 _monster_exact_hit / _srd_monster_exact
+2. utils/data_loader.py search_spell / search_monster 同样改为
+   精确优先、模糊包含兜底（Web 兜底与 CLI 共用的公共工具）
+
+【排查覆盖（同类问题全量清理）】
+- /api/monster/<name>：全库 579 个怪物名逐一验证，点击全部一致
+- /api/monsters/search 列表 → 点击详情 581 次模拟点击全一致
+- /api/spell-detail/<name>：spells_full 全库 566 名 + srd_spells
+  全库点击验证无错配（法术路径本身无劫持，未改动）
+- /api/search 综合搜索怪物条目：rule-detail path 与名称对应正确
+- /api/items/search、/api/conditions：列表/状态无跳转错配
+- CLI：.monster 多结果列出（安全）、.spell 评分精确优先（安全）、
+  .condition/.rule/.item/.feat 列表模式（安全），均无需改动
+
+【验证】
+- 地精 → 地精(SRD) ｜ 熊地精 → 熊地精(自定义) ｜ 地精老大 → 地精老大(CHM)
+- Bugbear → 熊地精(自定义) ｜ goblin → 哥布林(自定义)
+- 哥布林首领 → 哥布林首领(SRD) ｜ 不存在的词 → 404/模糊兜底
+- 回归：全部通过

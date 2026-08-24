@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}聊天管理{% endblock %}
+{% block page_title %}💬 聊天管理{% endblock %}
+
+{% block content %}
+<!-- 当前聊天消息 -->
+<div class="card">
+    <div class="card-header">
+        <span>当前聊天消息</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="msg-count"></span>
+            <button class="btn btn-sm btn-danger" onclick="clearMessages()">清空消息</button>
+        </span>
+    </div>
+    <div class="table-container" style="max-height:500px;overflow-y:auto;">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>发送者</th><th>内容</th><th>IP</th></tr>
+            </thead>
+            <tbody id="msg-tbody">
+                <tr><td colspan="4" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 聊天归档 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>聊天归档</span>
+        <span style="display:flex;gap:8px;">
+            <input type="number" id="retention-days" value="30" min="7" max="365"
+                   style="width:80px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:12px;">
+            <button class="btn btn-sm btn-danger" onclick="cleanArchives()">清理旧归档</button>
+        </span>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead><tr><th>文件名</th><th>大小</th><th>时间</th></tr></thead>
+            <tbody id="archive-tbody">
+                <tr><td colspan="3" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function loadMessages() {
+    try {
+        const resp = await fetch('/api/chat/messages');
+        const data = await resp.json();
+        const msgs = data.messages || [];
+        document.getElementById('msg-count').textContent = `${msgs.length} 条消息`;
+        const tbody = document.getElementById('msg-tbody');
+        if (!msgs.length) {
+            tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-text">暂无消息</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = msgs.slice(-100).reverse().map(m => `
+            <tr>
+                <td style="white-space:nowrap;">${m.time || '-'}</td>
+                <td>${Admin.escHtml(m.name || '匿名')}</td>
+                <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Admin.escHtml(m.text || '')}</td>
+                <td style="font-size:11px;color:var(--text-muted);">${m.ip || '-'}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        document.getElementById('msg-tbody').innerHTML = '<tr><td colspan="4" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function loadArchives() {
+    try {
+        const data = await Admin.get('/admin/api/chat-archives');
+        const tbody = document.getElementById('archive-tbody');
+        if (!data.archives || !data.archives.length) {
+            tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state"><div class="empty-text">暂无归档</div></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.archives.map(a => `
+            <tr>
+                <td>📄 ${Admin.escHtml(a.filename)}</td>
+                <td>${(a.size / 1024).toFixed(1)} KB</td>
+                <td>${a.time}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        document.getElementById('archive-tbody').innerHTML = '<tr><td colspan="3" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function clearMessages() {
+    const ok = await Admin.confirm('清空消息', '确定要清空所有聊天消息吗？此操作不可恢复！');
+    if (!ok) return;
+    try {
+        await Admin.del('/admin/api/chat/messages');
+        Admin.toast('聊天消息已清空', 'success');
+        loadMessages();
+    } catch (e) {}
+}
+
+async function cleanArchives() {
+    const days = parseInt(document.getElementById('retention-days').value) || 30;
+    const ok = await Admin.confirm('清理归档', `确定要删除 ${days} 天前的所有聊天归档吗？`);
+    if (!ok) return;
+    try {
+        const data = await Admin.del(`/admin/api/chat-archives?days=${days}`);
+        Admin.toast(`已清理，删除了 ${data.cleaned} 个归档文件`, 'success');
+        loadArchives();
+    } catch (e) {}
+}
+
+loadMessages();
+loadArchives();
+</script>
+{% endblock %}

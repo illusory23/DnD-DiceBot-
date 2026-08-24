@@ -1,0 +1,11 @@
+2026-08-14 第37次更新：进入冒险者公会加载界面
+
+【功能】进入公会 tab 时显示加载覆盖页（与营地/酒馆一致）：
+- 背景图：冒险者公会封面（图片/冒险者公会封面.png → web/static/portal/loading_guild.png）
+- 副标题：冒险者公会；提示：正在进入冒险者公会...
+- 加载动画约 1.5 秒后淡入公会界面
+
+【实现】NORTH_LOADING_CONFIG 新增 guild 配置；activateTab('guild') 改用
+showNorthLoading('guild', callback)（与 camp/tavern 相同流程）
+
+【验证】点击公会 tab → 覆盖层显示公会封面图 + 标题 → 加载完成后进入公会界面

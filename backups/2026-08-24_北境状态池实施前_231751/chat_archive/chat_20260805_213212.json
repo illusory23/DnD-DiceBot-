@@ -1,0 +1,92 @@
+[
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "20:43:50",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785242630.2036445
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:47:22",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785242842.1426616,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:48:26",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785242906.7481244,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "哥布林 🎯 隐匿检定: [8] (d20:4 +4)",
+    "time": "20:49:03",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785242943.7413032
+  },
+  {
+    "name": "白枫",
+    "text": "潘多拉·拉·索比亚 🎯 隐匿检定: [15] (d20:9 +6)",
+    "time": "20:49:14",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785242954.9236217
+  },
+  {
+    "name": "初羽の屑",
+    "text": "🎲 1d6 = [4]",
+    "time": "20:49:36",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785242976.755844
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 埃亚 · 维尔莫瑞斯 d20 = [6]",
+    "time": "20:54:48",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785243288.4820626
+  },
+  {
+    "name": "iling",
+    "text": "🎲 埃亚 · 维尔莫瑞斯 d20 = [6]",
+    "time": "20:54:51",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785243291.3909435
+  }
+]

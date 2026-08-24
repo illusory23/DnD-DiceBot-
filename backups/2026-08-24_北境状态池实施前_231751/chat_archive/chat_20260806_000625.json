@@ -1,0 +1,36 @@
+[
+  {
+    "name": "iling",
+    "text": "🎲 1d20 = [9]",
+    "time": "21:10:22",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935422.8152716
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d20+4 = [12]",
+    "time": "21:10:52",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935452.3524501
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "21:10:57",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935457.8808124,
+    "system": true
+  }
+]

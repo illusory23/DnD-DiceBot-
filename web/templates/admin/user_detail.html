@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}用户详情{% endblock %}
+{% block page_title %}👤 用户详情{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2 id="page-heading">用户详情</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin/users" class="btn btn-secondary">← 返回列表</a>
+        <button class="btn btn-primary" id="btn-toggle-admin"></button>
+        <button class="btn btn-secondary" id="btn-toggle-active"></button>
+        <button class="btn btn-secondary" id="btn-reset-pwd">🔑 重置密码</button>
+        <button class="btn btn-danger" id="btn-delete-user">🗑 删除账号</button>
+    </div>
+</div>
+
+<div id="detail-area">
+    <div class="loading">加载中...</div>
+</div>
+
+<script>
+const userId = {{ target_user_id }};
+
+async function loadDetail() {
+    const area = document.getElementById('detail-area');
+    try {
+        const data = await Admin.get(`/admin/api/users/${userId}`);
+        const u = data.user;
+
+        document.getElementById('page-heading').textContent = `👤 ${u.username}`;
+
+        const adminText = u.is_admin ? '取消管理员' : '设为管理员';
+        document.getElementById('btn-toggle-admin').textContent = adminText;
+        document.getElementById('btn-toggle-admin').onclick = () => toggleAdmin(u.id, !u.is_admin, u.username);
+
+        const isActive = u.is_active !== false;
+        document.getElementById('btn-toggle-active').textContent = isActive ? '🚫 禁用账号' : '✅ 启用账号';
+        document.getElementById('btn-toggle-active').onclick = () => toggleActive(u.id, !isActive, u.username);
+
+        area.innerHTML = `
+            <div class="detail-grid">
+                <div class="detail-item"><div class="detail-label">ID</div><div class="detail-value">${u.id}</div></div>
+                <div class="detail-item"><div class="detail-label">用户名</div><div class="detail-value">${Admin.escHtml(u.username)}</div></div>
+                <div class="detail-item"><div class="detail-label">邮箱</div><div class="detail-value">${Admin.escHtml(u.email)}</div></div>
+                <div class="detail-item"><div class="detail-label">手机</div><div class="detail-value">${u.phone ? Admin.escHtml(u.phone) : '-'}</div></div>
+                <div class="detail-item"><div class="detail-label">简介</div><div class="detail-value">${u.bio ? Admin.escHtml(u.bio) : '-'}</div></div>
+                <div class="detail-item"><div class="detail-label">权限</div><div class="detail-value">${u.is_admin ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">普通用户</span>'}</div></div>
+                <div class="detail-item"><div class="detail-label">状态</div><div class="detail-value">${isActive ? '<span class="badge badge-success">正常</span>' : '<span class="badge badge-danger">已禁用</span>'}</div></div>
+                <div class="detail-item"><div class="detail-label">注册时间</div><div class="detail-value">${Admin.formatDate(u.created_at)}</div></div>
+                <div class="detail-item"><div class="detail-label">最后登录</div><div class="detail-value">${u.last_login ? Admin.formatDate(u.last_login) : '从未登录'}</div></div>
+                <div class="detail-item"><div class="detail-label">登录 IP</div><div class="detail-value">${Admin.escHtml(u.last_login_ip || '-')}</div></div>
+                <div class="detail-item"><div class="detail-label">角色数量</div><div class="detail-value">${u.character_count}</div></div>
+            </div>
+
+            ${data.characters.length ? `
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header">🎭 角色列表 (${data.characters.length})</div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>ID</th><th>名称</th><th>等级</th><th>职业</th><th>种族</th><th>HP</th></tr></thead>
+                        <tbody>
+                            ${data.characters.map(c => `
+                                <tr>
+                                    <td>${c.id}</td>
+                                    <td><a href="/admin/characters/${c.id}" style="color:var(--accent);text-decoration:none;">${Admin.escHtml(c.name)}</a></td>
+                                    <td>${c.level}</td>
+                                    <td>${Admin.escHtml(c.class_ || '-')}</td>
+                                    <td>${Admin.escHtml(c.race || '-')}</td>
+                                    <td>${c.hp_current}/${c.hp_max}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>` : ''}
+
+            ${data.saves.length ? `
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header">💾 北境存档 (${data.saves.length})</div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>存档名</th><th>更新时间</th><th>大小</th></tr></thead>
+                        <tbody>
+                            ${data.saves.map(s => `
+                                <tr>
+                                    <td>${Admin.escHtml(s.save_name)}</td>
+                                    <td>${Admin.formatDate(s.updated_at)}</td>
+                                    <td>${(s.size / 1024).toFixed(1)} KB</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>` : ''}
+        `;
+    } catch (e) {
+        area.innerHTML = '<div class="empty-state"><div class="empty-text" style="color:var(--danger);">加载失败</div></div>';
+    }
+}
+
+async function toggleAdmin(uid, isAdmin, username) {
+    const action = isAdmin ? '设为管理员' : '取消管理员权限';
+    const ok = await Admin.confirm('确认操作', `确定要${action}「${username}」吗？`);
+    if (!ok) return;
+    try {
+        await Admin.put(`/admin/api/users/${uid}`, { is_admin: isAdmin });
+        Admin.toast(`已${action}「${username}」`, 'success');
+        loadDetail();
+    } catch (e) {}
+}
+
+async function toggleActive(uid, isActive, username) {
+    const action = isActive ? '启用' : '禁用';
+    const ok = await Admin.confirm('确认操作', `确定要${action}用户「${username}」吗？${isActive ? '' : '禁用后该用户将无法登录前台。'}`);
+    if (!ok) return;
+    try {
+        await Admin.put(`/admin/api/users/${uid}`, { is_active: isActive });
+        Admin.toast(`已${action}「${username}」`, 'success');
+        loadDetail();
+    } catch (e) {}
+}
+
+document.getElementById('btn-reset-pwd').addEventListener('click', async () => {
+    const newPwd = await showPromptDialog('请输入新密码（至少 6 位）:');
+    if (!newPwd) return;
+    if (newPwd.length < 6) {
+        Admin.toast('新密码至少 6 位', 'error');
+        return;
+    }
+    const ok = await Admin.confirm('重置密码', `确定要重置该用户的密码吗？`);
+    if (!ok) return;
+    try {
+        await Admin.put(`/admin/api/users/${userId}`, { password: newPwd });
+        Admin.toast('密码已重置', 'success');
+    } catch (e) {}
+});
+
+document.getElementById('btn-delete-user').addEventListener('click', async () => {
+    const ok = await Admin.confirm('删除账号', `确定要删除该账号吗？\n\n⚠️ 其角色卡会保留，但账号数据（邮箱、登录信息）将永久删除！`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/users/${userId}`);
+        Admin.toast('账号已删除', 'success');
+        setTimeout(() => { window.location.href = '/admin/users'; }, 800);
+    } catch (e) {}
+});
+
+loadDetail();
+</script>
+{% endblock %}

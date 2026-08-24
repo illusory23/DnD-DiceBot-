@@ -1,0 +1,60 @@
+[
+  {
+    "name": "白枫",
+    "text": "戈尔丹•伦纳海姆 🎯 察觉检定: [11] (d20:9 +2)",
+    "time": "20:29:40",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785241780.1882207
+  },
+  {
+    "name": "凌羽",
+    "text": "🎲 潘多拉·拉·索比亚 d20 = [9]",
+    "time": "20:30:38",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785241838.893165
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:30:45",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785241845.2828822,
+    "system": true
+  },
+  {
+    "name": "凌羽",
+    "text": "潘多拉·拉·索比亚 🎯 察觉检定: [15] (d20:8 +7)",
+    "time": "20:30:51",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785241851.351582
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [3]",
+    "time": "20:30:57",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785241857.0153203
+  }
+]

@@ -1,0 +1,22 @@
+# 角色列表 8 张限制修复 — 动态高度精确锁定
+
+## 问题
+上一版用 CSS max-height: 520px 估算2行高度，实际卡片渲染高度与估算偏差，
+导致仍然显示全部角色卡，滚动未生效。
+
+## 修复方案
+改为 JavaScript 动态测量：
+
+1. 渲染完成后，用 nextTick() 获取第一张 .char-card 的真实 offsetHeight
+2. 读取 grid 的 row-gap 值
+3. 计算：maxHeight = 卡片高 × 2 + 行间距 × 1 + 内边距
+4. 通过 :style 绑定到 .char-grid-wrapper 的 maxHeight
+
+## 附加优化
+- 窗口 resize 时重新计算（150ms 防抖）
+- 角色列表变化（复制/删除）后自动重新计算
+- 底部渐变遮罩（mask-image）提示还有更多卡片可滚动
+- 过渡动画 transition: max-height 0.3s ease
+
+## 修改文件
+- frontend/src/views/CharacterList.vue — 脚本+模板+样式全面重构

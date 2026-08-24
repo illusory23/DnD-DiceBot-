@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* ━━ 加入房间覆盖层 ━━ */
+        #join-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        #join-overlay.hidden { display: none; }
+        .join-card {
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 16px; padding: 32px 28px; max-width: 420px; width: 90%;
+            text-align: center; box-shadow: 0 8px 40px rgba(233,68,96,0.3);
+        }
+        .join-card h2 { color: var(--gold); margin-bottom: 6px; font-size: 1.3rem; }
+        .join-card .subtitle { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 20px; }
+        .join-card .dm-badge {
+            display: inline-block; background: var(--gold); color: #000;
+            padding: 2px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .join-card input[type="text"] {
+            width: 100%; padding: 10px 14px; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); font-size: 0.95rem; text-align: center;
+            box-sizing: border-box; margin-bottom: 10px;
+        }
+        .join-card input:focus { border-color: var(--accent); outline: none; }
+        .join-card .color-row {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-bottom: 16px;
+        }
+        .join-card .color-row span { font-size: 0.8rem; color: var(--text-dim); }
+        .join-card .join-color-btn {
+            width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border);
+            cursor: pointer; padding: 0;
+        }
+        .join-card .join-color-palette {
+            display: none; position: absolute; bottom: 40px;
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 8px; padding: 6px; gap: 4px; flex-wrap: wrap;
+            width: 140px; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .join-card .join-color-palette.show { display: flex; }
+        .join-card .join-color-swatch {
+            width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s;
+        }
+        .join-card .join-color-swatch:hover { border-color: #fff; transform: scale(1.2); }
+        .join-card .join-color-swatch.selected { border-color: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+        .join-card .join-btn {
+            width: 100%; padding: 12px; background: var(--accent); border: none;
+            border-radius: 8px; color: #fff; cursor: pointer; font-size: 1rem;
+            font-weight: bold; transition: opacity 0.15s;
+        }
+        .join-card .join-btn:hover { opacity: 0.9; }
+        .join-card .join-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .join-card .error-msg { color: var(--red); font-size: 0.8rem; margin-top: 8px; min-height: 20px; }
+    </style>
+</head>
+<body>
+    <!-- 加入房间覆盖层 -->
+    <div id="join-overlay">
+        <div class="join-card">
+            <h2>✦ 欢迎来到 尘封之卷</h2>
+            <div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div>
+            <div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div>
+            <input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done">
+            <div class="color-row" style="position:relative;">
+                <span>ID颜色：</span>
+                <button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button>
+                <div class="join-color-palette" id="join-color-palette"></div>
+            </div>
+            <div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label><label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button>
+            <div class="error-msg" id="join-error"></div>
+        </div>
+    </div>
+
+    <nav class="navbar">
+        <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+        <div class="navbar-links">
+            <a href="/dice3d">🎲 3D掷骰</a>
+            <a href="/" class="active">⚡ 快速检定</a>
+            <a href="/character">角色卡</a>
+            <a href="/combat">战斗</a>
+            <a href="/spells">法术</a>
+                        <a href="/map">地图</a>
+            <a href="/reference">参考</a>
+                <a href="/mods">🧩 Mod</a>
+
+                <a href="/chat">💬 聊天室</a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="row">
+            <!-- 3D掷骰入口 + 检定结果 -->
+            <div class="col" style="flex: 1.6;">
+                <div class="card dice-panel">
+                    <div class="card-header">🎲 3D 掷骰
+                        <select id="active-char-select" onchange="setActiveChar()"
+                                style="margin-left:1rem;padding:0.25rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--gold);font-size:0.8rem;max-width:180px;">
+                            <option value="">⚡ 选择角色</option>
+                        </select>
+                        <span id="active-char-badge" style="color:var(--gold);font-size:0.75rem;margin-left:0.5rem;display:none;"></span>
+                    </div>
+
+                    <!-- 3D掷骰引导卡片 -->
+                    <div style="text-align:center;padding:1.5rem 1rem;">
+                        <div style="font-size:3rem;margin-bottom:0.5rem;">🎲✨</div>
+                        <p style="color:var(--text);font-size:1rem;margin:0 0 0.3rem;font-weight:bold;">
+                            全新 3D 物理掷骰已上线
+                        </p>
+                        <p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 1rem;line-height:1.5;">
+                            真3D引擎 · 物理碰撞 · 联机同步<br>
+                            支持爆炸骰/保留丢弃/自定义表达式
+                        </p>
+                        <a href="/dice3d" style="display:inline-block;padding:12px 32px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:1.1rem;font-weight:bold;transition:opacity 0.15s;"
+                           onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                            🎲 打开 3D 掷骰
+                        </a>
+                    </div>
+
+                    <!-- 检定结果输出区 -->
+                    <div class="output-area" id="output" style="margin-top:0.5rem;">
+                        <div style="color: var(--text-dim); text-align: center; padding: 1rem;">
+                            💡 掷骰请前往 <a href="/dice3d" style="color:var(--accent);">3D掷骰页面</a>，此面板显示检定结果
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 检定面板 -->
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">🎯 快速检定</div>
+
+                    <div class="dice-input">
+                        <input type="text" id="check-target" placeholder="察觉 / 力量 / 隐匿..."
+                               onkeydown="if(event.key==='Enter') doCheck()">
+                        <button onclick="doCheck()">检定</button>
+                    </div>
+
+                    <!-- 优势/劣势切换 -->
+                    <div class="adv-toggle-row">
+                        <div class="adv-toggle" id="check-adv-toggle">
+                            <button class="adv-btn active" data-adv="">正常</button>
+                            <button class="adv-btn" data-adv="adv">✨ 优势</button>
+                            <button class="adv-btn" data-adv="dis">💀 劣势</button>
+                        </div>
+                    </div>
+
+                    <div class="quick-dice">
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;">力量</span>
+                        <button onclick="fillCheckTarget('运动')">运动</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">敏捷</span>
+                        <button onclick="fillCheckTarget('特技')">特技</button>
+                        <button onclick="fillCheckTarget('巧手')">巧手</button>
+                        <button onclick="fillCheckTarget('隐匿')">隐匿</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">智力</span>
+                        <button onclick="fillCheckTarget('奥秘')">奥秘</button>
+                        <button onclick="fillCheckTarget('历史')">历史</button>
+                        <button onclick="fillCheckTarget('调查')">调查</button>
+                        <button onclick="fillCheckTarget('自然')">自然</button>
+                        <button onclick="fillCheckTarget('宗教')">宗教</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">感知</span>
+                        <button onclick="fillCheckTarget('驯兽')">驯兽</button>
+                        <button onclick="fillCheckTarget('洞悉')">洞悉</button>
+                        <button onclick="fillCheckTarget('医药')">医药</button>
+                        <button onclick="fillCheckTarget('察觉')">察觉</button>
+                        <button onclick="fillCheckTarget('生存')">生存</button>
+                        <span style="font-size:0.75rem;color:var(--text-dim);width:100%;margin-bottom:0.15rem;margin-top:0.25rem;">魅力</span>
+                        <button onclick="fillCheckTarget('欺诈')">欺诈</button>
+                        <button onclick="fillCheckTarget('威吓')">威吓</button>
+                        <button onclick="fillCheckTarget('表演')">表演</button>
+                        <button onclick="fillCheckTarget('游说')">游说</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📊 属性生成</div>
+                    <button class="btn btn-primary" onclick="generateAbilities()">✦ 生成属性 (4d6k3)</button>
+                    <div id="gen-result" style="margin-top: 0.75rem;"></div>
+                </div>
+
+                <div class="card" style="border-color: #c9a96e;">
+                    <div class="card-header" style="color:#ffd700;">✨ 3D 物理骰子</div>
+                    <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.8rem;">
+                        真3D物理引擎掷骰，基于 @3d-dice/dice-box + Three.js
+                    </div>
+                    <a href="/dice3d"
+                       style="display:block;padding:0.7rem;background:var(--accent);color:#fff;
+                              border-radius:8px;text-decoration:none;text-align:center;font-weight:bold;
+                              font-size:1rem;transition:opacity 0.15s;"
+                       onmouseover="this.style.opacity='0.85'"
+                       onmouseout="this.style.opacity='1'">
+                        🎲 打开 3D 物理骰子
+                    </a>
+                    <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim);text-align:center;">
+                        支持 d4/d6/d8/d10/d12/d20/d100 · 优势/劣势 · 多骰子同投
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getIdentity() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem('dnd_joined_room'));
+                return { name: (saved && saved.name) || '', role: (saved && saved.role) || 'PL' };
+            } catch(e) { return { name: '', role: 'PL' }; }
+        }
+
+        // ━━━ 优势/劣势切换按钮 ━━━
+        document.querySelectorAll('.adv-toggle').forEach(toggle => {
+            toggle.querySelectorAll('.adv-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.parentElement.querySelectorAll('.adv-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+
+        function getDiceAdvantage() {
+            const active = document.querySelector('#dice-adv-toggle .adv-btn.active');
+            return active ? active.dataset.adv : '';
+        }
+
+        function getCheckAdvantage() {
+            const active = document.querySelector('#check-adv-toggle .adv-btn.active');
+            if (!active) return null;
+            const v = active.dataset.adv;
+            if (v === 'adv') return true;
+            if (v === 'dis') return false;
+            return null;
+        }
+
+        // ━━━ 自定义骰子构建器（元素已移至3D掷骰页，此处做兼容处理）━━━
+        function fillCustomDice(count, sides, mod) {
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            const elM = document.getElementById('dice-mod');
+            if (elC) elC.value = count;
+            if (elS) elS.value = sides;
+            if (elM) elM.value = mod;
+            // 如果元素不存在，重定向到3D掷骰页面
+            if (!elC && !elS) { window.location.href = '/dice3d'; return; }
+        }
+
+        function onNdnSyncChange() {
+            const ndn = document.getElementById('ndn-sync');
+            if (!ndn) return;
+            const synced = ndn.checked;
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            if (!elC || !elS) return;
+            if (synced) {
+                elC.value = elS.value;
+                elC.readOnly = true;
+                elC.style.opacity = '0.6';
+            } else {
+                elC.readOnly = false;
+                elC.style.opacity = '1';
+            }
+        }
+
+        // 监听面数变化（仅当元素存在时绑定）
+        (function(){
+            const elS = document.getElementById('dice-sides');
+            if (elS) {
+                elS.addEventListener('input', function() {
+                    const ndn = document.getElementById('ndn-sync');
+                    const elC = document.getElementById('dice-count');
+                    if (ndn && ndn.checked && elC) {
+                        elC.value = this.value;
+                    }
+                });
+            }
+        })();
+
+        function buildDiceExpression() {
+            const elC = document.getElementById('dice-count');
+            const elS = document.getElementById('dice-sides');
+            const elM = document.getElementById('dice-mod');
+            const count = elC ? (parseInt(elC.value) || 1) : 1;
+            const sides = elS ? (parseInt(elS.value) || 20) : 20;
+            const mod = elM ? (parseInt(elM.value) || 0) : 0;
+            const modSign = mod >= 0 ? '+' : '';
+            const adv = getDiceAdvantage();
+
+            let expr = `${count}d${sides}`;
+            if (mod !== 0) {
+                expr += `${modSign}${mod}`;
+            }
+            if (adv === 'adv') expr = 'adv ' + expr;
+            if (adv === 'dis') expr = 'dis ' + expr;
+            return expr;
+        }
+
+        async function doCustomRoll() {
+            // 如果骰子构建器元素不存在，跳转到3D掷骰页
+            if (!document.getElementById('dice-count')) {
+                window.location.href = '/dice3d';
+                return;
+            }
+            const expr = buildDiceExpression();
+            const exprEl = document.getElementById('dice-expr');
+            if (exprEl) exprEl.value = expr;
+
+            const output = document.getElementById('output');
+            if (!output) return;
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
+
+            try {
+                const resp = await fetch('/api/roll', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({expression: expr})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    output.innerHTML = `<div class="output-entry" style="color:var(--red)">❌ ${data.error}</div>` + output.innerHTML;
+                    return;
+                }
+
+                output.innerHTML = formatRollResult(data) + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误: ${e.message}</div>` + output.innerHTML;
+            }
+        }
+
+        // ━━━ 自由表达式掷骰 ━━━
+        async function doFreeRoll() {
+            const exprEl = document.getElementById('dice-expr');
+            if (!exprEl) {
+                window.location.href = '/dice3d';
+                return;
+            }
+            const expr = exprEl.value.trim();
+            if (!expr) return;
+
+            const output = document.getElementById('output');
+            if (!output) return;
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 投掷中...</div>';
+
+            try {
+                const resp = await fetch('/api/roll', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({expression: expr})
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    output.innerHTML = `<div class="output-entry" style="color:var(--red)">❌ ${data.error}</div>` + output.innerHTML;
+                    return;
+                }
+
+                output.innerHTML = formatRollResult(data) + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误: ${e.message}</div>` + output.innerHTML;
+            }
+        }
+
+        function formatRollResult(data) {
+            let diceHtml = '';
+            if (data.advantage === true || data.advantage === false) {
+                // 优势/劣势：显示两次投掷
+                const rolls = data.rolls || [];
+                const kept = data.advantage === true ? Math.max(...rolls) : Math.min(...rolls);
+                const dropped = rolls.find(r => r !== kept);
+                const actionLabel = data.advantage === true ? '取高' : '取低';
+                if (rolls.length >= 2) {
+                    diceHtml = `<span style="color:var(--cyan)">[${kept}]</span>, [${dropped}] → ${actionLabel}: ${kept}`;
+                } else {
+                    diceHtml = rolls.join(', ');
+                }
+            } else {
+                diceHtml = data.rolls ? data.rolls.join(', ') : '';
+            }
+
+            let critHtml = '';
+            if (data.is_crit_success) critHtml = ' <span class="crit-success">✨ 大成功！(Natural 20)</span>';
+            if (data.is_crit_failure) critHtml = ' <span class="crit-failure">💀 大失败！(Natural 1)</span>';
+
+            let advHtml = '';
+            if (data.advantage === true) advHtml = ' <span style="color:var(--gold)">(优势)</span>';
+            if (data.advantage === false) advHtml = ' <span style="color:var(--text-dim)">(劣势)</span>';
+
+            let charLine = '';
+            if (data.char_name) {
+                charLine = `<div style="color:var(--gold);font-size:0.9rem;">${data.char_name} 投出了 [${data.total}] 点</div>`;
+            }
+            return `
+                <div class="output-entry">
+                    ${charLine}
+                    <div><b>✦ ${data.expression}</b>${advHtml}${critHtml}</div>
+                    <div class="result-rolls">投掷: ${diceHtml}${data.modifier ? ' + ' + data.modifier : ''}</div>
+                    <div class="result-total">${data.total}</div>
+                </div>`;
+        }
+
+        // ━━━ 检定 ━━━
+        function fillCheckTarget(target) {
+            document.getElementById('check-target').value = target;
+        }
+
+        async function doCheck() {
+            const target = document.getElementById('check-target').value.trim();
+            if (!target) return;
+
+            const advantage = getCheckAdvantage();
+            const output = document.getElementById('output');
+
+            try {
+                const resp = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target, advantage})
+                });
+                const data = await resp.json();
+
+                let critHtml = '';
+                if (data.is_crit_success) critHtml = ' <span class="crit-success">✨ 大成功！</span>';
+                if (data.is_crit_failure) critHtml = ' <span class="crit-failure">💀 大失败！</span>';
+
+                let modText = '';
+                if (data.ability_mod) modText += `属性: ${data.ability_mod >= 0 ? '+' : ''}${data.ability_mod} `;
+                if (data.prof_bonus) modText += `熟练: +${data.prof_bonus} `;
+
+                // 优势/劣势时显示两次 d20 结果
+                let d20Display = '';
+                const advLabel = data.advantage === true ? '优势' : (data.advantage === false ? '劣势' : '');
+                if (data.advantage === true || data.advantage === false) {
+                    const rolls = data.d20_rolls || [data.d20_roll];
+                    const kept = data.kept_roll;
+                    const dropped = rolls.find(r => r !== kept);
+                    const actionLabel = data.advantage === true ? '取高' : '取低';
+                    if (rolls.length >= 2 && dropped !== undefined) {
+                        d20Display = `d20: <span style="color:var(--cyan)">[${kept}]</span>, [${dropped}] → ${actionLabel}: ${kept}`;
+                    } else {
+                        d20Display = `d20: ${rolls.join(', ')}`;
+                    }
+                } else {
+                    d20Display = `d20: ${data.d20_roll}`;
+                }
+
+                let charLine = '';
+                if (data.char_name) {
+                    charLine = `<div style="color:var(--gold);font-size:0.9rem;">${data.char_name} 投出了 [${data.total}] 点</div>`;
+                }
+                const entry = `
+                    <div class="output-entry">
+                        ${charLine}
+                        <div><b>🎯 ${data.label} 检定</b>${advLabel ? ' <span style="color:var(--gold)">(' + advLabel + ')</span>' : ''}${critHtml}</div>
+                        <div class="result-rolls">${d20Display} | ${modText} | 总调整: ${data.total_mod >= 0 ? '+' : ''}${data.total_mod}</div>
+                        <div class="result-total">${data.total}</div>
+                    </div>`;
+
+                output.innerHTML = entry + output.innerHTML;
+            } catch(e) {
+                output.innerHTML = `<div class="output-entry" style="color:var(--red)">网络错误</div>` + output.innerHTML;
+            }
+        }
+
+        // ━━━ 角色选择器 ━━━
+        async function loadCharSelect() {
+            try {
+                const identity = getIdentity();
+                const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
+                const data = await resp.json();
+                const chars = Array.isArray(data) ? data : (data.characters || []);
+                const select = document.getElementById('active-char-select');
+                select.innerHTML = '<option value="">⚡ 选择角色</option>';
+                chars.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.name + ' (' + (c.level||1) + '级 ' + (c.class||'') + ')';
+                    select.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        window.setActiveChar = async function() {
+            const charId = document.getElementById('active-char-select').value;
+            const badge = document.getElementById('active-char-badge');
+            if (!charId) {
+                badge.style.display = 'none';
+                return;
+            }
+            try {
+                const resp = await fetch('/api/character/' + charId + '/use', {method:'POST'});
+                const data = await resp.json();
+                if (data.success) {
+                    badge.textContent = '✅ ' + data.name;
+                    badge.style.display = 'inline';
+                }
+            } catch(e) {}
+        };
+
+        loadCharSelect();
+
+        // ━━━ 属性生成 ━━━
+        function generateAbilities() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<div style="color:var(--cyan)">🎲 生成中...</div>' + output.innerHTML;
+
+            fetch('/api/roll', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({expression: '4d6k3'})
+            }).then(r => r.json()).then(data => {
+                const promises = [];
+                for (let i = 0; i < 5; i++) {
+                    promises.push(
+                        fetch('/api/roll', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({expression: '4d6k3'})
+                        }).then(r => r.json())
+                    );
+                }
+
+                Promise.all(promises).then(results => {
+                    const scores = [data.total];
+                    results.forEach(r => scores.push(r.total));
+                    scores.sort((a,b) => b-a);
+
+                    const entry = `
+                        <div class="output-entry">
+                            <div><b>📊 属性值</b> (4d6k3 × 6)</div>
+                            <div class="result-total">[${scores.join(', ')}]</div>
+                            <div style="color: var(--text-dim)">合计: ${scores.reduce((a,b)=>a+b, 0)}</div>
+                        </div>`;
+                    output.innerHTML = entry + output.innerHTML;
+
+                    document.getElementById('gen-result').innerHTML = `
+                        <div style="font-size:1.2rem;color:var(--gold)">[${scores.join(', ')}]</div>
+                        <div style="color:var(--text-dim)">合计: ${scores.reduce((a,b)=>a+b, 0)}</div>`;
+                });
+            });
+        }
+
+        // ━━━ 加入房间覆盖层 ━━━
+        (function() {
+            const STORAGE_KEY = 'dnd_joined_room';
+            try {
+                var _saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+                if (_saved && _saved.name) {
+                    document.getElementById('join-overlay').classList.add('hidden');
+                    setInterval(function() {
+                        var s = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+                        if (s && s.name) {
+                            fetch('/api/room/heartbeat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: s.name, color: s.color||'', role: s.role||'PL'})}).catch(function(){});
+                        }
+                    }, 10000);
+                    return;
+                }
+            } catch(e) {}
+
+            let joinColor = '#00bcd4';
+            const COLOR_PRESETS = [
+                '#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0',
+                '#2196f3','#ff5722','#607d8b','#795548','#cddc39',
+                '#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff',
+                '#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00',
+            ];
+
+            function buildJoinPalette() {
+                const p = document.getElementById('join-color-palette');
+                p.innerHTML = COLOR_PRESETS.map(c =>
+                    `<div class="join-color-swatch${c===joinColor?' selected':''}"
+                         style="background:${c};" onclick="window._selectJoinColor('${c}')"></div>`
+                ).join('');
+            }
+            buildJoinPalette();
+
+            window.toggleJoinColorPalette = function() {
+                buildJoinPalette();
+                document.getElementById('join-color-palette').classList.toggle('show');
+            };
+            window._selectJoinColor = function(c) {
+                joinColor = c;
+                document.getElementById('join-color-btn').style.background = c;
+                document.getElementById('join-color-palette').classList.remove('show');
+            };
+
+            // 检测DM
+            fetch('/api/dm-status').then(r=>r.json()).then(d => {
+                if (d.is_dm) {
+                    joinColor = '#ffd700';
+                    document.getElementById('join-color-btn').style.background = '#ffd700';
+                    document.getElementById('join-dm-badge').style.display = 'inline-block';
+                    document.getElementById('join-subtitle').textContent = '你是主持人，请输入ID进入';
+                }
+            });
+
+            // 回车键加入
+            document.getElementById('join-username').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') doJoin();
+            });
+
+            window.doJoin = function() {
+                const name = document.getElementById('join-username').value.trim();
+                if (!name) {
+                    document.getElementById('join-error').textContent = '请输入你的ID';
+                    return;
+                }
+                const btn = document.getElementById('join-btn');
+                btn.disabled = true;
+                btn.textContent = '⏳ 连接中...';
+
+                var joinRole = document.querySelector('input[name="join-role"]:checked');
+                var role = joinRole ? joinRole.value : 'PL';
+                fetch('/api/room/join', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({name: name, color: joinColor, role: role})
+                }).then(r=>r.json()).then(data => {
+                    if (data.ok) {
+                        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+                            name: name, color: joinColor, is_dm: data.is_dm, role: role
+                        }));
+                        document.getElementById('join-overlay').classList.add('hidden');
+                        // 发送加入消息
+                        fetch('/api/chat/send', {
+                            method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify({name: name, text: '进入了骰娘', color: joinColor})
+                        });
+                    } else {
+                        document.getElementById('join-error').textContent = '加入失败: ' + (data.error || '未知错误');
+                        btn.disabled = false;
+                        btn.textContent = '🚪 进入骰娘';
+                    }
+                }).catch(e => {
+                    document.getElementById('join-error').textContent = '网络错误: ' + e.message;
+                    btn.disabled = false;
+                    btn.textContent = '🚪 进入骰娘';
+                });
+            };
+
+            // 点击其他地方关闭调色板
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.color-row')) {
+                    document.getElementById('join-color-palette').classList.remove('show');
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

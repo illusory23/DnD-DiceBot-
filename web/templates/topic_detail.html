@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每周话题 — 尘封之卷·跑团平台</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+    <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+    <style>
+        /* ━━ 官网主题（与官网 portal 一致） ━━ */
+        :root {
+            --bg: #0a0a14; --surface: #12122a; --surface2: #1a1a36;
+            --text: #e0e0e0; --text-dim: #888; --text-light: #666;
+            --accent: #e94460; --accent-light: rgba(233,68,96,0.12);
+            --gold: #ffd700; --green: #4caf50; --red: #f44336;
+            --cyan: #00bcd4; --border: #2a2a40; --border-light: #1e1e3a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI','PingFang SC','Microsoft YaHei','Hiragino Sans GB',system-ui,sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-width: 320px; margin-left: 108px; padding-top: 56px; }
+
+        /* ━━ 头部 ━━ */
+        .header { background: var(--surface); border-bottom: 3px solid var(--accent); position: fixed; top: 0; left: 108px; right: 0; z-index: 99; height: 56px; display: flex; align-items: center; }
+        .header-inner { max-width: 100%; margin: 0; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
+        .header-welcome { color: var(--gold); font-size: 1rem; font-weight: 600; white-space: nowrap; text-shadow: 0 0 10px rgba(255,215,0,0.3); text-align: center; flex: 1; font-family: 'Georgia','Times New Roman',serif; letter-spacing: 1px; }
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+        .header-actions .btn { padding: 7px 18px; border-radius: 3px; font-size: 0.85rem; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: all 0.15s; }
+        .header-actions .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .header-actions .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .header-actions .btn-primary:hover { opacity: 0.85; color: #fff; }
+        .header-actions .user-info { font-size: 0.85rem; color: var(--accent); }
+
+        /* ━━ 左侧功能栏（官网同款：默认隐藏，点品牌展开） ━━ */
+        .nav-sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 0; background: rgba(18, 18, 42, 0.6); border-right: 1px solid transparent; z-index: 101; transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.35s, background 0.35s; overflow: hidden; display: flex; flex-direction: column; }
+        .nav-sidebar.open { width: 200px; border-right-color: var(--border); }
+        .nav-brand { display: flex; align-items: center; gap: 8px; padding: 12px 10px; cursor: pointer; color: var(--gold); font-weight: bold; font-size: 0.88rem; white-space: nowrap; text-decoration: none; min-height: 56px; position: fixed; left: 0; top: 0; z-index: 102; background: var(--surface); width: 108px; overflow: hidden; border-right: 1px solid var(--border); }
+        .nav-brand:hover { background: var(--surface2); }
+        .nav-brand .brand-icon { width: 26px; height: 26px; flex-shrink: 0; }
+        .nav-brand .brand-text { font-size: 0.82rem; }
+        .nav-sidebar .nav-items-wrap { display: none; flex-direction: column; flex: 1; padding-top: 56px; }
+        .nav-sidebar.open .nav-items-wrap { display: flex; }
+        .nav-sidebar.open { padding-top: 0; }
+        .nav-sidebar .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--text-dim); text-decoration: none; font-size: 0.82rem; white-space: nowrap; transition: all 0.15s; cursor: pointer; border-left: 3px solid transparent; }
+        .nav-sidebar .nav-item:hover { color: var(--text); background: var(--surface2); }
+        .nav-sidebar .nav-item.active { color: var(--gold); background: var(--accent-light); border-left-color: var(--accent); }
+        .nav-sidebar .nav-item .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
+        .nav-sidebar .nav-item .nav-label { opacity: 1; }
+        .nav-sidebar .nav-bottom-first { margin-top: auto; }
+        .nav-sidebar .nav-bottom-last { padding-bottom: 8px; }
+
+        /* ━━ 面包屑 ━━ */
+        .breadcrumb { padding: 64px 32px 12px; font-size: 0.78rem; color: var(--text-dim); }
+        .breadcrumb a { color: var(--gold); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        /* ━━ 主体两栏 ━━ */
+        .main-wrap { padding: 0 32px 40px; display: flex; gap: 28px; }
+        .content { flex: 1; min-width: 0; }
+        .sidebar { width: 220px; flex-shrink: 0; }
+
+        /* ━━ 话题卡片 ━━ */
+        .topic-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 22px 24px; margin-bottom: 16px; }
+        .btn-back { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); padding: 7px 18px; border-radius: 3px; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+        .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+        .topic-title { color: var(--gold); font-size: 1.3rem; margin: 0 0 6px; line-height: 1.4; }
+        .topic-meta { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 16px; }
+        .topic-content { font-size: 0.92rem; line-height: 2; color: var(--text); word-break: break-word; }
+        .topic-content img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); margin: 8px 0; }
+        .topic-content h1, .topic-content h2, .topic-content h3 { color: var(--gold); }
+        .topic-content a { color: var(--cyan); }
+        .topic-content blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-dim); margin: 8px 0; }
+
+        /* ━━ 评论区 ━━ */
+        .comment-head { font-size: 1rem; color: var(--gold); font-weight: bold; margin-bottom: 12px; }
+        .comment-item { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; }
+        .comment-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .comment-user { color: var(--accent); font-size: 0.82rem; font-weight: bold; }
+        .comment-time { color: var(--text-dim); font-size: 0.72rem; }
+        .comment-content { font-size: 0.88rem; color: var(--text); line-height: 1.7; word-break: break-word; }
+        .comment-del { color: var(--red); font-size: 0.72rem; cursor: pointer; margin-left: 8px; }
+        .comment-del:hover { text-decoration: underline; }
+        .comment-box { margin-top: 16px; }
+        .comment-box textarea { width: 100%; min-height: 80px; padding: 10px 12px; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.88rem; resize: vertical; font-family: inherit; }
+        .comment-box textarea:focus { border-color: var(--accent); outline: none; }
+        .comment-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+        .comment-hint { font-size: 0.75rem; color: var(--text-dim); }
+        .comment-hint a { color: var(--gold); text-decoration: none; }
+        .btn-comment { background: var(--accent); color: #fff; border: none; padding: 8px 22px; border-radius: 4px; font-size: 0.88rem; cursor: pointer; font-weight: bold; }
+        .btn-comment:hover { opacity: 0.9; }
+        .btn-comment:disabled { opacity: 0.4; cursor: not-allowed; }
+        .empty-comments { font-size: 0.82rem; color: var(--text-dim); padding: 10px 0; }
+
+        /* ━━ 右侧 ━━ */
+        .side-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
+        .side-head { font-size: 0.88rem; font-weight: bold; color: var(--gold); margin-bottom: 10px; }
+        .side-body { font-size: 0.82rem; color: var(--text-dim); }
+        .side-body a { color: var(--text); text-decoration: none; display: block; padding: 5px 0; border-bottom: 1px solid var(--border-light); }
+        .side-body a:hover { color: var(--gold); }
+        .side-body a:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+<!-- 左侧功能栏（官网同款：点品牌展开） -->
+<a class="nav-brand" onclick="toggleSidebar()" title="点击展开功能栏">
+    <svg class="brand-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sbsg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sbsg)" stroke-width="3"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sbsg)" stroke-width="3"/><circle cx="50" cy="14" r="2.5" fill="url(#sbsg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sbsg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sbsg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sbsg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sbsg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sbsg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sbsg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sbsg)"/><circle cx="50" cy="50" r="5" fill="url(#sbsg)"/></svg>
+    <span class="brand-text">尘封之卷</span>
+</a>
+
+<nav class="nav-sidebar" id="nav-sidebar">
+    <div class="nav-items-wrap">
+        <a class="nav-item" href="/"><span class="nav-icon">📋</span><span class="nav-label">首页</span></a>
+        <a class="nav-item" href="/#features"><span class="nav-icon">🎯</span><span class="nav-label">功能介绍</span></a>
+        <a class="nav-item active" href="/#community"><span class="nav-icon">💬</span><span class="nav-label">冒险者酒馆</span></a>
+        <a class="nav-item" href="/#workshop"><span class="nav-icon">🔧</span><span class="nav-label">创意工坊</span></a>
+        <a class="nav-item nav-bottom-first" href="/#about"><span class="nav-icon">ℹ️</span><span class="nav-label">关于平台</span></a>
+        <a class="nav-item nav-bottom-last" href="/user"><span class="nav-icon">👤</span><span class="nav-label">用户中心</span></a>
+    </div>
+</nav>
+
+<!-- 头部 -->
+<header class="header">
+    <div class="header-inner">
+        <div class="header-welcome">欢迎来到尘封之卷跑团平台，续写属于你的传说！</div>
+        <div class="header-actions">
+            <span class="user-info" id="header-user"></span>
+            <a href="/" class="btn btn-primary" style="text-decoration:none;color:#fff;">🏠 返回官网</a>
+        </div>
+    </div>
+</header>
+
+<!-- 面包屑 -->
+<div class="breadcrumb">
+    <a href="/">首页</a> &raquo;
+    <a href="/#community">冒险者酒馆</a> &raquo;
+    每周话题 &raquo; <span id="crumb-title">加载中...</span>
+</div>
+
+<!-- 主体 -->
+<div class="main-wrap">
+    <div class="content">
+        <div style="margin-bottom:14px;">
+            <button class="btn-back" onclick="history.back()">← 返回上一页</button>
+        </div>
+        <div class="topic-card">
+            <div id="topic-area"><div style="text-align:center;color:var(--text-dim);padding:30px 0;">加载中...</div></div>
+        </div>
+
+        <div class="topic-card">
+            <div class="comment-head">💬 评论 <span id="comment-count" style="color:var(--text-dim);font-weight:normal;font-size:0.8rem;"></span></div>
+            <div id="comment-list"></div>
+            <div class="comment-box">
+                <textarea id="comment-input" maxlength="500" placeholder="写下你的想法...（最多 500 字）"></textarea>
+                <div class="comment-actions">
+                    <div class="comment-hint" id="comment-hint"></div>
+                    <button class="btn-comment" id="btn-comment" onclick="submitComment()">发布评论</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧 -->
+    <aside class="sidebar">
+        <div class="side-card">
+            <div class="side-head">📰 其他每周话题</div>
+            <div class="side-body" id="side-topics"><span>加载中...</span></div>
+        </div>
+        <div class="side-card">
+            <div class="side-head">🟢 在线冒险者</div>
+            <div class="side-body">当前在线: <b id="online-count" style="color:var(--accent);">-</b> 人</div>
+        </div>
+    </aside>
+</div>
+
+<script>
+const topicId = {{ topic_id }};
+let currentUser = null;
+
+function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
+async function loadTopic() {
+    const area = document.getElementById('topic-area');
+    try {
+        const resp = await fetch('/api/topics/' + topicId);
+        const data = await resp.json();
+        if (!data.ok) {
+            area.innerHTML = '<div style="text-align:center;color:var(--red);padding:30px 0;">话题不存在或已删除</div>';
+            return;
+        }
+        const t = data.topic;
+        document.title = t.title + ' — 尘封之卷·跑团平台';
+        document.getElementById('crumb-title').textContent = t.title;
+        area.innerHTML = `
+            <h1 class="topic-title"></h1>
+            <div class="topic-meta">作者: ${esc(t.author)} · 发布: ${esc(t.created_at)}${t.updated_at && t.updated_at !== t.created_at ? ' · 更新: ' + esc(t.updated_at) : ''}</div>
+            <div class="topic-content">${t.content || ''}</div>
+            ${(t.images || []).map(url => '<div style="margin-top:10px;"><img src="' + esc(url) + '" style="max-width:100%;border-radius:8px;border:1px solid var(--border);"></div>').join('')}
+        `;
+        area.querySelector('.topic-title').textContent = t.title;
+        renderComments(t.comments || []);
+        loadSideTopics(t.id);
+    } catch (e) {
+        area.innerHTML = '<div style="text-align:center;color:var(--red);padding:30px 0;">加载失败</div>';
+    }
+}
+
+function renderComments(comments) {
+    const list = document.getElementById('comment-list');
+    document.getElementById('comment-count').textContent = comments.length ? `(${comments.length})` : '';
+    if (!comments.length) {
+        list.innerHTML = '<div class="empty-comments">暂无评论，来抢沙发～</div>';
+        return;
+    }
+    list.innerHTML = comments.map(c => {
+        const canDelete = currentUser && (currentUser.username === c.username || currentUser.is_admin);
+        return `
+            <div class="comment-item">
+                <div class="comment-meta">
+                    <span class="comment-user">${esc(c.username)}</span>
+                    <span class="comment-time">${esc(c.created_at)}${canDelete ? '<a class="comment-del" onclick="deleteComment(' + c.id + ')">删除</a>' : ''}</span>
+                </div>
+                <div class="comment-content">${esc(c.content)}</div>
+            </div>`;
+    }).join('');
+}
+
+async function submitComment() {
+    const input = document.getElementById('comment-input');
+    const content = input.value.trim();
+    if (!content) { alert('请输入评论内容'); return; }
+    const btn = document.getElementById('btn-comment');
+    btn.disabled = true;
+    try {
+        const resp = await fetch(`/api/topics/${topicId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            input.value = '';
+            loadTopic();
+        } else {
+            if (resp.status === 401) {
+                alert('请先登录后再评论');
+                window.location.href = '/';
+            } else {
+                alert(data.error || '评论失败');
+            }
+        }
+    } catch (e) {
+        alert('网络错误，请重试');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function deleteComment(cid) {
+    if (!await showConfirmDialog('确定要删除这条评论吗？')) return;
+    try {
+        const resp = await fetch(`/api/topics/${topicId}/comments/${cid}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.ok) { loadTopic(); } else { alert(data.error || '删除失败'); }
+    } catch (e) {}
+}
+
+async function loadCurrentUser() {
+    try {
+        const resp = await fetch('/api/auth/me');
+        const data = await resp.json();
+        if (data.ok) {
+            currentUser = data.user;
+            document.getElementById('header-user').textContent = `👤 ${currentUser.username}`;
+            document.getElementById('comment-hint').innerHTML = `登录身份: <b style="color:var(--accent);">${esc(currentUser.username)}</b>`;
+        } else {
+            document.getElementById('comment-hint').innerHTML = '<a href="/">请先登录官网账号后再评论</a>';
+            document.getElementById('btn-comment').disabled = true;
+        }
+        loadTopic();
+    } catch (e) {}
+}
+
+function loadSideTopics(currentId) {
+    fetch('/api/topics').then(r => r.json()).then(data => {
+        const box = document.getElementById('side-topics');
+        const others = (data.topics || []).filter(t => t.id !== currentId);
+        if (!others.length) {
+            box.innerHTML = '<span>暂无其他话题</span>';
+            return;
+        }
+        box.innerHTML = others.map(t =>
+            `<a href="/topics/${t.id}">📰 ${esc(t.title)}<span style="font-size:0.7rem;color:var(--text-dim);"> · ${(t.created_at || '').slice(0, 10)}</span></a>`
+        ).join('');
+    }).catch(() => {});
+}
+
+function refreshOnline() {
+    fetch('/api/online/users').then(r => r.json()).then(data => {
+        const el = document.getElementById('online-count');
+        if (el) el.textContent = data.count;
+    }).catch(() => {});
+}
+
+loadCurrentUser();
+refreshOnline();
+setInterval(refreshOnline, 30000);
+
+/* ━━ 侧栏折叠（官网同款：点品牌展开/收起，点外部收起） ━━ */
+function toggleSidebar() {
+    document.getElementById('nav-sidebar').classList.toggle('open');
+}
+document.addEventListener('click', function (e) {
+    var sb = document.getElementById('nav-sidebar');
+    if (sb.classList.contains('open') && !sb.contains(e.target) && !e.target.closest('.nav-brand')) {
+        sb.classList.remove('open');
+    }
+});
+</script>
+    <script src="/static/announcement-banner.js"></script>
+</body>
+</html>

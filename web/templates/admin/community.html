@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}社区内容管理{% endblock %}
+{% block page_title %}🧭 社区内容管理{% endblock %}
+
+{% block content %}
+<!-- 酒馆帖子 -->
+<div class="card">
+    <div class="card-header">
+        <span>💬 冒险者酒馆 · 帖子</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="post-total"></span>
+            <button class="btn btn-sm btn-secondary" onclick="loadAll()">🔄 刷新</button>
+        </span>
+    </div>
+    <div class="table-container" style="max-height:420px;overflow-y:auto;">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>板块</th><th>标题</th><th>作者</th><th>图片</th><th>发布时间</th><th>操作</th></tr>
+            </thead>
+            <tbody id="posts-tbody">
+                <tr><td colspan="7" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 工坊投稿 -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span>📦 创意工坊 · 投稿</span>
+        <span style="display:flex;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);" id="item-total"></span>
+        </span>
+    </div>
+    <div class="table-container" style="max-height:420px;overflow-y:auto;">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>标题</th><th>作者</th><th>附件</th><th>发布时间</th><th>操作</th></tr>
+            </thead>
+            <tbody id="items-tbody">
+                <tr><td colspan="6" class="loading">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function loadAll() {
+    const pt = document.getElementById('posts-tbody');
+    const it = document.getElementById('items-tbody');
+    pt.innerHTML = '<tr><td colspan="7" class="loading">加载中...</td></tr>';
+    it.innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
+
+    try {
+        const data = await Admin.get('/admin/api/community');
+
+        // 帖子
+        document.getElementById('post-total').textContent = `共 ${data.posts.length} 帖`;
+        if (!data.posts.length) {
+            pt.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">暂无帖子</div></div></td></tr>';
+        } else {
+            pt.innerHTML = data.posts.map(p => `
+                <tr>
+                    <td>${p.id}</td>
+                    <td><span class="badge badge-user">${Admin.escHtml(p.boardName || p.board)}</span></td>
+                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Admin.escHtml(p.title)}</td>
+                    <td>${Admin.escHtml(p.author)}</td>
+                    <td>${(p.images || []).length ? (p.images.length + ' 张') : '-'}</td>
+                    <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(p.created_at)}</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="deletePost(${p.id}, '${Admin.escHtml(p.title)}')">删除</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // 工坊投稿
+        document.getElementById('item-total').textContent = `共 ${data.items.length} 项`;
+        if (!data.items.length) {
+            it.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">暂无投稿</div></div></td></tr>';
+        } else {
+            it.innerHTML = data.items.map(s => `
+                <tr>
+                    <td>${s.id}</td>
+                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Admin.escHtml(s.title)}</td>
+                    <td>${Admin.escHtml(s.author)}</td>
+                    <td>${s.file_url ? '<a href="' + Admin.escHtml(s.file_url) + '" target="_blank" style="color:var(--accent);">📎 附件</a>' : '-'}</td>
+                    <td style="white-space:nowrap;font-size:12px;">${Admin.escHtml(s.created_at)}</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="deleteItem(${s.id}, '${Admin.escHtml(s.title)}')">删除</button></td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        pt.innerHTML = '<tr><td colspan="7" style="color:var(--danger);">加载失败</td></tr>';
+        it.innerHTML = '<tr><td colspan="6" style="color:var(--danger);">加载失败</td></tr>';
+    }
+}
+
+async function deletePost(id, title) {
+    const ok = await Admin.confirm('删除帖子', `确定要删除帖子「${title}」吗？`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/community/posts/${id}`);
+        Admin.toast('帖子已删除', 'success');
+        loadAll();
+    } catch (e) {}
+}
+
+async function deleteItem(id, title) {
+    const ok = await Admin.confirm('删除投稿', `确定要删除投稿「${title}」吗？`);
+    if (!ok) return;
+    try {
+        await Admin.del(`/admin/api/community/items/${id}`);
+        Admin.toast('投稿已删除', 'success');
+        loadAll();
+    } catch (e) {}
+}
+
+loadAll();
+</script>
+{% endblock %}

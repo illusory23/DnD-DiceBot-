@@ -1,0 +1,22 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 菜鸟CaiNiao 退出房间",
+    "time": "20:30:34",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933034.8013835,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 菜鸟CaiNiao 退出房间",
+    "time": "20:30:37",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785933037.0633466,
+    "system": true
+  }
+]

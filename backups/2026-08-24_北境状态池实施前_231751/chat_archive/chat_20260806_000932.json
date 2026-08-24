@@ -1,0 +1,36 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "21:13:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785935594.8834498,
+    "system": true
+  },
+  {
+    "name": "凌羽",
+    "text": "🎲 1d20 = [5]",
+    "time": "21:13:33",
+    "is_dm": false,
+    "color": "#9c27b0",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935613.4618466
+  },
+  {
+    "name": "厄内",
+    "text": "🎲 1d20+4 = [16]",
+    "time": "21:13:54",
+    "is_dm": false,
+    "color": "#4caf50",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785935634.5194054
+  }
+]

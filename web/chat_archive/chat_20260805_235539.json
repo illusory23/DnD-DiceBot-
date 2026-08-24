@@ -1,0 +1,32 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:53:28",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934408.131573,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "20:53:29",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934409.7825024,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "20:53:51",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934431.943941,
+    "system": true
+  }
+]

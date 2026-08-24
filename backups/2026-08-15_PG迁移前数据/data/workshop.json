@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "title": "北境地图包",
+    "desc": "自制北境雪原地图，含地标标注。",
+    "file_url": "",
+    "author": "IllusoryActor",
+    "created_at": "2026-08-09 04:28:26",
+    "cat": "user",
+    "comments": [
+      {
+        "id": 1,
+        "username": "IllusoryActor",
+        "content": "地图太精美了！",
+        "created_at": "2026-08-09 04:28:41"
+      }
+    ],
+    "likes": []
+  }
+]

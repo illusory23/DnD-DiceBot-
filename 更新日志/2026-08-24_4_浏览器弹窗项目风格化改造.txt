@@ -1,0 +1,45 @@
+2026-08-24_4_浏览器弹窗项目风格化改造
+═══════════════════════════════════════════
+
+【需求】将项目所有浏览器原生弹窗（alert/confirm/prompt）替换为
+      符合项目暗色冰霜主题的单独小界面弹窗，不影响功能实现。
+      改造前已备份 web/ → backups/2026-08-24_浏览器弹窗改造前_*
+
+【新增】web/static/common-dialog.js（公共弹窗组件）
+  · showAlertDialog(msg, opts) → Promise
+  · showConfirmDialog(msg, opts) → Promise<boolean>（确定 true / 取消 null）
+  · showPromptDialog(msg, opts) → Promise<string|null>（取消 null）
+  · window.alert 全局覆盖为项目风格提示弹窗（alert 无返回值依赖，
+    216 处 alert 调用点零改动自动生效）
+  · 样式：--surface 背景 / --accent 边框与标题栏 / 圆角 12px /
+    居中 fixed / 遮罩模糊 / 无 CSS 变量时自动兜底
+  · 支持：Esc 关闭、遮罩点击关闭、Enter 确认输入、danger 红色按钮
+
+【改造规模】confirm 78 处 + prompt 50 处
+  · confirm(...) → await showConfirmDialog(...)
+  · prompt(msg, def) → await showPromptDialog(msg, {defaultValue: def})
+  · 所在函数统一加 async；forEach 回调内含 await 的改为 for 循环
+    （north-main.js 批量删页确认，forEach 不等待会同时弹窗）
+  · admin 后台：Admin.confirm 本就是项目风格 modal（还原脚本误伤）；
+    admin 模板其它 confirm 走新组件
+  · 涉及文件：
+    JS：character.js / character-features.js / character-inventory.js /
+        combat.js / map.js / map-saves.js / map-page.js / north-main.js /
+        north-camp.js / admin.js（共 10 个）
+    模板：chat.html / events.html / spells.html / reference.html /
+        mods.html / topic_detail.html / admin/*（10 个）/ portal/*（6 个）
+  · common-dialog.js 引入 24 个页面（admin 子模板经 base.html 继承）
+
+【验证】
+  · 全部改动 JS 与模板内联脚本 node --check 语法通过
+    （模板脚本剔除 Jinja {{ }} 变量后检查）
+  · 残留检查：confirm( / prompt( 调用清零（仅剩 admin.js 自定义
+    confirm 方法定义与组件内部），alert( 仅剩组件覆盖定义
+  · 组件 API 逻辑走查：确认/取消/输入/关闭/遮罩/Esc/Enter 均正确
+  · 版本号 bump：character.js v17 / features v16 / inventory v16 /
+    combat.js v35 / map.js v78 / map-page.js v77 / north-main v58 /
+    north-camp v58 / admin.js v2
+
+【生效】纯前端（新静态文件 + 模板），刷新页面即可，无需重启服务器
+【注意】alert 覆盖后无阻塞语义（原 alert 会阻塞等待用户点确定），
+      连续多个 alert 弹窗会替换显示——均为错误提示场景，无逻辑依赖

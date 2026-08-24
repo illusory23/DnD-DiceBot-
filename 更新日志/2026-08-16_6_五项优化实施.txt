@@ -1,0 +1,56 @@
+2026-08-16 第6次更新：五项优化实施（地图二次治理/北境生存拆分/背包渲染/通知深化）
+
+【1. 地图代码治理（剩余）】
+- map.js 二次拆分（4823 → 4312 行）：
+  - IndexedDB 缓存（70 行）→ 新文件 map-idb.js
+  - 存档槽/地图存档系统（442 行）→ 新文件 map-saves.js
+- map.html 两个内联 script（加入房间遮罩 + 返回/统计逻辑，约 200 行）
+  → 外置为 map-page.js（版本号 v=53 → v=54）
+- 加载顺序：map-idb.js → map-fog.js → map-saves.js → map.js → map-page.js
+  （函数先定义，boot 末尾执行时全部可用）
+
+【2. north-main.js 生存系统拆分】
+- 生存判定层（getColdDC/getColdEffect/getColdBadge/getSurvivalBadges/
+  checkCold/checkRation/checkStarvation/checkOrient/checkFuel，232 行）
+  → 新文件 north-survival.js（第四次拆分，NORTH_CTX 注入模式）
+- main.js 末尾追加注入：updateSurvivalUI/checkHpZero/abilityMod/rand 函数引用
+  （survival/activeChar 等已有 getter）
+- 修复遗漏：updateSurvivalUI 内 getColdEffect 调用改写
+  （跨模块调用检查发现并修复，北境页回归验证通过）
+- north-main.js 5949 → 5767 行；HTML 引入顺序 main → survival → guild → tavern → fx
+
+【3. 商店背包/仓库渲染优化】
+- renderShopBackpack/storageRenderStorage/storageRenderBackpack/wsRenderBackpack
+  加变化检测（_invRenderKey 签名：物品 id+数量+名称，仓库/金币纳入 key）
+- 数据无变化时跳过重绘（避免高频无谓 innerHTML 重建）；
+  空背包分支重置 key 防止残留
+
+【4. 评论通知深化（@提及 + 聚合去重 + 独立页）】
+- @提及提醒：评论内容中 @用户名（中文/字母/数字/下划线/连字符 2-30 位）
+  → 定向通知被提及者（排除自己；无账号跳过），type=mention
+- 通知去重：notifications 表新增 group_key/count 列（PG ALTER）
+  - 同主题未读通知自动聚合：count+1、actor 更新、时间刷新
+  - 展示："N 人" + 动作文本（count>1）或 操作者 + 动作文本
+  - 覆盖：帖子评论/点赞、工坊评论/点赞（group_key 按主题 id）
+- 通知独立页 /notifications（新页面）：
+  - 导航入口 + 未读红点（nav-badge/page-badge，30 秒轮询）
+  - 通知列表（聚合显示、未读红点标记、点击跳转详情自动已读）
+  - "全部已读"按钮
+- 用户中心通知卡片适配聚合显示 + 导航加"消息通知"链接
+- content 语义调整：动作文本不含 actor（旧数据仅 1 条测试通知已清理）
+
+【5. 文档 v5】
+- 优化方向分析更新为 v5：剔除 5 项已完成（地图二次治理/生存拆分/
+  背包渲染/通知深化@提及与聚合/通知独立页），新增深化方向
+  （通知互关与偏好、其余页面模块化、详情页浏览量等）
+
+【验证】
+- API：聚合去重实测（B/C 两人评论同一帖 → 1 条 count=2；
+  B/C 点赞 → 1 条 count=2；@提及 → mention 通知）全过
+- 无头浏览器 14 项全过：地图页（idb/saves/page/fog 模块 + 加载顺序 + 无JS错误）、
+  北境页（NORTH_SURVIVAL/CTX 注入/guild 兼容/无JS错误）、
+  通知页（列表 3 条/聚合"N 人"显示/导航红点/未读红点）
+- 原有回归：_verify_all_features、_verify_north_page 通过
+- 测试数据已清理；服务器已停止
+
+【备份】backups/2026-08-16_五项优化前/

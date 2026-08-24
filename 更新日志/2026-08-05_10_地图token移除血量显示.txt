@@ -1,0 +1,21 @@
+地图Token移除血量显示
+=====================
+日期：2026-08-05
+
+修改内容：
+---------
+跑团平台地图功能内，将角色token拖入地图后，不再在token下方显示血量（❤️HP/最大HP）。
+
+具体修改（web/static/map.js）：
+1. updateTokenHpLabel 函数：改为仅显示角色名称，不再拼接HP信息
+2. syncCombatantHP 函数：移除同步战斗HP后更新地图token标签的逻辑（HP标签已不存在）
+3. 移除 refreshTokenHP 定时器：原每5秒刷新地图token的HP显示，现已不再需要
+4. 加载地图存档时：保留fetchCharData预加载缓存，移除updateTokenHpLabel调用
+5. addMapToken 函数：保留fetchCharData预加载缓存，移除updateTokenHpLabel调用
+
+影响范围：
+---------
+- ✅ 地图token下方不再显示血量
+- ✅ 左侧信息面板（点击token弹出）仍正常显示HP血条
+- ✅ 战斗面板中的HP管理（伤害/治疗/sync）不受影响
+- ✅ 其他功能均正常运作

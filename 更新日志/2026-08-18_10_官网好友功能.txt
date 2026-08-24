@@ -1,0 +1,58 @@
+2026-08-18_10_官网好友功能
+════════════════════════════════════════════════════
+
+【需求】
+官网新增双向好友功能（优化方向文档 v7 中"点赞互关提醒（需关注/好友
+体系）"的前置依赖）：用户可按用户名发送好友申请，对方接受后互成好友，
+支持删除好友。入口在用户中心，通知系统联动提醒。
+
+【实现】
+一、数据模型（core/models.py）：
+  - 新增 FriendRequest 表（friend_requests）：id / user_id（请求方）/
+    target_id（被请求方）/ status（pending|accepted|rejected）/
+    created_at / responded_at
+  - 存 user_id 而非 username（防改名丢数据，沿袭通知系统的坑）
+  - 好友关系 = accepted 记录，不另建好友表
+  - 通知类型 docstring 补充 friend_request / friend_accept
+
+二、后端 API（web/app.py，通知路由后）：
+  - POST /api/friends/request：按用户名发申请；校验非自己/用户存在/
+    无 pending/非已好友；反向 pending 存在时自动转 accepted（互加）
+  - POST /api/friends/respond：{request_id, action: accept|reject}
+  - GET  /api/friends：好友列表（accepted 双向，含头像/用户名）
+  - GET  /api/friends/pending：收到的待处理 + 已发送的
+  - DELETE /api/friends/<user_id>：删除好友（双向 accepted 记录）
+  - 通知复用 _notify(user_id,...)（传 id，不用 _notify_author），
+    group_key 留空防拒绝后重发被错误聚合
+  - 全部经 _get_current_user() 鉴权（未登录 401）
+
+三、前端（web/templates/portal/user.html）：
+  - 新增"🤝 我的好友"卡片（收藏卡片同款结构）：
+    用户名搜索输入框 + "➕ 添加好友"按钮（直接发申请）
+    待处理请求区：收到的（✓接受/✕拒绝）+ 已发送（等待处理状态）
+    好友列表：头像（onerror 兜底）+ 用户名 + 🗑 删除
+  - loadFriendsData() 一次拉取好友+待处理两接口，30 秒轮询同步
+  - 好友头像无文件时回退 ⚔️ 占位，加载失败自动隐藏
+  - notifications.html / user.html 通知图标分支新增 🤝（friend 类型）
+
+【涉及文件】
+- core/models.py（FriendRequest 模型）
+- web/app.py（好友 API 五路由 + _friend_to_dict 助手）
+- web/templates/portal/user.html（好友卡片 + 相关 JS）
+- web/templates/portal/notifications.html（通知图标分支）
+
+【验证】
+- python -m py_compile core/models.py / web/app.py 通过
+- 端到端实测（注册双账号 curl 全流程）：
+  注册 → 发申请 → 重复发拦截(400) → 给自己发拦截(400) →
+  对方 pending 正确 → friend_request 通知送达 → 接受 → 双方好友
+  列表互见 → friend_accept 通知送达 → 已是好友再发拦截(400) →
+  删除好友双方同步消失 → 反向 pending 自动互加 → 未登录 401
+- 测试账号与孤儿记录（friend_requests/notifications）已清理
+- 全部 portal 页面路由 200 回归通过
+
+【附带修复】
+/api/changelog 列表排序缺陷：原按文件名字符串倒序，序号≥10 时
+"_9_xxx" 排在 "_10_xxx" 前面（字符串 '9' > '1'），本次新日志序号
+首次到 10 暴露。改为按 (日期, 序号) 数字倒序，实测 12→11→10→9→8
+顺序正确。

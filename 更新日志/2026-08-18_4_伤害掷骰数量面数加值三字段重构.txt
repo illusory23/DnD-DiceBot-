@@ -1,0 +1,43 @@
+2026-08-18_4_伤害掷骰数量面数加值三字段重构
+════════════════════════════════════════════════════
+
+【问题】
+1. 伤害表达式输入框与下方"骰子面数/加值"设置并存冲突：
+   预填武器伤害骰后改下方设置无效，用户困惑
+2. 点击"💥 伤害掷骰并结算"无反应：damageRoll 重构时删除了
+   `const config = getDamageDiceConfig()`，但掷骰动画处仍引用
+   config.sides → ReferenceError，函数中断
+3. 无法自由增减伤害骰数量（如 2 个 d6）
+
+【根因】
+- 上一版引入了独立的"伤害表达式"文本框（damage-expr），
+  与原有 sides/bonus 双设置两套并存，优先级隐晦
+- damageRoll 重构遗漏 config 变量 → 点击后 JS 报错无响应
+
+【修复】
+一、map.html 伤害弹窗：
+  - 移除"伤害表达式"输入框（消除双设置冲突）
+  - 骰子设置改为三字段：🔢 骰子数量（1-20 步进）+ 🎲 骰子面数 + ➕ 加值
+  - CSS 新增 .attack-dice-config.damage3 三列布局
+  - 五个 JS 缓存版本号 v=67 → v=68
+
+二、map.js：
+  - parseDmgDice()：解析武器/法术伤害骰
+    "1d10" → 1个d10（数量1/面数10/加值0）
+    "1d10+6" → 1个d10+6（加值6）
+    "2d6+3" → 2个d6+3；无效返回 null
+  - getDamageDiceConfig() 增加 count 字段（1-20 边界钳制）
+  - buildDamageExpr()：由三字段构建 "数量d面数±加值" 表达式
+  - attackDamageRoll：打开伤害弹窗时 parseDmgDice 自动填入三字段
+    （面数不在 d4-d100 选项内则保留手动值），仍可自由增减
+  - damageRoll：修复 config ReferenceError，改用 buildDamageExpr
+
+【涉及文件】
+- web/templates/map.html（三字段 UI + damage3 CSS + 版本号）
+- web/static/map.js（parseDmgDice/buildDamageExpr/getDamageDiceConfig/
+  attackDamageRoll/damageRoll）
+
+【验证】
+- node --check map.js 通过
+- 流程：命中 → 伤害弹窗自动填入武器伤害骰三字段 → 可自由增减
+  数量/面数/加值 → 掷骰结算扣血广播不变

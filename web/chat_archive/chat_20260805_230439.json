@@ -1,0 +1,176 @@
+[
+  {
+    "name": "天冥",
+    "text": "马车  历史(智力) = 6 | d20:6",
+    "time": "01:59:08",
+    "is_dm": true,
+    "color": "#ffd700",
+    "role": "DM",
+    "ip": "127.0.0.1",
+    "_ts": 1785261548.2997026
+  },
+  {
+    "name": "天冥",
+    "text": "🎲 1d20 = [6]",
+    "time": "02:23:05",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "DM",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785262985.359234
+  },
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "02:26:25",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785263185.3337104
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "02:26:40",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785263200.5451055,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:26:48",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785263208.6856918,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "🎲 1d10 = [1]",
+    "time": "02:27:01",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785263221.787217
+  },
+  {
+    "name": "白枫",
+    "text": "白枫 运动(力量) = 19 | d20:19",
+    "time": "02:27:14",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785263234.6956222
+  },
+  {
+    "name": "系统",
+    "text": "🔴 白枫 退出房间",
+    "time": "02:27:30",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785263250.1887362,
+    "system": true
+  },
+  {
+    "name": "白枫",
+    "text": "进入了骰娘",
+    "time": "02:27:32",
+    "is_dm": false,
+    "color": "#00bcd4",
+    "role": "PL",
+    "ip": "127.0.0.1",
+    "_ts": 1785263252.5377314
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:41:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264099.5248606,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:42:39",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264159.5262856,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:43:40",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264220.8490996,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:44:37",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264277.811805,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:45:37",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264337.8092906,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:46:37",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264397.814156,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:47:42",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264462.781155,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "02:48:42",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785264522.789212,
+    "system": true
+  }
+]

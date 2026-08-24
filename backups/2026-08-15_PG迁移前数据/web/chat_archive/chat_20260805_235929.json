@@ -1,0 +1,94 @@
+[
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:54:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934454.901542,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:55:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934514.89684,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 iling 退出房间",
+    "time": "20:55:16",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934516.7864738,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:56:14",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934574.8882716,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:56:19",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934579.9337091,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 suroku 退出房间",
+    "time": "20:56:33",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934593.0875955,
+    "system": true
+  },
+  {
+    "name": "系统",
+    "text": "🔴 厄内 退出房间",
+    "time": "20:57:22",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934642.4730942,
+    "system": true
+  },
+  {
+    "name": "iling",
+    "text": "🎯 察觉检定: [16] (d20:16 +0)",
+    "time": "21:01:22",
+    "is_dm": false,
+    "color": "#888888",
+    "role": "PL",
+    "dice_roll": true,
+    "hidden": false,
+    "ip": "system",
+    "_ts": 1785934882.802664
+  },
+  {
+    "name": "系统",
+    "text": "🔴 凌羽 退出房间",
+    "time": "21:01:26",
+    "is_dm": false,
+    "color": "#888888",
+    "ip": "system",
+    "_ts": 1785934886.4932442,
+    "system": true
+  }
+]

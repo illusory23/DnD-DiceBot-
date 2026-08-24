@@ -1,0 +1,35 @@
+主题：Excel 导入新增特性/专长/职业能力/种族特性词条提取
+
+问题：
+- Excel 角色卡中的职业能力、种族特性、专长等词条格式数据完全未被解析
+
+修改内容：
+
+1. utils/excel_importer.py：
+   a. 新增 _import_features(cells, start_row, max_row) 函数：
+      - 扫描主 sheet 指定行范围（默认 68-100 行）
+      - 从 C/P/E/D 列读取词条名称，从 U/AI/T 等列读取描述
+      - 通过 B 列标签自动切换分类（职业能力/种族特性/专长/特殊能力）
+      - 通过词条名关键词自动推断分类
+      - 过滤章节标题/纯数字/过短文本等非数据行
+   b. _import_v440 和 _import_nekox21 均调用 _import_features
+
+2. web/app.py：
+   - 扁平化步骤新增 features 字段透传
+
+3. core/character.py：
+   a. import_from_excel_data 新增 features 遍历入库：
+      - category → CharacterFeature.category
+      - name → CharacterFeature.name
+      - description → CharacterFeature.description
+      - sort_order → CharacterFeature.sort_order
+   b. _char_to_dict 已在上次更新中包含 features 数组输出
+
+4. web/templates/north-expedition.html：
+   - JS 映射已支持 full.features → c.features 转换
+
+分类关键词映射：
+- 职业能力：狂暴、偷袭、战斗风格、回气、动作如潮、至圣斩、引导神力等
+- 种族特性：黑暗视觉、精灵血统、矮人、龙族等
+- 专长：专长、警觉、幸运、健壮、巨武器、神射手等
+- 其他：归入特殊能力

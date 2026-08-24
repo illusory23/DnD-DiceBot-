@@ -1,0 +1,53 @@
+2026-08-14 第30次更新：北境单文件拆分 + 冒险者等级晋升 + DM事件管理页
+
+【功能一】北境雪原单文件拆分（探索北境 8959 行单文件 → 4 个文件）
+- web/templates/north-expedition.html：仅保留 HTML 骨架（542 行）
+- web/static/north-expedition.css：原内联 CSS（UI）拆分（1672 行）
+- web/static/north-data.js：事件数据文件 —— TABLES（16 张事件表）、
+  ITEM_ACTIONS（材料拾取）、CHECK_ACTIONS（检定交互表）
+- web/static/north-main.js：逻辑文件（全局函数 + 主 IIFE，约 6000 行）
+- CHECK_ACTIONS 内含闭包回调，依赖运行期上下文（survival/activeChar/
+  addSystemLog 等），通过 window.NORTH_CTX 注入：
+  - activeChar/activeCharId 会被重新赋值，使用 getter 实时读取
+  - 其余为对象/函数引用，IIFE 末尾一次性注入
+- 行为验证：node 语法检查 + 静态逐行对比（拆分前后非注释行一致）+
+  无头浏览器实测页面运行无 JS 错误
+- 注意：north-data.js 必须在 north-main.js 之前加载（HTML 中已保证顺序）
+
+【功能二】冒险者等级晋升（青羽→白羽 7 级，设计稿：北境雪原优化方案分析.txt 五）
+- 当前仅实现晋升条件与头衔（各等级特殊效果后续版本再加）：
+  青羽 0 / 黑羽 50 / 蓝羽 120 / 银羽 220 / 金羽 350 / 赤羽 520 / 白羽 750（累计事件）
+- 右栏冒险者徽章与营地角色卡徽章显示当前头衔（带颜色），
+  悬停提示进度；冒险者面板新增等级进度条（距下一级的进度）
+- 事件完成后自动晋升并播报（✨✨ 冒险者等级晋升：xxx！）
+- 存档兼容：基于 statsData.total（累计事件数），旧存档无 statsData 自动从 0 开始；
+  charData.rank 字段保留不动；服务器加载/导入存档/清空统计均同步刷新等级
+- 等级表数据在 north-data.js 的 RANK_LEVELS（后续加效果时扩展字段即可）
+
+【功能三】事件系统管理页（DM 可视化编辑已发布事件：撤回/置顶）
+- 后端新增已发布事件历史（web/dm_published_events.json 持久化）：
+  - GET  /api/dm/published-events：DM 查看发布历史（含撤回/置顶状态）
+  - POST /api/dm/events/<id>/recall：撤回（聊天室对应消息删除不可见，
+    全平台弹窗不再推送；磁盘聊天存档与归档文件同步标记 _recalled）
+  - POST /api/dm/events/<id>/pin：置顶/取消置顶（置顶期间全平台轮询持续
+    返回该事件作为公告，玩家关闭后记录已读不重复弹窗）
+  - 权限校验：以上接口仅 DM 可调用；撤回后不可重复撤回、不可置顶
+- chat.html「📋 事件列表」升级为「📋 事件管理」弹窗，双分区：
+  - 📢 已发布事件：显示发布历史（时间戳/📌置顶中/↩已撤回状态徽章），
+    可撤回、置顶/取消置顶
+  - 📥 保存的事件：原发布/删除功能保留
+- event-popup.js：置顶事件以蓝色边框+📌 标记的公告样式弹出，
+  关闭后记入 sessionStorage（dnd_dismissed_pins）不再重复弹
+- 撤回后聊天室的事件消息完全删除不可见（chat.html 与 dice3d-e.html 均生效）：
+  - 已打开聊天页的玩家：撤回后消息立即自动从界面消失（无需刷新）
+    —— 撤回时后端刷新该消息 _ts，前端增量轮询收到后按 data-event-id
+    移除对应消息块
+  - 重新打开/刷新页面：被撤回的消息不再渲染（前端过滤 _recalled）
+  - 磁盘数据保留（标记 _recalled），不物理删除，可审计
+  - 事件独立弹窗（event-popup.js）保持原样：撤回后不再推送
+
+【测试】
+- 北境等级：8 项断言（各级徽章/进度条/满级隐藏）全过
+- 事件管理 API：16 项断言（发布/历史/置顶/撤回/权限/边界）全过
+- 事件管理 UI：12 项断言（DM 管理弹窗/玩家公告弹窗/已读不重复/撤回失效）全过
+- 回归：北境页面加载无 JS 错误；拆分前后静态逐行一致

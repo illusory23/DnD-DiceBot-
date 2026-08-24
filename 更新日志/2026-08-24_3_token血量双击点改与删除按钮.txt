@@ -1,0 +1,27 @@
+2026-08-24_3_token血量双击点改与删除按钮
+═══════════════════════════════════════════
+
+【需求】
+  1. token 血量增加双击点改；原双击删除 token 的功能移除
+  2. 删除功能改为 token 正下方红色圆形叉按钮
+  3. 迷雾维持现状：只能由 DM 消除（不做迷雾自动随 token 揭示）
+
+【实现】（web/static/map.js + web/templates/map.html）
+  · 双击 token → 弹出「修改当前血量」浮层（定位在 token 下方）：
+    输入当前 HP → ✅ 确定：
+    - 战斗列表中存在该角色 → 同步 combatant.hp（不超过最大 HP），
+      刷新战斗面板/目标下拉并 pushCombatState（WS 同步其他玩家）
+    - 同步角色数据库当前 HP（POST /hp setAbsolute）
+    - 刷新角色缓存/信息面板/死亡标识（💀）
+    - 权限与移动一致（ensureTokenCharData：自己角色/DM 公开角色/DM）
+  · token 正下方新增红色圆形叉删除按钮（.token-del-btn，CSS 仿
+    攻击/治疗按钮）：
+    - 仅选中且权限允许（DM 或 canMoveToken）时显示
+    - 点击 → 确认弹窗 → removeMapToken（含 WS 增量同步与存档）
+  · 注：最大 HP 仅在角色卡界面修改，地图只改当前血量
+
+【验证】map.js 语法检查通过（node --check）；逻辑走查：
+  双击 → 权限拦截 → 浮层预填战斗列表/缓存当前 HP → 确定后
+  战斗列表与角色库双向同步 → 死亡标识刷新
+【生效】纯前端（map.js v77 + map.html，版本号已同步 bump），
+        刷新页面即可，无需重启服务器

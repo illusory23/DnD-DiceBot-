@@ -1,0 +1,108 @@
+【2026-08-19_1】五项修复：特性分类 / 分组排序 / 北境默认角色 / 注册时间 / 法术位识别
+
+修改文件：
+- core/character.py（_char_to_dict 特性分类映射）
+- web/static/character.js（分组拖拽排序）
+- web/templates/character.html（脚本缓存版本号 v11→v12）
+- web/static/north-main.js（移除内置默认角色 + 事件按钮无角色拦截）
+- web/templates/north-expedition.html（north 脚本缓存版本号 ?v=55）
+- web/static/admin/admin.js（formatDate UTC 解析）
+- web/templates/admin/base.html（admin.js 缓存版本号 ?v=1）
+- utils/excel_importer.py（_import_dnd5e24 法术位解析）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 角色卡手动添加特性被归入"其他特性"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：在角色卡界面手动添加专长/职业能力/种族特性/特殊能力时，
+刷新后全部出现在"其他特性"分类下。
+
+根因：前端 addFeature 以英文分类键（class_feature/feat/racial_trait/
+special_ability）POST 到后端并原样入库；而 _char_to_dict 的分类映射
+_feat_cat_map 只认中文名（职业能力/专长/种族特性/特殊能力），英文键
+匹配不到 → 全部落入 other。
+
+修复：_feat_cat_map 每个分组补充对应英文键，中文（Excel 导入）与
+英文（手动添加）均能正确归类。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 拖动角色分组排序不保存
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：拖动分组排序时，松手落在另一个分组的角色项上毫无反应
+（不动也不保存）；落在分组边缘时插入位置也不一致
+（目标在末尾时插到前面，其余插到后面）。
+
+根因：角色项的 drop 处理器先 stopPropagation 再 return，把分组拖拽
+的 drop 事件吞掉，分组 drop 处理器永远收不到；分组 drop 的
+insertBefore(src, this.nextSibling || this) 方向随目标位置翻转。
+
+修复（character.js）：
+- 抽取 groupDropReorder(e, targetGroupEl)：按释放点位于目标分组
+  上半/下半决定插前/插后（getBoundingClientRect + clientY），
+  移动后统一收集顺序保存到 /api/character-groups/reorder；
+- 角色项 drop 处理器增加转交：分组拖拽（dragGroupId 有值且
+  dragCharId 为空）落在角色项上时转交 groupDropReorder；
+- 分组 drop/落在空区域时走同一函数。
+
+验证：/api/character-groups/reorder 接口写入 sort_order 并落库正常；
+JS 经 node --check 语法通过。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 探索北境删除系统内置默认角色
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：新号进入探索北境自带 3 个系统内置角色
+（艾琳·霜刃/铁砧·石心/灰羽·游侠），无需自建即可游玩。
+
+修复（north-main.js）：
+- charData 内置的 3 个角色模板全部移除，初始为空对象；
+- 新号进入无角色，探索/营地角色选择器显示"请选择或创建角色"，
+  营地"+ 新建"（defaultCharTemplate）或 Excel 导入创建角色；
+- 事件卡点击增加 !activeChar 拦截（alert 请先选择或创建角色），
+  防止无角色时触发事件链出错；
+- 老玩家不受影响：charData 随存档保存，读取时 Object.assign 合并
+  回老存档中的角色数据。
+
+验证：渲染函数 renderCharDetail/renderCampCharDetail 均对无角色
+（null id）有占位分支；updateSurvivalUI/reconcileSurvivalFuel 等
+对 activeChar 空值均有守卫；node --check 通过。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 管理员后台用户注册时间错误
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：后台用户列表部分用户注册时间比服务器实际开启时间还早
+（提前约 8 小时）。
+
+根因：后端 created_at/last_login 存的是 datetime.utcnow()（UTC naive），
+接口以 isoformat() 输出且不带时区后缀；前端 Admin.formatDate 用
+new Date(iso) 解析，JS 把无时区后缀的字符串当本地时间 → 显示时间
+比真实注册时间早 8 小时（东八区），造成"服务器未开启时注册"。
+
+修复（admin.js formatDate）：
+- 字符串无时区后缀（不以 Z 或 ±HH:MM 结尾）时补 'Z' 按 UTC 解析，
+  再经 getFullYear/getHours 等自动转为浏览器本地时区显示；
+- 解析失败时原样返回输入，不显示 NaN。
+
+验证：created_at=2026-08-04T11:07 UTC（北京 19:07）→ 修复后显示
+19:07，与真实注册时间一致。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 法术环位识别（无视"法术值"列）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+问题：DND5E24 悲灵模板导入后法术环位仍识别错误——低等级角色被
+识别出 2/3/5/6/7/9/10/11/13 的高环法术位。
+
+根因：2026-08-17 的修复把 J 列"法术值"当作每环法术位数量读取，
+但该列是模板内置的示例值（空白模板中即存在，与玩家角色无关）。
+玩家实际填写的法术位数值在 E 列（E62='法术位'标签下方，如莉雅
+E63='2'）。G 列为 '/' 时旧逻辑优先读 J → 全部读成示例值。
+
+修复（excel_importer.py _import_dnd5e24）：解析优先级改为
+1. G 列 '已用/最大' 格式（如 '1/2'）
+2. G 列纯数字（视为最大数量）
+3. E 列（法术位数值）兜底
+J 列"法术值"一律忽略。
+
+验证（真实角色卡导入）：
+- 白芸角色卡（莉雅）：spell_slots 1环=2，2-9环=0 ✓
+  （修复前为 2/3/5/6/7/9/10/11/13）
+- 铁诺人物卡：全部 0 ✓（该卡 G/E 均未填，修复前误读示例值）
+- G='1/2' → max=2 used=1、G='3' → max=3 逻辑不变 ✓

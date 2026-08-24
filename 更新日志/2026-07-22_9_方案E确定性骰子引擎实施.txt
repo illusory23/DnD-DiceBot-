@@ -1,0 +1,110 @@
+方案E：确定性种子引擎 + 帧同步 — 多人实时3D掷骰
+
+日期：2026-07-22
+主题：实现确定性骰子物理引擎替代ammo.js dice-box，支持多人同步观看3D掷骰动画
+
+━━━ 变更概述 ━━━
+
+本次实施了"多人实时3D掷骰方案分析"文档中的方案E（确定性种子引擎+帧同步）。
+该方案是五种方案中技术难度最高、同步质量最好、无需推流的理想方案。
+
+━━━ 新增文件 ━━━
+
+web/static/dice-deterministic/prng.js (~150行)
+  - mulberry32 和 xoshiro128** 确定性伪随机数生成器
+  - SeededRandom 类：支持 range/int/gaussian/shuffle/pick 等分布
+  - 内置自检：验证相同种子产生相同序列
+
+web/static/dice-deterministic/dice-models.js (~350行)
+  - d4/d6/d8/d10/d12/d20/d100 全部7种D&D标准骰子的几何模型
+  - 顶点坐标、面定义、法线、面中心、面值映射
+  - d12和d20使用邻接图算法自动检测面结构
+
+web/static/dice-deterministic/physics.js (~350行)
+  - 确定性刚体物理引擎（固定时间步长 1/60s）
+  - 半隐式欧拉积分 + 四元数旋转
+  - 地面碰撞检测与响应（反弹+摩擦+角速度扭矩）
+  - 骰子停稳自动检测
+
+web/static/dice-deterministic/dice-renderer.js (~300行)
+  - 基于 Three.js 的骰子3D渲染
+  - 各骰子类型独立配色方案
+  - Canvas纹理生成（含面值数字标签）
+  - 完整的场景灯光（方向光+阴影+补光+粒子）
+  - 视觉地面+网格参考线
+
+web/static/dice-deterministic/sync-client.js (~200行)
+  - WebSocket帧同步客户端
+  - Lockstep帧同步协议支持
+  - 自动重连机制
+  - 事件驱动架构（start/frame/result/disconnect/error）
+
+web/static/dice-deterministic/dice-engine.js (~400行)
+  - 主引擎：组合PRNG→物理→渲染→同步
+  - 掷骰表达式解析（NdS+M格式）
+  - 优/劣势投掷支持
+  - 本地模式与多人同步模式
+  - 自动广播骰子结果到聊天室
+
+web/templates/dice3d-e.html (~250行)
+  - 方案E专用3D骰子页面（/dice3d-e）
+  - Three.js CDN加载（importmap）
+  - 完整UI：骰子选择、个数、加值、优势/劣势
+  - 同步状态指示器
+  - 种子显示、暴击/大失败高亮
+  - 嵌入模式支持
+
+━━━ 修改文件 ━━━
+
+web/app.py (+40行)
+  - 新增 /dice3d-e 路由
+  - 新增 _handle_dice_sync_message() 函数处理骰子同步消息
+  - WebSocket端点新增 dice_roll / dice_result / dice_sync_frame 消息类型
+  - 骰子同步消息与画布同步消息共享同一WebSocket端点
+
+━━━ 备份位置 ━━━
+
+backups/方案E实施前_20260722_184719/
+包含实施前的完整代码快照，可随时回退。
+
+━━━ 技术架构 ━━━
+
+确定性保证链路：
+  seed → SeededRandom(xoshiro128) → 初始状态(位置/速度/角速度/朝向)
+  → DeterministicPhysics(固定dt=1/60) → 相同帧序列 → 相同最终状态
+  → getUpFace() → 相同结果值
+
+多人同步流程：
+  投掷者: roll() → 本地模拟 + WebSocket广播{dice_roll:seed,dice}
+  服务端: 收到dice_roll → 广播dice_sync_start给所有其他客户端
+  观察者: 收到dice_sync_start → 用同一种子启动本地模拟
+  投掷者: 模拟完成 → 广播dice_result{results,total}
+  所有客户端: 收到权威结果 → 显示
+
+━━━ 已知限制 ━━━
+
+1. 跨浏览器浮点精度：xoshiro128**保证随机数一致，但Math.sin/cos/sqrt
+   在不同JS引擎的末位可能不同，极端情况下可能导致物理模拟微小偏差。
+   建议：同一跑团组成员使用相同浏览器（如都用Chrome/Edge）。
+
+2. d12/d20面值映射：面检测算法自动生成，面值与标准骰子布局不完全一致。
+   但不影响掷骰结果的统计公平性。
+
+3. 多人同时投掷：当前版本不支持多个玩家同时掷骰的队列管理。
+   建议：DM协调轮流投掷，或后续添加投掷队列。
+
+4. 移动端性能：每客户端独立运行物理模拟+Three.js渲染，
+   低端移动设备可能帧率不足。建议移动端降级为方案A（文字结果）。
+
+━━━ 回退方案 ━━━
+
+如需回退：
+  cp -r backups/方案E实施前_20260722_184719/* web/
+  然后重启 Flask 服务。原有的 dice-box 骰子页面（/dice3d）未受任何影响。
+
+━━━ 下一步建议 ━━━
+
+1. 在真实多人环境中测试跨浏览器同步一致性
+2. 将方案E的骰子动画嵌入地图页面（/map）的掷骰弹窗
+3. 添加骰子面值映射校准工具（校准d12/d20面值布局）
+4. 性能优化：低配设备自动降级为方案A

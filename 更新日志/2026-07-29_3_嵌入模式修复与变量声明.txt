@@ -1,0 +1,27 @@
+2026-07-29_3 嵌入模式修复与变量声明
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+问题1：地图界面的3D掷骰iframe仍显示控制栏
+问题2：检定和豁免的掷骰无反应
+
+━━━ 修复1：嵌入模式CSS增强 ━━━
+原因：/dice3d → /dice3d-e 重定向丢失查询参数?embed=1
+
+改动：
+  - app.py /dice3d 重定向：保留 request.query_string，
+    拼接为 /dice3d-e?embed=1
+  - dice3d-e.html：嵌入CSS规则全部添加 !important，
+    确保覆盖所有基础样式
+
+━━━ 修复2：变量声明 ━━━
+原因：_localActiveChar 和 _localSaveChar 作为隐式全局
+      变量未声明，可能导致严格模式或作用域问题
+
+改动：
+  - dice3d-e.html：在非模块脚本顶部添加
+    var _localActiveChar=null;
+    var _localSaveChar=null;
+
+修改文件：
+  - web/app.py                    (重定向保留查询参数)
+  - web/templates/dice3d-e.html   (嵌入CSS + 变量声明)

@@ -1,0 +1,52 @@
+2026-08-18_1_攻击掷骰增加发起者选择与武器法术选择流程
+════════════════════════════════════════════════════
+
+【问题/需求】
+1. 攻击命中掷骰界面缺少"发起攻击者"信息，加值需手动输入
+2. 点击 ⚔ 攻击按钮直接进入掷骰界面，未区分武器/法术
+3. 武器攻击未读取角色武器数据（命中加值/伤害骰）
+4. 法术攻击未读取已准备法术与法术攻击加值
+
+【根因】
+- map.js openAttackPopup 仅接收目标 token，攻击者/加值均为手动
+- 伤害弹窗只有"面数+加值"两种设置，无法表达 2d6+3 等复合伤害
+
+【修复】
+一、新增"攻击方式选择"弹窗（attack-picker-popup，map.html + map.js）：
+  1. 点击 token 上 ⚔ 按钮 → 打开攻击方式选择弹窗
+  2. 弹窗含"发起攻击者"下拉框（与地图侧边栏角色列表同源，
+     /api/characters 按身份过滤，自动排除目标角色）
+  3. Tab 切换：⚔️ 武器 / ✨ 法术
+     - 武器：读取攻击者角色 weapons（名称/命中加值/伤害骰/伤害类型/描述），
+       点击即选中
+     - 法术：读取已准备法术 prepared_spells（名称/环阶/备注），
+       法术攻击加值取角色 spell_attack_bonus
+  4. 底部"🎲 自由攻击"按钮保留原手动流程（骰子/加值自设）
+
+二、攻击掷骰弹窗改造（map.html attack-popup）：
+  - 新增"⚔️ 攻击者：xxx（武器 · xxx / 法术 · xxx）"显示行
+  - attack-bonus 自动填入武器命中加值 / 法术攻击加值（仍可手动修改）
+
+三、伤害弹窗改造（map.html damage-popup + map.js）：
+  - 新增"伤害表达式"输入框（留空则回退原面数+加值设置）
+  - 武器攻击：自动带入武器 damage_dice（如 1d8+3 / 2d6）
+  - 法术攻击：从已学法术 learned_spells 的 description 中提取
+    首个伤害骰表达式（如 1d8 / 2d6+3），提取失败则留空
+  - damageRoll 优先使用表达式（getDamageExpr），updateDamageStatus 同步显示
+
+四、其他：
+  - escapeHtml 工具函数（弹窗列表 HTML 转义，防 XSS）
+  - attack-picker-popup 注册拖拽（makeDraggable）
+  - map.html 五个 JS 缓存版本号 v=66 → v=67
+
+【涉及文件】
+- web/templates/map.html（CSS + 新弹窗 HTML + 攻击弹窗头部 + 伤害表达式输入 + 版本号）
+- web/static/map.js（openAttackPicker/closeAttackPicker/switchAttackTab/
+  loadAttackPickerChar/renderAttackSourceList/pickAttackSource/openFreeAttack/
+  extractSpellDamage/escapeHtml；openAttackPopup 增加 attackerCfg 参数；
+  attackDamageRoll 预填表达式；getDamageExpr/damageRoll 表达式优先）
+
+【验证】
+- node --check map.js 语法通过
+- 流程：选中 token → ⚔ → 选择攻击者 → 选武器/法术 → 命中掷骰（自动加值）
+  → 命中 → 伤害弹窗（自动带入伤害表达式）→ 结算扣血 + 聊天室广播不变

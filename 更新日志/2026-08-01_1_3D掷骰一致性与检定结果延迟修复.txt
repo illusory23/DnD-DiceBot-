@@ -1,0 +1,22 @@
+# 3D掷骰界面一致性修复 + 检定结果显示延迟修复
+
+## 问题1：3D掷骰画面与消息不一致
+
+**根因**：`dice-bridge.js` 中的 `rollWithTimeout` 使用 4 秒外部超时与 diceBox 物理模拟竞速。
+当骰子滚动较慢/稳定较慢时，超时先触发返回 null，然后 `roll3D` 用 `Math.random()` 生成随机数作为回退结果，
+而此时 3D 画面上的骰子已显示物理模拟的真实结果 → 画面与消息不一致。
+
+**修复**：
+1. 移除外部竞速超时（原来是 4 秒），改为依赖 diceBox 内部的 settleTimeout(5s)
+2. 添加 20 秒硬安全超时防止彻底卡死
+3. 移除 `Math.random()` 随机数回退 —— 物理模拟失败时返回 null 并提示重试
+4. DiceBox 配置添加 `settleTimeout: 5000`
+
+## 问题2：采集资源检定成功后需下一次事件才显示结果
+
+**根因**：`runCheckChain` 调用 `executeEvent('cl50')` 时，内部会触发生存检查（checkCold/checkRation等），
+这些检查调用 `addSystemLog` → `renderDisplayLog`，重建了所有 DOM 元素。
+此后 `addCheckResult` 修改的是已脱离文档的 stale DOM 引用，用户看不到。
+下一次事件触发 `renderDisplayLog` 时才从 displayLog 数组渲染出已修补的 HTML。
+
+**修复**：`finishChecks` 中 `_patchDisplayLogDiv` 修补 displayLog 后，补充调用 `renderDisplayLog()` 立即刷新显示。

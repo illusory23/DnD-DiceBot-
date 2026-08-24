@@ -1,0 +1,30 @@
+聊天室与酒馆聊天完全隔离
+=========================
+日期：2026-08-05
+
+修改内容：
+---------
+将跑团平台聊天室（chat.html）与北境探索酒馆（north-expedition.html）的聊天系统完全分离，
+两边的消息不再互通。
+
+后端（web/app.py）：
+1. 新增酒馆独立存储变量：_tavern_messages、MAX_TAVERN_CHAT_MSGS
+2. 新增持久化文件：tavern_chat_log.json（独立于 chat_log.json）
+3. 新增归档目录：tavern_chat_archive/
+4. 新增持久化函数：_load/save/archive/trim 全套酒馆消息管理
+5. 新增 API 端点：
+   - POST /api/tavern/chat/send — 酒馆发送消息
+   - GET  /api/tavern/chat/messages — 酒馆拉取消息（支持 since 增量）
+
+前端（web/templates/north-expedition.html）：
+1. northTavernSend：改用 /api/tavern/chat/send，name 不再加 🍺 前缀
+2. northTavernRefresh：改用 /api/tavern/chat/messages，移除 🍺 过滤逻辑
+3. renderTavernMessages：移除 🍺 前缀剥离代码
+
+影响范围：
+---------
+- ✅ 聊天室和酒馆消息完全隔离，互不可见
+- ✅ 聊天室（chat.html）无需任何修改
+- ✅ 其他页面（combat、map、dice3d等）的掷骰广播不受影响，继续走主聊天室
+- ✅ 酒馆聊天功能正常运作，持久化独立于主聊天室
+- ✅ 酒馆 UI 风格（🍺 装饰、CSS）保持不变

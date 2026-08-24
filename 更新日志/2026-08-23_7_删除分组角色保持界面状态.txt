@@ -1,0 +1,34 @@
+2026-08-23 · 删除/移出分组角色时保持界面状态
+
+■ 问题
+角色卡页删除角色（总角色组 🗑）或移出分组（自建组 ➖）后：
+  1. 所有分组被自动折叠（关闭）——用户展开的分组全部收起
+  2. 列表滚动位置回到顶部（移出分组场景）
+  3. 界面状态被重置
+
+■ 根因
+character.js：
+  · loadCharList() 每次重拉分组时无条件
+    charListGroups = groups.map(g => ({...g, _collapsed: true}))——
+    折叠状态重置为全部关闭，且折叠状态仅存内存、不持久化
+  · removeCharFromGroup（移出分组）没有滚动位置保存/恢复
+    （deleteCharFromList 删除路径已有该逻辑）
+
+■ 修复
+character.js：
+  · loadCharList 合并保留折叠状态：重拉时按分组 id 匹配旧的
+    _collapsed 状态，仅新出现的分组默认折叠——
+    删除/移出角色后分组展开状态保持不变
+  · removeCharFromGroup 增加滚动位置保存/恢复
+    （与删除角色一致：删除后停留在原浏览位置，不回顶）
+
+■ 验证
+· 语法检查通过
+· 静态文件实时生效验证：/static/character.js 已含 prevCollapsed
+  与 removeCharFromGroup 滚动保存；/character 模板版本号 v=15→16
+· 逻辑：折叠状态按 id 合并（prevCollapsed 匹配不到才默认折叠），
+  新分组不受影响
+
+■ 影响
+· 仅前端 character.js 改动（character.html v=15→16）
+· 无需重启服务器，浏览器强刷（Ctrl+F5）即可生效
