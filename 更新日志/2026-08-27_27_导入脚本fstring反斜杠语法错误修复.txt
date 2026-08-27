@@ -1,0 +1,28 @@
+2026-08-27_27_导入脚本fstring反斜杠语法错误修复.txt
+
+问题：push 到 git 后 GitHub Actions CI 报错——
+  File "./web/_import_kiwee_bestiary.py", line 304
+      )
+      ^
+  SyntaxError: f-string expression part cannot include a backslash
+
+根因：web/_import_kiwee_bestiary.py 生成词条 html 时，f-string 表达式部分
+  {esc_html(body).replace(chr(10), "<br>\n")}
+  内含反斜杠转义 \n。Python ≤3.11 语法不允许 f-string 表达式部分包含
+  反斜杠；本机 Python 3.13（3.12+ 已放宽）编译通过，但 CI 矩阵含
+  Python 3.11（.github/workflows/ci.yml），故仅在 CI 报错。
+
+修复：替换结果先提取为变量，表达式内不再含反斜杠——
+  body_html = esc_html(body).replace(chr(10), '<br>\n')
+  f'<div id="{esc_html(en)}">\n{body_html}\n</div>\n'
+  逻辑完全等价（esc_html 转义 → 换行替换为 <br> 的顺序不变）。
+
+验证：
+  1. 全项目 find + py_compile 编译检查通过（CI 同款命令）
+  2. ast.parse feature_version=(3,11) 模拟 Python 3.11 语法检查通过
+     （正是 CI 报错的版本）
+  3. 功能验证：测试怪物数据生成 html，标题/锚点/换行替换均正常
+  4. 全项目扫描确认无其他 f-string 表达式内含反斜杠的位置
+
+是否需要重启服务器：否（web/_import_kiwee_bestiary.py 为离线导入工具，
+非运行期加载模块）

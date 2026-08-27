@@ -295,13 +295,11 @@ def main():
         detail_link = f'/{out_dir}/{en}.htm#{en}'
 
         # 生成词条 html（UTF-8；read_detail_page 按 gbk→utf-8 顺序尝试）
-        # 注意：f-string 表达式内不能含反斜杠（Python ≤3.11 语法错误），替换结果先提取为变量
-        body_html = esc_html(body).replace(chr(10), '<br>\n')
         html = (
             '<!DOCTYPE html>\n<html lang="zh">\n<head>\n'
             f'<meta charset="utf-8">\n<title>{esc_html(cn)}{esc_html(en)}</title>\n'
             '</head>\n<body>\n'
-            f'<div id="{esc_html(en)}">\n{body_html}\n</div>\n'
+            f'<div id="{esc_html(en)}">\n{esc_html(body).replace(chr(10), "<br>\n")}\n</div>\n'
             '</body>\n</html>\n'
         )
         (out_dir_path / f'{en}.htm').write_text(html, encoding='utf-8')
