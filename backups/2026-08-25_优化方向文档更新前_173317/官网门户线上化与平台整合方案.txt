@@ -1,0 +1,525 @@
+骰娘跑团平台 — 官网门户线上化与平台整合方案
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+版本: v1.2
+日期: 2026-07-30  更新: 2026-08-17  状态: 大部分已实施（门户整合/用户系统/社区/工坊/在线/后台/通知/头像已上线，部署与部分进阶功能待做）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+目录:
+  一、现状诊断
+  二、目标架构
+  三、目录结构（最终形态）
+  四、阶段 0：基础整合（立即可做）
+  五、阶段 1：数据库 + 用户系统
+  六、阶段 2：社区系统
+  七、阶段 3：创意工坊
+  八、阶段 4：门户与跑团平台深度连接
+  九、阶段 5：部署上线
+  十、团队协作建议
+
+
+━━━ v5.0 已实施项 (2026-08-04) ━━━
+
+  ✅ 用户系统数据库化：users 表 + 注册/登录 API（6个端点）
+  ✅ 官网登录/注册接入真实 API（不再使用 localStorage 假数据）
+  ✅ 用户中心接入真实 API（GET /api/auth/me + POST /api/auth/update-profile）
+  ✅ 密码规则：至少9位 + 含英文和数字 + scrypt 哈希
+  ✅ 跑团身份绑定：加入房间时发送 user_id，关联官网账号
+  ✅ 未登录拦截：点击跑团入口弹出注册提示
+  ✅ 深色/浅色模式切换
+  ✅ favicon 品牌图标
+  ✅ 功能卡片点击区域优化
+
+━━━ v5.1 已实施项 (2026-08-09) ━━━
+
+  ✅ 冒险者酒馆真实化：5 大板块发帖（多图真上传）/图文详情/评论/删除，
+     板块统计真实计算，分区内直接发帖（免选分区）
+  ✅ 创意工坊真实化：投稿（介绍/附件zip真上传）/详情/评论/作者管理员删除，
+     移除全部虚假样例
+  ✅ 每周话题：后台发布（标题/HTML内容/图片上传），官网酒馆置顶，
+     独立详情页（/topics/<id>）+ 评论区
+  ✅ 全站在线系统：打开任意页面即在线（心跳），关闭全部页面下线，
+     官网在线冒险者与后台仪表盘实时人数
+  ✅ 平台统计真实化：主题/帖子/用户/投稿/投掷，官网与后台实时刷新
+  ✅ 管理员后台：/admin 12 大模块（用户/角色/聊天/统计/错误/审计/话题/
+     社区/系统/内容/备份），操作全程审计
+  ✅ 安全加固：SECRET_KEY 随机持久化、用户名白名单防XSS、布尔解析防提权、
+     审计日志密码脱敏、users 表补 is_admin 列
+  ✅ 官网更名：尘封之卷·跑团平台
+
+━━━ v5.2 已实施项 (2026-08-15 ~ 08-17) ━━━
+
+  ✅ 用户头像：上传/删除/圆形裁剪（拖动+缩放），全站展示（帖子/评论/在线列表/
+     侧栏/头部），批量查询映射一次请求，旧头像自动清理
+  ✅ 酒馆/工坊点赞：点赞/取消点赞，点赞数/收藏数实时显示，liked 状态保持
+  ✅ 酒馆/工坊搜索+分页：标题/内容/作者搜索（忽略大小写），每页 10 帖/12 件
+  ✅ 历史公告页：/announcements（全部启用公告，卡片式），横幅"查看全部公告"入口
+  ✅ 消息通知系统：被评论/被点赞/被收藏/@提及提醒（post_comment/workshop_comment/
+     post_like/workshop_like/post_fav/workshop_fav/mention），同主题聚合去重（N 人），
+     独立页 /notifications + 导航/用户中心未读红点（30 秒轮询）
+  ✅ 独立详情页：帖子 /post/<id>、工坊 /workshop/<id>（原弹窗改为直接跳转）
+  ✅ 收藏项可跳转详情：我的收藏列表点击进入帖子/工坊详情页
+  ✅ PostgreSQL 全量迁移：SQLite 17 表 + 12 JSON + 282 归档 → 31 表，
+     帖子/工坊/通知全部入库
+  ✅ 错误提示统一：portal 5 页 34 处 alert → Toast（common-error-handler.js）
+  ✅ 用户中心导航链接 404 修复、收藏读取源统一（_load_json_file 同源）
+
+━━━ 一、现状诊断（2026-07 制定时）━━━
+
+┌──────────────┬──────────────────────────┬────────────────────┐
+│     组件     │      制定时状态           │      问题          │
+├──────────────┼──────────────────────────┼────────────────────┤
+│ 骰娘核心     │ Flask，端口5000，20+路由  │ ✅ 已是在线服务    │
+│ (web/app.py) │ API 完备                  │                    │
+├──────────────┼──────────────────────────┼────────────────────┤
+│ 官网门户     │ 本地静态HTML              │ ❌ 不在Flask中     │
+│ (官网门户/)  │ file:// 打开              │ 无路由、无法外网访问│
+├──────────────┼──────────────────────────┼────────────────────┤
+│ 用户系统     │ localStorage 模拟登录     │ ❌ 假的            │
+│              │ 无后端验证                │ 刷新即丢失         │
+├──────────────┼──────────────────────────┼────────────────────┤
+│ 数据库       │ 无                        │ ⚠️ 无用户/帖子    │
+│              │ 角色卡用JSON文件存储      │ 工坊持久化         │
+└──────────────┴──────────────────────────┴────────────────────┘
+
+【已全部解决】门户已入 Flask（阶段0 ✅）、用户系统真实化（阶段1/v5.0 ✅）、
+社区/工坊真实化（阶段2-3/v5.1 ✅）、PostgreSQL 31 表全量迁移（v5.2 ✅）。
+
+核心问题（原）：官网门户和跑团平台物理隔离——门户是本地文件，平台是Flask服务，
+它们互相不知道对方存在。
+
+
+━━━ 二、目标架构 ━━━
+
+┌─────────────────────────────────────────────────┐
+│                  Nginx (端口 80)                  │
+│        静态资源 / 反向代理 / HTTPS                │
+└──────┬──────────────────────┬───────────────────┘
+       │                      │
+       ▼                      ▼
+┌──────────────┐    ┌─────────────────────────────┐
+│  官网门户     │    │  跑团应用 (Flask :5000)       │
+│  Jinja2 模板  │    │  ┌───────┬──────┬────────┐ │
+│  /            │    │  │3D掷骰 │角色卡│战斗追踪│ │
+│  /community   │◄──►│  ├───────┼──────┼────────┤ │
+│  /workshop    │ 共 │  │战术地图│资料库│随机事件│ │
+│  /account     │ 享 │  ├───────┼──────┼────────┤ │
+│  /about       │ DB │  │聊天室 │Mod系统│API   │ │
+└──────────────┘    └─────────────────────────────┘
+       │                      │
+       └──────────┬───────────┘
+                  ▼
+       ┌─────────────────────┐
+       │   SQLite / PostgreSQL │
+       │  users, posts, items │
+       │  characters, mods    │
+       └─────────────────────┘
+
+核心思路：把官网门户"搬进"Flask，让它成为 / 路由，然后通过共享数据库和
+Session，让门户和跑团应用变成同一个系统的两个入口。
+
+
+━━━ 三、目录结构（最终形态）━━━
+（注：实际未按此蓝图拆分——后端仍为 web/app.py 单文件 + web/admin.py，
+模型在 core/models.py，资料库/门户结构与此图基本一致。）
+
+骰娘/
+├── web/
+│   ├── app.py                  # Flask 工厂函数
+│   ├── config.py               # 配置（数据库URI、密钥等）
+│   ├── models.py               # SQLAlchemy 模型
+│   ├── auth.py                 # 用户认证 Blueprint
+│   ├── community.py            # 社区 Blueprint
+│   ├── workshop.py             # 工坊 Blueprint
+│   ├── api/
+│   │   ├── dice.py             # 骰子 API
+│   │   ├── character.py        # 角色卡 API
+│   │   ├── combat.py           # 战斗 API
+│   │   └── events.py           # 事件 API
+│   ├── templates/
+│   │   ├── base.html           # 基础布局（导航栏+页脚）
+│   │   ├── portal/
+│   │   │   ├── index.html      # 首页
+│   │   │   ├── community.html  # 冒险者酒馆
+│   │   │   ├── workshop.html   # 创意工坊
+│   │   │   ├── features.html   # 功能介绍
+│   │   │   └── about.html      # 关于平台
+│   │   ├── app/                # 跑团工具页面（原有）
+│   │   │   ├── dice3d-e.html
+│   │   │   ├── character.html
+│   │   │   ├── combat.html
+│   │   │   ├── map.html
+│   │   │   ├── events.html
+│   │   │   └── reference.html
+│   │   └── test4.html          # 北境雪原
+│   ├── static/
+│   │   ├── portal/             # 门户静态资源
+│   │   └── dice-v2/            # 骰子 3D 资源
+│   └── uploads/                # 用户上传文件
+├── core/                       # 核心引擎（不变）
+├── data/                       # 数据文件
+├── dnd_bot.py                  # 机器人主逻辑
+├── requirements.txt
+├── docker-compose.yml
+└── Dockerfile
+
+
+━━━ 四、阶段 0：基础整合（1-2天，立即可做）━━━ ✅ 已完成
+
+目标：官网门户能通过 http://localhost:5000 访问
+
+4.1 操作步骤：
+
+  1. 将 官网门户/index.html 复制到 web/templates/portal/index.html
+  2. 分离 CSS 到 static/portal/style.css
+  3. 分离 JS 到 static/portal/script.js
+  4. 在 app.py 添加路由：
+     @app.route('/')
+     def index():
+         return render_template('portal/index.html')
+  5. 添加 test4 路由：
+     @app.route('/test4')
+     def test4():
+         return render_template('test4.html')
+  6. 把 file:// 路径全部改为 url_for 或相对路径
+  7. 启动：python web/app.py → 访问 http://localhost:5000
+
+4.2 阶段 0 完工后能做什么：
+
+  ✅ 首页展示：核心功能卡片、冒险者酒馆板块列表、创意工坊精选、关于平台
+  ✅ 功能介绍页：6大功能卡片 + 详情介绍（含北境召唤卡 → test4）
+  ✅ 板块列表点击：展示模拟帖子列表（数据来自JS硬编码数组）
+  ✅ 面包屑导航：首页 » 功能介绍 » 详情
+  ✅ 创意工坊展示：精选卡片 + 详情
+  ✅ 登录/注册弹窗：弹窗正常，但仍基于 localStorage
+  ✅ test4 北境雪原：视频背景 + 雪花极光动画 + 品牌标识回跳
+  ✅ 页面样式：CSS完整保留
+  ✅ 左侧功能栏：展开/收起、导航高亮
+  ✅ 多设备可通过局域网访问 http://<IP>:5000
+
+  ✅ 多人访问数据互通（已解决：PostgreSQL 31 表，v5.2）
+  ✅ 注册/登录真实化（已解决：users 表 + scrypt 哈希，v5.0）
+  ✅ 社区真实发帖/回帖（已解决：5 板块社区，v5.1）
+  ✅ 首页卡片跳转真实工具页（已解决：功能导航直达各工具，v5.0）
+
+
+━━━ 五、阶段 1：数据库 + 用户系统（3-5天）━━━ ✅ 已完成（v5.0）
+
+目标：用户能真正注册/登录，门户和跑团平台共享登录状态
+
+5.1 技术选型：
+
+  后端：
+    ORM:      Flask-SQLAlchemy
+    密码:     werkzeug.security.generate_password_hash
+    会话:     Flask-Login（服务端session）
+
+5.2 数据库表（最小可用集）：
+
+  -- 用户表
+  CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username VARCHAR(64) UNIQUE NOT NULL,
+      email VARCHAR(128) UNIQUE NOT NULL,
+      password_hash VARCHAR(256) NOT NULL,
+      avatar_url VARCHAR(512),
+      bio TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 跑团统计
+  CREATE TABLE character_sheets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      name VARCHAR(128),
+      data_json TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 社区帖子
+  CREATE TABLE posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      board_slug VARCHAR(32),
+      user_id INTEGER REFERENCES users(id),
+      title VARCHAR(256),
+      content TEXT,
+      is_pinned BOOLEAN DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 回帖
+  CREATE TABLE replies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER REFERENCES posts(id),
+      user_id INTEGER REFERENCES users(id),
+      content TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 创意工坊
+  CREATE TABLE workshop_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      title VARCHAR(256),
+      category VARCHAR(32),
+      description TEXT,
+      file_path VARCHAR(512),
+      downloads INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE workshop_ratings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER REFERENCES workshop_items(id),
+      user_id INTEGER REFERENCES users(id),
+      score INTEGER CHECK(score BETWEEN 1 AND 5),
+      comment TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+5.3 实施步骤：
+
+  1. 添加 flask-sqlalchemy, flask-login 到 requirements.txt
+  2. 创建 web/models.py 定义所有表
+  3. 创建 web/auth.py（Blueprint）处理注册/登录/登出
+  4. 替换门户中所有 localStorage 模拟登录为真实后端调用
+  5. 门户和跑团应用共享 current_user（Flask-Login）
+
+5.4 阶段 1 完工后新增能力：
+
+  ✅ 用户注册 → 写入数据库 → 真实持久化
+  ✅ 用户登录 → 服务端验证密码 → Session维持
+  ✅ 同一账号在不同浏览器/设备登录
+  ✅ 门户和跑团工具共享登录状态
+  ✅ 退出登录清除服务端Session
+
+
+━━━ 六、阶段 2：社区系统（3-5天）━━━ ✅ 已实施 (2026-08-09，v5.2 加搜索/分页/点赞)
+
+目标：板块列表、发帖/回帖、面包屑导航全部真实化
+
+6.1 Flask蓝图路由：
+
+  /community                  → 冒险者酒馆首页（板块列表）
+  /community/board/<slug>     → 板块内帖子列表
+  /community/post/<id>        → 帖子详情 + 回复
+  /community/post/new         → 发帖编辑器
+  /community/search           → 全文搜索
+
+6.2 前端改造：
+
+  1. 面包屑不再硬编码，改为后端传入 breadcrumb 列表
+  2. renderBoard() 改为真实 HTTP 请求
+  3. 板块统计数据从数据库 COUNT 查询
+  4. 发帖/回帖通过表单 POST → 写入数据库 → 刷新列表
+
+6.3 阶段 2 完工后新增能力：
+
+  ✅ 真实发帖 → 存入数据库 → 所有人可见
+  ✅ 回帖功能 → 帖子下显示回复列表
+  ✅ 板块统计真实化（主题数/帖子数从DB查询）
+  ✅ 置顶帖 + 热门/新帖标签
+  ✅ 面包屑完整三级路径
+
+
+━━━ 七、阶段 3：创意工坊（3-5天）━━━ 🔶 部分实施 (2026-08-09；评分系统待做)
+
+目标：投稿/下载/评分完整的工坊系统
+
+7.1 路由：
+
+  /workshop                   → 工坊首页（分类+热门）
+  /workshop/item/<id>         → 项目详情
+  /workshop/submit            → 投稿页面
+  /workshop/my                → 我的投稿
+
+7.2 实施要点：
+
+  1. 文件上传：Flask request.files + secure_filename
+  2. 存储路径：web/uploads/workshop/
+  3. 文件大小限制：100MB（nginx client_max_body_size）
+  4. 下载计数器：每次点击 +1
+  5. 评分系统：1-5星 + 文字评论
+
+7.3 阶段 3 完工后新增能力（带 ⬜ 的为未完成项）：
+
+  ✅ 用户上传 .zip 扩展/地图包/皮肤等
+  ✅ 分类浏览 + 搜索筛选（v5.2 搜索/分页）
+  ✅ 附件下载
+  ⬜ 星级评分（1-5 星，未做）
+  ✅ 评论互动
+  ✅ 作者管理自己的投稿
+
+
+━━━ 八、阶段 4：门户与跑团平台深度连接（5-7天）━━━ 🔶 部分实施 (2026-08-09；房间身份深度绑定待做)
+
+这是核心连接层——让门户不仅是"宣传页"，而是真正的平台入口。
+
+8.1 统一导航
+
+  1. 门户和跑团应用顶部共享同一个导航栏
+  2. Jinja2 {% include 'nav.html' %} 实现
+  3. 导航栏根据登录状态显示不同内容
+
+8.2 功能卡片 → 真实页面跳转
+
+  ┌──────────────┬─────────────────────┬──────────────────┐
+  │   首页卡片    │      当前行为        │     改为          │
+  ├──────────────┼─────────────────────┼──────────────────┤
+  │ 3D 物理骰子   │ showFeatureDetail() │ 跳转 /dice3d     │
+  │ 战术地图      │ showFeatureDetail() │ 跳转 /map        │
+  │ 角色卡管理    │ showFeatureDetail() │ 跳转 /character  │
+  │ 战斗追踪      │ showFeatureDetail() │ 跳转 /combat     │
+  │ 资料库        │ showFeatureDetail() │ 跳转 /reference  │
+  │ 随机事件      │ showFeatureDetail() │ 跳转 /events     │
+  └──────────────┴─────────────────────┴──────────────────┘
+
+8.3 统一 Session 共享
+
+  1. 用户在门户登录 → 进入 /dice3d 掷骰 → 自动识别身份
+  2. 掷骰结果自动关联到用户账号
+  3. 角色卡归属于登录用户（不再靠 localStorage 区分）
+  4. 在线用户列表真实化（WebSocket 心跳 + DB 在线状态）
+
+8.4 导航栏入口整合
+
+  首页  |  功能介绍  |  冒险者酒馆  |  创意工坊  |  跑团工具 ▼
+                                                ├ 3D 掷骰
+                                                ├ 战术地图
+                                                ├ 角色卡
+                                                ├ 战斗追踪
+                                                ├ 随机事件
+                                                └ 资料库
+
+8.5 阶段 4 完工后新增能力（带 ⬜ 的为未完成项）：
+
+  ✅ 从门户首页点击功能卡片 → 直接进入对应工具页
+  ⬜ 工具页顶部统一导航（当前各工具页自带返回链接，未做统一导航栏）
+  ⬜ 登录状态全局共享（当前房间身份存 sessionStorage，与官网账号未深度绑定——
+     见《官网跑团平台探索北境优化方向分析》3.2 待办"服务端房间鉴权"）
+  ✅ 角色卡绑定用户账号（created_by 关联登录用户）
+  ✅ 在线用户列表真实化（心跳系统）
+
+
+━━━ 九、阶段 5：部署上线（2-3天）━━━ ⏳ 待做（当前 FRP 内网穿透运行中）
+
+9.1 方案A：轻量自托管
+
+  服务器:   阿里云/腾讯云 2C4G VPS
+  域名:     chenfengzhijuan.com
+  HTTPS:    Let's Encrypt 免费证书
+  部署:     Gunicorn + Nginx
+
+9.2 方案B：Docker部署（推荐团队协作）
+
+  docker-compose.yml 服务编排：
+    - web       (Flask + Gunicorn)
+    - nginx     (反向代理 + 静态资源)
+    - db        (PostgreSQL)
+    - redis     (Session存储，可选)
+
+9.3 方案C：免费托管
+
+  后端:     Railway / Render（免费额度）
+  数据库:   Supabase / PlanetScale（免费额度）
+  静态资源: 直接走Flask渲染，不分离部署
+
+9.4 Nginx配置示例：
+
+  server {
+      listen 80;
+      server_name chenfengzhijuan.com;
+
+      location / {
+          proxy_pass http://127.0.0.1:5000;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+      }
+
+      location /static/ {
+          alias /path/to/web/static/;
+          expires 30d;
+      }
+
+      location /uploads/ {
+          alias /path/to/web/uploads/;
+      }
+
+      client_max_body_size 100M;
+  }
+
+
+━━━ 十、团队协作建议 ━━━
+
+10.1 角色分工（3-4人团队）
+
+  ┌──────────────┬──────────────────┬───────────────────┐
+  │     角色      │      职责         │     涉及文件       │
+  ├──────────────┼──────────────────┼───────────────────┤
+  │ 后端A        │ Flask核心        │ app.py, models.py │
+  │              │ 数据库+API       │ api/*.py          │
+  ├──────────────┼──────────────────┼───────────────────┤
+  │ 后端B        │ 用户认证         │ auth.py           │
+  │              │ 社区+工坊        │ community.py      │
+  │              │                  │ workshop.py       │
+  ├──────────────┼──────────────────┼───────────────────┤
+  │ 前端         │ Jinja2模板       │ templates/        │
+  │              │ CSS+JS交互       │ static/           │
+  ├──────────────┼──────────────────┼───────────────────┤
+  │ 全栈/DevOps  │ 部署+CI/CD       │ Dockerfile        │
+  │              │ +测试            │ nginx.conf        │
+  │              │                  │ docker-compose.yml│
+  └──────────────┴──────────────────┴───────────────────┘
+
+10.2 协作工具
+
+  - Git 仓库（GitHub/Gitee）
+  - 分支策略：main → develop → feature/xxx
+  - Issue 跟踪功能模块开发进度
+  - Pull Request 代码审查
+
+10.3 每个阶段的Git分支建议
+
+  main
+    └── develop
+          ├── phase-0-portal-migration    # 阶段0
+          ├── phase-1-database-auth       # 阶段1
+          ├── phase-2-community           # 阶段2
+          ├── phase-3-workshop            # 阶段3
+          ├── phase-4-deep-integration    # 阶段4
+          └── phase-5-deployment          # 阶段5
+
+
+━━━ 附录A：各阶段投入时间估算 ━━━
+
+  阶段0  基础整合              1-2天    ██░░░░░░░░
+  阶段1  数据库+用户系统       3-5天    ██████░░░░
+  阶段2  社区系统              3-5天    ██████░░░░
+  阶段3  创意工坊              3-5天    ██████░░░░
+  阶段4  门户&平台深度连接     5-7天    █████████░
+  阶段5  部署上线              2-3天    ████░░░░░░
+  ─────────────────────────────────
+  合计                        17-27天
+
+  单人全职开发约1个月，3-4人团队约1.5-2周
+
+
+━━━ 附录B：阶段0执行后各功能状态一览 ━━━
+
+  ✅ 首页展示
+  ✅ 功能介绍页（含详情弹窗 + 北境召唤卡）
+  ✅ 板块列表展示（已真实化：v5.1 起为真实数据）
+  ✅ 面包屑导航
+  ✅ 创意工坊展示（已真实化：v5.1 起为真实数据）
+  ✅ 登录/注册弹窗（已真实化：v5.0 起对接真实 API）
+  ✅ test4北境雪原页面
+  ✅ 左侧功能栏
+  ✅ 页面样式完整保留
+  ✅ 局域网多设备可访问 http://<IP>:5000
+
+  以下遗留问题已全部解决（对应版本）：
+  ✅ 多人数据互通（v5.2 PostgreSQL 全量迁移）
+  ✅ 真实用户认证（v5.0 users 表 + scrypt 哈希）
+  ✅ 发帖/回帖功能（v5.1 冒险者酒馆真实化）
+  ✅ 功能卡片→真实工具页跳转（v5.0 功能导航直达）
+  ✅ 数据持久化（v5.2 PostgreSQL 31 表）

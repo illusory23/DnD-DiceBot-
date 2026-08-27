@@ -59,15 +59,16 @@ def _get_inverted() -> dict:
 # ━━━ 读取详情页 ━━━
 
 def _read_gbk(filepath: Path) -> str:
-    """读取GBK编码的HTML文件"""
-    for enc in ('gbk', 'gb2312', 'utf-8', 'gb18030'):
-        try:
-            with open(filepath, 'r', encoding=enc, errors='strict') as f:
-                return f.read()
-        except (UnicodeDecodeError, UnicodeError):
-            continue
-    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-        return f.read()
+    """读取 CHM HTML 文件（UTF-8 严格优先，回退 GBK）
+
+    怪物图鉴2014（5e 导入）为 UTF-8，CHM 提取为 GBK——GBK 解码宽松会
+    把 UTF-8 文件解成乱码，故必须 UTF-8 优先严格尝试。
+    """
+    raw = filepath.read_bytes()
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('gbk', errors='replace')
 
 
 def read_detail_page(rel_path: str) -> str | None:
@@ -354,6 +355,17 @@ def search_all(query: str) -> list[dict]:
 
     inverted = _get_inverted()
     fts = _get_fts()
+    spells_all = _get_spells()
+    monsters_all = _get_monsters()
+
+    def _lookup_detail_link(items, name):
+        """按名称在索引表中查详情页路径（倒排条目不含 detail_link）"""
+        for x in items:
+            if x.get('name_cn') == name or x.get('name') == name:
+                dl = x.get('detail_link', '')
+                if dl:
+                    return dl
+        return ''
 
     results = []
 
@@ -379,7 +391,7 @@ def search_all(query: str) -> list[dict]:
                     'material': entry.get('material', ''),
                     'ritual': entry.get('ritual', ''),
                     'concentration': entry.get('concentration', ''),
-                    'detail_link': entry.get('detail_link', ''),
+                    'detail_link': _lookup_detail_link(spells_all, entry_name),
                     'detail': f"{entry.get('level', '')} {entry.get('school', '')} {entry.get('classes', '')}",
                 })
             elif entry_type == 'monster':
@@ -387,6 +399,7 @@ def search_all(query: str) -> list[dict]:
                     'type': 'monster',
                     'name': entry_name,
                     'detail': f"CR:{entry.get('cr', '')} {entry.get('size', '')} {entry.get('type', '')}",
+                    'detail_link': _lookup_detail_link(monsters_all, entry_name),
                 })
             elif entry_type == 'doc':
                 path = entry.get('path', '')
@@ -404,12 +417,16 @@ def search_all(query: str) -> list[dict]:
                     'name': entry_name,
                 })
 
-    # 再在全文索引中搜索标题
+    # 再在全文索引中搜索标题/正文（多词 AND：空格/逗号分隔的每个词都须命中，
+    # 与不全书内置全文搜索一致）
     if len(results) < 10:
+        words = [w for w in re.split(r'[\s,，、;；]+', query_lower) if w]
+        if not words:
+            words = [query_lower]
         for path, entry in fts.items():
             title = entry.get('title', '').lower()
             snippet = entry.get('snippet', '').lower()
-            if query_lower in title or query_lower in snippet:
+            if all(w in title or w in snippet for w in words):
                 if not any(r.get('path') == path for r in results):
                     results.append({
                         'type': 'rule',
@@ -656,6 +673,7 @@ def search_all_combined(query: str) -> list[dict]:
             'school': s.get('school', ''),
             'classes': s.get('classes', ''),
             'source': s.get('source', ''),
+            'path': s.get('detail_link', ''),
         }))
 
     # 怪物搜索（自带评分排序，已排好）

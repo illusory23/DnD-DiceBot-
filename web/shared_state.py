@@ -33,6 +33,10 @@ _LAYER_IMG_DIR = Path(__file__).parent.parent / 'maps' / 'layers'
 _SAVE_DEBOUNCE = 3.0      # 秒，防抖窗口
 _SAVE_MAX_INTERVAL = 15.0  # 秒，持续修改时最长多久必须落盘一次
 
+# 图层孤儿恢复一次性标记：首次扫描恢复后创建，之后不再扫描——
+# 反复扫描会把"已删除图层残留文件"重新恢复为图层（重启后反复加载历史地图的根因）
+_RECOVERY_DONE_FLAG = _LAYER_IMG_DIR / '.recovery_done'
+
 _EMPTY_CANVAS = {
     'strokes': [],
     'layers': [],
@@ -129,13 +133,21 @@ def _load_layer_meta_from_backups() -> dict[int, dict]:
 
 
 def _recover_orphan_layer_images(layers: list) -> list:
-    """扫描 maps/layers/ 目录，恢复 JSON 中缺失引用的孤立图层图片。
+    """扫描 maps/layers/ 目录，恢复 JSON 中缺失引用的孤立图层图片（一次性）。
 
     场景：迁移后图片已落地为文件，但 shared_canvas.json 的 layers 被清空
     （如全量推送空列表覆盖），导致服务端"忘记"了图层。此函数重新发现这些
     文件并重建图层条目，同时从 backups/ 目录提取原始位置/缩放参数。
+
+    注意（2026-08-25 修复）：只执行一次（.recovery_done 标记）。
+    原实现每次启动都扫描恢复，删除图层后残留文件会被反复恢复——
+    表现为"重启进入地图反复加载 maps 文件夹中的历史地图"。恢复完成后
+    图层增删由删除逻辑同步维护磁盘文件（见 _remove_layer_files）。
     """
     if not _LAYER_IMG_DIR.exists():
+        return layers
+    # 一次性恢复标记：已执行过则跳过扫描（残留文件不再复活）
+    if _RECOVERY_DONE_FLAG.exists():
         return layers
     # 收集已有的 url 引用
     existing_urls = set()
@@ -186,7 +198,40 @@ def _recover_orphan_layer_images(layers: list) -> list:
             print(f'[shared_state] 恢复孤立图层: {f.name} → id={lid}')
     except OSError as e:
         print(f'[shared_state] 扫描 {_LAYER_IMG_DIR} 失败: {e}')
+    # 无论是否恢复成功都创建标记（幂等）——防止每次启动重复扫描目录
+    try:
+        _RECOVERY_DONE_FLAG.write_text(time.strftime('%Y-%m-%d %H:%M:%S'))
+    except Exception:
+        pass
     return layers + recovered
+
+
+def _remove_layer_files(urls) -> int:
+    """删除图层对应的外置图片文件（url 仅限 /maps/layers/，basename 防路径穿越）。
+
+    图层从状态中删除（op remove / 清空画布）时同步清理磁盘文件，
+    避免残留文件在重启时被恢复（反复加载历史地图的根因）。
+    全量替换路径（layers_update）不调用——多客户端下推送方视图可能不全，
+    保守保留文件（反正不会复活，仅占磁盘）。
+    """
+    removed = 0
+    for url in urls or []:
+        if not isinstance(url, str) or not url.startswith('/maps/layers/'):
+            continue
+        fname = url.rsplit('/', 1)[-1]
+        # 白名单：合法文件名 + 图片扩展名（防路径穿越/误删）
+        if not fname or fname in ('.', '..') or '/' in fname or '\\' in fname:
+            continue
+        if fname.lower().split('.')[-1] not in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+            continue
+        try:
+            fpath = _LAYER_IMG_DIR / fname
+            if fpath.is_file():
+                fpath.unlink()
+                removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 # ━━━ 磁盘读写 ━━━
@@ -315,6 +360,12 @@ def apply_incremental(key: str, items: list, removed_ids: list | None = None) ->
         for it in items or []:
             if isinstance(it, dict) and it.get('id') is not None:
                 existing[it['id']] = it
+        # 明确删除语义：同步删除被移除图层的磁盘文件（防残留 → 重启恢复循环）
+        if key == 'layers' and removed_ids:
+            _remove_layer_files(
+                it.get('url') for it in _shared_canvas[key]
+                if isinstance(it, dict) and it.get('id') in removed_ids
+            )
         for rid in removed_ids or []:
             existing.pop(rid, None)
         _shared_canvas[key] = list(existing.values())
@@ -395,6 +446,11 @@ def clear_shared_canvas() -> int:
     """清空全部画布内容（用户主动操作），立即落盘。返回新版本号。"""
     global _shared_canvas, _explicitly_cleared
     with _lock:
+        # 清空画布 = 图层全部废弃：同步删除全部图层文件（防残留 → 重启恢复循环）
+        _remove_layer_files(
+            l.get('url') for l in _shared_canvas.get('layers') or []
+            if isinstance(l, dict)
+        )
         for k in _EMPTY_CANVAS:
             _shared_canvas[k] = []
         _explicitly_cleared = True

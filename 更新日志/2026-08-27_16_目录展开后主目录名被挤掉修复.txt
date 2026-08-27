@@ -1,0 +1,23 @@
+2026-08-27_16_目录展开后主目录名被挤掉修复
+
+问题：
+展开主目录（如玩家手册2024）后，主目录名称消失看不见
+
+根因：
+子节点容器 kids 是 row（display:flex 横向布局）的子元素——展开后 kids 作为
+flex 项横向排在 arrow/icon/名称 右侧，把名称挤出可视区（row overflow:hidden 裁掉）
+
+修复（web/templates/reference.html）：
+- row 增加 flex-wrap:wrap；kids 设 flex-basis:100% —— 展开后子节点独占整行
+  （换行缩进显示），arrow/📁/名称 保持首行完整可见
+- label 加 min-width:0（flex 项可收缩，超出时省略号截断而非撑开）
+- 移除 row 上无效的 text-overflow:ellipsis（flex 容器不生效）
+
+验证：
+- JS node --check 通过
+- 布局走查：展开后首行 = ▾ + 📁 + 名称，子节点整行换行缩进 ✓
+
+涉及文件：
+- web/templates/reference.html
+
+需要重启服务器生效（模板改动）。

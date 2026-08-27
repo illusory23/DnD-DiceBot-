@@ -1,0 +1,19 @@
+2026-08-27_19_不全书搜索框加宽
+
+问题：
+不全书左侧搜索框太小
+
+根因：
+输入框在 flex 容器中（与 🔍 按钮同行），cf-input 的 width:100% 对 flex 项不生效，
+输入框只按浏览器默认宽度显示（约 170px），未占满剩余空间
+
+修复（web/templates/reference.html）：
+- 输入框加 style="flex:1;min-width:0" —— 在 flex 容器中占满按钮外的全部宽度
+
+验证：
+- JS node --check 通过
+
+涉及文件：
+- web/templates/reference.html
+
+需要重启服务器生效（模板改动）。

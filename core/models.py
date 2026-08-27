@@ -239,6 +239,7 @@ class Weapon(db.Model):
     damage_type = db.Column(db.String(50), default='')
     is_proficient = db.Column(db.Boolean, default=False)
     ammo = db.Column(db.String(50), default='')
+    weight = db.Column(db.Float, default=0)  # 重量（磅，负重计算用，v5.11）
     notes = db.Column(db.Text, default='')
     description = db.Column(db.Text, default='')
     effect = db.Column(db.Text, default='')
@@ -252,8 +253,11 @@ class Armor(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     character_id = db.Column(db.Integer, db.ForeignKey('characters.id', ondelete='CASCADE'), unique=True)
     armor_name = db.Column(db.String(100), default='')
+    armor_type = db.Column(db.String(20), default='')  # 护甲类型（轻型/中型/重型/盾，v5.11）
     armor_ac = db.Column(db.Integer, default=0)
     armor_max_dex = db.Column(db.String(20), default='')
+    armor_weight = db.Column(db.Float, default=0)  # 护甲重量（磅，负重计算用，v5.11）
+    description = db.Column(db.Text, default='')  # 护甲介绍（v5.11）
     shield_name = db.Column(db.String(100), default='')
     shield_ac = db.Column(db.Integer, default=0)
     shield_weight = db.Column(db.String(20), default='')

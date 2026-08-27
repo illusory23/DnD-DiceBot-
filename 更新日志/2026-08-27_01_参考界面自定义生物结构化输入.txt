@@ -1,0 +1,39 @@
+2026-08-27_01_参考界面自定义生物结构化分区输入.txt
+
+功能：
+参考界面（/reference）「自定义资料库 → 👹 生物」表单重构——原"字段按钮 + 单个详细数据 textarea"改为
+二级 Tab 分区结构化输入（参考角色卡交互），并新增编辑已有条目功能。
+
+五个分区：
+- 📋 基础：生物名*/英文名/挑战等级/体型/类型/传奇动作 + 新增 种族/阵营/信仰/性别
+- 💪 属性：HP（"22（5D8）"格式，创建为角色时按骰子自动投掷）+ 6 属性值分别输入（自动显示调整值）
+  + 身高/体重/速度/被动察觉
+- 🎯 熟练：18 技能 + 6 豁免，复用角色卡 skill-tag 交互——点击名称切换熟练/取消
+  （自动算加值 = 属性调整 + 2），点击加值弹窗修改最终值
+- ⚔️ 装备：AC + 装备/护甲文本 + 武器列表（名称/命中/伤害骰/伤害类型/描述，添加/删除）
+- ✨ 特性：种族特性/职业能力/专长/特殊能力 4 类词条（prompt 添加名称+描述、点击编辑、✕ 删除）
+
+实现：
+- 存储：monsters.json 条目扩展结构化字段（键名与角色卡一致：abilities / skill_proficiencies
+  中文键 / save_proficiencies 英文键 / features 英文分类）；detail_text 保存时由前端自动拼装
+  （CHM 词条格式），展示逻辑与旧 22 条条目零改动兼容
+- 保存：新增走 POST，编辑走 PUT（/api/custom/monsters?name=原名称，后端按旧名定位替换，
+  source 保留原值）；列表条目加 ✏️ 编辑按钮，数据加载回分区表单修改
+- 旧格式条目兼容：编辑时原 detail_text 自动放入「📄 详细数据补充」自由文本区，防止覆盖丢失；
+  底部补充区文本追加在自动生成的详细数据末尾
+- 后端：api_add_custom monsters 分支透传新字段；新增 api_update_custom（PUT，spells/items 同样生效）；
+  _custom_payload 补充返回结构化字段——「创建为角色」（/api/character/from-monster）优先使用
+  结构化 hp/ac/abilities，无需文本解析兜底
+
+验证：
+- 后端自动测试 22 项全部通过：POST 新增字段完整 / GET 列表 / GET /api/monster payload 结构化字段 /
+  PUT 编辑改名改属性改特性 / source 保留 / from-monster 创建角色 HP 按 5D8 投掷、AC=14、力量=18 智力=17 /
+  DELETE 清理 / 旧条目（哥布林）编辑后 detail_text 与 source 不丢
+- 测试数据已清理，monsters.json 22 条原样无污染
+- 前端内联 JS node --check 语法通过
+
+涉及文件：
+- web/templates/reference.html（分区表单 + 拼装 + 编辑按钮）
+- web/app.py（POST 字段透传 + 新增 PUT 接口 + _custom_payload 扩展）
+
+需要重启服务器生效（后端与模板均改动）。

@@ -1,0 +1,27 @@
+2026-08-27_23_词条路径规范化与目录交互分离
+
+一、搜索结果 Not Found 与灰色不可点击修复
+- 根因：
+  ① detail_link 是带前导 / 的绝对路径（/怪物图鉴2025/元素/火童.htm#Magmin）——
+    前端拼接后 /api/chm/content//... 双斜杠，pathlib 拼接绝对路径丢弃 base → 404
+  ② detail_link 含 #锚点（#Magmin）——拼接进路径后请求失败
+  ③ /api/search 去重按名称——同名"无 path"条目先加，带 path 条目被丢弃 → 灰色
+  ④ search_all_combined 的法术分支没有 path 字段
+- 修复：
+  ① 前端 chmOpenContent 路径规范化：去前导 /、去 #锚点（空路径直接返回）
+  ② /api/search _add 去重升级：同名已有无 path、新条目带 path → 替换升级
+  ③ search_all_combined 法术分支补 path=detail_link（法术可点击）
+- 验证：火童/火蛇/火球术搜索结果全部带 path；火童页（怪物图鉴2025）200
+
+二、目录节点交互分离（与内置版一致）
+- 有子词条且自身有页面的节点：
+  · 点击节点本身 → 打开自身词条页（不展开）
+  · 点击前面箭头（▸/▾）→ 仅展开/收起子词条
+- 纯目录节点（无自身页面）：点击节点 = 展开子词条
+
+涉及文件：
+- web/templates/reference.html（路径规范化 + 交互分离）
+- web/app.py（_add 去重升级）
+- core/chm_search.py（法术分支补 path）
+
+需要重启服务器生效（后端 + 模板）。

@@ -332,7 +332,8 @@ def cmd_death_save(args: str) -> tuple[str | None, str | None]:
     if not char:
         return None, "请先选择一个角色: .char use <名字>"
 
-    modifier = 0
+    # DND5e 规则：死亡豁免 = d20 + 体质调整值（DC 10）
+    modifier = (char.get('ability_mods') or {}).get('con') or 0
     result = roll_death_save(modifier)
     d20_roll = result.rolls[-1] if result.rolls else result.total
 

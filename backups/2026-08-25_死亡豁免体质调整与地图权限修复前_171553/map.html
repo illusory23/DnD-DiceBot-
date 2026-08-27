@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战术地图 — 尘封之卷</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+    <style>
+        :root {
+            --toolbar-h: 48px;
+            --toolbar-total: var(--toolbar-h);  /* JS 切换行数时更新 */
+        }
+        body { overflow: hidden; }
+
+        /* ━━ 工具栏（双行可折叠）━━ */
+        .map-toolbar {
+            position: fixed; top: 0; left: 0; right: 0;
+            background: var(--surface);
+            border-bottom: 2px solid var(--accent);
+            display: flex; flex-direction: column;
+            z-index: 200;
+        }
+        .toolbar-row {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0 0.75rem; height: var(--toolbar-h);
+            justify-content: space-between;
+            overflow-x: auto; overflow-y: hidden;
+        }
+        .toolbar-left, .toolbar-right {
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .toolbar-row-2 { border-top: 1px solid var(--border); }
+        .toolbar-row-2.collapsed { display: none; }
+        .map-toolbar .brand { font-weight: bold; color: var(--accent); margin-right: 0.15rem; text-decoration: none; font-size:0.75rem; }
+        .map-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 0.15rem; }
+        .nav-tab {
+            font-size: 0.8rem; padding: 0.3rem 0.55rem;
+        }
+        .toolbar-toggle {
+            padding: 0.2rem 0.45rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text-dim);
+            border-radius: 4px; cursor: pointer; font-size: 0.7rem;
+            transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+            margin-left: 0.15rem;
+        }
+        .toolbar-toggle:hover { background: var(--surface2); color: var(--text); }
+        .tool-btn {
+            padding: 0.3rem 0.6rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+            border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .tool-btn:hover { background: var(--surface2); }
+        .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .brush-color { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; padding: 0; }
+        .brush-size { width: 100px; }
+
+        /* ━━ 地图容器 ━━ */
+        .map-area {
+            position: fixed; top: var(--toolbar-total); left: 0; right: 0; bottom: 0;
+            background: #0a0a14; overflow: hidden;
+            transition: right 0.3s ease, bottom 0.2s;
+        }
+                .map-area.sidebar-open { right: 260px; }
+        .map-area.cursor-grab { cursor: grab; }
+        .map-area.cursor-grabbing { cursor: grabbing; }
+        .map-area.cursor-text { cursor: text; }
+        .map-area.cursor-brush { cursor: crosshair; }
+
+        .map-canvas-wrap {
+            position: absolute; transform-origin: 0 0;
+        }
+        canvas#map-canvas { display: block; }
+        canvas#draw-canvas {
+            position: absolute; top: 0; left: 0; display: block;
+            pointer-events: none;
+        }
+        canvas#fog-canvas {
+            position: absolute; top: 0; left: 0; display: block;
+            pointer-events: none;
+        }
+        .map-overlay {
+            position: absolute; top: 0; left: 0;
+            pointer-events: none;
+        }
+        .map-overlay > * { pointer-events: auto; }
+
+        /* ━━ 角色侧边栏 ━━ */
+        .char-sidebar {
+            position: fixed; top: var(--toolbar-h); right: -260px; bottom: 0;
+            width: 260px; background: var(--surface);
+            border-left: 2px solid var(--accent);
+            transition: right 0.3s ease; z-index: 150;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .char-sidebar.open { right: 0; }
+
+        /* 侧边栏标签页 */
+        .sidebar-tabs {
+            display: flex; align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding: 0;
+        }
+        .sidebar-tab {
+            flex: 1; padding: 0.6rem 0.4rem;
+            background: var(--bg); border: none; border-bottom: 2px solid transparent;
+            color: var(--text-dim); cursor: pointer; font-size: 0.8rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .sidebar-tab:hover { color: var(--text); background: var(--surface2); }
+        .sidebar-tab.active {
+            color: var(--gold); border-bottom-color: var(--accent);
+            background: var(--surface);
+        }
+        .sidebar-panel {
+            display: none; flex: 1; flex-direction: column; overflow: hidden;
+        }
+        .sidebar-panel.active { display: flex; }
+
+        .char-sidebar-header {
+            padding: 0.75rem 1rem; font-weight: bold; color: var(--gold);
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .char-sidebar-list {
+            flex: 1; overflow-y: auto; padding: 0.5rem;
+        }
+        .char-token-card {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.5rem; margin-bottom: 0.35rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; cursor: grab;
+            transition: all 0.15s; user-select: none;
+        }
+        .char-token-card:hover { border-color: var(--accent); background: var(--surface2); }
+        .char-token-card:active { cursor: grabbing; }
+        .char-token-card .token-thumb {
+            width: 40px; height: 40px; border-radius: 50%;
+            object-fit: cover; border: 2px solid var(--border);
+            background: var(--surface2);
+            flex-shrink: 0;
+        }
+        .char-token-card .token-thumb.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; color: var(--text-dim);
+        }
+        .char-token-card .token-info { flex: 1; min-width: 0; }
+        .char-token-card .token-name { font-weight: bold; font-size: 0.9rem; }
+        .char-token-card .token-meta { font-size: 0.75rem; color: var(--text-dim); }
+        .char-sidebar-hint {
+            padding: 0.5rem; font-size: 0.75rem; color: var(--text-dim);
+            text-align: center; border-top: 1px solid var(--border);
+        }
+
+        /* ━━ 地图上的角色标记 ━━ */
+        .map-token {
+            position: absolute; width: 48px; height: 48px;
+            border-radius: 50%; border: 3px solid var(--gold);
+            cursor: move; user-select: none;
+            background-size: cover; background-position: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .map-token.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(233,68,96,0.6); }
+        .map-token.multi-selected { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,188,212,0.5); }
+        .map-token.highlighted { border-color: var(--red); box-shadow: 0 0 14px rgba(244,67,54,0.7); }
+        @keyframes arrow-bounce {
+            0%, 100% { top: -22px; }
+            50% { top: -28px; }
+        }
+        .map-token .token-arrow {
+            position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid var(--red);
+            display: none; pointer-events: none; z-index: 10;
+        }
+        .map-token.highlighted .token-arrow {
+            display: block;
+            border-top-color: var(--red);
+            animation: arrow-bounce 1.2s ease-in-out infinite;
+        }
+        .map-token.selected .token-arrow {
+            display: block;
+            border-top-color: var(--accent);
+            animation: arrow-bounce 1.2s ease-in-out infinite;
+        }
+        .map-token .token-label {
+            position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            white-space: nowrap; font-size: 0.7rem; color: #fff;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8); margin-top: 2px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.55); padding: 1px 5px; border-radius: 3px;
+            line-height: 1.3;
+        }
+        .map-token .token-label .hp-mini { color: var(--red); font-size: 0.65rem; }
+
+        /* ━━ 左侧角色信息面板 ━━ */
+        .token-info-panel {
+            position: fixed; top: calc(var(--toolbar-total) + 0.5rem);
+            left: 0.5rem; width: 220px; max-height: calc(100vh - var(--toolbar-total) - 1rem);
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 8px; padding: 0.65rem; z-index: 180;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            display: none; overflow-y: auto; font-size: 0.78rem;
+        }
+        .token-info-panel.show { display: block; }
+        .token-info-panel .tip-header {
+            font-weight: bold; color: var(--accent); font-size: 0.9rem;
+            margin-bottom: 0.4rem; text-align: center;
+        }
+        .token-info-panel .tip-hp-bar {
+            height: 14px; background: var(--bg); border-radius: 7px;
+            overflow: hidden; margin-bottom: 0.4rem; position: relative;
+        }
+        .token-info-panel .tip-hp-fill {
+            height: 100%; background: linear-gradient(90deg, var(--red), var(--green));
+            border-radius: 7px; transition: width 0.3s;
+        }
+        .token-info-panel .tip-hp-text {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            font-size: 0.65rem; font-weight: bold; color: #fff;
+            line-height: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .token-info-panel .tip-abilities {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+            margin-bottom: 0.4rem;
+        }
+        .token-info-panel .tip-ab {
+            text-align: center; background: var(--bg); border-radius: 3px;
+            padding: 0.15rem 0; font-size: 0.65rem;
+        }
+        .token-info-panel .tip-ab .abn { color: var(--text-dim); font-size: 0.55rem; }
+        .token-info-panel .tip-ab .abs { font-weight: bold; color: var(--gold); font-size: 0.75rem; }
+        .token-info-panel .tip-ab .abm { color: var(--cyan); font-size: 0.6rem; }
+        .token-info-panel .tip-section {
+            margin-bottom: 0.3rem; border-top: 1px solid var(--border); padding-top: 0.3rem;
+        }
+        .token-info-panel .tip-section-title {
+            font-weight: bold; color: var(--gold); font-size: 0.7rem; margin-bottom: 0.15rem;
+        }
+        .token-info-panel .tip-item {
+            font-size: 0.65rem; color: var(--text-dim); line-height: 1.5;
+        }
+        .map-token .token-resize {
+            position: absolute; bottom: -8px; right: -8px;
+            width: 16px; height: 16px; background: var(--accent);
+            border-radius: 50%; cursor: nwse-resize; display: none;
+        }
+        .map-token.selected .token-resize { display: block; }
+        .map-token .token-rotate {
+            position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+            width: 14px; height: 14px; background: var(--gold);
+            border-radius: 50%; cursor: grab; display: none;
+            border: 2px solid var(--accent); z-index: 5;
+        }
+        .map-token.selected .token-rotate { display: block; }
+        .map-token .token-rotate:active { cursor: grabbing; }
+        .map-token .token-rotate-line {
+            position: absolute; top: -6px; left: 50%;
+            width: 2px; height: 10px; background: var(--gold);
+            transform: translateX(-50%); display: none;
+        }
+        .map-token.selected .token-rotate-line { display: block; }
+
+        /* ━━ 死亡标识（HP<=0 倒地） ━━ */
+        .map-token .token-dead-mark {
+            position: absolute; top: -16px; left: -10px;
+            font-size: 1.05rem; line-height: 1; z-index: 12;
+            display: none; pointer-events: none;
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.9));
+            animation: deadPulse 1.4s ease-in-out infinite;
+        }
+        .map-token .token-dead-mark.show { display: block; }
+        @keyframes deadPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.18); }
+        }
+
+        /* ━━ 攻击按钮（选中其他角色时显示） ━━ */
+        .map-token .token-attack-btn {
+            position: absolute; top: -14px; right: -10px;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, #ff5f5f, #c0392b);
+            border: 2px solid #fff; color: #fff; font-size: 0.82rem;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 13; user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65), 0 0 0 2px rgba(192,57,43,0.35);
+            transition: transform 0.12s ease;
+        }
+        .map-token .token-attack-btn:hover { transform: scale(1.2); }
+        .map-token .token-attack-btn:active { transform: scale(0.95); }
+
+        /* ━━ 治疗按钮（token 左上角，选中其他角色时显示） ━━ */
+        .map-token .token-heal-btn {
+            position: absolute; top: -14px; left: -10px;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, #6fd98b, #27ae60);
+            border: 2px solid #fff; color: #fff; font-size: 0.82rem;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 13; user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65), 0 0 0 2px rgba(39,174,96,0.35);
+            transition: transform 0.12s ease;
+        }
+        .map-token .token-heal-btn:hover { transform: scale(1.2); }
+        .map-token .token-heal-btn:active { transform: scale(0.95); }
+
+        /* ━━ 删除按钮（token 正下方，红色圆形叉，选中且权限允许时显示） ━━ */
+        .map-token .token-del-btn {
+            position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, #ff5f5f, #c0392b);
+            border: 2px solid #fff; color: #fff; font-size: 0.78rem; font-weight: bold;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 13; user-select: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65), 0 0 0 2px rgba(192,57,43,0.35);
+            transition: transform 0.12s ease; line-height: 1;
+        }
+        .map-token .token-del-btn:hover { transform: translateX(-50%) scale(1.2); }
+        .map-token .token-del-btn:active { transform: translateX(-50%) scale(0.95); }
+
+        /* ━━ 选择框 ━━ */
+        .selection-rect {
+            position: absolute;
+            border: 2px dashed var(--cyan);
+            background: rgba(0, 188, 212, 0.08);
+            pointer-events: none; z-index: 100;
+        }
+
+        /* ━━ 选择模式下拉菜单 ━━ */
+        .select-dropdown-wrap {
+            position: relative; display: inline-flex;
+        }
+        .select-dropdown-btn {
+            padding: 0.3rem 0.6rem; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+            border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+            transition: all 0.15s; white-space: nowrap;
+            display: flex; align-items: center; gap: 0.25rem;
+            min-width: 0; overflow: hidden;
+        }
+        .select-dropdown-btn:hover { background: var(--surface2); }
+        .select-dropdown-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .select-dropdown-btn .arrow { font-size: 0.6rem; margin-left: 0.15rem; }
+        .select-dropdown-menu {
+            display: none; position: fixed;
+            margin-top: 0; background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 4px; z-index: 300; min-width: 130px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); overflow: hidden;
+        }
+        .select-dropdown-menu.show { display: block; }
+        .select-dropdown-menu .menu-item {
+            padding: 0.45rem 0.75rem; cursor: pointer; font-size: 0.82rem;
+            color: var(--text); transition: background 0.15s;
+            white-space: nowrap; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .select-dropdown-menu .menu-item:hover { background: var(--surface2); }
+        .select-dropdown-menu .menu-item.checked { color: var(--gold); }
+        .select-dropdown-menu .menu-item.checked::before { content: '✓ '; font-weight: bold; }
+
+        /* ━━ 浮动掷骰按钮 ━━ */
+        .dice-float-btn {
+            position: fixed; bottom: 1rem; right: 1rem;
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--accent); color: #fff; border: 2px solid var(--gold);
+            font-size: 1.4rem; cursor: pointer; z-index: 190;
+            box-shadow: 0 4px 16px rgba(233,68,96,0.4);
+            transition: transform 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .dice-float-btn:hover { transform: scale(1.1); }
+
+        /* ━━ 掷骰弹窗 ━━ */
+        .dice-popup {
+            display: none; position: fixed; bottom: 50px; right: 1rem;
+            width: 500px; max-height: 620px; background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 12px; z-index: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            flex-direction: column; overflow: hidden;
+        }
+        .dice-popup.show { display: flex; }
+        .dice-popup-header {
+            padding: 8px 12px; background: var(--accent); color: #fff;
+            font-weight: bold; font-size: 0.9rem; display: flex;
+            justify-content: space-between; align-items: center;
+            cursor: move; user-select: none; flex-shrink: 0;
+        }
+        .dice-popup-body { padding: 10px 12px; overflow-y: auto; flex: 1; }
+        .dicepop-result {
+            min-height: 28px; font-weight: bold; color: var(--cyan);
+            font-size: 1rem; text-align: center; padding: 6px;
+            background: var(--bg); border-radius: 6px;
+        }
+        /* ━━ CSS 骰子动画 ━━ */
+        .dice-anim-area {
+            display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+            padding: 8px 0; min-height: 60px; align-items: center;
+        }
+        .dice-face {
+            width: 42px; height: 42px; border-radius: 8px;
+            background: #faf6ef; border: 2px solid #2c1810;
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 4px; gap: 1px;
+            transition: transform 0.2s;
+        }
+        .dice-face.rolling {
+            animation: diceShake 0.12s infinite;
+        }
+        @keyframes diceShake {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(15deg) scale(1.08); }
+            50% { transform: rotate(-10deg) scale(0.95); }
+            75% { transform: rotate(5deg) scale(1.05); }
+            100% { transform: rotate(0deg) scale(1); }
+        }
+        .dice-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2c1810; margin: auto;
+        }
+        .dice-dot.hidden-dot { visibility: hidden; }
+        .dice-result-text { font-size: 0.75rem; color: var(--text-dim); text-align: center; margin-top: 2px; }
+        .dice-total-badge {
+            display: inline-block; background: var(--accent); color: #fff;
+            padding: 3px 12px; border-radius: 12px; font-size: 0.9rem;
+            font-weight: bold; margin-top: 4px; animation: popIn 0.3s ease;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .dice-popup .dice-quick { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+        .dice-popup .dice-quick button {
+            padding: 0.2rem 0.4rem; font-size: 0.72rem;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 3px; color: var(--text); cursor: pointer;
+        }
+        .dice-popup .dice-quick button:hover { background: var(--accent); color: #fff; }
+        .dice-popup .adv-toggle-mini { display: flex; gap: 0; }
+        .dice-popup .adv-toggle-mini button {
+            padding: 0.2rem 0.5rem; font-size: 0.75rem;
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; flex: 1;
+        }
+        .dice-popup .adv-toggle-mini button:first-child { border-radius: 3px 0 0 3px; }
+        .dice-popup .adv-toggle-mini button:last-child { border-radius: 0 3px 3px 0; }
+        .dice-popup .adv-toggle-mini button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* ━━ 攻击掷骰弹窗（独立3D物理掷骰小界面） ━━ */
+        .attack-popup {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 460px; max-width: 94vw; max-height: 86vh;
+            background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 12px; z-index: 600;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+            flex-direction: column; overflow: hidden;
+        }
+        .attack-popup.show { display: flex; }
+        .attack-popup-header {
+            padding: 8px 12px; background: var(--accent); color: #fff;
+            font-weight: bold; font-size: 0.9rem; display: flex;
+            justify-content: space-between; align-items: center;
+            cursor: move; user-select: none; flex-shrink: 0;
+        }
+        .attack-popup-body { padding: 10px 12px; overflow-y: auto; }
+        .attack-popup-body select,
+        .attack-popup-body input {
+            width: 100%; padding: 0.35rem; background: var(--bg);
+            border: 1px solid var(--border); border-radius: 4px;
+            color: var(--gold); font-size: 0.8rem; margin-bottom: 6px;
+        }
+        .attack-popup .attack-dice-config { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+        .attack-popup .attack-dice-config.damage3 { grid-template-columns: 1fr 1fr 1fr; }
+        .attack-popup .attack-dice-config label { display: block; font-size: 0.75rem; color: var(--text-dim); }
+        .attack-popup .attack-dice-config select,
+        .attack-popup .attack-dice-config input { margin: 3px 0 0; }
+        .attack-popup .adv-toggle-mini { display: flex; gap: 0; margin-bottom: 6px; }
+        .attack-popup .adv-toggle-mini button {
+            padding: 0.2rem 0.5rem; font-size: 0.75rem;
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; flex: 1;
+        }
+        .attack-popup .adv-toggle-mini button:first-child { border-radius: 3px 0 0 3px; }
+        .attack-popup .adv-toggle-mini button:last-child { border-radius: 0 3px 3px 0; }
+        .attack-popup .adv-toggle-mini button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .attack-popup .attack-3d-toggle {
+            padding: 0.25rem 0.6rem; font-size: 0.75rem;
+            background: var(--accent); color: #fff;
+            border: 1px solid var(--gold); border-radius: 4px;
+            cursor: pointer; white-space: nowrap;
+        }
+        .attack-popup .attack-3d-toggle.off {
+            background: var(--surface2); color: var(--text);
+            border-color: var(--border);
+        }
+        .attack-popup .attack-main-btn {
+            flex: 1; padding: 0.45rem 0.6rem; border: none; border-radius: 6px;
+            color: #fff; cursor: pointer; font-size: 0.88rem; font-weight: bold;
+            background: linear-gradient(135deg, #e6c57f, #c9973a);
+            color: #241703;
+        }
+        .attack-popup .attack-main-btn.dmg {
+            background: linear-gradient(135deg, #ff6b6b, #c0392b);
+            color: #fff;
+        }
+        .attack-popup .attack-main-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* ━━ 攻击方式选择弹窗（先选武器/法术，再进入命中掷骰） ━━ */
+        .attack-picker-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .attack-picker-tabs button {
+            flex: 1; padding: 0.35rem; font-size: 0.82rem;
+            background: var(--bg); border: none; color: var(--text-dim); cursor: pointer;
+        }
+        .attack-picker-tabs button.active { background: var(--accent); color: #fff; }
+        .attack-source-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .attack-source-item {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            padding: 0.4rem 0.55rem; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; cursor: pointer; font-size: 0.8rem; color: var(--text);
+        }
+        .attack-source-item:hover { border-color: var(--accent); background: var(--surface2); }
+        .attack-source-item .src-name { font-weight: bold; color: var(--gold); }
+        .attack-source-item .src-meta { color: var(--text-dim); font-size: 0.72rem; }
+        .attack-source-empty { text-align: center; color: var(--text-dim); font-size: 0.78rem; padding: 1rem 0; }
+        .attack-free-btn {
+            width: 100%; margin-top: 8px; padding: 0.4rem; background: var(--surface2);
+            border: 1px dashed var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 0.78rem; cursor: pointer;
+        }
+        .attack-free-btn:hover { border-color: var(--accent); color: var(--gold); }
+
+        /* ━━ 缩放指示器 ━━ */
+        .zoom-indicator {
+            position: fixed; bottom: 60px; right: 1rem;
+            background: rgba(0,0,0,0.7); color: var(--text-dim);
+            padding: 0.25rem 0.6rem; border-radius: 4px;
+            font-size: 0.8rem; pointer-events: none; z-index: 50;
+        }
+
+        /* ━━ 图层管理面板 ━━ */
+        .layer-panel {
+            position: fixed; top: var(--toolbar-total); left: 0.5rem; width: 200px;
+            max-height: 40vh; background: var(--surface); border: 2px solid var(--accent);
+            border-radius: 8px; z-index: 190; display: none; flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-size: 0.75rem;
+        }
+        .layer-panel.show { display: flex; }
+        .layer-panel-header {
+            padding: 0.4rem 0.5rem; font-weight: bold; color: var(--gold);
+            border-bottom: 1px solid var(--border); display: flex;
+            justify-content: space-between; align-items: center; font-size: 0.8rem;
+        }
+        .layer-panel-list { flex: 1; overflow-y: auto; padding: 0.3rem; }
+        .layer-item {
+            display: flex; align-items: center; gap: 0.25rem; padding: 0.3rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer;
+        }
+        .layer-item:hover { border-color: var(--gold); }
+        .layer-item.active { border-color: var(--accent); background: var(--surface2); }
+        .layer-item .layer-name {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; font-size: 0.72rem; color: var(--text);
+        }
+        .layer-item .layer-name input {
+            width: 100%; padding: 0.1rem 0.2rem; background: var(--bg);
+            border: 1px solid var(--accent); border-radius: 2px;
+            color: var(--text); font-size: 0.72rem;
+        }
+        .layer-item .layer-btn {
+            background: var(--surface2); border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 0.6rem; padding: 0.15rem 0.25rem; border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .layer-item .layer-btn:hover { background: var(--accent); color: #fff; }
+        .layer-panel-footer { padding: 0.3rem; border-top: 1px solid var(--border); }
+        .layer-panel-footer button {
+            width: 100%; padding: 0.25rem; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text); cursor: pointer; font-size: 0.75rem;
+        }
+        .layer-panel-footer button:hover { background: var(--accent); color: #fff; }
+
+        /* ━━ 存档下拉菜单 ━━ */
+        #save-dropdown-menu { min-width: 220px; }
+        #save-dropdown-menu .save-divider {
+            border-top: 1px solid var(--border); margin: 0.2rem 0;
+        }
+        #save-dropdown-menu .save-section-label {
+            padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--text-dim);
+            pointer-events: none;
+        }
+        #save-list-items .save-entry {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.6rem; cursor: default; font-size: 0.78rem;
+            color: var(--text); transition: background 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        #save-list-items .save-entry:hover { background: var(--surface2); }
+        #save-list-items .save-entry.active { background: rgba(233,68,96,0.12); }
+        #save-list-items .save-entry .save-name {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        #save-list-items .save-entry .save-name .active-dot {
+            color: var(--green); font-size: 0.6rem; margin-right: 0.2rem;
+        }
+        #save-list-items .save-entry .save-action {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; font-size: 0.6rem;
+            padding: 0.1rem 0.3rem; border-radius: 3px; flex-shrink: 0;
+        }
+        #save-list-items .save-entry .save-action:hover { background: var(--accent); color: #fff; }
+        #save-list-items .save-entry .save-action.delete:hover { background: var(--red); }
+        #save-list-items .save-entry .save-action.switch { color: var(--gold); font-size: 0.65rem; }
+        #save-list-items .save-entry .save-action.switch:hover { background: var(--gold); color: #000; }
+        #save-list-items .save-entry .save-action.save-overwrite { color: var(--cyan); }
+        #save-list-items .save-entry .save-action.save-overwrite:hover { background: var(--cyan); color: #000; }
+        #save-btn.has-active { border-color: var(--green); }
+        #save-btn .save-name-badge {
+            max-width: 80px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: inline-block; vertical-align: middle; color: var(--green);
+        }
+
+        /* 服务端存档列表 (复用 save-entry 结构) */
+        #server-save-list .save-entry {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.3rem 0.6rem; cursor: default; font-size: 0.75rem;
+            color: var(--text); transition: background 0.15s;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        #server-save-list .save-entry:hover { background: var(--surface2); }
+        #server-save-list .save-entry .save-name {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            cursor: pointer; color: var(--gold);
+        }
+        #server-save-list .save-entry .save-action {
+            background: none; border: 1px solid var(--border); border-radius: 3px;
+            color: var(--text-dim); cursor: pointer; font-size: 0.6rem; padding: 1px 6px;
+            flex-shrink: 0;
+        }
+        #server-save-list .save-entry .save-action.delete { color: var(--red); }
+        #server-save-list .save-entry .save-action.delete:hover { background: var(--red); color: #fff; }
+
+        /* ━━ 聊天面板 ━━ */
+        .chat-panel {
+            position: fixed; left: 0; top: var(--toolbar-total); bottom: 0;
+            width: 280px; background: var(--surface); border-right: 2px solid var(--accent);
+            z-index: 199; display: flex; flex-direction: column;
+            transform: translateX(-280px); transition: transform 0.3s ease;
+        }
+        .chat-panel.open { transform: translateX(0); }
+        .chat-toggle {
+            position: fixed; left: 0; top: calc(var(--toolbar-total) + 10px);
+            width: 32px; height: 90px; background: var(--accent); border: none;
+            border-radius: 0 10px 10px 0; color: #fff; cursor: pointer; z-index: 200;
+            font-size: 16px; font-weight: bold; line-height: 1.3;
+            transition: left 0.3s ease; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            writing-mode: horizontal-tb; letter-spacing: 0;
+            padding: 6px 4px; gap: 2px;
+        }
+        .chat-panel.open ~ .chat-toggle,
+        .chat-toggle.shifted { left: 280px; }
+        .chat-header {
+            padding: 8px 10px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+        }
+        .chat-header b { color: var(--gold); font-size: 0.85rem; flex: 1; }
+        .chat-header button {
+            background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem;
+        }
+        .chat-user-row {
+            padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px;
+        }
+        .chat-user-row {
+            padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px; flex-wrap: wrap;
+        }
+        .chat-user-row input {
+            flex: 1; min-width: 80px; padding: 5px 8px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.8rem;
+        }
+        .chat-user-row input:focus { border-color: var(--accent); outline: none; }
+        .chat-user-row .color-picker-wrap {
+            position: relative; display: flex; align-items: center;
+        }
+        .chat-user-row .color-btn {
+            width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+            cursor: pointer; padding: 0; flex-shrink: 0; transition: all 0.15s;
+        }
+        .chat-user-row .color-btn:hover { border-color: #fff; transform: scale(1.15); }
+        .chat-user-row .color-palette {
+            display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
+            background: var(--surface); border: 2px solid var(--accent); border-radius: 8px;
+            padding: 6px; z-index: 500; gap: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .chat-user-row .color-palette.show { display: flex; flex-wrap: wrap; width: 140px; }
+        .chat-user-row .color-swatch {
+            width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: all 0.15s;
+        }
+        .chat-user-row .color-swatch:hover { border-color: #fff; transform: scale(1.2); }
+        .chat-user-row .color-swatch.selected { border-color: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+        .chat-user-row button {
+            padding: 5px 10px; background: var(--accent); border: none; border-radius: 4px;
+            color: #fff; cursor: pointer; font-size: 0.75rem; white-space: nowrap;
+        }
+        .chat-msgs {
+            flex: 1; overflow-y: auto; padding: 6px 8px;
+            display: flex; flex-direction: column; gap: 3px;
+        }
+        .chat-msg {
+            font-size: 0.78rem; line-height: 1.4; padding: 3px 6px;
+            background: var(--bg); border-radius: 6px; word-break: break-word;
+        }
+        .chat-msg .cm-time { color: var(--text-dim); font-size: 0.65rem; margin-right: 4px; }
+        .chat-msg .cm-name { font-weight: bold; }
+        .chat-msg .cm-text { color: var(--text); }
+        .chat-msg.system { text-align: center; color: var(--text-dim); font-size: 0.7rem; background: transparent; font-style: italic; }
+        .chat-input-row {
+            padding: 6px 8px; border-top: 1px solid var(--border); flex-shrink: 0;
+            display: flex; gap: 4px;
+        }
+        .chat-input-row input {
+            flex: 1; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; color: var(--text); font-size: 0.8rem;
+        }
+        .chat-input-row input:focus { border-color: var(--accent); outline: none; }
+        .chat-input-row button {
+            padding: 6px 12px; background: var(--accent); border: none; border-radius: 4px;
+            color: #fff; cursor: pointer; font-size: 0.8rem;
+        }
+        /* 聊天面板打开时：右推其他面板，不推地图 */
+        .chat-panel.open ~ .chat-toggle,
+        .chat-toggle.shifted { left: 280px; }
+
+        /* ━━ @提及通知弹窗 ━━ */
+        .mention-toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #1a1a2e, #2a1a3e);
+            border: 2px solid var(--gold); border-radius: 12px;
+            padding: 14px 20px; z-index: 1000;
+            box-shadow: 0 8px 32px rgba(255,215,0,0.3);
+            display: none; align-items: center; gap: 12px;
+            animation: mentionSlideIn 0.4s ease;
+            cursor: pointer; max-width: 500px;
+        }
+        .mention-toast.show { display: flex; }
+        @keyframes mentionSlideIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .mention-toast .mention-icon { font-size: 2rem; animation: mentionPulse 0.6s infinite alternate; }
+        @keyframes mentionPulse { from { transform: scale(1); } to { transform: scale(1.2); } }
+        .mention-toast .mention-body { flex: 1; }
+        .mention-toast .mention-title { color: var(--gold); font-weight: bold; font-size: 0.95rem; }
+        .mention-toast .mention-detail { color: var(--text-dim); font-size: 0.8rem; margin-top: 2px; }
+        .mention-toast .mention-close {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 1.2rem; padding: 4px;
+        }
+        .mention-toast .mention-close:hover { color: var(--red); }
+
+        /* @提及高亮 */
+        .cm-text .mention { color: var(--gold); font-weight: bold; background: rgba(255,215,0,0.1); padding: 0 2px; border-radius: 2px; }
+
+        /* ━━ 资源库操作按钮 ━━ */
+        .res-action-btn {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text-dim); cursor: pointer; font-size: 0.65rem;
+            padding: 0.2rem 0.4rem; border-radius: 3px; flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .res-action-btn:hover { background: var(--accent); color: #fff; }
+        .res-action-btn.delete:hover { background: var(--red); }
+        .res-action-btn.load-map { color: var(--cyan); }
+        .res-action-btn.load-map:hover { background: var(--cyan); color: #000; }
+
+        /* 地图侧边栏角色分组 */
+        .map-char-group {
+            margin-bottom: 0.25rem;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .map-group-header {
+            display: flex; align-items: center; gap: 0.3rem;
+            padding: 0.3rem 0.4rem;
+            background: var(--surface2);
+            cursor: pointer; user-select: none;
+            font-size: 0.75rem; font-weight: bold;
+            color: var(--gold); transition: background 0.15s;
+        }
+        .map-group-header:hover { background: #1a4a7a; }
+        .map-group-header.collapsed { border-radius: 5px; }
+        .map-group-arrow {
+            font-size: 0.5rem; transition: transform 0.2s;
+            color: var(--text-dim); width: 8px;
+        }
+        .map-group-name { flex: 1; }
+        .map-group-body { padding: 0.15rem 0.2rem; }
+
+        /* ━━ 骰子统计排行榜面板 ━━ */
+        .stats-panel{position:fixed;right:0;top:56px;bottom:0;width:260px;background:var(--surface);border-left:2px solid var(--accent);z-index:198;transform:translateX(260px);transition:transform 0.3s ease;display:flex;flex-direction:column;overflow-y:auto;}
+        .stats-panel.open{transform:translateX(0);}
+        .stats-toggle{position:fixed;right:0;top:66px;width:28px;height:80px;background:var(--gold);border:none;border-radius:8px 0 0 8px;color:#000;cursor:pointer;z-index:199;font-size:12px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:right 0.3s ease;padding:4px 2px;line-height:1.2;}
+        .stats-panel.open~.stats-toggle{right:260px;}
+        .stats-header{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:bold;color:var(--gold);font-size:0.85rem;position:sticky;top:0;background:var(--surface);z-index:1;}
+        .stats-row{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:0.75rem;transition:background 0.15s;}
+        .stats-row:hover{background:var(--surface2);}
+        .stats-rank{width:22px;text-align:center;font-weight:bold;color:var(--text-dim);}
+        .stats-rank.gold{color:#ffd700;}
+        .stats-rank.silver{color:#c0c0c0;}
+        .stats-rank.bronze{color:#cd7f32;}
+        .stats-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .stats-num{min-width:36px;text-align:right;font-weight:bold;}
+        .stats-num.green{color:var(--green);}
+        .stats-num.red{color:var(--red);}
+        .stats-rate{min-width:44px;text-align:right;color:var(--text-dim);font-size:0.7rem;}
+
+</style>
+    <style>
+        #join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+        #join-overlay.hidden{display:none;}
+        .join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+        .join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+        .join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+        .join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+        .join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+        .join-card input:focus{border-color:var(--accent);outline:none;}
+        .join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;position:relative;}
+        .join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+        .join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+        .join-card .join-color-palette{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+        .join-card .join-color-palette.show{display:flex;}
+        .join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+        .join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+        .join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+        .join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+        .join-card .join-btn:hover{opacity:0.9;}
+        .join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+        .join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+    </style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+</head>
+<body>
+<div id="join-overlay"><div class="join-card"><h2>🎲 欢迎来到 尘封之卷</h2><div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div><div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div><input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done"><div class="color-row"><span>ID颜色：</span><button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button><div class="join-color-palette" id="join-color-palette"></div></div><div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;"><label style="color:var(--gold);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="DM" id="join-role-dm"> 👑 DM</label><label style="color:var(--text);font-size:0.85rem;cursor:pointer;"><input type="radio" name="join-role" value="PL" id="join-role-pl" checked> 🎭 PL</label></div><button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button><div class="error-msg" id="join-error"></div></div></div>
+    <!-- 工具栏（双行可折叠，左右分区） -->
+    <div class="map-toolbar">
+        <!-- 第一行：绘图和功能工具（始终可见） -->
+        <div class="toolbar-row toolbar-row-1">
+            <div class="toolbar-left">
+                <a href="/" class="brand" id="map-brand"><svg viewBox="0 0 100 100" width="12" height="12" style="vertical-align:middle;margin-right:1px;" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+                <span class="sep"></span>
+                <div class="select-dropdown-wrap" id="select-dropdown-wrap">
+                    <button class="select-dropdown-btn active" id="select-btn" onclick="toggleSelectDropdown()" title="选择工具">
+                        🖱 选择<span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="select-dropdown-menu">
+                        <div class="menu-item checked" data-mode="single" onclick="setSelectMode('single')">🖱 单体选择</div>
+                        <div class="menu-item" data-mode="box" onclick="setSelectMode('box')">⬜ 框选</div>
+                    </div>
+                </div>
+                <button class="tool-btn" data-tool="brush" onclick="setTool('brush')" title="画笔 (B)">✏️ 画笔</button>
+                <button class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" title="橡皮 (E)">🧹 橡皮</button>
+                <button class="tool-btn" data-tool="fill" onclick="setTool('fill')" title="填充 (F)">🪣 填充</button>
+                <div class="select-dropdown-wrap" id="fog-dropdown-wrap">
+                    <button class="select-dropdown-btn" id="fog-btn" onclick="toggleFogDropdown()" title="战争迷雾">
+                        🌫 迷雾<span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="fog-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" data-mode="draw" onclick="setFogMode('draw')">✏️ 绘制迷雾</div>
+                        <div class="menu-item" data-mode="erase" onclick="setFogMode('erase')">🧽 擦除迷雾</div>
+                        <div class="menu-item" data-mode="show" onclick="setFogMode('show')">👁 启用迷雾</div>
+                        <div class="menu-item" data-mode="hide" onclick="setFogMode('hide')">🚫 隐藏迷雾</div>
+                        <div class="menu-item" data-mode="delete" onclick="setFogMode('delete')">🗑 删除迷雾</div>
+                    </div>
+                </div>
+                <button class="tool-btn" data-tool="text" onclick="setTool('text')" title="文字 (T)">🔤 文字</button>
+                <span class="sep"></span>
+                <input type="color" class="brush-color" id="brush-color" value="#ff0000" title="画笔颜色" onchange="updateBrush()">
+                <input type="range" class="brush-size" id="brush-size" min="1" max="1000" value="3" title="画笔大小" onchange="updateBrush()">
+                <span class="sep"></span>
+                <button class="tool-btn" onclick="importImage()">🖼 导入</button>
+                <button class="tool-btn" onclick="showServerMaps()">📂 地图</button>
+                <button class="tool-btn" onclick="showResourceLibrary()" title="服务器资源库">📚 资源库</button>
+                <div class="select-dropdown-wrap" id="save-dropdown-wrap">
+                    <button class="select-dropdown-btn" id="save-btn" onclick="toggleSaveDropdown()" title="存档管理">
+                        💾<span class="save-name-badge" id="save-name-badge">存档</span><span class="arrow">▾</span>
+                    </button>
+                    <div class="select-dropdown-menu" id="save-dropdown-menu" style="left:auto;right:0;max-height:80vh;overflow-y:auto;">
+                        <div class="menu-item" onclick="saveMapAs()">➕ 保存当前为...</div>
+                        <div class="save-divider"></div>
+                        <div class="save-section-label">📂 本地存档槽</div>
+                        <div id="save-list-items" style="max-height:200px;overflow-y:auto;">
+                            <div style="color:var(--text-dim);font-size:0.75rem;padding:0.3rem 0.75rem;">（暂无存档）</div>
+                        </div>
+                        <div class="save-divider"></div>
+                        <div class="save-section-label">☁️ 服务端存档 (跑团存档/地图/)</div>
+                        <div class="menu-item" onclick="exportMapJSON()" style="color:var(--green);">📥 导出为 JSON 文件下载</div>
+                        <div class="menu-item" onclick="importMapJSON()" style="color:var(--cyan);">📤 从 JSON 文件导入</div>
+                        <div class="menu-item" onclick="loadMapFromServer()" style="color:var(--gold);">📂 从服务器加载...</div>
+                        <div id="server-save-list" style="max-height:160px;overflow-y:auto;display:none;"></div>
+                    </div>
+                    <input type="file" id="map-json-import" accept=".json" style="display:none;" onchange="handleMapJSONImport(event)">
+                </div>
+                <button class="tool-btn" id="layer-panel-btn" onclick="toggleLayerPanel()">📐 图层</button>
+            </div>
+            <div class="toolbar-right">
+                <button class="tool-btn" onclick="zoomFit()" title="自适应适配窗口">📐 适应</button>
+                <button class="tool-btn" onclick="resetView()" title="回到100%原始比例">🏠 重置</button>
+                <span id="identity-badge" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:0.75rem;color:var(--text);white-space:nowrap;margin:0 4px;">
+                    <span id="identity-dot" style="width:8px;height:8px;border-radius:50%;background:#888;flex-shrink:0;"></span>
+                    <span id="identity-name" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;">未登录</span>
+                    <span id="identity-role" style="font-size:0.65rem;color:var(--text-dim);">—</span>
+                </span>
+                <button class="tool-btn" id="lock-btn" onclick="toggleMapLock()" title="锁定地图（禁止平移/缩放）">🔓</button>
+                <button class="tool-btn" onclick="zoomIn()">🔍+</button>
+                <button class="tool-btn" onclick="zoomOut()">🔍-</button>
+                <span class="sep"></span>
+                <button class="tool-btn" id="char-panel-btn" onclick="toggleCharPanel()">👤 角色</button>
+                <div class="select-dropdown-wrap" id="clear-dropdown-wrap">
+                    <button class="tool-btn" onclick="toggleClearDropdown()" title="清除">🗑 清除<span style="font-size:0.6rem;margin-left:2px;">▾</span></button>
+                    <div class="select-dropdown-menu" id="clear-dropdown-menu" style="left:auto;right:0;">
+                        <div class="menu-item" onclick="clearDrawings()">🗑 清除标注</div>
+                        <div class="menu-item" onclick="clearAll()" style="color:var(--red);">💣 全部清除</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 第二行：导航链接（可折叠） -->
+        <div class="toolbar-row toolbar-row-2 collapsed" id="toolbar-row-2">
+            <div class="toolbar-left">
+
+                <a href="/dice3d" class="tool-btn nav-tab" style="text-decoration:none;">🎲 掷骰</a>
+                <a href="/map" class="tool-btn nav-tab" style="text-decoration:none;">🗺️ 地图</a>
+                <a href="/character" class="tool-btn nav-tab" style="text-decoration:none;">👤 角色卡</a>
+                <a href="/spells" class="tool-btn nav-tab" style="text-decoration:none;">📖 法术</a>
+                <a href="/combat" class="tool-btn nav-tab" style="text-decoration:none;">⚔️ 战斗</a>
+                <a href="/chat" class="tool-btn nav-tab" style="text-decoration:none;">💬 聊天室</a>
+                <a href="/reference" class="tool-btn nav-tab" style="text-decoration:none;">📚 参考</a>
+                <a href="/mods" class="tool-btn nav-tab" style="text-decoration:none;">🧩 Mod</a>
+                <a href="/events" class="tool-btn nav-tab" style="text-decoration:none;">🗺️ 事件</a>
+            </div>
+            <div class="toolbar-right">
+                <button class="toolbar-toggle" id="toolbar-toggle-btn" onclick="toggleToolbarRow2()" title="折叠工具栏">▲</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- @提及通知弹窗 -->
+    <div class="mention-toast" id="mention-toast" onclick="dismissMention()">
+        <span class="mention-icon">🔔</span>
+        <div class="mention-body">
+            <div class="mention-title" id="mention-title">呼叫</div>
+            <div class="mention-detail" id="mention-detail"></div>
+        </div>
+        <button class="mention-close" onclick="event.stopPropagation();dismissMention();">✕</button>
+    </div>
+
+    <!-- 聊天面板 -->
+    <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+            <b>💬 聊天</b>
+            <span id="chat-online-count" style="font-size:0.7rem;color:var(--green);"></span>
+            <button onclick="toggleChat()" title="折叠聊天面板">◀</button>
+        </div>
+        <div class="chat-user-row">
+            <input type="text" id="chat-username" placeholder="输入你的ID" maxlength="20" enterkeyhint="done">
+            <div class="color-picker-wrap">
+                <button class="color-btn" id="chat-color-btn" style="background:#00bcd4;" onclick="toggleColorPalette()" title="选择ID颜色"></button>
+                <div class="color-palette" id="color-palette">
+                    <!-- JS 动态生成色块 -->
+                </div>
+            </div>
+            <button onclick="setChatUser()">加入</button>
+        </div>
+        <!-- 在线用户列表 -->
+        <div id="chat-online-users" style="padding:4px 10px;border-bottom:1px solid var(--border);font-size:0.7rem;color:var(--text-dim);display:flex;gap:6px;flex-wrap:wrap;min-height:22px;flex-shrink:0;">
+            <span>—</span>
+        </div>
+        <div class="chat-msgs" id="chat-msgs">
+            <div class="chat-msg system">输入ID后即可参与聊天</div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="输入消息..." disabled enterkeyhint="send">
+            <button onclick="sendChatMsg()" id="chat-send-btn" disabled>发送</button>
+        </div>
+    </div>
+    <button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" title="展开聊天">💬<br>聊<br>天</button>
+
+    <!-- 地图区域 -->
+    <div class="map-area cursor-grab" id="map-area">
+        <!-- 左侧角色信息面板 -->
+        <div class="token-info-panel" id="token-info-panel">
+            <div class="layer-panel-header" id="tip-header" style="cursor:move;user-select:none;">
+                📋 角色信息
+                <button onclick="hideTokenInfoPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1rem;">✕</button>
+            </div>
+            <div id="tip-body" style="padding:0.5rem;overflow-y:auto;max-height:calc(100vh - 200px);"></div>
+        </div>
+
+        <!-- 图层管理面板 -->
+        <div class="layer-panel" id="layer-panel">
+            <div class="layer-panel-header" id="layer-panel-header-drag" style="cursor:move;user-select:none;">
+                📐 图层管理
+                <button onclick="toggleLayerPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;">✕</button>
+            </div>
+            <div class="layer-panel-list" id="layer-list"></div>
+            <div class="layer-panel-footer" id="layer-panel-footer">
+                <button id="move-layer-btn" onclick="toggleMoveLayer()" style="margin-bottom:0.2rem;">📌 移动当前图层</button>
+                <button onclick="addNewLayer()">➕ 导入地图图层</button>
+            </div>
+        </div>
+        <div class="map-canvas-wrap" id="canvas-wrap">
+            <canvas id="map-canvas"></canvas>
+            <canvas id="draw-canvas"></canvas>
+            <canvas id="fog-canvas"></canvas>
+            <div class="map-overlay" id="map-overlay"></div>
+        </div>
+    </div>
+
+    <!-- 右侧多功能侧边栏 -->
+    <div class="char-sidebar" id="char-sidebar">
+        <!-- 标签页切换 -->
+        <div class="sidebar-tabs">
+            <button class="sidebar-tab active" data-tab="chars" onclick="switchSidebarTab('chars')">👤 角色</button>
+            <button class="sidebar-tab" data-tab="combat" onclick="switchSidebarTab('combat')">⚔️ 战斗</button>
+            <button onclick="toggleCharPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;padding:0.35rem 0.5rem;">✕</button>
+        </div>
+
+        <!-- 角色面板 -->
+        <div class="sidebar-panel active" id="sidebar-panel-chars">
+            <div class="char-sidebar-list" id="char-token-list">
+                <div style="color:var(--text-dim);text-align:center;padding:1rem;">加载中...</div>
+            </div>
+            <div class="char-sidebar-hint">🖱 拖拽角色到地图上 | 滚轮调整大小</div>
+        </div>
+
+        <!-- 战斗面板 -->
+        <div class="sidebar-panel" id="sidebar-panel-combat">
+            <div style="padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;overflow-y:auto;flex:1;">
+                <!-- 添加参战者 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;margin-bottom:0.25rem;">➕ 添加参战者</div>
+                <select id="map-combat-char-select" onchange="onMapCombatCharSelect()"
+                        class="pl-allowed"
+                        style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <option value="">— 选择导入的角色 —</option>
+                </select>
+                <input type="text" id="map-combatant-name" placeholder="名称" class="pl-allowed"
+                       style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                              border-radius:4px;color:var(--text);font-size:0.82rem;">
+                <div style="display:flex;gap:0.35rem;" class="pl-allowed">
+                    <input type="number" id="map-combatant-ac" placeholder="AC"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;" value="10">
+                </div>
+                <div style="display:flex;gap:0.35rem;" class="pl-allowed">
+                    <input type="number" id="map-combatant-hp" placeholder="HP"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <input type="number" id="map-combatant-hp-max" placeholder="最大HP"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;">
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary btn-small pl-allowed" onclick="mapAddCombatant()" style="flex:1;">➕ 加入战斗</button>
+                </div>
+
+                <!-- 分隔线 -->
+                <div style="border-top:1px solid var(--border);margin:0.25rem 0;"></div>
+
+                <!-- 先攻列表 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;display:flex;align-items:center;gap:0.5rem;">
+                    ⚔️ 战斗
+                    <span id="map-round-info" style="color:var(--gold);font-size:0.8rem;"></span>
+                    <button class="btn btn-success btn-small" onclick="mapStartCombat()" style="font-size:0.65rem;padding:0.15rem 0.4rem;">▶ 开始</button>
+                </div>
+                <div id="map-initiative-list" style="font-size:0.8rem;color:var(--text-dim);text-align:center;padding:0.5rem;max-height:200px;overflow-y:auto;">
+                    添加参与者后点击"开始"
+                </div>
+                <div style="display:flex;gap:0.25rem;flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-small" onclick="mapPrevRound()" style="flex:1;font-size:0.7rem;" title="上一回合">⏮ 上回合</button>
+                    <button class="btn btn-primary btn-small" onclick="mapPrevCombatant()" style="flex:1;font-size:0.7rem;" title="返回上一位">◀ 上一位</button>
+                    <button class="btn btn-primary btn-small" onclick="mapNextCombatant()" style="flex:1;font-size:0.7rem;" title="下一位角色">下一位 ▶</button>
+                    <button class="btn btn-primary btn-small" onclick="mapNextRound()" style="flex:1;font-size:0.7rem;" title="下一回合">⏭ 下回合</button>
+                    <button class="btn btn-danger btn-small" onclick="mapClearCombat()" style="font-size:0.7rem;">🗑 清空</button>
+                </div>
+
+                <!-- 分隔线 -->
+                <div style="border-top:1px solid var(--border);margin:0.25rem 0;"></div>
+
+                <!-- 伤害/治疗 -->
+                <div style="font-size:0.85rem;color:var(--gold);font-weight:bold;">💥 伤害/治疗</div>
+                <select id="map-dmg-target"
+                        style="width:100%;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                               border-radius:4px;color:var(--text);font-size:0.82rem;">
+                    <option value="">— 选择目标 —</option>
+                </select>
+                <div style="display:flex;gap:0.35rem;">
+                    <input type="number" id="map-dmg-amount" placeholder="数值"
+                           style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);
+                                  border-radius:4px;color:var(--text);font-size:0.82rem;" min="0">
+                    <button class="btn btn-danger btn-small" onclick="mapApplyDamage()">💥</button>
+                    <button class="btn btn-success btn-small" onclick="mapApplyHeal()">💚</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 浮动掷骰按钮 -->
+    <button class="dice-float-btn" id="dice-float-btn" onclick="toggleDicePopup()" title="快速掷骰">🎲</button>
+
+    <!-- 掷骰弹窗 -->
+    <div class="dice-popup" id="dice-popup">
+        <div class="dice-popup-header" id="dice-popup-drag">
+            🎲 快速掷骰
+            <button onclick="toggleDicePopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="dice-popup-body">
+            <select id="dicepop-char" onchange="dicePopupSetChar()"
+                    style="width:100%;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--gold);font-size:0.8rem;margin-bottom:8px;">
+                <option value="">⚡ 选择角色</option>
+            </select>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <input type="text" id="dicepop-expr" placeholder="如 3d6 / d20+5"
+                       style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+                       onkeydown="if(event.key==='Enter') dicePopupRoll()">
+                <button onclick="dicePopupRoll()" style="padding:0.35rem 0.75rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.85rem;">投掷</button>
+                <button onclick="var w=document.getElementById('mini3d-wrap');if(!w)return;var showing=w.style.display!=='none';if(showing){w.style.display='none';this.style.background='var(--surface2)';this.textContent='✨3D';var f=document.getElementById('mini3d-frame');f.src='';}else{w.style.display='';this.style.background='var(--accent)';this.textContent='收起';var f=document.getElementById('mini3d-frame');if(!f.src||f.src===location.href||f.src==='about:blank')f.src='/dice3d?embed=1';setTimeout(function(){w.dispatchEvent(new Event('resize'));},200);}" title="打开3D物理骰子" style="padding:0.35rem 0.5rem;background:var(--surface2);border:1px solid var(--gold);border-radius:4px;color:var(--gold);cursor:pointer;font-size:0.8rem;white-space:nowrap;">✨3D</button>
+            </div>
+            <div id="mini3d-wrap" style="display:none;width:100%;height:480px;margin-bottom:6px;border-radius:8px;overflow:hidden;background:#1a1a2e;"><iframe id="mini3d-frame" src="/dice3d?embed=1" style="width:100%;height:100%;border:none;" allow="accelerometer;autoplay"></iframe></div>
+            <div class="adv-toggle-mini" id="dicepop-adv" style="margin-bottom:6px;">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:0.75rem;color:var(--text-dim);cursor:pointer;">
+                <input type="checkbox" id="dicepop-hidden"> 🌫 暗骰（仅DM可见）
+            </label>
+            <div class="dice-quick" style="margin-bottom:6px;">
+                <button onclick="dicePopupQuick('d20')">d20</button>
+                <button onclick="dicePopupQuick('d20 优势')">优势</button>
+                <button onclick="dicePopupQuick('d20 劣势')">劣势</button>
+                <button onclick="dicePopupQuick('d6')">d6</button>
+                <button onclick="dicePopupQuick('d8')">d8</button>
+                <button onclick="dicePopupQuick('3d6')">3d6</button>
+                <button onclick="dicePopupQuick('4d6k3')">4d6k3</button>
+                <button onclick="dicePopupQuick('2d6+3')">2d6+3</button>
+                <button onclick="dicePopupQuickCheck('察觉')">察觉</button>
+                <button onclick="dicePopupQuickCheck('隐匿')">隐匿</button>
+            </div>
+            <div class="dicepop-result" id="dicepop-result"></div>
+        </div>
+    </div>
+
+    <!-- 攻击方式选择弹窗：先选发起攻击者 + 武器/法术，再进入命中掷骰界面 -->
+    <div class="attack-popup" id="attack-picker-popup">
+        <div class="attack-popup-header" id="attack-picker-popup-drag">
+            ⚔️ 选择攻击方式
+            <button onclick="closeAttackPicker()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="attack-picker-target"></b>
+            </div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:3px;">⚔️ 发起攻击者</label>
+            <select id="attack-picker-attacker" onchange="onAttackAttackerChange()" style="margin-bottom:8px;"></select>
+            <div class="attack-picker-tabs" id="attack-picker-tabs">
+                <button class="active" data-tab="weapon" onclick="switchAttackTab('weapon')">⚔️ 武器</button>
+                <button data-tab="spell" onclick="switchAttackTab('spell')">✨ 法术</button>
+            </div>
+            <div class="attack-source-list" id="attack-source-list"></div>
+            <button class="attack-free-btn" onclick="openFreeAttack()">🎲 自由攻击（手动设置骰子与加值）</button>
+        </div>
+    </div>
+
+    <!-- 攻击掷骰弹窗（独立3D物理掷骰小界面） -->
+    <div class="attack-popup" id="attack-popup">
+        <div class="attack-popup-header" id="attack-popup-drag">
+            ⚔️ 攻击掷骰
+            <button onclick="closeAttackPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                ⚔️ 攻击者：<b id="attack-attacker-name"></b>
+                <span id="attack-source-name" style="color:var(--text-dim);font-size:0.75rem;"></span>
+            </div>
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="attack-target-name"></b>
+                <span id="attack-target-ac" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div class="attack-dice-config">
+                <label>🎲 骰子面数
+                    <select id="attack-die-sides" onchange="updateAttackStatus()">
+                        <option value="4">d4</option>
+                        <option value="6">d6</option>
+                        <option value="8">d8</option>
+                        <option value="10">d10</option>
+                        <option value="12">d12</option>
+                        <option value="20" selected>d20</option>
+                        <option value="100">d100</option>
+                    </select>
+                </label>
+                <label>➕ 加值
+                    <input id="attack-bonus" type="number" value="0" min="-100" max="100" step="1" onchange="updateAttackStatus()">
+                </label>
+            </div>
+            <div class="adv-toggle-mini" id="attack-adv">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="attack-3d-toggle" class="attack-3d-toggle" onclick="attackToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="attack-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="attack-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="attack-roll-btn" class="attack-main-btn" onclick="attackRoll()">🎲 攻击掷骰</button>
+                <button id="attack-dmg-btn" class="attack-main-btn dmg" onclick="attackDamageRoll()" style="display:none;">💥 伤害掷骰</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 伤害掷骰弹窗：命中后独立设置伤害骰 -->
+    <div class="attack-popup" id="damage-popup">
+        <div class="attack-popup-header" id="damage-popup-drag">
+            💥 伤害掷骰
+            <button onclick="closeDamagePopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="damage-target-name"></b>
+                <span id="damage-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div class="attack-dice-config damage3">
+                <label>🔢 骰子数量
+                    <input id="damage-die-count" type="number" value="1" min="1" max="20" step="1" onchange="updateDamageStatus()">
+                </label>
+                <label>🎲 骰子面数
+                    <select id="damage-die-sides" onchange="updateDamageStatus()">
+                        <option value="4">d4</option>
+                        <option value="6" selected>d6</option>
+                        <option value="8">d8</option>
+                        <option value="10">d10</option>
+                        <option value="12">d12</option>
+                        <option value="20">d20</option>
+                        <option value="100">d100</option>
+                    </select>
+                </label>
+                <label>➕ 加值
+                    <input id="damage-bonus" type="number" value="0" min="-100" max="100" step="1" onchange="updateDamageStatus()">
+                </label>
+            </div>
+            <div class="adv-toggle-mini" id="damage-adv">
+                <button class="active" data-adv="">正常</button>
+                <button data-adv="adv">优势</button>
+                <button data-adv="dis">劣势</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="damage-3d-toggle" class="attack-3d-toggle" onclick="damageToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="damage-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="damage-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="damage-roll-btn" class="attack-main-btn dmg" onclick="damageRoll()">💥 伤害掷骰</button>
+                <button id="damage-confirm-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#f1c40f,#e67e22);color:#fff;display:none;" onclick="confirmDamage()">✅ 确定结算</button>
+                <button id="damage-reselect-btn" class="attack-main-btn" style="background:var(--surface2);color:var(--text);" onclick="reselectDamage()">← 重新选择</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 治疗方式选择弹窗：先选治疗者 + 治疗物品/法术，再进入治疗掷骰界面 -->
+    <div class="attack-popup" id="heal-picker-popup">
+        <div class="attack-popup-header" id="heal-picker-popup-drag">
+            💚 选择治疗方式
+            <button onclick="closeHealPicker()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="heal-picker-target"></b>
+            </div>
+            <label style="display:block;font-size:0.75rem;color:var(--text-dim);margin-bottom:3px;">💚 治疗者</label>
+            <select id="heal-picker-healer" onchange="onHealHealerChange()" style="margin-bottom:8px;"></select>
+            <div class="attack-picker-tabs" id="heal-picker-tabs">
+                <button class="active" data-tab="item" onclick="switchHealTab('item')">🎒 治疗物品</button>
+                <button data-tab="spell" onclick="switchHealTab('spell')">✨ 治疗法术</button>
+            </div>
+            <div class="attack-source-list" id="heal-source-list"></div>
+            <button class="attack-free-btn" onclick="openFreeHeal()">💚 自由治疗（手动输入治疗表达式）</button>
+        </div>
+    </div>
+
+    <!-- 治疗掷骰弹窗（独立3D物理掷骰小界面） -->
+    <div class="attack-popup" id="heal-popup">
+        <div class="attack-popup-header" id="heal-popup-drag">
+            💚 治疗掷骰
+            <button onclick="closeHealPopup()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div class="attack-popup-body">
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                💚 治疗者：<b id="heal-healer-name"></b>
+                <span id="heal-source-name" style="color:var(--text-dim);font-size:0.75rem;"></span>
+            </div>
+            <div style="font-size:0.85rem;color:var(--gold);margin-bottom:8px;text-align:center;">
+                🎯 目标：<b id="heal-target-name"></b>
+                <span id="heal-target-hp" style="color:var(--text-dim);font-size:0.75rem;margin-left:6px;"></span>
+            </div>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <input type="text" id="heal-expr" value="1d8" placeholder="如 2d8+3 / 3d6"
+                       style="flex:1;padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;"
+                       onkeydown="if(event.key==='Enter') healRoll()">
+                <button onclick="healRoll()" style="padding:0.35rem 0.75rem;background:var(--green);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.85rem;white-space:nowrap;">💚 治疗</button>
+            </div>
+            <div class="dice-quick" style="margin-bottom:6px;">
+                <button onclick="healQuick('1d4')">1d4</button>
+                <button onclick="healQuick('1d6')">1d6</button>
+                <button onclick="healQuick('1d8')">1d8</button>
+                <button onclick="healQuick('2d8+3')">2d8+3</button>
+                <button onclick="healQuick('3d6')">3d6</button>
+                <button onclick="healQuick('4d6')">4d6</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:0.75rem;color:var(--text-dim);">3D 物理掷骰</span>
+                <button id="heal-3d-toggle" class="attack-3d-toggle" onclick="healToggle3D()" title="使用3D物理骰子掷骰（关闭时使用服务器随机掷骰）">✨ 开启</button>
+            </div>
+            <div id="heal-status" style="min-height:20px;font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;"></div>
+            <div class="dicepop-result" id="heal-result" style="min-height:64px;"></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button id="heal-roll-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#6fd98b,#27ae60);color:#fff;" onclick="healRoll()">🎲 治疗掷骰</button>
+                <button id="heal-confirm-btn" class="attack-main-btn" style="background:linear-gradient(135deg,#f1c40f,#e67e22);color:#fff;display:none;" onclick="confirmHeal()">✅ 确定结算</button>
+                <button id="heal-reselect-btn" class="attack-main-btn" style="background:var(--surface2);color:var(--text);" onclick="reselectHeal()">← 重新选择</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="zoom-indicator" id="zoom-label">100%</div>
+
+    <!-- 服务器地图选择弹窗 -->
+    <div id="server-maps-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:12px;padding:20px;max-width:420px;width:90%;max-height:70vh;display:flex;flex-direction:column;border:2px solid var(--accent);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="color:var(--gold);font-size:1.1rem;">📂 服务器地图</b>
+          <button onclick="closeServerMaps()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;">✕</button>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.75rem;margin-bottom:8px;">图片放入 骰娘/maps/ 目录即可在此选择</div>
+        <div id="server-maps-list" style="flex:1;overflow-y:auto;max-height:350px;">
+          <div style="color:var(--text-dim);text-align:center;padding:20px;">加载中...</div>
+        </div>
+        <div style="margin-top:8px;color:var(--text-dim);font-size:0.7rem;">💡 点击地图即可加载到当前场景</div>
+      </div>
+    </div>
+
+    <!-- 资源库弹窗 -->
+    <div id="resource-library-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:12px;padding:20px;max-width:600px;width:90%;max-height:75vh;display:flex;flex-direction:column;border:2px solid var(--accent);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="color:var(--gold);font-size:1.1rem;">📚 服务器资源库</b>
+          <button onclick="closeResourceLibrary()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="resource-cat-filter" onchange="fetchResourceLibrary()"
+                  style="padding:0.35rem 0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.82rem;">
+            <option value="">全部类型</option>
+            <option value="image">🖼 图片</option>
+            <option value="pdf">📄 PDF</option>
+            <option value="text">📝 文本</option>
+            <option value="doc">📋 文档</option>
+            <option value="sheet">📊 表格</option>
+            <option value="save">💾 存档</option>
+            <option value="audio">🎵 音频</option>
+            <option value="other">📦 其他</option>
+          </select>
+          <button onclick="uploadResource()" style="padding:0.35rem 0.75rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.82rem;white-space:nowrap;">📤 上传文件</button>
+          <button onclick="showSaveUploadPanel()" style="padding:0.35rem 0.75rem;background:var(--gold);border:none;border-radius:4px;color:#000;cursor:pointer;font-size:0.82rem;white-space:nowrap;font-weight:bold;">💾 上传存档</button>
+          <input type="file" id="resource-file-input" style="display:none" onchange="handleResourceUpload(event)" accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.json">
+        </div>
+        <div id="save-upload-panel" style="display:none;margin-bottom:8px;padding:8px;background:var(--bg);border:1px solid var(--gold);border-radius:8px;max-height:200px;overflow-y:auto;">
+          <div style="font-size:0.75rem;color:var(--gold);margin-bottom:4px;font-weight:bold;">选择要上传的存档（文件名为 存档名_用户名.json）</div>
+          <div id="save-upload-list" style="font-size:0.78rem;color:var(--text-dim);">加载中...</div>
+        </div>
+        <div style="color:var(--text-dim);font-size:0.75rem;margin-bottom:8px;">上传或使用服务器资源库中的文件。支持图片、PDF、文档、表格等格式。</div>
+        <div id="resource-library-list" style="flex:1;overflow-y:auto;max-height:400px;">
+          <div style="color:var(--text-dim);text-align:center;padding:20px;">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileImport(event)">
+
+    <script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
+    <script src="/static/map-idb.js?v=74"></script>
+    <script src="/static/map-fog.js?v=74"></script>
+    <script src="/static/map-saves.js?v=74"></script>
+    <script src="/static/map.js?v=82"></script>
+    <script src="/static/map-page.js?v=77"></script>
+
+
+<!-- ━━ 骰子统计排行榜 ━━ -->
+<div class="stats-panel" id="stats-panel">
+  <div class="stats-header">骰子统计排行榜
+    <button onclick="clearStats()" style="float:right;background:var(--red);border:none;color:#fff;cursor:pointer;border-radius:3px;font-size:0.7rem;padding:2px 6px;margin-left:4px;">清空</button>
+    <button onclick="loadStats()" style="float:right;background:var(--accent);border:none;color:#fff;cursor:pointer;border-radius:3px;font-size:0.7rem;padding:2px 6px;">刷新</button>
+  </div>
+  <div style="display:flex;padding:4px 8px;gap:4px;border-bottom:1px solid var(--border);">
+    <button id="stats-tab-20" class="cf-field-btn selected" onclick="switchStatsTab(20)" style="flex:1;font-size:0.7rem;padding:3px 0;">🎯 大成功</button>
+    <button id="stats-tab-1" class="cf-field-btn" onclick="switchStatsTab(1)" style="flex:1;font-size:0.7rem;padding:3px 0;">💀 大失败</button>
+  </div>
+  <div id="stats-list" style="flex:1;overflow-y:auto;">
+    <div style="color:var(--text-dim);text-align:center;padding:20px;font-size:0.8rem;">加载中...</div>
+  </div>
+</div>
+</div>
+  </div>
+</div>
+<button class="stats-toggle" id="stats-toggle-btn" onclick="toggleStats()" title="骰子统计">📊<br>统<br>计</button>
+</body>
+</html>
+
+
+
+
+
+

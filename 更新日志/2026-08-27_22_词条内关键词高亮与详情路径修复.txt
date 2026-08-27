@@ -1,0 +1,34 @@
+2026-08-27_22_词条内关键词高亮与详情路径修复
+
+功能：
+1. 词条内关键词高亮（与不全书内置搜索一致）
+   - 打开词条时携带当前搜索词（?q=关键词，目录树与搜索结果打开均带）
+   - iframe 同源加载后（onload）遍历文本节点，用 <mark> 高亮全部关键词
+     （多词空格分隔全部高亮），自动滚动到首个高亮处
+   - 高亮样式：黄底黑字圆角
+
+2. 搜索结果 spell/monster 类型可查看（原灰色不可点）
+   - search_all 补 detail_link：按名称在 spells/monsters 索引表查详情页路径
+     （倒排索引条目本身不含 detail_link）
+   - /api/search 的 path 已透传 detail_link → 前端可点击打开内容
+
+3. 内容 API 全库模糊兜底（修复部分词条 "Not Found"）
+   - _chm_fuzzy_find 升级：同目录归一化匹配 → 全库文件名归一化匹配
+     （detail_link 等路径目录不符时跨目录找，如"怪物图鉴/"实际在
+     "怪物图鉴2025/"）
+
+4. 目录节点点击行为与内置版一致
+   - 有子节点的词条（has_children + local）点击：同时展开子节点 + 打开自身词条页
+
+验证：
+- JS node --check 通过；chmOpenContent/chmHighlightFrame 引用 6 处
+- PY 语法通过；about:blank onload 安全（无 q 直接返回）
+- 搜索哥布林（自定义库命中，无 CHM 路径 → 灰色正确）；
+  新版 CHM 万兽大全使用"地精"命名（地精老大/地精武者），与 2014 版"哥布林"并存
+
+涉及文件：
+- web/templates/reference.html（高亮/打开逻辑）
+- core/chm_search.py（search_all 补 detail_link）
+- web/app.py（全库模糊兜底）
+
+需要重启服务器生效（后端 + 模板）。

@@ -1,0 +1,23 @@
+2026-08-27_18_不全书搜索框输入健壮化
+
+问题：
+不全书左侧搜索框无法输入文本/搜索（用户反馈）
+
+处理（web/templates/reference.html）：
+- 输入框加 autocomplete="off" spellcheck="false"（排除自动补全/拼写检查干扰）
+- 事件双保险：oninput 实时搜索（输入即搜，不再依赖回车）+ 原 onkeydown 回车保留
+- 搜索加 300ms 防抖（中文输入法组合期间不频繁请求，避免结果区刷新干扰输入）
+- 搜索区容器加 position:relative;z-index:10（排除潜在遮挡）
+- 空输入（<2 字）隐藏结果区
+
+验证：
+- JS node --check 通过；防抖闭合括号修正
+
+说明：
+若仍无法输入，请在浏览器按 F12 查看 Console 报错，并确认服务器已重启
+（旧页面 JS 与新 HTML 混用可能异常）；输入框无 disabled/readonly，非样式问题
+
+涉及文件：
+- web/templates/reference.html
+
+需要重启服务器生效（模板改动）。

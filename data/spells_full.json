@@ -97,7 +97,7 @@
     "concentration": "×",
     "source": "AAG",
     "tags": "咒法 动作 德鲁伊 游侠 术士 法师 奇械师 二环 AAG 非言 姿势 非材 非仪 非专",
-    "detail_link": "/星界冒险者指南/新法术详述.htm#Air_Bubble",
+    "detail_link": "/星界冒险者指南/新法术.htm#Air_Bubble",
     "name_cn": "空气泡泡",
     "name_en": "Air Bubble"
   },
@@ -1831,7 +1831,7 @@
     "concentration": "×",
     "source": "AAG",
     "tags": "变化 动作 法师 奇械师 五环 AAG 言语 姿势 材料 价耗 非仪 非专",
-    "detail_link": "/星界冒险者指南/新法术详述.htm#Create_Spelljamming_Helm",
+    "detail_link": "/星界冒险者指南/新法术.htm#Create_Spelljamming_Helm",
     "name_cn": "创造法驱魔舵",
     "name_en": "Create Spelljamming Helm"
   },
@@ -2822,7 +2822,7 @@
     "name_en": "Encode Thoughts"
   },
   {
-    "name": "敌群环绕Enemies Abound",
+    "name": "举目皆敌Enemies Abound",
     "level": "三环",
     "school": "惑控",
     "classes": "诗 术 法 锁",
@@ -2835,7 +2835,7 @@
     "source": "XGE",
     "tags": "惑控 动作 吟游诗人 术士 法师 魔契师 三环 XGE 言语 姿势 非材 非仪 专注",
     "detail_link": "/珊娜萨的万事指南/法术/法术详述/3环.html#Enemies_Abound",
-    "name_cn": "敌群环绕",
+    "name_cn": "举目皆敌",
     "name_en": "Enemies Abound"
   },
   {
@@ -3718,7 +3718,7 @@
     "concentration": "×",
     "source": "SO",
     "tags": "防护 其他 术士 法师 魔契师 四环 SO 言语 姿势 材料 价耗 非仪 非专",
-    "detail_link": "/印记城与外域/第一章/新法术详述.htm#Gate_Seal",
+    "detail_link": "/印记城与外域/第一章/新法术.htm#Gate_Seal",
     "name_cn": "界门封锁",
     "name_en": "Gate Seal"
   },
@@ -9124,7 +9124,7 @@
     "concentration": "√",
     "source": "SO",
     "tags": "预言 动作 术士 法师 魔契师 二环 SO 言语 姿势 材料 无特 非仪 专注",
-    "detail_link": "/印记城与外域/第一章/新法术详述.htm#Warp_Sense",
+    "detail_link": "/印记城与外域/第一章/新法术.htm#Warp_Sense",
     "name_cn": "侦测扭曲",
     "name_en": "Warp Sense"
   },
@@ -12172,7 +12172,7 @@
     "name_en": "Globe of Invulnerability"
   },
   {
-    "name": "守卫刻文Glyph of Warding",
+    "name": "守卫刻纹Glyph of Warding",
     "level": "三环",
     "school": "防护",
     "classes": "诗 牧 法 械",
@@ -12185,7 +12185,7 @@
     "source": "PHB14",
     "tags": "防护 其他 吟游诗人 牧师 法师 奇械师 三环 PHB14 言语 姿势 材料 价耗 非仪 非专",
     "detail_link": "/玩家手册/魔法/法术详述/3环.html#Glyph_of_Warding",
-    "name_cn": "守卫刻文",
+    "name_cn": "守卫刻纹",
     "name_en": "Glyph of Warding"
   },
   {

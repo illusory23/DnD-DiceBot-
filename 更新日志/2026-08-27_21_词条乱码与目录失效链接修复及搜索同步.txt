@@ -1,0 +1,39 @@
+2026-08-27_21_词条乱码与目录失效链接修复及搜索同步
+
+一、词条编译错误（乱码）修复
+- 现象：部分词条（如骡子Mule）显示乱码（楠″瓙Mule）
+- 根因：怪物图鉴2014（5e 导入的 450 个词条）为 UTF-8 编码，CHM 提取为 GBK——
+  读取函数 GBK 优先（GBK 解码宽松），UTF-8 文件被解成乱码
+- 修复：三处读取统一改为「UTF-8 严格优先，回退 GBK」——
+  core/chm_search.py _read_gbk、utils/chm_indexer.py _read_gbk、
+  web/app.py api_chm_content；并重建全部索引（snippet 乱码同步修复）
+- 验证：Mule.htm 内容正常显示「骡子」无乱码；全库扫描 7582 文件编码分布
+  （仅 UTF-8 450 个 = 怪物图鉴2014，仅 GBK 7130 个）
+
+二、目录词条失效链接修复（点击无反应/看不到）
+- 现象：部分词条点击后无内容（81 个失效链接）
+- 根因：hhc 目录树中 local 路径带 URL 编码（%20=空格）与 HTML 实体（&amp;=&），
+  部分文件名与 hhc 不一致
+- 修复：
+  · utils/chm_toc.py：解析 local 时 unquote（URL 解码）+ html.unescape（实体解码）
+  · web/app.py：内容 API 增加模糊兜底匹配（精确不存在时按归一化名
+    去空格/大小写同目录匹配）
+- 验证：7867 个词条节点全部有效（失效 81 → 0）；原失效词条（艾欧瑞安猎手/血猎）
+  内容 API 200
+
+三、搜索逻辑与不全书内置版同步
+- search_all 支持多词 AND（空格/逗号/顿号分隔的每个词都须命中标题或正文，
+  与 CHM 内置全文搜索一致）
+- 内置版搜索结果不再过滤类型：rule/spell/monster 全部显示
+  （有 path 的 rule 可点击打开；spell/monster 灰色标注）
+- 词条图标区分：📄规则 / 📖法术 / 👹怪物
+
+涉及文件：
+- core/chm_search.py（编码 + 多词 AND）
+- utils/chm_indexer.py（编码）
+- utils/chm_toc.py（URL/实体解码）
+- web/app.py（内容 API 编码 + 模糊兜底）
+- web/templates/reference.html（搜索结果类型）
+- data/*.json 索引（重建，备份 backups/2026-08-27_CHM重建前/）
+
+需要重启服务器生效（后端 + 索引）。

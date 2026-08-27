@@ -1734,3 +1734,43 @@
 [2026-08-25 01:37:41] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (9.4MB)
 [2026-08-25 01:37:43] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (9.4MB)
 [2026-08-25 01:37:48] [map.save] user=天冥 ip=127.0.0.1 保存地图存档: _autosave (9.4MB)
+[2026-08-25 17:19:44] [character.delete] user=测试公开角色A ip=127.0.0.1 删除角色 id=600 name=测试公开角色A
+[2026-08-25 17:19:44] [character.delete] user=测试PL角色B ip=127.0.0.1 删除角色 id=601 name=测试PL角色B
+[2026-08-25 17:19:56] [character.delete] user=测试公开角色A2 ip=127.0.0.1 删除角色 id=602 name=测试公开角色A2
+[2026-08-25 17:19:56] [character.delete] user=测试PL角色B2 ip=127.0.0.1 删除角色 id=603 name=测试PL角色B2
+[2026-08-25 18:56:40] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-25 18:56:57] [character.delete] user=测试死亡豁免temp ip=::1 删除角色 id=605 name=测试死亡豁免temp
+[2026-08-25 18:57:01] [character.delete] user=测试死亡豁免temp ip=::1 删除角色 id=604 name=测试死亡豁免temp
+[2026-08-25 18:57:19] [character.delete] user=运输车 ip=::1 删除角色 id=560 name=运输车
+[2026-08-25 18:57:28] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-25 18:58:31] [map.save] user=天冥 ip=::1 保存地图存档: 布林山德 (9.4MB)
+[2026-08-25 18:58:53] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (0.2MB)
+[2026-08-25 18:58:58] [map.delete] user=第二次 ip=::1 删除地图存档: 第二次
+[2026-08-25 18:59:03] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-25 18:59:11] [map.delete] user=大本营 ip=::1 删除地图存档: 大本营
+[2026-08-25 18:59:16] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-25 18:59:18] [map.delete] user=尘封之卷_大本营_2026-08-19 ip=::1 删除地图存档: 尘封之卷_大本营_2026-08-19
+[2026-08-25 18:59:23] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (2.7MB)
+[2026-08-25 18:59:28] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 18:43:14] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 19:11:10] [character.delete] user=【测试】结构怪改 ip=127.0.0.1 删除角色 id=608 name=【测试】结构怪改
+[2026-08-27 20:33:09] [character.delete] user=【测试】导出角色 ip=127.0.0.1 删除角色 id=609 name=【测试】导出角色
+[2026-08-27 20:33:18] [character.delete] user=【测试】排查 ip=127.0.0.1 删除角色 id=610 name=【测试】排查
+[2026-08-27 20:34:00] [character.delete] user=【测试】排查3 ip=127.0.0.1 删除角色 id=612 name=【测试】排查3
+[2026-08-27 20:34:16] [character.delete] user=【测试】排查4 ip=127.0.0.1 删除角色 id=613 name=【测试】排查4
+[2026-08-27 20:34:31] [character.delete] user=【测试】排查5 ip=127.0.0.1 删除角色 id=614 name=【测试】排查5
+[2026-08-27 20:35:36] [character.delete] user=【测试】导出角色 ip=127.0.0.1 删除角色 id=615 name=【测试】导出角色
+[2026-08-27 20:36:25] [character.delete] user=【测试】排查6 ip=127.0.0.1 删除角色 id=616 name=【测试】排查6
+[2026-08-27 20:36:56] [character.delete] user=【测试】导出角色 ip=127.0.0.1 删除角色 id=617 name=【测试】导出角色
+[2026-08-27 20:43:57] [character.delete] user=【测试】排查2 ip=::1 删除角色 id=611 name=【测试】排查2
+[2026-08-27 20:58:04] [character.delete] user=【测试】负重角色 ip=127.0.0.1 删除角色 id=618 name=【测试】负重角色
+[2026-08-27 20:58:27] [character.delete] user=【测试】物品排查 ip=127.0.0.1 删除角色 id=619 name=【测试】物品排查
+[2026-08-27 21:00:08] [character.delete] user=【测试】负重角色 ip=127.0.0.1 删除角色 id=620 name=【测试】负重角色
+[2026-08-27 21:04:22] [character.delete] user=【测试】全字段 ip=127.0.0.1 删除角色 id=621 name=【测试】全字段
+[2026-08-27 21:06:14] [character.delete] user=【测试】全字段 ip=127.0.0.1 删除角色 id=622 name=【测试】全字段
+[2026-08-27 21:09:25] [character.delete] user=【测试】钱币 ip=127.0.0.1 删除角色 id=623 name=【测试】钱币
+[2026-08-27 21:32:23] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 22:32:40] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 22:33:18] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 22:34:56] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)
+[2026-08-27 22:35:02] [map.save] user=天冥 ip=::1 保存地图存档: _autosave (9.4MB)

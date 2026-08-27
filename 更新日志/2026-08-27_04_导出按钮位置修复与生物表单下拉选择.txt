@@ -1,0 +1,33 @@
+2026-08-27_04_导出按钮位置修复与生物表单下拉选择
+
+修复：角色详情「📥 导出 Excel」按钮找不到
+- 根因：按钮此前只加在 character.html 静态骨架的卡片头部，但选择角色后
+  character.js 的 renderCharDetail() 用 el.innerHTML 整体重建卡片内容
+  （含 card-header），静态按钮被覆盖消失；删除角色/空态重置同样覆盖
+- 修复：character.js 全部 4 处 header 统一加按钮（float:right）——
+  ① 动态详情 header（race 编辑 span 后）② 列表删除角色后的重置模板
+  ③ renderCharDetail 空态"请选择一个角色" ④ 详情页删除角色后的重置；
+  空态点击按钮时 exportCharExcel 会提示"请先选择角色"
+- character.js v19 → v20（character.html 缓存版本号同步）
+
+优化：自定义生物表单「基础」分区 体型/阵营/性别 由单行输入改为下拉选择
+- 体型：微型/小型/中型/大型/超大型/巨型
+- 阵营：守序善良/中立善良/混乱善良/守序中立/绝对中立/混乱中立/守序邪恶/
+  中立邪恶/混乱邪恶/无阵营
+- 性别：男/女/无性别/其他
+- 兼容：当前值不在选项中（旧数据/自由值）自动追加为选中项，编辑不丢值；
+  空值显示"请选择"；其余字段（生物名/英文名/挑战等级/类型/传奇动作/种族/信仰）
+  保持单行输入
+- 数据链路不变（select onchange 写回 monsterData，保存/详情/PDF/预览均自动生效）
+
+验证：
+- reference.html / character.js 内联 JS node --check 通过
+- 下拉逻辑三种场景模拟通过（空值显示请选择 / 标准值选中 / 自由值自动追加）
+- 按钮分布确认 4 处（527/538/828/1133 行动态渲染 + character.html 静态骨架）
+
+涉及文件：
+- web/static/character.js（v20）
+- web/templates/character.html（v=20）
+- web/templates/reference.html
+
+需要重启服务器生效（模板与 JS 静态资源改动；JS 需清缓存或版本号已自动失效旧缓存）。

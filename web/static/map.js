@@ -1230,7 +1230,7 @@
             return false;
         }
 
-        // PL 移动/旋转/缩放 token 权限：DM 可全部；PL 仅可操作自己的角色或 DM 公开角色
+        // PL 移动/旋转/缩放 token 权限：DM 可全部；PL 可操作自己的角色或 DM 公开角色
         function canMoveToken(token) {
             if (window._isDM === true) return true;
             if (!token) return false;
@@ -1247,7 +1247,10 @@
         // 确保角色数据已加载后判断移动权限（拖动/旋转/缩放前调用）
         async function ensureTokenCharData(token) {
             if (token && token.charId) {
-                try { await fetchCharData(token.charId); } catch(e) {}
+                const ok = await fetchCharData(token.charId).catch(() => null);
+                if (!ok && !charDataCache[token.charId] && window._isDM !== true && typeof Toast !== 'undefined') {
+                    Toast.info('角色数据加载失败，请稍后重试');
+                }
             }
             return canMoveToken(token);
         }
@@ -1465,6 +1468,26 @@
 
         let _panelRefreshing = false;  // token 信息面板强制刷新防重入
 
+        // 负重减速（5e 变体规则，与角色卡一致）：总负重=物品×数量+武器+护甲+盾；
+        // 上限=力量×15；>力量×5 → 🟡负重(-10尺)；>力量×10 → 🔴严重负重(-20尺)；
+        // 超重 → 拖拽 5 尺
+        function tokenCarrySpeed(charData) {
+            const strScore = parseInt((charData.abilities || {}).str ?? charData.str) || 10;
+            let total = 0;
+            (charData.inventory || []).forEach(it => { total += (parseFloat(it.weight) || 0) * (it.quantity || 1); });
+            (charData.weapons || []).forEach(w => { total += parseFloat(w.weight) || 0; });
+            total += parseFloat(charData.armor_weight) || 0;
+            total += parseFloat(charData.shield_weight) || 0;
+            total = Math.round(total * 10) / 10;
+            const cap = strScore * 15, encTh = strScore * 5, heavyTh = strScore * 10;
+            const speedBase = charData.speed || 30;
+            let penalty = 0, status = '';
+            if (total > cap) { penalty = Math.max(speedBase - 5, 0); status = '⚠️超重'; }
+            else if (total > heavyTh) { penalty = 20; status = '🔴严重负重'; }
+            else if (total > encTh) { penalty = 10; status = '🟡负重'; }
+            return { speed: Math.max(speedBase - penalty, 5), status, total, cap };
+        }
+
         function showTokenInfoPanel(token) {
             const charData = charDataCache[token.charId];
             if (!charData) { return; }
@@ -1507,6 +1530,9 @@
 
             const panel = document.getElementById('token-info-panel');
             const tipBody = document.getElementById('tip-body');
+            // 负重减速（5e 变体规则，与角色卡一致：上限=力量×15；>力量×5 → -10尺；
+            // >力量×10 → -20尺；超重 → 拖拽 5 尺）
+            const carry = tokenCarrySpeed(charData);
             // 死亡豁免状态（v5.9）：成功/失败次数 + 稳定/死亡标记（无记录时不显示）
             const ds = charData.death_saves || {};
             const dsLine = charData.death_saves
@@ -1525,7 +1551,7 @@
                 </div>
                 ${dsLine}
                 <div style="text-align:center;font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">
-                    🛡️ AC ${charData.ac||10} | 🏃 ${charData.speed||30}尺 | ⭐ +${charData.proficiency_bonus||2} | ✨ DC ${charData.spell_save_dc||10} | 👁️ 被动察觉 ${charData.passive_perception||10}
+                    🛡️ AC ${charData.ac||10} | 🏃 ${carry.speed}尺${carry.status ? ` <span style="color:var(--red);">${carry.status}</span>` : ''} | ⭐ +${charData.proficiency_bonus||2} | ✨ DC ${charData.spell_save_dc||10} | 👁️ 被动察觉 ${charData.passive_perception||10}
                 </div>
                 <div class="tip-abilities">
                     ${Object.entries(abbr).map(([k,label]) => {
@@ -2610,14 +2636,14 @@
             }
             attackPickerCtx = { targetToken: token, targetAC: parseInt(charData.ac) || 10, targetName: token.name || charData.name || '' };
             document.getElementById('attack-picker-target').textContent = attackPickerCtx.targetName;
-            // 攻击者候选：与侧边栏角色列表同源（排除目标自己）
+            // 攻击者候选：与侧边栏角色列表同源（含目标自身——自伤/自爆场景可选自己为攻击者）
             attackPickerChars = [];
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const data = await resp.json();
                 const chars = Array.isArray(data) ? data : (data.characters || []);
-                attackPickerChars = chars.filter(c => c && c.id !== token.charId);
+                attackPickerChars = chars.filter(c => c && c.id);
             } catch(e) { attackPickerChars = []; }
             const sel = document.getElementById('attack-picker-attacker');
             if (!attackPickerChars.length) {
@@ -3382,14 +3408,14 @@
             }
             healPickerCtx = { targetToken: token, targetName: token.name || charData.name || '' };
             document.getElementById('heal-picker-target').textContent = healPickerCtx.targetName;
-            // 治疗者候选：与侧边栏角色列表同源
+            // 治疗者候选：与侧边栏角色列表同源（含目标自身——自愈/喝药水场景可选自己为治疗者）
             healPickerChars = [];
             try {
                 const identity = getIdentity();
                 const resp = await fetch(`/api/characters?name=${encodeURIComponent(identity.name)}&role=${encodeURIComponent(identity.role)}`);
                 const data = await resp.json();
                 const chars = Array.isArray(data) ? data : (data.characters || []);
-                healPickerChars = chars.filter(function(c) { return c && c.id !== token.charId; });
+                healPickerChars = chars.filter(function(c) { return c && c.id; });
             } catch(e) { healPickerChars = []; }
             const sel = document.getElementById('heal-picker-healer');
             if (!healPickerChars.length) {
@@ -4171,13 +4197,26 @@
             window._markDirty('tokens');
         }
 
-        // 死亡豁免结果文案
-        function deathSaveResultText(name, total, data) {
+        // 死亡豁免体质调整值：从角色数据取（ability_mods.con 优先，回退 abilities 计算）
+        function deathSaveConMod(d) {
+            if (d && d.ability_mods && typeof d.ability_mods.con === 'number') return d.ability_mods.con;
+            if (d && d.abilities && typeof d.abilities.con === 'number') return Math.floor((d.abilities.con - 10) / 2);
+            return 0;
+        }
+        // 掷骰结果展示格式：有加值 "8+2=10"，无加值 "8"（roll 为 d20 原始值）
+        function fmtDeathSaveTotal(roll, conMod) {
+            return conMod ? roll + (conMod >= 0 ? '+' : '') + conMod + '=' + (roll + conMod) : String(roll);
+        }
+        // 死亡豁免结果文案（roll 为 d20 原始值：自然 1/20 判定用原始值；成败判定用 total=roll+conMod）
+        function deathSaveResultText(name, roll, conMod, data) {
+            const total = roll + conMod;
             if (data.is_dead) return `${name} 死亡豁免失败 3 次，宣告死亡…`;
-            if (total === 1) return `${name} 死亡豁免掷出 1（大失败）！失败 ×2（${data.failures}/3）`;
-            if (total === 20 || data.is_stable) return `${name} 死亡豁免掷出 ${total}！成功 3 次，稳定下来！`;
+            if (roll === 1) return `${name} 死亡豁免掷出 1（大失败）！失败 ×2（${data.failures}/3）`;
+            if (roll === 20 || data.is_stable) {
+                return `${name} 死亡豁免${roll === 20 ? `掷出 20${conMod ? (conMod > 0 ? '+' + conMod : conMod) : ''}` : `成功 ${data.successes}/3`}！稳定下来！`;
+            }
             const ok = total >= 10;
-            return `${name} 死亡豁免${ok ? '成功' : '失败'}（${total}）— ${ok ? '成功' : '失败'} ${ok ? data.successes : data.failures}/3`;
+            return `${name} 死亡豁免${ok ? '成功' : '失败'}（${fmtDeathSaveTotal(roll, conMod)}）— ${ok ? '成功' : '失败'} ${ok ? data.successes : data.failures}/3`;
         }
 
         // 主流程：轮到倒地角色 → 查豁免状态 → 弹 3D 死亡豁免界面掷 d20 → 判定 → 死亡处理
@@ -4186,11 +4225,13 @@
             if (combatant.hp == null || combatant.hp > 0 || combatant.dead) return;
             // 查角色死亡豁免状态：已稳定（3 成功）不再触发；已死亡补同步 token 黑白
             let ds = null;
+            let conMod = 0;
             try {
                 const resp = await fetch(`/api/character/${combatant.charId}`);
                 const d = await resp.json();
                 if (d.error) return;
                 ds = d.death_saves || {};
+                conMod = deathSaveConMod(d);   // 体质调整值（DND5e：死亡豁免 = d20 + 体质调整值）
             } catch(e) { return; }
             if (ds.is_stable || ds.is_dead) {
                 if (ds.is_dead && !combatant.dead) {
@@ -4206,16 +4247,17 @@
                 // 复用 roll3dStage：API 确定性结果 → 3D 物理动画（用户点"掷死亡豁免"）
                 const result = await roll3dStage('d20', null, '🎲 掷死亡豁免');
                 if (!result) return;  // 用户取消，下次轮到再触发
-                const total = result.total;
-                if (!total || total < 1 || total > 20) {
-                    alert('死亡豁免掷骰结果异常（' + total + '），请重试');
+                const roll = result.total;   // d20 原始值（体质调整值另行计算相加）
+                if (!roll || roll < 1 || roll > 20) {
+                    alert('死亡豁免掷骰结果异常（' + roll + '），请重试');
                     return;
                 }
+                const total = roll + conMod;
                 let data = null;
                 try {
                     const resp = await fetch(`/api/character/${combatant.charId}/death-save`, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({roll_value: total})
+                        body: JSON.stringify({roll_value: roll, modifier: conMod})
                     });
                     if (!resp.ok) {
                         const errTxt = await resp.text().catch(function(){ return ''; });
@@ -4228,21 +4270,21 @@
                     return;
                 }
                 if (data.error) { alert(data.error); return; }
-                // 展示结果
+                // 展示结果（roll 原始值 + conMod 体质调整值，自然 1/20 判定用原始值）
                 if (typeof showAlertDialog === 'function') {
-                    await showAlertDialog(deathSaveResultText(combatant.name, total, data));
+                    await showAlertDialog(deathSaveResultText(combatant.name, roll, conMod, data));
                 } else {
-                    alert(deathSaveResultText(combatant.name, total, data));
+                    alert(deathSaveResultText(combatant.name, roll, conMod, data));
                 }
                 // 聊天室播报：先播本次结果（成功/失败/大失败/稳定），再播死亡宣告（两条独立消息）
-                if (total === 1) {
+                if (roll === 1) {
                     mapChatNotifyHp('💀', combatant.name + ' 死亡豁免掷出 1（大失败）！失败 ×2（' + data.failures + '/3）');
                 } else if (data.is_stable) {
-                    mapChatNotifyHp('💀', combatant.name + (total === 20 ? ' 死亡豁免掷出 20！' : ' 死亡豁免成功 3 次，') + '稳定下来！');
+                    mapChatNotifyHp('💀', combatant.name + (roll === 20 ? ' 死亡豁免掷出 20！' : ' 死亡豁免成功 3 次，') + '稳定下来！');
                 } else if (total >= 10) {
-                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免成功（' + total + '），成功 ' + data.successes + '/3');
+                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免成功（' + fmtDeathSaveTotal(roll, conMod) + '），成功 ' + data.successes + '/3');
                 } else {
-                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免失败（' + total + '），失败 ' + data.failures + '/3');
+                    mapChatNotifyHp('💀', combatant.name + ' 死亡豁免失败（' + fmtDeathSaveTotal(roll, conMod) + '），失败 ' + data.failures + '/3');
                 }
                 if (data.is_dead) {
                     mapChatNotifyHp('💀', combatant.name + ' 失血过多，无力支撑，宣告死亡...');
@@ -6036,6 +6078,7 @@ applyRoleRestrictions();
                     var td = incoming[id];
                     if (removeMissing && isRecentLocalRemove('tokens', td.id)) return;
                     mapTokens.push(createMapTokenElement(td.id, td.charId, td.name, td.portraitUrl, td.x, td.y, td.size||48, td.rotation||0, td.owner, td.dead));
+                    if (td.charId) fetchCharData(td.charId);  // 预加载角色数据（与本地创建一致：保证移动/编辑权限判断即时可用）
                 });
                 mapTokens.forEach(function(t){ maxId = Math.max(maxId, t.id||0); });
                 tokenIdCounter = Math.max(tokenIdCounter, maxId);

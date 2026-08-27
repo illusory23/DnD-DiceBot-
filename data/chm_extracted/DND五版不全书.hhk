@@ -9,13 +9,9 @@
 <param name="Font" value="Î¢ÈíÑÅºÚ,10,0">
 </OBJECT>
 <UL><LI><OBJECT type="text/sitemap">
-<param name="Name" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ\»ÄÖÞ±¦²Ø\±¦²Ø">
-<param name="Name" value="±¦²Ø">
-<param name="Local" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ/»ÄÖÞ±¦²Ø/±¦²Ø.html">
-</OBJECT><LI><OBJECT type="text/sitemap">
 <param name="Name" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ\»ÄÖÞ±¦²Ø\·ÖÁÑÒÅÎï">
 <param name="Name" value="¾÷±ðÒÅÎï">
-<param name="Local" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ/»ÄÖÞ±¦²Ø/·ÖÁÑÒÅÎï.html">
+<param name="Local" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ/»ÄÖÞ±¦²Ø/¾÷±ðÒÅÎï.html">
 </OBJECT><LI><OBJECT type="text/sitemap">
 <param name="Name" value="»ÄÖÞÌ½ÏÕ¼ÒÖ¸ÄÏ\»ÄÖÞ±¦²Ø\ÅÑÉñÎä¾ß">
 <param name="Name" value="ÅÑÉñÎä¾ß">

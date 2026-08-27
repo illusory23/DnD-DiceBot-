@@ -1,0 +1,56 @@
+2026-08-27_02_角色导出Excel与生物导出PDF
+
+功能：
+跑团平台数据反向导出，区分两种数据源、两种形式：
+- 角色卡角色 → 悲灵模板 Excel（完整人物卡），文件命名 角色名.xlsx
+- 自定义生物 → 词条卡 PDF（词条卡风格），文件命名 生物名.pdf
+
+角色 Excel 导出：
+- 新增 utils/excel_exporter.py：export_to_belling 把角色数据（_char_to_dict 同构）写入
+  悲灵模板（其他参考资料/DND5E24人物卡-悲灵v1.0.1.xlsx）「主要」+「起源」两 sheet，
+  与导入逻辑（_import_dnd5e24 / _import_origin_sheet）互为逆向，空值不写保留模板默认
+- 写入内容：名称/玩家/职业/子职/等级/经验/种族/亚种/阵营/信仰、六属性、HP/AC/先攻/
+  生命骰/体型/速度/被动察觉/法术DC/施法属性/法术攻击骰、18 技能熟练标记与加值
+  （生存→48 行"求生"、欺诈→51 行"欺瞒"映射）、豁免熟练（写模板预置 AX11"豁免熟练"行
+  的 BC 描述）、武器（L 列名称+AF 命中+AH 伤害骰+AL 类型+V 特效）、护甲、法术位
+  （E 列最大+G 列"已用/最大"）、准备法术与戏法（Y/Q 列+环阶）、特性四区
+  （种族特性 BT27/专长 BU43/特殊能力 BT63/职业能力 AX-BC 区）、起源 sheet
+  （年龄/性别/身高/体重/人物形象/个性/理念/羁绊/缺陷/背景故事）
+- 合并单元格处理：武器区 AF/AH/AL/V 列 31-48 大量合并（仅 33-37 行可写）、
+  Q66/Y66/BU55/BT70 尾行合并——写入前检测 MergedCell，跳行/跳过（MergedCell 只读坑）
+
+生物 PDF 导出：
+- 新增 utils/pdf_exporter.py：reportlab 生成 A4 词条卡 PDF
+- 布局：生物名（金色大标题）+ 英文名 + 信息行（挑战等级/体型/类型/阵营/信仰/性别/
+  AC/HP/速度）→ 六属性表（名称/数值/调整值）→ detail_text 分区正文
+  （【特性】【动作】等分区加粗 + 分隔线，属性行已表格化自动跳过）→ 来源页脚
+- 旧条目（凡度尔等无结构化字段）完整可用：属性表从 detail_text 正则解析兜底，
+  解析不到整表隐藏；正文始终有
+- 中文字体：微软雅黑 msyh.ttc（subfontIndex 0）优先，黑体 simhei.ttf 回退；
+  均缺失时报错。依赖 reportlab>=4.4（已安装并加入 requirements.txt）
+
+后端与前端：
+- web/app.py 新增两路由：GET /api/character/<id>/export-excel、
+  GET /api/custom/monsters/<name>/export-pdf；导出目录 骰娘/导出/（自动创建），
+  send_file 下载中文文件名（_safe_filename 清洗非法字符）
+- character.html 角色详情头部「📥 导出 Excel」按钮（character.js v18→v19，
+  exportCharExcel 用 currentChar.id 跳转下载）
+- reference.html 自定义生物列表每行「📄 PDF」按钮（exportMonsterPdf 跳转下载）
+
+验证：
+- 后端自动测试 31 项全部通过：角色导出 200 + 中文文件名 + 单元格断言
+  （E3 名称/O6 等级/F13 力量/B32·I32 技能标记加值/B48 生存行/豁免行 BC/武器行
+  AH·AL/E63·G63 法术位/Y·X 准备法术/Q 戏法/BT·BZ 种族特性/起源 sheet 性别身高
+  个性背景故事形象）+ 模板数据验证保留（52 个下拉）+ 生物 PDF 200/%PDF 头/50KB
+  + 旧条目（哥布林）PDF 200 + 不存在 404
+- 测试数据与调试文件已清理，角色库/自定义生物库无残留
+- 排查修复：weapon 接口字段为 damage（非 damage_dice）、spell-slots 需 slots 包装——
+  为测试脚本自身问题，导出器不受影响；导出器修复 MergedCell 只读崩溃与
+  豁免行定位（模板预置 AX11 行直接写 BC）
+
+涉及文件：
+- 新增 utils/excel_exporter.py、utils/pdf_exporter.py
+- 修改 web/app.py、web/templates/character.html（含 character.js?v=19）、
+  web/templates/reference.html、requirements.txt（+reportlab>=4.4）
+
+需要重启服务器生效（后端与模板均改动）。

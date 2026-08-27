@@ -55,6 +55,71 @@
             font-weight: bold; margin-top: 0.5rem; transition: opacity 0.15s;
         }
         .cf-add-btn:hover { opacity: 0.9; }
+        .cf-field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; color: var(--text-dim); }
+        .cf-ab { flex-direction: row; align-items: center; gap: 0.35rem; }
+        .cf-ab-name { flex: 0 0 auto; width: 2.2em; }
+        .cf-ab-mod { flex: 0 0 auto; color: var(--green); font-size: 0.8rem; font-weight: bold; }
+        .cf-del {
+            background: none; border: 1px solid var(--border); color: var(--red);
+            cursor: pointer; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px; flex-shrink: 0;
+        }
+        .cf-del:hover { background: var(--red); color: #fff; }
+        .custom-list .custom-entry .custom-entry-edit {
+            background: none; border: 1px solid var(--border); color: var(--gold);
+            cursor: pointer; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px;
+        }
+        .custom-list .custom-entry .custom-entry-edit:hover { background: var(--gold); color: #fff; }
+        .custom-list .custom-entry .custom-entry-pdf {
+            background: none; border: 1px solid var(--border); color: var(--cyan);
+            cursor: pointer; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px;
+        }
+        .custom-list .custom-entry .custom-entry-pdf:hover { background: var(--cyan); color: #fff; }
+        .custom-list .custom-entry .custom-entry-preview {
+            background: none; border: 1px solid var(--border); color: var(--green);
+            cursor: pointer; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 3px;
+        }
+        .custom-list .custom-entry .custom-entry-preview:hover { background: var(--green); color: #fff; }
+        /* 生物卡预览浮层（词条卡样式） */
+        .monster-preview-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 999;
+            display: flex; align-items: center; justify-content: center; padding: 1rem;
+        }
+        .monster-preview-card {
+            background: #f7f4ec; color: #2b2b2b; border: 3px solid #b8860b; border-radius: 10px;
+            max-width: 720px; width: 100%; max-height: 85vh; overflow-y: auto;
+            padding: 1.2rem 1.4rem; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            font-size: 0.85rem; line-height: 1.7;
+        }
+        .monster-preview-card .mp-title { font-size: 1.5rem; font-weight: bold; color: #b8860b; }
+        .monster-preview-card .mp-en { font-size: 0.85rem; color: #888; margin-bottom: 0.3rem; }
+        .monster-preview-card .mp-divider { border: none; border-top: 2px solid #b8860b; margin: 0.5rem 0; }
+        .monster-preview-card .mp-info { font-size: 0.82rem; margin-bottom: 0.5rem; }
+        .monster-preview-card .mp-abilities {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 0.5rem 0;
+        }
+        .monster-preview-card .mp-ab {
+            background: #efe9da; border: 1px solid #d8cdb0; border-radius: 5px;
+            text-align: center; padding: 0.3rem 0.1rem;
+        }
+        .monster-preview-card .mp-ab .mp-ab-name { color: #888; font-size: 0.72rem; }
+        .monster-preview-card .mp-ab .mp-ab-score { font-size: 1.05rem; font-weight: bold; }
+        .monster-preview-card .mp-ab .mp-ab-mod { color: #b8860b; font-size: 0.8rem; font-weight: bold; }
+        .monster-preview-card .mp-body { white-space: pre-wrap; word-break: break-word; margin-top: 0.5rem; }
+        .monster-preview-card .mp-section { color: #b8860b; font-weight: bold; font-size: 0.95rem; margin: 0.4rem 0 0.1rem; }
+        .monster-preview-card .mp-footer { margin-top: 0.6rem; padding-top: 0.4rem; border-top: 1px solid #d8cdb0; color: #999; font-size: 0.72rem; }
+        .monster-preview-card .mp-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+        .monster-preview-card .mp-btn {
+            flex: 1; padding: 0.45rem; border: none; border-radius: 5px; cursor: pointer;
+            font-size: 0.85rem; font-weight: bold;
+        }
+        .monster-preview-card .mp-btn-dl { background: #b8860b; color: #fff; }
+        .monster-preview-card .mp-btn-close { background: #d8cdb0; color: #2b2b2b; }
+        .editable-field {
+            cursor: pointer; border-bottom: 1px dashed var(--text-dim);
+            padding: 0.05rem 0.15rem; border-radius: 2px; transition: all 0.15s;
+        }
+        .editable-field:hover { background: var(--surface2); border-bottom-color: var(--accent); color: var(--accent); }
+        .cf-sub-hint { font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.35rem; }
         .cf-fields { display: flex; flex-wrap: wrap; gap: 0.35rem; }
         .cf-field-btn {
             padding: 0.35rem 0.6rem; background: var(--bg); border: 1px solid var(--border);
@@ -229,11 +294,33 @@
             </div>
         </div>
 
+        <!-- 五版不全书目录浏览 -->
+        <div class="row" style="margin-top:1rem;">
+            <div class="col" style="flex:1;min-width:0;">
+                <div class="card">
+                    <div class="card-header">📚 五版不全书内置版</div>
+                    <div style="display:flex;gap:0.3rem;margin-bottom:0.5rem;position:relative;z-index:10;">
+                        <input id="chm-search-input" class="cf-input" placeholder="搜索不全书（输入即搜）..."
+                               autocomplete="off" spellcheck="false" style="flex:1;min-width:0;"
+                               oninput="chmSearch()"
+                               onkeydown="if(event.key==='Enter') chmSearch()">
+                        <button class="cf-add-btn" onclick="chmSearch()" style="flex:0 0 auto;width:auto;margin-top:0;padding:0.3rem 0.8rem;">🔍</button>
+                    </div>
+                    <div id="chm-search-results" style="max-height:180px;overflow-y:auto;font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
+                    <div style="display:flex;align-items:stretch;">
+                        <div id="chm-toc" style="flex:0 0 260px;max-height:600px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:6px;padding:0.4rem;font-size:0.8rem;"></div>
+                        <div id="chm-splitter" style="flex:0 0 6px;cursor:col-resize;background:var(--border);border-radius:3px;margin:0 0.25rem;min-height:400px;" title="拖动调整目录宽度"></div>
+                        <iframe id="chm-frame" style="flex:1;min-width:320px;height:600px;border:1px solid var(--border);border-radius:6px;background:#fff;" src="about:blank" onload="chmHighlightFrame()"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 状态参考 -->
         <div class="row">
             <div class="col">
                 <div class="card">
-                    <div class="card-header">⚕️ DND 状态参考</div>
+                    <div class="card-header">⚕️ 快速状态查询</div>
                     <div id="conditions-list" style="color:var(--text-dim)">加载中...</div>
                 </div>
             </div>
@@ -496,6 +583,7 @@
                     <div class="info-subtitle">挑战等级: ${data.cr || '?'} | ${data.size || ''} ${data.type || ''} ${data.legendary ? '| 传奇: '+data.legendary : ''}</div>
                     ${data.source ? `<div style="font-size:0.75rem;color:var(--text-dim);">📚 ${escHtml(data.source)}${data.rule_version && data.rule_version !== data.source ? ' <span style="color:#d4a860;">[' + escHtml(data.rule_version) + ']</span>' : ''}</div>` : ''}
                     ${data.detail_text ? `<div style="color:var(--text-dim);font-size:0.82rem;line-height:1.6;white-space:pre-wrap;margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">${escHtml(data.detail_text)}</div>` : '<div style="color:var(--text-dim);margin-top:0.5rem;">暂无详细数据</div>'}
+                    ${data.source_db === 'custom' ? `<button class="btn btn-small" style="margin-top:0.4rem;background:var(--gold);color:#fff;border:none;cursor:pointer;" onclick="exportMonsterPdf('${escHtml(data.name).replace(/'/g, "\\'")}')">📄 导出 PDF</button>` : ''}
                 </div>`;
         }
 
@@ -652,10 +740,16 @@
             customKind = kind;
             document.querySelectorAll('.custom-tab').forEach(b => b.classList.remove('active'));
             document.getElementById('custom-tab-' + kind).classList.add('active');
+            if (kind === 'monsters') {
+                resetMonsterForm();  // 生物走结构化分区表单（v5.11）
+            } else {
+                customData = {};
+                customSelectedField = '';
+            }
             renderCustomForm(kind);
         }
 
-        // ━━━ 自定义条目编辑状态 ━━━
+        // ━━━ 自定义条目编辑状态（法术用）━━━
         let customData = {};        // { fieldKey: value, ... }
         let customSelectedField = ''; // 当前选中编辑的字段
         const spellFields = [
@@ -664,17 +758,13 @@
             {key:'duration', label:'持续时间'},{key:'components', label:'成分'},{key:'classes', label:'职业'},
             {key:'ritual', label:'仪式'},{key:'concentration', label:'专注'},{key:'description', label:'法术描述'},
         ];
-        const monsterFields = [
-            {key:'name', label:'生物名 *'},{key:'name_en', label:'英文名'},{key:'cr', label:'挑战等级'},
-            {key:'size', label:'体型'},{key:'type', label:'类型'},{key:'legendary', label:'传奇动作'},
-            {key:'detail_text', label:'详细数据'},
-        ];
 
         function getCurrentFields() {
-            return customKind === 'monsters' ? monsterFields : spellFields;
+            return spellFields;
         }
 
         function renderCustomForm(kind) {
+            if (kind === 'monsters') { renderMonsterForm(); return; }  // 生物走结构化分区表单（v5.11）
             customData = {};
             customSelectedField = '';
             const el = document.getElementById('custom-form');
@@ -775,6 +865,415 @@
             renderCustomForm(customKind);
         }
 
+        // ━━━ 自定义生物 · 结构化分区表单（v5.11）━━━
+        // 二级 Tab：基础 / 属性 / 熟练 / 装备 / 特性；保存时自动拼装 detail_text（CHM 词条格式）
+        const MONSTER_AB_CN = {'str':'力量','dex':'敏捷','con':'体质','int':'智力','wis':'感知','cha':'魅力'};
+        const MONSTER_SKILL_AB = {
+            '运动':'str','特技':'dex','巧手':'dex','隐匿':'dex',
+            '奥秘':'int','历史':'int','调查':'int','自然':'int','宗教':'int',
+            '驯兽':'wis','洞悉':'wis','医药':'wis','察觉':'wis','生存':'wis',
+            '欺诈':'cha','威吓':'cha','表演':'cha','游说':'cha',
+        };
+        const MONSTER_FEATURE_CATS = [
+            {key:'racial_trait', title:'🧬 种族特性'},
+            {key:'class_feature', title:'⚔️ 职业能力'},
+            {key:'feat', title:'⭐ 专长'},
+            {key:'special_ability', title:'✨ 特殊能力'},
+        ];
+        const MONSTER_SUB_TABS = [
+            {key:'base', title:'📋 基础'},
+            {key:'stats', title:'💪 属性'},
+            {key:'skills', title:'🎯 熟练'},
+            {key:'equip', title:'⚔️ 装备'},
+            {key:'features', title:'✨ 特性'},
+        ];
+        let monsterData = {};        // 结构化数据状态
+        let monsterEditName = '';    // 编辑中的原名称（空 = 新增）
+        let monsterSubTab = 'base';  // 当前二级分区
+
+        function newMonsterData() {
+            return {
+                name:'', name_en:'', cr:'', size:'', type:'', legendary:'',
+                race:'', alignment:'', faith:'', gender:'',
+                hp:'', abilities:{str:'',dex:'',con:'',int:'',wis:'',cha:''},
+                height:'', weight:'', speed:'', passive_perception:'',
+                ac:'', armor:'', weapons:[],
+                skill_proficiencies:{}, save_proficiencies:{},
+                features:{racial_trait:[],class_feature:[],feat:[],special_ability:[]},
+                extra_text:'',
+            };
+        }
+
+        function monsterAbilityMod(score) {
+            const n = parseInt(score, 10);
+            if (isNaN(n)) return 0;
+            return Math.floor((n - 10) / 2);
+        }
+
+        function fmtMod(n) { return (n >= 0 ? '+' : '') + n; }
+
+        function switchMonsterSubTab(tab) {
+            monsterSubTab = tab;
+            renderMonsterForm();
+        }
+
+        function renderMonsterForm() {
+            const el = document.getElementById('custom-form');
+            el.innerHTML = `
+                <div class="custom-tabs" style="margin-bottom:0.5rem;">
+                    ${MONSTER_SUB_TABS.map(t => `
+                        <button class="custom-tab${monsterSubTab === t.key ? ' active' : ''}" onclick="switchMonsterSubTab('${t.key}')">${t.title}</button>
+                    `).join('')}
+                </div>
+                <div id="monster-sub-form">${renderMonsterSubTab()}</div>
+                <div style="margin-top:0.6rem;">
+                    <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.2rem;">📄 详细数据补充（自由文本，追加在自动生成的详细数据末尾）</div>
+                    <textarea id="cf-extra-text" class="cf-input cf-textarea" rows="3"
+                        placeholder="补充文本（可选）：特殊规则、动作细节等"
+                        oninput="monsterData.extra_text=this.value">${escHtml(monsterData.extra_text || '')}</textarea>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="cf-add-btn" onclick="saveMonsterEntry()" style="flex:1;">${monsterEditName ? '💾 保存修改' : '➕ 添加至资料库'}</button>
+                    ${monsterEditName ? '<button class="cf-add-btn" onclick="resetMonsterForm()" style="flex:0 0 auto;background:var(--surface2);color:var(--text);">↩ 取消编辑</button>' : ''}
+                </div>
+            `;
+        }
+
+        function monsterSelect(key, label, options, placeholder) {
+            const d = monsterData;
+            let opts = `<option value="">${placeholder || '请选择'}</option>`;
+            options.forEach(o => {
+                opts += `<option value="${escHtml(o)}"${d[key] === o ? ' selected' : ''}>${escHtml(o)}</option>`;
+            });
+            // 当前值不在选项中（旧数据/自由值）时追加为选项，编辑不丢值
+            if (d[key] && !options.includes(d[key])) {
+                opts += `<option value="${escHtml(d[key])}" selected>${escHtml(d[key])}</option>`;
+            }
+            return `<label class="cf-field">${label}
+                <select class="cf-input" onchange="monsterData['${key}']=this.value">${opts}</select>
+            </label>`;
+        }
+
+        function renderMonsterSubTab() {
+            const d = monsterData;
+            if (monsterSubTab === 'base') {
+                const f = (key, label, ph, req) => `
+                    <label class="cf-field">${label}${req ? ' *' : ''}
+                        <input class="cf-input" value="${escHtml(d[key])}" placeholder="${ph||''}"
+                            oninput="monsterData['${key}']=this.value">
+                    </label>`;
+                // 体型/阵营/性别为下拉选择（当前自由值自动并入选项）
+                const SIZE_OPTS = ['微型', '小型', '中型', '大型', '超大型', '巨型'];
+                const ALIGN_OPTS = ['守序善良', '中立善良', '混乱善良', '守序中立', '绝对中立',
+                                    '混乱中立', '守序邪恶', '中立邪恶', '混乱邪恶', '无阵营'];
+                const GENDER_OPTS = ['男', '女', '无性别', '其他'];
+                return `<div class="cf-grid">
+                    ${f('name','生物名','必填',1)}${f('name_en','英文名','Goblin')}
+                    ${f('cr','挑战等级','1/4')}${monsterSelect('size','体型',SIZE_OPTS)}
+                    ${f('type','类型','类人（哥布林种）')}${f('legendary','传奇动作','3次/日，可空')}
+                    ${f('race','种族','人类')}${monsterSelect('alignment','阵营',ALIGN_OPTS)}
+                    ${f('faith','信仰','可空')}${monsterSelect('gender','性别',GENDER_OPTS)}
+                </div>`;
+            }
+            if (monsterSubTab === 'stats') {
+                const abRows = Object.keys(MONSTER_AB_CN).map(k => `
+                    <label class="cf-field cf-ab">
+                        <span class="cf-ab-name">${MONSTER_AB_CN[k]}</span>
+                        <input class="cf-input" type="number" min="1" max="30" value="${escHtml(d.abilities[k])}" placeholder="10"
+                            oninput="monsterData.abilities['${k}']=this.value;updateMonsterAbMod('${k}')">
+                        <span class="cf-ab-mod" id="ab-mod-${k}">${fmtMod(monsterAbilityMod(d.abilities[k]))}</span>
+                    </label>`).join('');
+                return `<div class="cf-grid">
+                    <label class="cf-field">HP（数值+骰子）
+                        <input class="cf-input" value="${escHtml(d.hp)}" placeholder="如 22（5D8）" oninput="monsterData.hp=this.value">
+                    </label>
+                    ${abRows}
+                    <label class="cf-field">身高<input class="cf-input" value="${escHtml(d.height)}" placeholder="5尺6寸" oninput="monsterData.height=this.value"></label>
+                    <label class="cf-field">体重<input class="cf-input" value="${escHtml(d.weight)}" placeholder="120磅" oninput="monsterData.weight=this.value"></label>
+                    <label class="cf-field">速度<input class="cf-input" value="${escHtml(d.speed)}" placeholder="30尺" oninput="monsterData.speed=this.value"></label>
+                    <label class="cf-field">被动察觉<input class="cf-input" type="number" value="${escHtml(d.passive_perception)}" placeholder="10" oninput="monsterData.passive_perception=this.value"></label>
+                </div>`;
+            }
+            if (monsterSubTab === 'skills') {
+                const saveTags = Object.keys(MONSTER_AB_CN).map(k => {
+                    const prof = d.save_proficiencies[k] || {};
+                    const amod = monsterAbilityMod(d.abilities[k]);
+                    const bonus = prof.is_proficient ? (prof.save_bonus ?? (amod + 2)) : amod;
+                    return `<span class="skill-tag${prof.is_proficient ? ' proficient' : ''}" title="点击切换豁免熟练" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.15rem;">
+                        <span onclick="toggleMonsterSave('${k}')">${MONSTER_AB_CN[k]}</span>
+                        <span class="editable-field" onclick="event.stopPropagation();editMonsterSaveBonus('${k}')" title="点击修改加值" style="font-size:0.75rem;">${fmtMod(bonus)}</span>
+                    </span>`;
+                }).join('');
+                const skillTags = Object.keys(MONSTER_SKILL_AB).map(s => {
+                    const prof = d.skill_proficiencies[s] || {};
+                    const amod = monsterAbilityMod(d.abilities[MONSTER_SKILL_AB[s]]);
+                    const bonus = prof.is_proficient ? (prof.bonus ?? (amod + 2)) : amod;
+                    return `<span class="skill-tag${prof.is_proficient ? ' proficient' : ''}" title="点击切换熟练" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.15rem;">
+                        <span onclick="toggleMonsterSkill('${s}')">${s}</span>
+                        <span class="editable-field" onclick="event.stopPropagation();editMonsterSkillBonus('${s}')" title="点击修改加值" style="font-size:0.75rem;">${fmtMod(bonus)}</span>
+                    </span>`;
+                }).join('');
+                return `<div class="cf-sub-hint">🛡️ 豁免熟练：点击名称切换熟练/取消，点击加值修改</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem;">${saveTags}</div>
+                    <div class="cf-sub-hint">🎯 技能熟练：点击名称切换熟练/取消，点击加值修改</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">${skillTags}</div>`;
+            }
+            if (monsterSubTab === 'equip') {
+                const weaponRows = (d.weapons || []).map((w, i) => `
+                    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:0.3rem;margin-bottom:0.3rem;">
+                        <div style="display:flex;gap:0.3rem;align-items:center;flex-wrap:wrap;">
+                            <input value="${escHtml(w.name||'')}" placeholder="武器名" oninput="monsterData.weapons[${i}].name=this.value" style="width:90px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <span style="font-size:0.75rem;color:var(--text-dim);">命中</span>
+                            <input value="${escHtml(w.attack_bonus??'')}" placeholder="+4" oninput="monsterData.weapons[${i}].attack_bonus=this.value" style="width:45px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <span style="font-size:0.75rem;color:var(--text-dim);">伤害</span>
+                            <input value="${escHtml(w.damage||'')}" placeholder="1d6+2" oninput="monsterData.weapons[${i}].damage=this.value" style="width:60px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <span style="font-size:0.75rem;color:var(--text-dim);">类型</span>
+                            <input value="${escHtml(w.damage_type||'')}" placeholder="挥砍" oninput="monsterData.weapons[${i}].damage_type=this.value" style="width:50px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <button class="cf-del" onclick="removeMonsterWeapon(${i})" title="删除">✕</button>
+                        </div>
+                        <input value="${escHtml(w.description||'')}" placeholder="描述/特效（可选）" oninput="monsterData.weapons[${i}].description=this.value" style="width:100%;margin-top:0.2rem;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;">
+                    </div>`).join('');
+                return `<div class="cf-grid">
+                    <label class="cf-field">AC<input class="cf-input" type="number" value="${escHtml(d.ac)}" placeholder="12" oninput="monsterData.ac=this.value"></label>
+                    <label class="cf-field">装备/护甲<input class="cf-input" value="${escHtml(d.armor)}" placeholder="皮甲，盾" oninput="monsterData.armor=this.value"></label>
+                </div>
+                <div class="cf-sub-hint" style="margin-top:0.5rem;">⚔️ 武器列表</div>
+                ${weaponRows || '<div style="color:var(--text-dim);font-size:0.75rem;">暂无武器</div>'}
+                <button class="cf-add-btn" onclick="addMonsterWeapon()" style="margin-top:0.4rem;">➕ 添加武器</button>`;
+            }
+            // features 分区
+            return MONSTER_FEATURE_CATS.map(cat => {
+                const list = (d.features[cat.key] || []).map((f, i) => `
+                    <div style="display:flex;align-items:flex-start;gap:0.3rem;margin-bottom:0.25rem;padding:0.3rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:bold;color:var(--gold);font-size:0.8rem;cursor:pointer;" onclick="editMonsterFeatureName('${cat.key}', ${i})">${escHtml(f.name||'')}</div>
+                            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.15rem;cursor:pointer;word-break:break-all;" onclick="editMonsterFeatureDesc('${cat.key}', ${i})">${escHtml(f.description||'<span style="font-style:italic;">点击添加描述...</span>')}</div>
+                        </div>
+                        <button class="cf-del" onclick="removeMonsterFeature('${cat.key}', ${i})" title="删除">✕</button>
+                    </div>`).join('');
+                return `<div style="font-weight:bold;color:var(--accent);font-size:0.82rem;margin:0.5rem 0 0.3rem;">${cat.title} (${(d.features[cat.key]||[]).length})</div>
+                    ${list || '<div style="color:var(--text-dim);font-size:0.75rem;">暂无</div>'}
+                    <button class="cf-add-btn" onclick="addMonsterFeature('${cat.key}')" style="margin-top:0.3rem;">➕ 添加${cat.title.replace(/^[^一-龥]+/, '')}</button>`;
+            }).join('');
+        }
+
+        function updateMonsterAbMod(k) {
+            const el = document.getElementById('ab-mod-' + k);
+            if (el) el.textContent = fmtMod(monsterAbilityMod(monsterData.abilities[k]));
+        }
+
+        // ── 熟练交互（本地状态，点击切换 + 数值弹窗）──
+        function toggleMonsterSkill(skillName) {
+            const prof = monsterData.skill_proficiencies[skillName] = monsterData.skill_proficiencies[skillName] || {};
+            if (prof.is_proficient) {
+                delete monsterData.skill_proficiencies[skillName];  // 取消熟练
+            } else {
+                prof.is_proficient = true;
+                prof.bonus = monsterAbilityMod(monsterData.abilities[MONSTER_SKILL_AB[skillName]]) + 2;  // 属性调整+熟练
+            }
+            renderMonsterSubTab();
+        }
+
+        async function editMonsterSkillBonus(skillName) {
+            const prof = monsterData.skill_proficiencies[skillName] = monsterData.skill_proficiencies[skillName] || {};
+            const current = prof.is_proficient ? (prof.bonus ?? 0) : monsterAbilityMod(monsterData.abilities[MONSTER_SKILL_AB[skillName]]);
+            const input = await showPromptDialog(`修改「${skillName}」加值（当前 ${fmtMod(current)}）:`, {defaultValue: current});
+            if (input === null) return;
+            const bonus = parseInt(input, 10);
+            if (isNaN(bonus)) { alert('请输入数字'); return; }
+            prof.is_proficient = true;  // 设置加值即视为熟练（词条语义：列出的技能即熟练）
+            prof.bonus = bonus;
+            renderMonsterSubTab();
+        }
+
+        function toggleMonsterSave(k) {
+            const prof = monsterData.save_proficiencies[k] = monsterData.save_proficiencies[k] || {};
+            if (prof.is_proficient) {
+                delete monsterData.save_proficiencies[k];
+            } else {
+                prof.is_proficient = true;
+                prof.save_bonus = monsterAbilityMod(monsterData.abilities[k]) + 2;
+            }
+            renderMonsterSubTab();
+        }
+
+        async function editMonsterSaveBonus(k) {
+            const prof = monsterData.save_proficiencies[k] = monsterData.save_proficiencies[k] || {};
+            const current = prof.is_proficient ? (prof.save_bonus ?? 0) : monsterAbilityMod(monsterData.abilities[k]);
+            const input = await showPromptDialog(`修改「${MONSTER_AB_CN[k]}」豁免加值（当前 ${fmtMod(current)}）:`, {defaultValue: current});
+            if (input === null) return;
+            const bonus = parseInt(input, 10);
+            if (isNaN(bonus)) { alert('请输入数字'); return; }
+            prof.is_proficient = true;
+            prof.save_bonus = bonus;
+            renderMonsterSubTab();
+        }
+
+        // ── 武器 ──
+        function addMonsterWeapon() {
+            monsterData.weapons.push({name:'', attack_bonus:'', damage:'', damage_type:'', description:''});
+            renderMonsterSubTab();
+        }
+
+        function removeMonsterWeapon(i) {
+            monsterData.weapons.splice(i, 1);
+            renderMonsterSubTab();
+        }
+
+        // ── 特性词条（参考角色卡：prompt 添加 / 点击编辑 / ✕ 删除）──
+        async function addMonsterFeature(cat) {
+            const name = await showPromptDialog('输入特性名称:');
+            if (!name || !name.trim()) return;
+            const desc = await showPromptDialog('输入描述（可选）:', {defaultValue: ''}) || '';
+            monsterData.features[cat].push({name: name.trim(), description: desc});
+            renderMonsterSubTab();
+        }
+
+        async function editMonsterFeatureName(cat, i) {
+            const name = await showPromptDialog('修改名称:', {defaultValue: monsterData.features[cat][i].name || ''});
+            if (!name || !name.trim()) return;
+            monsterData.features[cat][i].name = name.trim();
+            renderMonsterSubTab();
+        }
+
+        async function editMonsterFeatureDesc(cat, i) {
+            const desc = await showPromptDialog('修改描述:', {defaultValue: monsterData.features[cat][i].description || ''});
+            if (desc === null) return;
+            monsterData.features[cat][i].description = desc;
+            renderMonsterSubTab();
+        }
+
+        function removeMonsterFeature(cat, i) {
+            monsterData.features[cat].splice(i, 1);
+            renderMonsterSubTab();
+        }
+
+        // ── 保存 / 编辑加载 ──
+        function buildMonsterDetailText() {
+            const d = monsterData;
+            const lines = [];
+            if (d.ac !== '' && d.ac !== undefined && d.ac !== null) lines.push(`AC ${d.ac}${d.armor ? '（' + d.armor + '）' : ''}`);
+            if (d.hp) lines.push(`HP ${d.hp}`);
+            if (d.speed) lines.push(`速度 ${d.speed}`);
+            const abParts = Object.keys(MONSTER_AB_CN).map(k => {
+                const v = d.abilities[k];
+                if (v === '' || v === undefined || v === null) return '';
+                const n = parseInt(v, 10) || 0;
+                return `${MONSTER_AB_CN[k]}${n}(${fmtMod(monsterAbilityMod(v))})`;
+            }).filter(Boolean);
+            if (abParts.length) lines.push('\n' + abParts.join(' '));
+            const saveParts = [];
+            for (const k of Object.keys(MONSTER_AB_CN)) {
+                const prof = d.save_proficiencies[k];
+                if (prof && prof.is_proficient) saveParts.push(`${MONSTER_AB_CN[k]}+${prof.save_bonus ?? (monsterAbilityMod(d.abilities[k]) + 2)}`);
+            }
+            if (saveParts.length) lines.push('\n豁免：' + saveParts.join('，'));
+            const skillParts = [];
+            for (const s of Object.keys(MONSTER_SKILL_AB)) {
+                const prof = d.skill_proficiencies[s];
+                if (prof && prof.is_proficient) skillParts.push(`${s}+${prof.bonus ?? (monsterAbilityMod(d.abilities[MONSTER_SKILL_AB[s]]) + 2)}`);
+            }
+            if (skillParts.length) lines.push(`技能：${skillParts.join('，')}`);
+            if (d.passive_perception !== '' && d.passive_perception !== undefined && d.passive_perception !== null) lines.push(`感官：被动察觉${d.passive_perception}`);
+            const meta = [];
+            if (d.race) meta.push(`种族：${d.race}`);
+            if (d.alignment) meta.push(`阵营：${d.alignment}`);
+            if (d.faith) meta.push(`信仰：${d.faith}`);
+            if (d.gender) meta.push(`性别：${d.gender}`);
+            if (meta.length) lines.push(meta.join('  '));
+            if (d.height || d.weight) lines.push(`身高：${d.height || '—'}  体重：${d.weight || '—'}`);
+            if (d.cr) lines.push(`挑战等级：${d.cr}`);
+            for (const cat of MONSTER_FEATURE_CATS) {
+                const list = d.features[cat.key] || [];
+                if (list.length) {
+                    lines.push('\n【' + cat.title.replace(/^[^一-龥]+/, '') + '】');
+                    list.forEach(f => lines.push(`${f.name}${f.description ? '：' + f.description : ''}`));
+                }
+            }
+            if (d.weapons && d.weapons.length) {
+                lines.push('\n【武器】');
+                d.weapons.forEach(w => {
+                    if (!w.name && !w.damage) return;
+                    let s = (w.name || '未命名武器') + '：';
+                    if (w.description) {
+                        s += w.description;
+                    } else {
+                        s += '近战武器';
+                        if (w.attack_bonus !== '' && w.attack_bonus !== undefined && w.attack_bonus !== null) s += `，命中+${String(w.attack_bonus).replace(/^\+/, '')}`;
+                        if (w.damage) s += `。击中：${w.damage}${w.damage_type ? ' ' + w.damage_type + '伤害' : ''}`;
+                    }
+                    lines.push(s);
+                });
+            }
+            if (d.extra_text && d.extra_text.trim()) lines.push('\n' + d.extra_text.trim());
+            return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
+
+        async function saveMonsterEntry() {
+            const d = monsterData;
+            if (!d.name || !d.name.trim()) { alert('请输入生物名'); return; }
+            const isEdit = !!monsterEditName;
+            const payload = {
+                name: d.name.trim(), name_en: d.name_en, cr: d.cr, size: d.size, type: d.type,
+                legendary: d.legendary, race: d.race, alignment: d.alignment, faith: d.faith, gender: d.gender,
+                hp: d.hp, abilities: d.abilities, height: d.height, weight: d.weight, speed: d.speed,
+                passive_perception: d.passive_perception, ac: d.ac, armor: d.armor, weapons: d.weapons,
+                skill_proficiencies: d.skill_proficiencies, save_proficiencies: d.save_proficiencies,
+                features: d.features, detail_text: buildMonsterDetailText(),
+            };
+            const url = isEdit ? `/api/custom/monsters?name=${encodeURIComponent(monsterEditName)}` : '/api/custom/monsters';
+            const resp = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await resp.json();
+            if (result.error) { alert(result.error); return; }
+            alert(isEdit ? '✅ "' + d.name.trim() + '" 已更新' : '✅ "' + d.name.trim() + '" 已添加到资料库');
+            resetMonsterForm();
+            loadCustomList('monsters');
+        }
+
+        async function editMonsterEntry(name) {
+            const resp = await fetch('/api/custom/monsters');
+            const data = await resp.json();
+            const e = (data.results || []).find(x => x.name === name);
+            if (!e) { alert('未找到该条目'); return; }
+            monsterEditName = e.name;
+            const nd = newMonsterData();
+            nd.name = e.name || ''; nd.name_en = e.name_en || ''; nd.cr = e.cr || ''; nd.size = e.size || ''; nd.type = e.type || '';
+            nd.legendary = e.legendary || ''; nd.race = e.race || ''; nd.alignment = e.alignment || ''; nd.faith = e.faith || ''; nd.gender = e.gender || '';
+            nd.hp = e.hp || ''; nd.height = e.height || ''; nd.weight = e.weight || ''; nd.speed = e.speed || '';
+            nd.passive_perception = e.passive_perception || '';
+            nd.ac = e.ac || ''; nd.armor = e.armor || '';
+            nd.weapons = Array.isArray(e.weapons) ? e.weapons.map(w => Object.assign({}, w)) : [];
+            nd.skill_proficiencies = Object.assign({}, e.skill_proficiencies || {});
+            nd.save_proficiencies = Object.assign({}, e.save_proficiencies || {});
+            if (e.abilities && typeof e.abilities === 'object') {
+                for (const k of Object.keys(MONSTER_AB_CN)) {
+                    if (e.abilities[k] !== undefined && e.abilities[k] !== null) nd.abilities[k] = e.abilities[k];
+                }
+            }
+            if (e.features && typeof e.features === 'object') {
+                for (const cat of MONSTER_FEATURE_CATS) {
+                    if (Array.isArray(e.features[cat.key])) nd.features[cat.key] = e.features[cat.key].map(f => Object.assign({}, f));
+                }
+            }
+            // 旧格式条目（无结构化字段）：原 detail_text 放入补充区防覆盖丢失
+            if (!('hp' in e) && !e.abilities && e.detail_text) nd.extra_text = e.detail_text;
+            monsterData = nd;
+            monsterSubTab = 'base';
+            renderMonsterForm();
+            alert('正在编辑 "' + name + '"，修改完成后点「💾 保存修改」');
+        }
+
+        function resetMonsterForm() {
+            monsterEditName = '';
+            monsterData = newMonsterData();
+            monsterSubTab = 'base';
+            renderMonsterForm();
+        }
+
         async function loadCustomList(kind) {
             const el = document.getElementById('custom-list');
             if (!el) return;
@@ -782,12 +1281,17 @@
                 const resp = await fetch('/api/custom/' + kind);
                 const data = await resp.json();
                 if (!data.results.length) { el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:0.5rem;">暂无自定义条目</div>'; return; }
-                el.innerHTML = data.results.map(e => `
+                el.innerHTML = data.results.map(e => {
+                    const nm = escHtml(e.name).replace(/'/g, "\\'");
+                    return `
                     <div class="custom-entry">
                         <span class="custom-entry-name">${escHtml(e.name)}</span>
-                        <button class="custom-entry-del" onclick="deleteCustom('${kind}','${escHtml(e.name).replace(/'/g,"\\'")}')">✕</button>
-                    </div>
-                `).join('');
+                        ${kind === 'monsters' ? `<button class="custom-entry-preview" onclick="previewMonsterCard('${nm}')" title="预览词条卡">👁️</button>` : ''}
+                        ${kind === 'monsters' ? `<button class="custom-entry-edit" onclick="editMonsterEntry('${nm}')" title="编辑">✏️</button>` : ''}
+                        ${kind === 'monsters' ? `<button class="custom-entry-pdf" onclick="exportMonsterPdf('${nm}')" title="导出 PDF">📄</button>` : ''}
+                        <button class="custom-entry-del" onclick="deleteCustom('${kind}','${nm}')">✕</button>
+                    </div>`;
+                }).join('');
             } catch(e) {}
         }
 
@@ -795,6 +1299,261 @@
             if (!await showConfirmDialog('删除 "' + name + '"？')) return;
             await fetch('/api/custom/' + kind + '?name=' + encodeURIComponent(name), {method:'DELETE'});
             loadCustomList(kind);
+        }
+
+        // 生物导出为词条卡 PDF（v5.11）
+        function exportMonsterPdf(name) {
+            window.open('/api/custom/monsters/' + encodeURIComponent(name) + '/export-pdf', '_blank');
+        }
+
+        // ━━━ 五版不全书目录浏览（v5.11：左目录树懒加载 + 右 iframe 内容）━━━
+        function chmEncPath(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+
+        // 打开词条内容（带当前搜索词，加载后高亮）
+        // 路径规范化：detail_link 带前导 / 与 #锚点（/怪物图鉴2025/火童.htm#Magmin）
+        function chmOpenContent(path, query) {
+            path = String(path || '').replace(/^\/+/, '').split('#')[0];
+            if (!path) return;
+            const q = (query || '').trim();
+            const frame = document.getElementById('chm-frame');
+            frame.src = '/api/chm/content/' + chmEncPath(path) + (q ? '?q=' + encodeURIComponent(q) : '');
+        }
+
+        function escapeReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+        // 词条内关键词高亮（同源 iframe 内遍历文本节点，滚动到首个高亮）
+        function chmHighlightFrame() {
+            const frame = document.getElementById('chm-frame');
+            try {
+                const q = new URLSearchParams(frame.contentWindow.location.search).get('q');
+                if (!q) return;
+                const doc = frame.contentDocument;
+                if (!doc || !doc.body) return;
+                const words = q.split(/[\s,，、;；]+/).filter(w => w.length >= 2);
+                if (!words.length) return;
+                const re = new RegExp(words.map(escapeReg).join('|'), 'g');
+                const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+                const nodes = [];
+                while (walker.nextNode()) nodes.push(walker.currentNode);
+                let first = null;
+                nodes.forEach(node => {
+                    const text = node.nodeValue || '';
+                    if (!re.test(text)) return;
+                    re.lastIndex = 0;
+                    const frag = doc.createDocumentFragment();
+                    let last = 0, m;
+                    while ((m = re.exec(text))) {
+                        if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+                        const mark = doc.createElement('mark');
+                        mark.style.background = '#ffd54f';
+                        mark.style.color = '#000';
+                        mark.style.padding = '0 1px';
+                        mark.style.borderRadius = '2px';
+                        mark.textContent = m[0];
+                        if (!first) first = mark;
+                        frag.appendChild(mark);
+                        last = m.index + m[0].length;
+                    }
+                    if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)));
+                    node.parentNode.replaceChild(frag, node);
+                });
+                if (first) { try { first.scrollIntoView({block: 'center'}); } catch(e) {} }
+            } catch(e) { /* 跨域/异常忽略 */ }
+        }
+
+        function renderChmChildren(parentId, container) {
+            container.innerHTML = '<div style="color:var(--text-dim);padding:0.2rem;">加载中...</div>';
+            fetch('/api/chm/toc?parent=' + parentId)
+                .then(r => r.json())
+                .then(data => {
+                    container.innerHTML = '';
+                    data.nodes.forEach(n => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:0.2rem;padding:0.15rem 0.3rem;border-radius:3px;cursor:pointer;white-space:nowrap;overflow:hidden;';
+                        row.title = n.name;
+                        row.onmouseenter = () => { row.style.background = 'var(--surface2)'; };
+                        row.onmouseleave = () => { row.style.background = 'transparent'; };
+                        const arrow = document.createElement('span');
+                        arrow.textContent = n.has_children ? '▸' : ' ';
+                        arrow.style.cssText = 'flex:0 0 1em;color:var(--text-dim);';
+                        const icon = document.createElement('span');
+                        icon.textContent = n.has_children ? '📁' : '📄';
+                        icon.style.cssText = 'flex:0 0 auto;';
+                        const label = document.createElement('span');
+                        label.textContent = n.name;
+                        label.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;';
+                        row.appendChild(arrow); row.appendChild(icon); row.appendChild(label);
+                        if (n.has_children) {
+                            const kids = document.createElement('div');
+                            kids.style.cssText = 'display:none;flex-basis:100%;padding-left:0.5rem;';  // 独占一行，不挤占名称
+                            row.appendChild(kids);
+                            const toggleKids = () => {
+                                const open = kids.style.display !== 'none';
+                                kids.style.display = open ? 'none' : 'block';
+                                arrow.textContent = open ? '▸' : '▾';
+                                if (!open && !kids.dataset.loaded) {
+                                    kids.dataset.loaded = '1';
+                                    renderChmChildren(n.id, kids);
+                                }
+                            };
+                            arrow.style.cursor = 'pointer';
+                            arrow.onclick = (e) => { e.stopPropagation(); toggleKids(); };  // 点箭头：仅展开/收起
+                            row.onclick = (e) => {
+                                e.stopPropagation();  // 阻止冒泡到父节点
+                                if (n.local) {
+                                    chmOpenContent(n.local, document.getElementById('chm-search-input').value);  // 点节点：打开自身页面
+                                } else {
+                                    toggleKids();  // 纯目录节点：点击展开
+                                }
+                            };
+                        } else if (n.local) {
+                            row.onclick = (e) => {
+                                e.stopPropagation();  // 阻止冒泡到父节点
+                                chmOpenContent(n.local, document.getElementById('chm-search-input').value);
+                            };
+                        }
+                        container.appendChild(row);
+                    });
+                })
+                .catch(() => { container.innerHTML = '<div style="color:var(--red);padding:0.2rem;">目录加载失败</div>'; });
+        }
+
+        let chmSearchTimer = null;
+        function chmSearch() {
+            const q = document.getElementById('chm-search-input').value.trim();
+            const box = document.getElementById('chm-search-results');
+            if (q.length < 2) { box.style.display = 'none'; return; }
+            // 防抖 300ms（中文输入法组合期间不频繁请求）
+            clearTimeout(chmSearchTimer);
+            chmSearchTimer = setTimeout(() => {
+            box.style.display = 'block';
+            box.innerHTML = '<div style="color:var(--cyan);padding:0.2rem;">搜索中...</div>';
+            fetch('/api/search?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    // 与不全书内置搜索一致：显示全部类型匹配（rule/spell/monster 均可打开）
+                    const res = (data.results || []).filter(x => x.path || x.type === 'spell' || x.type === 'monster');
+                    if (!res.length) {
+                        box.innerHTML = '<div style="color:var(--text-dim);padding:0.2rem;">无内容命中（试试其他关键词）</div>';
+                        return;
+                    }
+                    const typeIcon = {rule: '📄', spell: '📖', monster: '👹'};
+                    box.innerHTML = res.slice(0, 20).map(x => {
+                        const hasPath = !!x.path;
+                        const icon = typeIcon[x.type] || '📄';
+                        return `<div class="item-result-row" style="cursor:${hasPath ? 'pointer' : 'default'};padding:0.2rem 0.4rem;${hasPath ? '' : 'opacity:0.7;'}" ${hasPath ? `onclick="chmOpenContent('${escHtml(x.path).replace(/'/g, "\\'")}', document.getElementById('chm-search-input').value)"` : ''}>
+                            ${icon} ${escHtml(x.name)} <span style="color:var(--text-dim);font-size:0.7rem;">${escHtml(String(x.detail || '').slice(0, 40))}</span>
+                        </div>`;
+                    }).join('');
+                })
+                .catch(() => { box.innerHTML = '<div style="color:var(--red);padding:0.2rem;">搜索失败</div>'; });
+            }, 300);
+        }
+
+        // 初始加载目录树
+        (function initChmBrowser() {
+            const toc = document.getElementById('chm-toc');
+            if (toc) renderChmChildren(0, toc);
+            // 可拖拽分隔条：调整目录树/内容左右宽度
+            const bar = document.getElementById('chm-splitter');
+            if (bar) {
+                let dragging = false, startX = 0, startW = 260;
+                bar.addEventListener('mousedown', e => {
+                    dragging = true; startX = e.clientX; startW = toc.offsetWidth;
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                    e.preventDefault();
+                });
+                document.addEventListener('mousemove', e => {
+                    if (!dragging) return;
+                    const w = Math.min(Math.max(startW + (e.clientX - startX), 160), 560);
+                    toc.style.flex = '0 0 ' + w + 'px';
+                });
+                document.addEventListener('mouseup', () => {
+                    if (dragging) {
+                        dragging = false;
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    }
+                });
+            }
+        })();
+
+        // ━━━ 生物卡预览弹窗（v5.11：词条卡样式，含下载 PDF）━━━
+        function buildMonsterCardHTML(m) {
+            const abMap = {str:'力量',dex:'敏捷',con:'体质',int:'智力',wis:'感知',cha:'魅力'};
+            const info = [];
+            if (m.cr) info.push('挑战等级：' + escHtml(m.cr));
+            if (m.size) info.push('体型：' + escHtml(m.size));
+            if (m.type) info.push('类型：' + escHtml(m.type));
+            if (m.alignment) info.push('阵营：' + escHtml(m.alignment));
+            if (m.faith) info.push('信仰：' + escHtml(m.faith));
+            if (m.gender) info.push('性别：' + escHtml(m.gender));
+            if (m.ac !== undefined && m.ac !== '' && m.ac !== null) info.push('AC ' + escHtml(m.ac) + (m.armor ? '（' + escHtml(m.armor) + '）' : ''));
+            if (m.hp) info.push('HP ' + escHtml(m.hp));
+            if (m.speed) info.push('速度 ' + escHtml(m.speed));
+            // 六属性表（结构化字段；旧条目无则从正文解析后仍可整表隐藏）
+            const abs = (m.abilities && typeof m.abilities === 'object') ? m.abilities : {};
+            const hasAb = Object.keys(abMap).every(k => abs[k] !== undefined && abs[k] !== null && abs[k] !== '');
+            let abHtml = '';
+            if (hasAb) {
+                abHtml = `<div class="mp-abilities">` + Object.keys(abMap).map(k => {
+                    const v = parseInt(abs[k]);
+                    const mod = Math.floor((v - 10) / 2);
+                    return `<div class="mp-ab"><div class="mp-ab-name">${abMap[k]}</div>
+                        <div class="mp-ab-score">${v}</div>
+                        <div class="mp-ab-mod">${mod >= 0 ? '+' : ''}${mod}</div></div>`;
+                }).join('') + `</div>`;
+            }
+            // 正文（【分区】加粗；属性行已表格化则跳过）
+            const abLineRe = /力量\d+.*敏捷\d+.*体质\d+.*智力\d+.*感知\d+.*魅力\d+/;
+            let bodyHtml = '';
+            (m.detail_text || '').split('\n').forEach(line => {
+                const s = line.trim();
+                if (!s) return;
+                if (s.startsWith('【') && s.endsWith('】')) {
+                    bodyHtml += `<div class="mp-section">${escHtml(s)}</div>`;
+                } else if (hasAb && abLineRe.test(s)) {
+                    return;
+                } else {
+                    bodyHtml += escHtml(line) + '\n';
+                }
+            });
+            return `
+                <div class="mp-title">${escHtml(m.name || '未命名生物')}</div>
+                ${m.name_en ? `<div class="mp-en">${escHtml(m.name_en)}</div>` : ''}
+                <hr class="mp-divider">
+                ${info.length ? `<div class="mp-info">${info.join('　')}</div>` : ''}
+                ${abHtml}
+                <div class="mp-body">${bodyHtml}</div>
+                <div class="mp-footer">来源：${escHtml(m.source || '自定义')}　|　尘封之卷·跑团平台</div>`;
+        }
+
+        function previewMonsterCard(name) {
+            fetch('/api/monster/' + encodeURIComponent(name))
+                .then(r => r.json())
+                .then(m => {
+                    if (m.error) { alert(m.error); return; }
+                    const overlay = document.createElement('div');
+                    overlay.className = 'monster-preview-overlay';
+                    overlay.id = 'monster-preview-overlay';
+                    overlay.innerHTML = `
+                        <div class="monster-preview-card">
+                            ${buildMonsterCardHTML(m)}
+                            <div class="mp-actions">
+                                <button class="mp-btn mp-btn-dl" onclick="exportMonsterPdf('${escHtml(m.name).replace(/'/g, "\\'")}')">⬇️ 下载 PDF</button>
+                                <button class="mp-btn mp-btn-close" onclick="closeMonsterPreview()">✕ 关闭</button>
+                            </div>
+                        </div>`;
+                    overlay.addEventListener('click', e => { if (e.target === overlay) closeMonsterPreview(); });
+                    document.body.appendChild(overlay);
+                })
+                .catch(() => alert('预览加载失败'));
+        }
+
+        function closeMonsterPreview() {
+            const el = document.getElementById('monster-preview-overlay');
+            if (el) el.remove();
         }
 
         // 初始加载

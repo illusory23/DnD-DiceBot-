@@ -39,16 +39,16 @@ SHEET_EXTS = {'.xlsx', '.xls'}
 # ━━━ HTML 解析工具 ━━━
 
 def _read_gbk(filepath: Path) -> str:
-    """读取GBK编码的HTML文件"""
-    for enc in ('gbk', 'gb2312', 'utf-8', 'gb18030'):
-        try:
-            with open(filepath, 'r', encoding=enc, errors='strict') as f:
-                return f.read()
-        except (UnicodeDecodeError, UnicodeError):
-            continue
-    # fallback
-    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-        return f.read()
+    """读取 CHM HTML 文件（UTF-8 严格优先，回退 GBK）
+
+    怪物图鉴2014（5e 导入）为 UTF-8，CHM 提取为 GBK——GBK 解码宽松会
+    把 UTF-8 文件解成乱码，故必须 UTF-8 优先严格尝试。
+    """
+    raw = filepath.read_bytes()
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('gbk', errors='replace')
 
 
 def _strip_tags(text: str) -> str:
@@ -221,8 +221,9 @@ def build_fulltext_index() -> dict:
             # 提取正文文本
             body_match = re.search(r'<body[^>]*>(.*?)</body>', html, re.IGNORECASE | re.DOTALL)
             body_text = _strip_tags(body_match.group(1)) if body_match else ''
-            # 限制正文长度
-            body_text = body_text[:2000]
+            # 限制正文长度（8000 字符：覆盖正文深处词条如"负重"（中位 3790 字符），
+            # 原 300 字符片段导致大量正文内容搜不到）
+            body_text = body_text[:8000]
 
             # 相对路径
             rel_path = str(filepath.relative_to(CHM_DIR)).replace('\\', '/')
@@ -231,7 +232,7 @@ def build_fulltext_index() -> dict:
             entry = {
                 'title': title,
                 'path': rel_path,
-                'snippet': body_text[:300],
+                'snippet': body_text[:8000],
             }
             index[rel_path] = entry
             file_count += 1

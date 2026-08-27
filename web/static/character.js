@@ -524,7 +524,7 @@
                 if (currentChar && currentChar.id === id) {
                     currentChar = null;
                     document.getElementById('char-detail').innerHTML = `
-                        <div class="card-header">📋 角色详情</div>
+                        <div class="card-header">📋 角色详情<button onclick="exportCharExcel()" title="导出为悲灵模板 Excel" style="float:right;padding:0.15rem 0.5rem;font-size:0.7rem;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--gold);cursor:pointer;font-weight:normal;margin-left:0.5rem;">📥 导出 Excel</button></div>
                         <div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>`;
                 }
                 await loadCharList();
@@ -535,7 +535,7 @@
         function renderCharDetail(char) {
             const el = document.getElementById('char-detail');
             if (!char || !char.abilities) {
-                el.innerHTML = '<div class="card-header">📋 角色详情</div><div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>';
+                el.innerHTML = '<div class="card-header">📋 角色详情<button onclick="exportCharExcel()" title="导出为悲灵模板 Excel" style="float:right;padding:0.15rem 0.5rem;font-size:0.7rem;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--gold);cursor:pointer;font-weight:normal;margin-left:0.5rem;">📥 导出 Excel</button></div><div style="color:var(--text-dim);text-align:center;padding:2rem;">请选择一个角色</div>';
                 return;
             }
             // PL 打开非自己创建的公开角色：只读视图（不能编辑 DM 公开角色）
@@ -606,18 +606,55 @@
                         <input value="${w.damage_type || ''}" placeholder="类型"
                             onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'damage_type', this.value)"
                             style="width:45px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <span style="font-size:0.7rem;color:var(--text-dim);" title="重量(磅)">磅</span>
+                        <input value="${w.weight || 0}" type="number" placeholder="0" title="重量(磅)" class="carry-w" data-qty="1"
+                            oninput="updateCarryLive()"
+                            onchange="updateWeapon(${char.id}, ${w.id || w.weapon_id}, 'weight', parseFloat(this.value)||0)"
+                            style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
                         <button class="btn btn-small btn-danger" onclick="removeWeapon(${char.id}, ${w.id || w.weapon_id}, '${(w.name || '').replace(/'/g, "\\'")}')" style="padding:0.15rem 0.4rem;font-size:0.7rem;">✕</button>
                     </div>
-                    ${w.description ? `<input value="${w.description}" placeholder="描述" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'description', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;margin-top:2px;">` : ''}
-                    ${w.effect ? `<input value="${w.effect}" placeholder="效果" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'effect', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;margin-top:2px;">` : ''}
+                    <input value="${w.description || ''}" placeholder="介绍（可选）" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'description', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;margin-top:2px;">
+                    <input value="${w.effect || ''}" placeholder="效果（可选）" onchange="updateWeapon(${char.id}, ${w.id||w.weapon_id}, 'effect', this.value)" style="width:100%;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--gold);font-size:0.7rem;margin-top:2px;">
                 `).join('');
             } else {
                 weaponHtml = '<div class="detail-row" style="color:var(--text-dim);">暂无武器</div>';
             }
-            if (armor && (armor.name || armor.armor_name)) {
-                weaponHtml += `<div class="detail-row"><span class="detail-label">🛡️ ${armor.name || armor.armor_name || '护甲'}</span>
-                    <span class="detail-val">AC ${armor.ac || armor.armor_class || '?'} | ${armor.type || armor.armor_type || ''}</span></div>`;
-            }
+            // 护甲/盾 可编辑（v5.11：护甲名/类型/AC/重量磅/介绍 + 盾，PUT /api/character/<id>/armor）
+            const arName = char.armor_name || (armor.name || armor.armor_name || '');
+            const arType = char.armor_type || '';
+            const arAc = char.armor_ac ?? armor.ac ?? armor.armor_class ?? '';
+            const arWt = char.armor_weight ?? '';
+            const arDesc = char.armor_desc || '';
+            const shName = char.shield_name || '';
+            const shAc = char.shield_ac ?? '';
+            const shWt = char.shield_weight || '';
+            const ARMOR_TYPES = ['轻型护甲', '中型护甲', '重型护甲'];  // 盾有独立填写区，不列入类型
+            const typeOpts = ARMOR_TYPES.map(t =>
+                `<option value="${t}"${arType === t ? ' selected' : ''}>${t}</option>`).join('')
+                + (arType && !ARMOR_TYPES.includes(arType) ? `<option value="${(arType||'').replace(/"/g,'&quot;')}" selected>${arType}</option>` : '');
+            weaponHtml += `
+                <div class="detail-row" style="margin-top:0.3rem;border-top:1px dashed var(--border);padding-top:0.3rem;">
+                    <div style="font-size:0.72rem;color:var(--text-dim);width:100%;margin-bottom:0.2rem;">🛡️ 护甲</div>
+                    <div style="display:flex;gap:0.3rem;align-items:center;flex-wrap:wrap;width:100%;">
+                        <input id="armor-name-${char.id}" value="${(arName||'').replace(/"/g,'&quot;')}" placeholder="护甲名" style="width:80px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <select id="armor-type-${char.id}" style="width:80px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                            <option value="">类型</option>${typeOpts}
+                        </select>
+                        <span style="font-size:0.7rem;color:var(--text-dim);">AC</span>
+                        <input id="armor-ac-${char.id}" value="${arAc}" type="number" placeholder="AC" style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <span style="font-size:0.7rem;color:var(--text-dim);" title="护甲重量(磅)">磅</span>
+                        <input id="armor-wt-${char.id}" value="${arWt}" type="number" placeholder="0" title="护甲重量(磅)" oninput="updateCarryLive()" style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <button class="btn btn-small btn-success" onclick="saveArmor(${char.id})" style="padding:0.15rem 0.4rem;font-size:0.7rem;" title="保存护甲">💾</button>
+                    </div>
+                    <input id="armor-desc-${char.id}" value="${(arDesc||'').replace(/"/g,'&quot;')}" placeholder="护甲介绍（可选）"
+                        style="width:100%;margin-top:0.2rem;padding:0.15rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;">
+                    <div style="display:flex;gap:0.3rem;align-items:center;flex-wrap:wrap;width:100%;margin-top:0.2rem;">
+                        <span style="font-size:0.72rem;color:var(--text-dim);">盾</span>
+                        <input id="shield-name-${char.id}" value="${(shName||'').replace(/"/g,'&quot;')}" placeholder="盾名" style="width:60px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="shield-ac-${char.id}" value="${shAc}" type="number" placeholder="AC" style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                        <input id="shield-wt-${char.id}" value="${(shWt||'').replace(/"/g,'&quot;')}" placeholder="磅" title="盾重量(磅)" oninput="updateCarryLive()" style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
+                    </div>
+                </div>`;
             // 添加武器表单
             weaponHtml += `
                 <div class="detail-row" style="margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
@@ -632,6 +669,27 @@
 
             // ━━ 背包物品 ━━
             const inventory = char.inventory || [];
+            // ━━ 负重（5e 规则书 PHB 176：变体负重规则分级效果——
+            // 上限 = 力量×15 磅；总负重 = Σ物品重量×数量 + Σ武器重量 + 护甲重量 + 盾重量；
+            // 负重 > 力量×5 → 速度-10尺；> 力量×10 → 速度-20尺 + 力/敏/体攻击检定豁免劣势；
+            // > 力量×15 → 无法携带更多）——提前计算，左栏常显 + 物品区共用
+            const strScore = parseInt((char.abilities || {}).str ?? char.str) || 10;
+            const carryCap = strScore * 15;
+            const encTh = strScore * 5;      // 负重阈值（力量×5）
+            const heavyTh = strScore * 10;   // 严重负重阈值（力量×10）
+            let carryTotal = 0;
+            inventory.forEach(it => { carryTotal += (parseFloat(it.weight) || 0) * (it.quantity || 1); });
+            (char.weapons || []).forEach(w => { carryTotal += parseFloat(w.weight) || 0; });
+            carryTotal += parseFloat(char.armor_weight) || 0;
+            carryTotal += parseFloat(char.shield_weight) || 0;
+            carryTotal = Math.round(carryTotal * 10) / 10;
+            const carry = calcCarry(strScore, carryTotal);
+            const carryStatus = carry.status, carryStatusText = carry.text, carryEffect = carry.effect;
+            // 负重减速实际效果（显示在速度值上：🟡-10尺 / 🔴-20尺 / ⚠️拖拽5尺）
+            const speedBase = char.speed || 30;
+            const speedPenalty = carry.status === 'over' ? Math.max(speedBase - 5, 0) : carry.penalty;  // 超重拖拽：降至 5 尺
+            const speedEff = Math.max(speedBase - speedPenalty, 5);
+
             let invHtml = '';
             if (inventory.length > 0) {
                 invHtml = inventory.map(item => {
@@ -651,10 +709,15 @@
                                 onchange="updateItem(${char.id}, ${iid}, 'location', this.value)"
                                 style="width:50px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
                             <span style="font-size:0.7rem;color:var(--text-dim);">x</span>
-                            <input value="${qty}" type="number" placeholder="数量"
+                            <input value="${qty}" type="number" placeholder="数量" class="carry-q"
+                                oninput="updateCarryLive()"
                                 onchange="updateItem(${char.id}, ${iid}, 'quantity', parseInt(this.value)||1)"
                                 style="width:40px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
-                            <span style="font-size:0.7rem;color:var(--text-dim);">${wt ? wt+'磅' : ''}</span>
+                            <span style="font-size:0.7rem;color:var(--text-dim);" title="重量(磅)">磅</span>
+                            <input value="${wt}" type="number" placeholder="0" title="重量(磅)" class="carry-w" data-qty="${qty}"
+                                oninput="updateCarryLive()"
+                                onchange="updateItem(${char.id}, ${iid}, 'weight', parseFloat(this.value)||0)"
+                                style="width:36px;padding:0.2rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.75rem;">
                             <button class="btn btn-small btn-danger" onclick="removeItem(${char.id}, ${iid}, '${iname.replace(/'/g, "\\'")}')" style="padding:0.15rem 0.35rem;font-size:0.65rem;">✕</button>
                         </div>
                         <input value="${desc||''}" placeholder="描述（可选）"
@@ -679,6 +742,11 @@
                         ${inventory.length > 1 ? `<button class="btn btn-small" onclick="stackInventory(${char.id})" style="padding:0.2rem 0.5rem;font-size:0.75rem;background:var(--surface2);color:var(--text);">合并</button>` : ''}
                     </div>
                 </div>`;
+
+            const carryHtml = `<div id="carry-bar-${char.id}" class="detail-row" style="margin-bottom:0.3rem;padding:0.25rem 0.4rem;background:var(--surface);border-radius:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.3rem;">
+                <span style="font-size:0.78rem;">🎒 负重 <b>${carryTotal}</b> / ${carryCap} 磅（力量×15）</span>
+                <span style="font-size:0.7rem;color:${carryStatus === 'normal' ? 'var(--green)' : 'var(--red)'};">${carryStatusText}${carryEffect ? '｜' + carryEffect : ''}</span>
+            </div>`;
 
             // ━━ 钱币 ━━
             const coins = char.coins || {};
@@ -825,7 +893,7 @@
             </div>`;
 
             el.innerHTML = `
-                <div class="card-header">📋 <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'name')" data-val="${(char.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改角色名">${char.name}</span> — <span class="editable-field" onclick="editCharField(${char.id}, 'level', ${char.level || 1})" title="点击修改等级">${char.level || 1}级</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'class')" data-val="${(char.class || '未知').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改职业">${char.class || '未知'}</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'race')" data-val="${(char.race || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改种族">${char.race || '未知种族'}</span></div>
+                <div class="card-header">📋 <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'name')" data-val="${(char.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改角色名">${char.name}</span> — <span class="editable-field" onclick="editCharField(${char.id}, 'level', ${char.level || 1})" title="点击修改等级">${char.level || 1}级</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'class')" data-val="${(char.class || '未知').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改职业">${char.class || '未知'}</span> <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'race')" data-val="${(char.race || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改种族">${char.race || '未知种族'}</span><button onclick="exportCharExcel()" title="导出为悲灵模板 Excel" style="float:right;padding:0.15rem 0.5rem;font-size:0.7rem;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--gold);cursor:pointer;font-weight:normal;margin-left:0.5rem;">📥 导出 Excel</button></div>
 
                 <div class="char-detail-grid">
                     <!-- 左：头像+基础 -->
@@ -875,9 +943,16 @@
                             <span style="color:var(--text-dim);">🛡️ 抗性: </span>
                             <span class="editable-field" onclick="editTextFieldFromData(this, ${char.id}, 'resistances')" data-val="${(char.resistances || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" title="点击修改抗性（用逗号分隔）" style="color:var(--text);">${char.resistances || '无'}</span>
                         </div>
+                        <!-- 负重状态（5e 变体负重规则分级效果，id 供实时刷新） -->
+                        <div id="carry-status-line-${char.id}" style="font-size:0.72rem;margin-bottom:0.4rem;">
+                            <span style="color:var(--text-dim);">🎒 负重: </span>
+                            <b style="color:${carryStatus === 'normal' ? 'var(--text)' : 'var(--red)'};">${carryTotal}</b> / ${carryCap} 磅
+                            <span style="color:${carryStatus === 'normal' ? 'var(--green)' : 'var(--red)'};">${carryStatusText}</span>
+                            ${carryEffect ? `<div style="color:var(--red);margin-top:0.1rem;">${carryEffect}</div>` : ''}
+                        </div>
                         <div class="char-quick-stats">
                             <span>🛡️ AC: <b class="editable-field" onclick="editCharField(${char.id}, 'ac', ${char.ac || 10})" title="点击修改">${char.ac || 10}</b></span>
-                            <span>🏃 速度: <b class="editable-field" onclick="editCharField(${char.id}, 'speed', ${char.speed || 30})" title="点击修改">${char.speed || 30}尺</b></span>
+                            <span>🏃 速度: <b id="carry-speed-${char.id}" class="editable-field" onclick="editCharField(${char.id}, 'speed', ${speedBase})" title="点击修改基础速度">${speedEff}尺</b>${speedPenalty ? `<span style="color:var(--red);font-size:0.65rem;">(基础${speedBase}尺${speedPenalty ? ' − ' + speedPenalty + '尺' : ''})</span>` : ''}</span>
                             <span>⭐ 熟练: <b class="editable-field" onclick="editCharField(${char.id}, 'proficiency_bonus', ${char.proficiency_bonus || 2})" title="点击修改">+${char.proficiency_bonus || 2}</b></span>
                         </div>
                         <div class="char-quick-stats" style="margin-top:0.2rem;">
@@ -923,6 +998,7 @@
                                 <div class="detail-label-sm">💰 钱币</div>
                                 <div style="margin-bottom:0.5rem;">${coinHtml}</div>
                                 <div class="detail-label-sm">📦 物品 (${inventory.length}件)</div>
+                                ${carryHtml}
                                 ${invHtml}
                             </div>
                         </details>
@@ -1130,7 +1206,7 @@
                 currentChar = null;
                 await loadCharList();
                 document.getElementById('char-detail').innerHTML = `
-                    <div class="card-header">📋 角色详情</div>
+                    <div class="card-header">📋 角色详情<button onclick="exportCharExcel()" title="导出为悲灵模板 Excel" style="float:right;padding:0.15rem 0.5rem;font-size:0.7rem;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--gold);cursor:pointer;font-weight:normal;margin-left:0.5rem;">📥 导出 Excel</button></div>
                     <div style="color:var(--text-dim);text-align:center;padding:2rem;">
                         请创建或选择一个角色
                     </div>`;
@@ -1446,5 +1522,101 @@
         let itemSearchResults = [];
 
 
+
+        // ━━━ 负重分级计算（5e 变体规则 PHB 176）——渲染与实时刷新共用 ━━━
+        function calcCarry(strScore, total) {
+            const cap = strScore * 15, encTh = strScore * 5, heavyTh = strScore * 10;
+            let status = 'normal', text = '🟢 正常', effect = '', penalty = 0;
+            if (total > cap) {
+                status = 'over'; text = '⚠️ 超重！无法携带更多';
+                effect = '拖拽上限 = 力量×30 磅（速度降至 5 尺）';
+            } else if (total > heavyTh) {
+                status = 'heavy'; text = '🔴 严重负重';
+                effect = '速度 -20 尺；力量/敏捷/体质相关的攻击、属性检定、豁免具有劣势';
+                penalty = 20;
+            } else if (total > encTh) {
+                status = 'encumbered'; text = '🟡 负重';
+                effect = '速度 -10 尺';
+                penalty = 10;
+            }
+            return {status, text, effect, penalty};
+        }
+
+        // 负重实时刷新：收集当前输入框重量值重算，更新左栏负重行/速度/物品区负重条
+        function updateCarryLive() {
+            const cid = currentChar && currentChar.id;
+            if (!cid) return;
+            let total = 0;
+            document.querySelectorAll('#char-detail .carry-w').forEach(el => {
+                const w = parseFloat(el.value) || 0;
+                // 同行有数量输入框（.carry-q）则用其当前值，否则用 data-qty（武器=1）
+                const row = el.closest('.detail-row');
+                const qtyEl = row ? row.querySelector('.carry-q') : null;
+                const qty = qtyEl ? (parseInt(qtyEl.value) || 1) : (parseInt(el.dataset.qty) || 1);
+                total += w * qty;
+            });
+            const aw = document.getElementById('armor-wt-' + cid);
+            if (aw) total += parseFloat(aw.value) || 0;
+            const sw = document.getElementById('shield-wt-' + cid);
+            if (sw) total += parseFloat(sw.value) || 0;
+            total = Math.round(total * 10) / 10;
+            const strScore = parseInt((currentChar.abilities || {}).str ?? currentChar.str) || 10;
+            const carry = calcCarry(strScore, total);
+            const speedBase = currentChar.speed || 30;
+            const speedEff = carry.penalty > 0 ? Math.max(speedBase - carry.penalty, 5)
+                : (carry.status === 'over' ? 5 : speedBase);
+            // 左栏负重行
+            const line = document.getElementById('carry-status-line-' + cid);
+            if (line) {
+                line.innerHTML = `<span style="color:var(--text-dim);">🎒 负重: </span>
+                    <b style="color:${carry.status === 'normal' ? 'var(--text)' : 'var(--red)'};">${total}</b> / ${strScore * 15} 磅
+                    <span style="color:${carry.status === 'normal' ? 'var(--green)' : 'var(--red)'};">${carry.text}</span>
+                    ${carry.effect ? `<div style="color:var(--red);margin-top:0.1rem;">${carry.effect}</div>` : ''}`;
+            }
+            // 左栏速度值
+            const sp = document.getElementById('carry-speed-' + cid);
+            if (sp) {
+                sp.innerHTML = `${speedEff}尺${carry.penalty > 0 || carry.status === 'over'
+                    ? `<span style="color:var(--red);font-size:0.65rem;">(基础${speedBase}尺${carry.status === 'over' ? '' : ' − ' + carry.penalty + '尺'})</span>` : ''}`;
+            }
+            // 物品区负重条
+            const bar = document.getElementById('carry-bar-' + cid);
+            if (bar) {
+                bar.innerHTML = `<span style="font-size:0.78rem;">🎒 负重 <b>${total}</b> / ${strScore * 15} 磅（力量×15）</span>
+                    <span style="font-size:0.7rem;color:${carry.status === 'normal' ? 'var(--green)' : 'var(--red)'};">${carry.text}${carry.effect ? '｜' + carry.effect : ''}</span>`;
+            }
+        }
+
+        // ━━━ 保存护甲/盾（v5.11：护甲名/类型/AC/重量磅/介绍 + 盾）━━━
+        async function saveArmor(charId) {
+            const g = id => (document.getElementById(id) ? document.getElementById(id).value : '');
+            const body = {
+                armor_name: g('armor-name-' + charId),
+                armor_type: g('armor-type-' + charId),
+                armor_ac: parseInt(g('armor-ac-' + charId)) || 0,
+                armor_weight: parseFloat(g('armor-wt-' + charId)) || 0,
+                description: g('armor-desc-' + charId),
+                shield_name: g('shield-name-' + charId),
+                shield_ac: parseInt(g('shield-ac-' + charId)) || 0,
+                shield_weight: g('shield-wt-' + charId),
+            };
+            try {
+                const resp = await fetch(`/api/character/${charId}/armor`, {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+                if (data.error) { alert(data.error); return; }
+                alert('✅ 护甲/盾已保存');
+                selectChar(charId);
+            } catch(e) { alert('保存失败: ' + e.message); }
+        }
+
+        // ━━━ 导出为悲灵模板 Excel（v5.11）━━━
+        function exportCharExcel() {
+            const id = currentChar && currentChar.id;
+            if (!id) { alert('请先选择角色'); return; }
+            window.open('/api/character/' + encodeURIComponent(id) + '/export-excel', '_blank');
+        }
         // 初始加载
         loadCharList();

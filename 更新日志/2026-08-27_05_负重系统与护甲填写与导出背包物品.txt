@@ -1,0 +1,50 @@
+2026-08-27_05_负重系统与护甲填写与导出背包物品
+
+功能：
+1. 角色卡新增负重系统（按 5e 规则书 PHB：负重上限 = 力量值 × 15 磅）
+2. 「⚔️ 武器装备」新增护甲填写表单（护甲名/护甲类型/AC/重量磅/介绍 + 盾）
+3. 武器增加介绍输入（原仅已有描述时显示，现始终显示）
+4. Excel 导出补上背包物品写入（原缺失）
+
+负重系统（character.js，DND5E 规则）：
+- 背包物品区顶部显示「🎒 负重 X / Y 磅」（Y = 力量值 × 15 磅）
+- 总负重 = Σ物品重量×数量 + Σ武器重量 + 护甲重量 + 盾重量（磅）
+- 超重（>上限）红色警示「⚠️ 超重！已超过负重上限 X 磅，无法携带更多」
+
+重量字段与接口（DB 幂等补列）：
+- weapons.weight（FLOAT，磅）、armor.armor_weight（FLOAT，磅）、
+  armor.armor_type（VARCHAR，护甲类型）、armor.description（TEXT，护甲介绍）
+  ——启动时 _ensure_weapon_armor_columns 自动补列（旧库兼容）
+- 武器：POST /weapon 接收 weight；PUT /weapon/<id> 支持 weight 字段编辑
+- 物品：重量编辑已有接口（PUT /item/<id> field=weight），前端补上可编辑输入
+- 新增 PUT /api/character/<id>/armor：护甲名/类型/AC/重量/介绍 + 盾名/AC/重量
+- _char_to_dict 输出 weapons[].weight、armor_weight/armor_type/armor_desc
+
+前端（character.js v21）：
+- 武器行新增「磅」重量输入（updateWeapon 'weight'）
+- 物品行重量由只读文本改为可编辑输入（updateItem 'weight'）
+- 护甲表单：护甲名 + 类型下拉（轻型/中型/重型/盾，自由值自动并入）
+  + AC + 重量磅 + 介绍 + 盾名/AC/重量 + 💾 保存（saveArmor → PUT /armor）
+- 武器「介绍」「效果」输入始终显示（原介绍仅已有值时渲染）
+
+Excel 导出（utils/excel_exporter.py）：
+- 背包物品写入「背包」sheet：Y 列物品名 / AC 列描述 / AP 列重量磅 / AS 列数量（第 5 行起）
+- 护甲名写入主要表 L 列（原有）；护甲类型/介绍模板无对应位置不写
+
+验证：
+- 后端自动测试 23 项全部通过：幂等补列（weapons.weight/armor.armor_weight）/
+  武器重量添加返回编辑 / 物品重量编辑 / 护甲接口全字段（名称/类型/AC/重量/介绍/盾）/
+  导出背包物品（名称/重量 AP/数量 AS/描述 AC）读回断言 / 护甲写入主要表 /
+  负重计算（力量14 → 上限210磅，总负重101磅）
+- 测试数据与文件已清理（角色库无残留）
+- 前端 JS node --check 通过；character.js v20→v21
+
+涉及文件：
+- core/models.py（Weapon.weight、Armor.armor_type/armor_weight/description）
+- core/character.py（add_weapon/set_armor 参数、_char_to_dict 输出）
+- web/app.py（幂等补列、武器 weight、新增 PUT /armor）
+- web/static/character.js（v21：重量编辑/护甲表单/负重条/武器介绍）
+- web/templates/character.html（v=21）
+- utils/excel_exporter.py（背包物品写入）
+
+需要重启服务器生效（后端+模板+静态资源；启动时自动执行幂等补列）。

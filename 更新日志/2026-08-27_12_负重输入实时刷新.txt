@@ -1,0 +1,30 @@
+2026-08-27_12_负重输入实时刷新
+
+功能：
+重量/数量填入后负重显示实时刷新（打字过程即时更新，无需失焦保存/整页重渲染）
+
+实现（web/static/character.js）：
+- 提取公共函数 calcCarry(strScore, total)：5e 分级判定（正常/负重/严重负重/超重
+  + 效果描述 + 减速值），渲染与实时刷新共用
+- 新增 updateCarryLive()：遍历输入框当前值实时重算总负重 →
+  局部更新三处显示（不整页重渲染）：
+  ① 左栏负重行（#carry-status-line-<id>）——数值/状态/效果
+  ② 左栏速度值（#carry-speed-<id>）——减速后的实际速度
+  ③ 物品区负重条（#carry-bar-<id>）
+- 触发输入框（oninput 实时 + onchange 保存原逻辑不变）：
+  物品重量（.carry-w，数量取同行 .carry-q 当前值或 data-qty）、
+  物品数量（.carry-q）、武器重量（.carry-w data-qty=1）、
+  护甲重量（#armor-wt-<id>）、盾重量（#shield-wt-<id>）
+- 保存链路不变：onchange 仍调用 updateItem/updateWeapon（失焦保存），
+  实时刷新仅是显示层局部更新，不干扰存档
+- character.js v25 → v26
+
+验证：
+- JS node --check 通过；updateCarryLive 触发点 5 处（物品重量/数量/武器重量/
+  护甲重量/盾重量），显示锚点 3 处
+- 实时逻辑与渲染共用 calcCarry，两处显示一致
+
+涉及文件：
+- web/static/character.js（v26）、web/templates/character.html（v=26）
+
+需要重启服务器生效（静态资源靠版本号刷新）。

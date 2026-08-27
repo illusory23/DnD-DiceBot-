@@ -166,11 +166,12 @@ def _char_to_dict(char: Character) -> dict:
     for s in char.save_proficiencies:
         saves[s.ability_name] = {'is_proficient': s.is_proficient, 'save_bonus': s.save_bonus or 0}
     d['save_proficiencies'] = saves
-    # weapons — 前端期望数组
+    # weapons — 前端期望数组（v5.11 含 weight 重量磅）
     d['weapons'] = [{'id': w.id, 'name': w.name, 'attack_bonus': w.attack_bonus,
                       'damage_dice': w.damage_dice, 'damage_type': w.damage_type,
                       'is_proficient': w.is_proficient, 'ammo': w.ammo, 'notes': w.notes,
-                      'description': w.description, 'effect': w.effect} for w in char.weapons]
+                      'description': w.description, 'effect': w.effect,
+                      'weight': w.weight or 0} for w in char.weapons]
     # inventory — 前端期望数组
     d['inventory'] = [{'id': i.id, 'item_name': i.item_name, 'quantity': i.quantity,
                         'weight': i.weight, 'value': i.value, 'location': i.location,
@@ -192,6 +193,9 @@ def _char_to_dict(char: Character) -> dict:
         ar = char.armor
         d['armor_name'] = ar.armor_name; d['armor_ac'] = ar.armor_ac
         d['armor_max_dex'] = ar.armor_max_dex
+        d['armor_weight'] = ar.armor_weight or 0  # 护甲重量磅（v5.11）
+        d['armor_type'] = ar.armor_type or ''  # 护甲类型（v5.11）
+        d['armor_desc'] = ar.description or ''  # 护甲介绍（v5.11）
         d['shield_name'] = ar.shield_name; d['shield_ac'] = ar.shield_ac
         d['shield_weight'] = ar.shield_weight
     if char.death_saves:
@@ -614,11 +618,17 @@ def short_rest(char_id: int, hd_to_spend: int = None) -> dict:
             'spent_hd': hd_to_spend, 'healed': healed}
 
 
-def death_save(char_id: int, roll_value: int, modifier: int = 0) -> dict:
-    """死亡豁免"""
+def death_save(char_id: int, roll_value: int, modifier: int | None = None) -> dict:
+    """死亡豁免（DND5e：d20 + 体质调整值，DC 10）
+
+    modifier 为 None 时自动取角色体质调整值（规则默认，防调用方漏传）；
+    显式传值则用传入值（如临时加值）。
+    """
     char = db.session.get(Character, char_id)
     if not char:
         return {}
+    if modifier is None:
+        modifier = ability_modifier(char.abilities.con) if char.abilities else 0
     ds = char.death_saves
     if ds is None:
         ds = DeathSave(character_id=char_id)
@@ -718,12 +728,13 @@ def use_spell_slot(char_id: int, level: str) -> dict:
 def add_weapon(char_id: int, name: str, attack_bonus: int = 0,
                damage_dice: str = '', damage_type: str = '',
                is_proficient: bool = False, ammo: str = '',
-               notes: str = '', description: str = '', effect: str = '') -> int:
-    """添加武器，返回武器ID"""
+               notes: str = '', description: str = '', effect: str = '',
+               weight: float = 0) -> int:
+    """添加武器，返回武器ID（weight=重量磅，v5.11）"""
     w = Weapon(character_id=char_id, name=name, attack_bonus=attack_bonus,
                damage_dice=damage_dice, damage_type=damage_type,
                is_proficient=is_proficient, ammo=ammo, notes=notes,
-               description=description, effect=effect)
+               description=description, effect=effect, weight=weight)
     db.session.add(w)
     db.session.flush()
     _save()
@@ -746,7 +757,9 @@ def remove_weapon(weapon_id: int) -> bool:
 
 def set_armor(char_id: int, armor_name: str = '', armor_ac: int = 0,
               armor_max_dex: str = '', shield_name: str = '',
-              shield_ac: int = 0, shield_weight: str = '') -> bool:
+              shield_ac: int = 0, shield_weight: str = '',
+              armor_weight: float = 0, armor_type: str = '',
+              description: str = '') -> bool:
     a = Armor.query.filter_by(character_id=char_id).first()
     if not a:
         a = Armor(character_id=char_id)
@@ -754,6 +767,8 @@ def set_armor(char_id: int, armor_name: str = '', armor_ac: int = 0,
     a.armor_name = armor_name; a.armor_ac = armor_ac
     a.armor_max_dex = armor_max_dex; a.shield_name = shield_name
     a.shield_ac = shield_ac; a.shield_weight = shield_weight
+    a.armor_weight = armor_weight
+    a.armor_type = armor_type; a.description = description
     _save()
     return True
 

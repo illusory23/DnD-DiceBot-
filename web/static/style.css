@@ -609,7 +609,7 @@ body {
 }
 .char-detail-grid {
     display: grid;
-    grid-template-columns: 230px 1fr;
+    grid-template-columns: minmax(300px, 38%) 1fr;
     gap: 1rem;
     align-items: start;
     max-width: 100%;

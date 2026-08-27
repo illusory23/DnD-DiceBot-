@@ -1,0 +1,20 @@
+2026-08-27_20_搜索按钮宽度覆盖修复
+
+问题：
+搜索框加宽未生效——输入栏仍只有左侧一点，右侧被搜索按钮占满
+
+根因：
+🔍 按钮使用 cf-add-btn 类，该类自带 width:100%（原设计为整行按钮）——
+flex 容器中按钮占满整行宽度，把输入框挤到最左
+
+修复（web/templates/reference.html）：
+- 搜索按钮 inline style 加 width:auto（覆盖 cf-add-btn 的 width:100%）
+- 输入框 flex:1 占满剩余宽度，按钮按内容宽度显示
+
+验证：
+- JS node --check 通过
+
+涉及文件：
+- web/templates/reference.html
+
+需要重启服务器生效（模板改动）。

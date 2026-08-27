@@ -1,0 +1,48 @@
+2026-08-25_10_死亡豁免体质调整值与地图权限补强
+
+【问题】
+1. 死亡豁免未加体质调整值——DND5e 规则死亡豁免 = d20 + 体质调整值（DC 10），
+   实际判定仅用 d20 原始值（体质 16 的角色 roll 6 应 +3=9 失败、roll 7 应 +3=10 成功，
+   原实现 7 也会失败）
+2. PL 对 DM 公开角色的整体可操作性确认（移动/编辑/攻击/治疗）——WS 同步的远程
+   token 未预加载角色数据，与本地创建路径不一致，首操作可能因数据未加载被保守拒绝
+3. 攻击/治疗弹窗的攻击者/治疗者候选排除目标自身——无法实现自伤/自愈场景
+   （自己喝药水治疗自己、自爆/自伤类攻击）
+
+【修复】
+1. 死亡豁免加体质调整值：
+   - core/character.py death_save()：modifier 参数默认改为 None，未传时自动取角色
+     体质调整值（char.abilities.con → ability_modifier），任何调用方漏传都正确；
+     显式传值优先（覆盖自动值）
+   - web/app.py POST /api/character/<id>/death-save：modifier 缺省（None/''）转 None
+     语义，由核心函数自动计算
+   - dnd_bot.py .ds 命令：modifier 从角色卡 ability_mods.con 读取（原硬编码 0）
+   - web/static/map.js maybeTriggerDeathSave：从角色数据提取体质调整值
+     （deathSaveConMod：ability_mods.con 优先，回退 abilities 计算），POST 传
+     {roll_value, modifier}；自然 1/20 判定改用原始骰值（原 total 判断在加了加值后
+     会把 roll18+2=20 误判稳定、roll1+3=4 漏判大失败）；弹窗/播报显示
+     "8+3=11" 完整加值格式（fmtDeathSaveTotal，无加值保持 "8"）
+2. 地图权限补强：
+   - map.js mergeRemoteTokens：WS 同步新增 token 时预加载 fetchCharData（与本地
+     创建路径 addMapToken 一致），保证 PL 移动/编辑 DM 公开角色判断即时可用
+   - map.js ensureTokenCharData：角色数据拉取失败时 Toast 明确提示"角色数据加载失败，
+     请稍后重试"（原静默吞错，表现为"移不动"无反馈）
+   - 确认 PL 对 DM 公开角色全部操作放行：移动/旋转/缩放（canMoveToken is_public）、
+     双击改血量/删除（同走 canMoveToken）、攻击/治疗（v5.7 任意 token 可选中）、
+     查看信息面板（canViewCharInfo is_public）、战斗列表 HP 同步（combat-state 无
+     权限拦截仅时间戳防回弹）
+3. 攻击/治疗者可选自身：openAttackPicker/openHealPicker 候选过滤去掉
+   c.id !== token.charId（自伤/自愈场景可选自己为攻击者/治疗者）
+
+【验证】
+- 死亡豁免逻辑 11 项全通过：自动 +3 边界（7+3=10 成功 / 6+3=9 失败）、自然 1 大失败×2、
+  自然 20 稳定、显式 modifier 覆盖、累计 3 次死亡、已死亡不累计、API 层传/不传 modifier
+- 前端文案 14 项全通过：加值显示格式、自然 1/20 判定不受加值干扰、无加值回退
+- 地图权限 11 场景全通过（node 模拟）：PL 移动/查看公开角色放行、他人私有拒绝、
+  自己角色放行、DM 全放行、无名/未加载保守拒绝
+- 服务端 PL 视角数据流实测：公开角色在 PL 列表与详情均返回 is_public=true
+- Python/JS 语法检查通过
+
+【影响】
+- 需重启服务器：是（后端 app.py / character.py / dnd_bot.py 改动）
+- 前端缓存版本：map.js v82 → v83（map.html 已同步）

@@ -3,45 +3,49 @@
     "count": 1,
     "total_size_kb": 10498.0
   },
+  "bestiary_doc": {
+    "count": 3,
+    "total_size_kb": 6371.5
+  },
   "character_doc": {
-    "count": 5,
-    "total_size_kb": 82.60000000000001
+    "count": 9,
+    "total_size_kb": 13020.4
   },
   "character_sheet": {
-    "count": 21,
-    "total_size_kb": 15067.800000000001
+    "count": 37,
+    "total_size_kb": 72057.2
   },
   "doc": {
-    "count": 3,
-    "total_size_kb": 443.4
+    "count": 17,
+    "total_size_kb": 234738.1
   },
   "history": {
     "count": 4,
     "total_size_kb": 48.699999999999996
   },
   "image": {
-    "count": 145,
-    "total_size_kb": 112379.19999999995
+    "count": 258,
+    "total_size_kb": 446117.6
   },
   "magic_doc": {
-    "count": 1,
-    "total_size_kb": 0.0
+    "count": 3,
+    "total_size_kb": 19.5
   },
   "map": {
-    "count": 10,
-    "total_size_kb": 51968.299999999996
+    "count": 21,
+    "total_size_kb": 75848.9
   },
   "module_doc": {
-    "count": 10,
-    "total_size_kb": 198.5
+    "count": 19,
+    "total_size_kb": 3294.2999999999997
   },
   "monster_image": {
-    "count": 8,
-    "total_size_kb": 3076.1
+    "count": 3,
+    "total_size_kb": 649.0999999999999
   },
   "other": {
-    "count": 4,
-    "total_size_kb": 80383.0
+    "count": 153,
+    "total_size_kb": 82053.70000000008
   },
   "pantheon_doc": {
     "count": 1,
@@ -52,8 +56,8 @@
     "total_size_kb": 125467.9
   },
   "portrait": {
-    "count": 11,
-    "total_size_kb": 6031.5
+    "count": 13,
+    "total_size_kb": 5838.799999999999
   },
   "rulebook": {
     "count": 6,
@@ -64,11 +68,11 @@
     "total_size_kb": 12639.7
   },
   "setting_doc": {
-    "count": 13,
-    "total_size_kb": 31846.100000000006
+    "count": 14,
+    "total_size_kb": 31647.500000000004
   },
   "text": {
-    "count": 9,
-    "total_size_kb": 142.4
+    "count": 99,
+    "total_size_kb": 14445.199999999997
   }
 }

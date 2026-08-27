@@ -177,6 +177,25 @@ def _ensure_character_columns():
         _app_logger.warning(f'补列 characters 表失败: {_e}')
 
 
+def _ensure_weapon_armor_columns():
+    """旧库补列：weapons.weight / armor.armor_weight（重量磅，负重计算，幂等）。"""
+    try:
+        from sqlalchemy import inspect as _sa_inspect
+        for table, col, col_def in (
+            ('weapons', 'weight', 'FLOAT NOT NULL DEFAULT 0'),
+            ('armor', 'armor_weight', 'FLOAT NOT NULL DEFAULT 0'),
+            ('armor', 'armor_type', "VARCHAR(20) NOT NULL DEFAULT ''"),
+            ('armor', 'description', 'TEXT NOT NULL DEFAULT \'\''),
+        ):
+            cols = {c['name'] for c in _sa_inspect(db.engine).get_columns(table)}
+            if col not in cols:
+                with db.engine.begin() as conn:
+                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}")
+                _app_logger.info(f'已补列 {table}.{col}')
+    except Exception as _e:
+        _app_logger.warning(f'补列 weapons/armor 表失败: {_e}')
+
+
 def _ensure_death_saves_columns():
     """旧库补列：death_saves.is_dead（死亡豁免失败 3 次 → 角色死亡，幂等）。"""
     try:
@@ -363,6 +382,7 @@ with app.app_context():
     _ensure_user_columns()
     _ensure_character_columns()
     _ensure_death_saves_columns()
+    _ensure_weapon_armor_columns()
 
 # ━━━ DM/主机系统 ━━━
 _dm_name: str | None = None      # 当前DM的显示名
@@ -1566,6 +1586,7 @@ def api_add_weapon(name_or_id):
             damage_type=data.get('damage_type', ''),
             description=data.get('description', ''),
             effect=data.get('effect', ''),
+            weight=float(data.get('weight', 0) or 0),
         )
     except Exception as e:
         return jsonify({'error': f'添加失败: {str(e)}'}), 500
@@ -1583,14 +1604,21 @@ def api_update_weapon(name_or_id, weapon_id):
     field = data.get('field', '')
     value = data.get('value', '')
 
-    allowed = ['name', 'attack_bonus', 'damage', 'damage_type', 'description', 'effect']
+    allowed = ['name', 'attack_bonus', 'damage', 'damage_type', 'description', 'effect', 'weight']
     if field not in allowed:
         return jsonify({'error': f'不允许修改字段: {field}'}), 400
 
     from core.models import Weapon as _WP
     # 字段名与模型列名映射（damage → damage_dice 等）
     col_map = {'name': 'name', 'attack_bonus': 'attack_bonus', 'damage': 'damage_dice',
-               'damage_type': 'damage_type', 'description': 'description', 'effect': 'effect'}
+               'damage_type': 'damage_type', 'description': 'description', 'effect': 'effect',
+               'weight': 'weight'}
+    # weight 数值化
+    if field == 'weight':
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = 0
     col = col_map.get(field)
     if col is None:
         return jsonify({'error': f'不允许修改字段: {field}'}), 400
@@ -1612,6 +1640,33 @@ def api_remove_weapon(name_or_id, weapon_id):
     ok = _remove_weapon(weapon_id)
     if not ok:
         return jsonify({'error': '武器不存在或不属于该角色'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/character/<name_or_id>/armor', methods=['PUT'])
+def api_update_armor(name_or_id):
+    """更新护甲/盾（名称/AC/重量，v5.11）"""
+    char = _resolve_char(name_or_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+
+    data = request.get_json() or {}
+    from core.character import set_armor as _set_armor
+    try:
+        _set_armor(
+            char['id'],
+            armor_name=str(data.get('armor_name', '') or ''),
+            armor_type=str(data.get('armor_type', '') or ''),
+            armor_ac=int(data.get('armor_ac', 0) or 0),
+            armor_max_dex=str(data.get('armor_max_dex', '') or ''),
+            armor_weight=float(data.get('armor_weight', 0) or 0),
+            description=str(data.get('description', '') or ''),
+            shield_name=str(data.get('shield_name', '') or ''),
+            shield_ac=int(data.get('shield_ac', 0) or 0),
+            shield_weight=str(data.get('shield_weight', '') or ''),
+        )
+    except Exception as e:
+        return jsonify({'error': f'保存失败: {str(e)}'}), 500
     return jsonify({'success': True})
 
 
@@ -1842,10 +1897,12 @@ def api_roll_death_save(name_or_id):
         return jsonify({'error': 'roll_value 必须是整数'}), 400
     if roll_value < 1 or roll_value > 20:
         return jsonify({'error': 'roll_value 必须在 1-20 之间'}), 400
+    # modifier 缺省（None/''）→ 由 core.character.death_save 自动取角色体质调整值
     try:
-        modifier = int(data.get('modifier', 0) or 0)
+        modifier = data.get('modifier')
+        modifier = int(modifier) if modifier not in (None, '') else None
     except (TypeError, ValueError):
-        modifier = 0
+        modifier = None
 
     from core.character import death_save as _death_save
     result = _death_save(char['id'], roll_value, modifier)
@@ -2304,6 +2361,23 @@ def api_search_monster(name):
             'rule_version': _rule_version_of(src),
             'legendary': e.get('legendary', ''),
             'detail_text': e.get('detail_text', ''),
+            # 结构化字段（v5.11 自定义生物分区输入）——供"创建为角色"直接使用
+            'race': e.get('race', ''),
+            'alignment': e.get('alignment', ''),
+            'faith': e.get('faith', ''),
+            'gender': e.get('gender', ''),
+            'hp': e.get('hp', ''),
+            'abilities': e.get('abilities', None),
+            'height': e.get('height', ''),
+            'weight': e.get('weight', ''),
+            'speed': e.get('speed', ''),
+            'passive_perception': e.get('passive_perception', ''),
+            'ac': e.get('ac', ''),
+            'armor': e.get('armor', ''),
+            'weapons': e.get('weapons', []),
+            'skill_proficiencies': e.get('skill_proficiencies', {}),
+            'save_proficiencies': e.get('save_proficiencies', {}),
+            'features': e.get('features', {}),
             'source_db': 'custom',
         }
 
@@ -2427,7 +2501,14 @@ def api_search():
 
     def _add(score, item):
         name = item.get('name', '')
-        if name in seen: return
+        if name in seen:
+            # 同名已有但无 path（灰色不可点），新条目带 path → 升级替换
+            if item.get('path'):
+                for i, (s, it) in enumerate(scored_items):
+                    if it.get('name') == name and not it.get('path'):
+                        scored_items[i] = (score, item)
+                        return
+            return
         seen.add(name)
         scored_items.append((score, item))
 
@@ -3528,6 +3609,23 @@ def api_add_custom(kind):
             'size': data.get('size', ''),
             'type': data.get('type', ''),
             'legendary': data.get('legendary', ''),
+            # 结构化字段（v5.11 自定义生物分区输入）
+            'race': data.get('race', ''),
+            'alignment': data.get('alignment', ''),
+            'faith': data.get('faith', ''),
+            'gender': data.get('gender', ''),
+            'hp': data.get('hp', ''),
+            'abilities': data.get('abilities', {}),
+            'height': data.get('height', ''),
+            'weight': data.get('weight', ''),
+            'speed': data.get('speed', ''),
+            'passive_perception': data.get('passive_perception', ''),
+            'ac': data.get('ac', ''),
+            'armor': data.get('armor', ''),
+            'weapons': data.get('weapons', []),
+            'skill_proficiencies': data.get('skill_proficiencies', {}),
+            'save_proficiencies': data.get('save_proficiencies', {}),
+            'features': data.get('features', {}),
             'detail_text': data.get('detail_text', ''),
             'source': '自定义',
         })
@@ -3536,6 +3634,73 @@ def api_add_custom(kind):
     existing.append(entry)
     _save_custom(kind, existing)
     return jsonify({'success': True, 'name': entry['name']})
+
+
+@app.route('/api/custom/<kind>', methods=['PUT'])
+def api_update_custom(kind):
+    """更新自定义条目（?name=原名称定位，body 含全部字段含新 name）"""
+    if kind not in ('spells', 'monsters', 'items'):
+        return jsonify({'error': '无效类型'}), 400
+    old_name = request.args.get('name', '').strip()
+    data = request.get_json() or {}
+    new_name = data.get('name', '').strip()
+    if not old_name or not new_name:
+        return jsonify({'error': '缺少名称参数'}), 400
+
+    existing = _load_custom(kind)
+    idx = next((i for i, e in enumerate(existing) if e.get('name') == old_name), None)
+    if idx is None:
+        return jsonify({'error': '未找到该条目'}), 404
+
+    # 与 POST 相同的字段归一化；source 保留原值（旧条目如"凡度尔的失落矿坑"编辑后不丢）
+    if kind == 'monsters':
+        updated = {
+            'name': new_name,
+            'name_en': data.get('name_en', ''),
+            'cr': data.get('cr', ''),
+            'size': data.get('size', ''),
+            'type': data.get('type', ''),
+            'legendary': data.get('legendary', ''),
+            'race': data.get('race', ''),
+            'alignment': data.get('alignment', ''),
+            'faith': data.get('faith', ''),
+            'gender': data.get('gender', ''),
+            'hp': data.get('hp', ''),
+            'abilities': data.get('abilities', {}),
+            'height': data.get('height', ''),
+            'weight': data.get('weight', ''),
+            'speed': data.get('speed', ''),
+            'passive_perception': data.get('passive_perception', ''),
+            'ac': data.get('ac', ''),
+            'armor': data.get('armor', ''),
+            'weapons': data.get('weapons', []),
+            'skill_proficiencies': data.get('skill_proficiencies', {}),
+            'save_proficiencies': data.get('save_proficiencies', {}),
+            'features': data.get('features', {}),
+            'detail_text': data.get('detail_text', ''),
+            'source': existing[idx].get('source', '自定义') or '自定义',
+        }
+    elif kind == 'spells':
+        updated = {
+            'name': new_name,
+            'name_en': data.get('name_en', ''),
+            'level': data.get('level', ''),
+            'school': data.get('school', ''),
+            'casting_time': data.get('casting_time', ''),
+            'range': data.get('range', ''),
+            'duration': data.get('duration', ''),
+            'components': data.get('components', ''),
+            'ritual': data.get('ritual', '否'),
+            'concentration': data.get('concentration', '否'),
+            'classes': data.get('classes', ''),
+            'description': data.get('description', ''),
+            'source': existing[idx].get('source', '自定义') or '自定义',
+        }
+    elif kind == 'items':
+        updated = {'name': new_name, 'description': data.get('description', '')}
+    existing[idx] = updated
+    _save_custom(kind, existing)
+    return jsonify({'success': True, 'name': new_name})
 
 
 @app.route('/api/custom/<kind>', methods=['DELETE'])
@@ -3552,6 +3717,161 @@ def api_delete_custom(kind):
         return jsonify({'error': '未找到该条目'}), 404
     _save_custom(kind, new_list)
     return jsonify({'success': True})
+
+
+# ━━━ 导出（角色 Excel / 生物 PDF，v5.11）━━━
+EXPORT_DIR = _Path(__file__).parent.parent / '导出'
+BELLING_TEMPLATE = _Path(__file__).parent.parent.parent / '其他参考资料' / 'DND5E24人物卡-悲灵v1.0.1.xlsx'
+
+
+def _safe_filename(name: str) -> str:
+    """Windows 文件名非法字符替换为 _"""
+    return _re.sub(r'[\\/:*?"<>|\r\n\t]', '_', str(name or '')).strip() or '未命名'
+
+
+@app.route('/api/character/<name_or_id>/export-excel', methods=['GET'])
+def api_export_character_excel(name_or_id):
+    """角色 → 悲灵模板 Excel 导出（下载，文件命名 角色名.xlsx）"""
+    from utils.excel_exporter import export_to_belling
+    try:
+        char_id = int(name_or_id)
+    except ValueError:
+        char_id = name_or_id
+    char = get_character(char_id)
+    if not char:
+        return jsonify({'error': '角色不存在'}), 404
+    if not BELLING_TEMPLATE.exists():
+        return jsonify({'error': '未找到悲灵模板文件（其他参考资料/DND5E24人物卡-悲灵v1.0.1.xlsx）'}), 500
+    fname = _safe_filename(char['name']) + '.xlsx'
+    try:
+        out = EXPORT_DIR / fname
+        export_to_belling(char, BELLING_TEMPLATE, out)
+    except Exception as exc:
+        return jsonify({'error': f'导出失败: {exc}'}), 500
+    return send_file(out, as_attachment=True, download_name=fname)
+
+
+@app.route('/api/custom/monsters/<name>/export-pdf', methods=['GET'])
+def api_export_monster_pdf(name):
+    """自定义生物 → 词条卡 PDF 导出（下载，文件命名 生物名.pdf）"""
+    from utils.pdf_exporter import export_monster_pdf
+    entry = next((e for e in _load_custom('monsters') if e.get('name') == name), None)
+    if not entry:
+        return jsonify({'error': '未找到该生物'}), 404
+    fname = _safe_filename(entry['name']) + '.pdf'
+    try:
+        out = EXPORT_DIR / fname
+        export_monster_pdf(entry, out)
+    except Exception as exc:
+        return jsonify({'error': f'导出失败: {exc}'}), 500
+    return send_file(out, as_attachment=True, download_name=fname)
+
+
+# ━━━ 五版不全书目录浏览（v5.11：左侧目录树 + 右侧内容）━━━
+CHM_EXTRACTED_DIR = _Path(__file__).parent.parent / 'data' / 'chm_extracted'
+
+
+@app.route('/api/chm/toc', methods=['GET'])
+def api_chm_toc():
+    """不全书目录树（懒加载：?parent=<节点id>，默认根层）"""
+    from utils.chm_toc import get_children
+    try:
+        parent = int(request.args.get('parent', '0'))
+    except ValueError:
+        parent = 0
+    return jsonify({'nodes': get_children(parent)})
+
+
+def _chm_fuzzy_find(base: _Path, rel_path: str):
+    """路径失效时的兜底：先同目录归一化匹配（去空格/大小写），
+    再全库文件名归一化匹配（detail_link 等路径可能目录不符）"""
+    rel = _Path(rel_path)
+    def _norm(s: str) -> str:
+        return _re.sub(r'[\s_\-]+', '', s).lower()
+    target = _norm(rel.stem)
+    if not target:
+        return None
+    # 1. 同目录匹配
+    parent = base / rel.parent
+    if parent.is_dir():
+        cands = [f for f in parent.iterdir() if f.suffix.lower() in ('.htm', '.html')]
+        for f in cands:
+            if _norm(f.stem) == target:
+                return f
+        for f in cands:
+            if target in _norm(f.stem):
+                return f
+    # 2. 全库文件名匹配（跨目录，如 detail_link 指向"怪物图鉴/"实际在"怪物图鉴2025/"）
+    for f in base.rglob('*.htm'):
+        if _norm(f.stem) == target:
+            return f
+    for f in base.rglob('*.html'):
+        if _norm(f.stem) == target:
+            return f
+    return None
+
+
+@app.route('/api/chm/content/<path:path>', methods=['GET'])
+def api_chm_content(path):
+    """不全书词条内容（内联 stat-block.css/style.css，路径白名单防穿越）"""
+    if not path.endswith(('.htm', '.html')):
+        return abort(404)
+    if '..' in path.split('/'):
+        return abort(404)
+    full = (CHM_EXTRACTED_DIR / path).resolve()
+    if not str(full).startswith(str(CHM_EXTRACTED_DIR.resolve())) or not full.exists():
+        # 兜底：hhc 名称与实际文件名不一致（如"空骸丧尸"vs"空壳僵尸"）
+        fuzzy = _chm_fuzzy_find(CHM_EXTRACTED_DIR, path)
+        if fuzzy is None:
+            return abort(404)
+        full = fuzzy
+    try:
+        # UTF-8 严格优先，回退 GBK（怪物图鉴2014 为 UTF-8，CHM 提取为 GBK）
+        raw = full.read_bytes()
+        try:
+            html_str = raw.decode('utf-8')
+        except UnicodeDecodeError:
+            html_str = raw.decode('gbk', errors='replace')
+    except Exception:
+        return abort(404)
+    # 内联样式（替换原 <link> 引用，规避 iframe 相对路径问题）
+    css_blocks = ''
+    for css_name in ('stat-block.css', 'style.css'):
+        css_path = CHM_EXTRACTED_DIR / css_name
+        if css_path.exists():
+            css_blocks += '<style>' + css_path.read_text(encoding='gbk', errors='ignore') + '</style>\n'
+    html_str = _re.sub(r'<link[^>]*stylesheet[^>]*>', '', html_str, flags=_re.I)
+    html_str = _re.sub(r'(<head[^>]*>)', r'\1' + css_blocks, html_str, count=1, flags=_re.I)
+    # 重写绝对路径链接（CHM 内置页面全部用 / 开头绝对路径，iframe 内会请求站点根 404）：
+    # href="/xxx.htm#锚点" → href="/api/chm/content/xxx.htm#锚点"；
+    # css/js/图片 → /api/chm/asset/xxx（新增 asset 路由）
+    # 注意：扩展名后允许 #锚点等剩余内容（否则收尾引号匹配失败）
+    html_str = _re.sub(
+        r'(href|src)=(["\'])/(?!api/|static/)([^"\']*?\.(?:htm|html)[^"\']*)(["\'])',
+        r'\1=\2/api/chm/content/\3\4', html_str, flags=_re.I)
+    html_str = _re.sub(
+        r'(href|src)=(["\'])/(?!api/|static/)([^"\']*?\.(?:css|js|png|jpe?g|gif|webp|svg|ico)[^"\']*)(["\'])',
+        r'\1=\2/api/chm/asset/\3\4', html_str, flags=_re.I)
+    resp = _make_response(html_str)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
+
+@app.route('/api/chm/asset/<path:path>', methods=['GET'])
+def api_chm_asset(path):
+    """不全书静态资源（css/js/图片，供内容页引用；路径白名单防穿越）"""
+    if '..' in path.split('/'):
+        return abort(404)
+    full = (CHM_EXTRACTED_DIR / path).resolve()
+    if not str(full).startswith(str(CHM_EXTRACTED_DIR.resolve())) or not full.exists():
+        return abort(404)
+    import mimetypes
+    mime = mimetypes.guess_type(str(full))[0] or 'application/octet-stream'
+    if str(mime).startswith('text/') or 'javascript' in str(mime):
+        resp = _make_response(full.read_bytes())
+        resp.headers['Content-Type'] = str(mime) + '; charset=utf-8'
+        return resp
+    return send_file(full, mimetype=mime)
 
 
 # ━━━ 服务器端地图加载 ━━━

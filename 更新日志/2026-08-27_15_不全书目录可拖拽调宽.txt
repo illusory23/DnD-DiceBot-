@@ -1,0 +1,20 @@
+2026-08-27_15_不全书目录可拖拽调宽
+
+问题：
+- 展开多层子目录后，深层节点因目录树固定 260px 宽度被截断看不见
+
+修复（web/templates/reference.html）：
+- 目录树与内容 iframe 之间新增可拖拽分隔条（#chm-splitter，col-resize 光标）：
+  按住拖动实时调整目录宽度（范围 160-560px），深层目录拉宽即可完整显示
+- 子目录缩进 0.7rem → 0.5rem（多层嵌套更省空间）
+- 分隔条 hover/拖动时 body 光标 col-resize、禁止文本选中
+
+验证：
+- JS node --check 通过
+- 拖拽逻辑：mousedown 记录起点 → mousemove 实时改 toc flex 宽度（限幅 160-560px）
+  → mouseup 释放
+
+涉及文件：
+- web/templates/reference.html
+
+需要重启服务器生效（模板改动）。
