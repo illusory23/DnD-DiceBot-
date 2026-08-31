@@ -1,0 +1,31 @@
+2026-09-01_6_右侧竖条联动与笔记面板修复
+
+问题（用户反馈）：
+1. 点击右上角角色展开界面后，状态池与模组时间竖条按钮没有跟随
+   展开右移（被右侧 260px 侧边栏遮挡）
+2. 笔记界面内没有操作按钮（面板空白）
+
+根因：
+1. web/static/map-page.js 的 _syncStatsToggle 只处理统计按钮
+   （stats-toggle-btn），状态池/时间竖条未加入联动
+2. web/templates/map.html 只加了"📜 笔记"Tab 按钮，漏加
+   #sidebar-panel-notes 面板 div——点击 Tab 时
+   getElementById(...).classList 对 null 报错，面板渲染中断
+
+修复：
+- map-page.js：_syncStatsToggle 同时右移 status-pool-btn 与
+  time-toggle-btn（侧边栏/统计面板任一打开 → 260px，关闭回 0）；
+  map-page.js v77 → v78（map.html 缓存版本号同步）
+- map.html：新增 <div class="sidebar-panel" id="sidebar-panel-notes">
+  （combat 面板之后）——笔记 Tab 可正常切换并渲染操作按钮
+  （🔍线索/📋委托切换、➕新增、✏️编辑、🗑删除）
+
+验证：
+- node --check map-page.js 通过；map 页含 sidebar-panel-notes 与
+  map-page.js?v=78；登录后渲染正常
+
+涉及文件：
+- web/static/map-page.js（v78）、web/templates/map.html
+- 备份：backups/模组时间与笔记前_20260901_*
+
+不需要重启服务器（前端静态资源，刷新/强刷地图页即可生效）。

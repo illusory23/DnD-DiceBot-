@@ -1,0 +1,45 @@
+2026-09-01_3_模组时间与线索委托笔记
+
+需求（用户确认）：
+1. 模组时间（xx历xx年xx月xx日xx时xx分）：右上竖条按钮 + 可拖动面板，
+   DM 手动推进（+10分钟/+1小时/+1天/+1周 + 自定义）
+2. 线索与委托：地图侧边栏笔记 Tab，DM/PL 均可编辑，可选择公开/私有
+
+实现：
+
+一、后端（web/app.py + core/models.py）
+- 新表 campaign_time（模组时间，全团共享单行）：era 历法/年月日时分/
+  updated_by/updated_at
+- 新表 notes（线索委托）：kind(clue/quest)/title/description/source/
+  npc/reward/status/visibility(public/private)/owner_id/created_by/时间
+- API：
+  · GET /api/campaign-time（全玩家可读）
+  · POST /api/campaign-time（仅 DM，_is_dm_request 判定）：set 完整设置
+    / advance 推进 N 分钟（进位：60分→时、24时→日、30日→月、12月→年）
+  · GET /api/notes?kind=（公开 + 自己的私有，需登录 401）
+  · POST /api/notes（登录可建，public/private）
+  · PUT/DELETE /api/notes/<id>（公开全团可编辑；私有仅创建者，403）
+
+二、前端（web/static/map.js + web/templates/map.html）
+- 右侧竖条「🕐 时间」（全体可见，青色）+ 可拖动面板 #time-panel：
+  展示"圣历 1452 年 3 月 15 日 14 时 30 分"+ 更新者；DM 显示推进按钮
+  与"⚙️ 设置起始时间"表单；30 秒轮询同步
+- 侧边栏新增「📜 笔记」Tab：#sidebar-panel-notes，内置 🔍线索/📋委托
+  切换；列表（标题/状态徽章/公开私有标记/来源/NPC/奖励/描述/时间）
+  + 新增表单（标题/描述/来源或委托人/NPC或奖励/状态下拉/🌐公开🔒私有）
+  + 编辑/删除；未登录提示"请先登录官网账号"并附官网链接
+
+三、验证
+- 时间 API：GET/SET/advance 进位（+95分钟→16:05、+30天→4月15）✓
+- 笔记 API：未登录 401；A 建公开+私有；B 仅见公开；B 可编辑公开
+  （全团可编辑）；B 改 A 私有 403；A 删私有 ✓（注册/登录/清理全链路）
+- 页面元素：登录后 map 页含时间竖条/面板/推进按钮/设置表单/笔记 Tab ✓
+- 登录拦截：未登录 /map 等 → 302 /?need_login=1；官网不拦；API 不拦；
+  登录后 200 ✓（见 2026-09-01_4 日志）
+- CI 冒烟测试仅测首页与 API，不受拦截影响
+
+涉及文件：
+- core/models.py、web/app.py、web/static/map.js、web/templates/map.html
+- 备份：backups/模组时间与笔记前_20260901_*
+
+需要重启服务器生效（新表 + 新 API + 登录拦截）。

@@ -1,0 +1,57 @@
+2026-08-31_1_掷骰输入同步与法术排序戏法修复
+
+一、优化：掷骰自定义输入与上方控件实时双向同步（web/templates/dice3d-e.html）
+问题：
+掷骰面板中"自定义表达式"输入框与上方的骰子个数/加值步进器、面数、
+模式、爆炸、保留控件互不相通——点加减时输入框不变；输入框填了内容后
+buildExpression 直接返回自定义内容，上方的个数/加值修改被忽略。
+
+优化（dice3d-e.html，内联 JS，无版本号）：
+- 新增 buildExprFromControls()：用控件状态构建表达式（原 buildExpression
+  的控件分支，提取复用）
+- 新增 syncCustomInput()：控件 → 输入框。chgC / chgM / 面数(dbs) /
+  模式(tog) / 爆炸 / 保留模式与数量 六处控件变更后实时写回输入框
+- 新增 parseCustomInput()：输入框 → 控件。oninput 触发，解析表达式
+  同步骰数/面数/模式/爆炸/保留/加值（adv·dis·XdY·k3/kl3/dh3/dl3·!·末尾±N；
+  混合表达式尽力同步第一组骰子与末尾加值；只改控件不动输入框，不破坏光标）
+- quickRoll 预设按钮点击后同步解析到控件（后续点加减基于该表达式）
+
+二、优化：法术书与准备法术按法术等级排序（web/templates/spells.html）
+问题：
+"已学习法术"与"已准备法术"列表按添加顺序排列，戏法与各环位混杂。
+
+优化（spells.html，内联 JS，无版本号）：
+- renderLearnedSpells / renderPreparedSpells 渲染前按
+  (spell_level || 0) 升序排序（戏法0 → 九环9），同环保持原顺序
+  （Array.sort 稳定），缺失等级兜底为 0 并入戏法组
+
+三、修复：地图攻击方式选择中戏法识别不到（web/static/map.js）
+问题：
+1) 法术 Tab 列表项 `s.spell_level ?` 判断——戏法环阶 0 为 falsy，
+   不显示任何环阶标签，列表里戏法无法辨认
+2) pickAttackSource('spell') 用未过滤的 prepared_spells[index] 取值，
+   而渲染用的是过滤后的数组——prepared_spells 中存在无名字项时索引
+   错位，点选会选中错误法术（治疗侧 isHealSpell 已用过滤后数组，攻击
+   侧遗漏）
+
+修复（map.js）：
+- 法术项新增 lvlTxt：0 → "戏法"，1-9 → "N环"，环阶标签始终显示
+- pickAttackSource 法术分支改为与渲染同源的过滤数组取索引（与
+  治疗侧写法一致）
+- map.js v84 → v85（web/templates/map.html 缓存版本号同步）
+
+验证（node test_verify_20260831.mjs，21/21 通过，脚本已归档备份）：
+- 点击加减后输入框实时更新（2d20 → 2d20+1 → 1d20-1 等）
+- 输入 4d6k3 / d20 adv / 2d8+1d6+3 / 1d100 / 3d6! / 4d6dl1
+  控件同步正确；解析后点加减以控件为准重建表达式
+- 排序：戏法在前等级升序、同环稳定、null 兜底 0
+- map.js node --check 语法通过；map.html v=85 生效
+
+涉及文件：
+- web/templates/dice3d-e.html
+- web/templates/spells.html
+- web/static/map.js（v85）、web/templates/map.html（v=85）
+- 备份：backups/掷骰同步法术排序戏法修复前_20260831_*
+
+不需要重启服务器（纯前端改动），刷新页面即可；
+地图页需强刷一次（map.js 版本号已升 v85）。

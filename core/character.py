@@ -532,15 +532,15 @@ def set_save_proficiency(char_id: int, ability: str, is_proficient: bool = True,
 
 def set_hp(char_id: int, hp_current: int | None = None,
            hp_max: int | None = None, temp_hp: int = 0) -> bool:
-    """设置生命值"""
+    """设置生命值（边界与 adjust_hp 统一：HP 夹紧在 [0, hp_max]，临时HP >= 0 无上限）"""
     char = db.session.get(Character, char_id)
     if not char:
         return False
     if hp_max is not None:
-        char.hp_max = hp_max
+        char.hp_max = max(0, int(hp_max))
     if hp_current is not None:
-        char.hp_current = hp_current
-    char.temp_hp = temp_hp
+        char.hp_current = max(0, min(char.hp_max, int(hp_current)))
+    char.temp_hp = max(0, int(temp_hp))
     _save()
     return True
 

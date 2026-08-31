@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎲 掷骰 — 尘封之卷</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+<style>
+html,body{height:100%;overflow:hidden;background:#0a0a14;margin:0;}
+/* ━━ 加入覆盖层 ━━ */
+#join-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+#join-overlay.hidden{display:none;}
+.join-card{background:var(--surface);border:2px solid var(--accent);border-radius:16px;padding:32px 28px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(233,68,96,0.3);}
+.join-card h2{color:var(--gold);margin-bottom:6px;font-size:1.3rem;}
+.join-card .subtitle{color:var(--text-dim);font-size:0.8rem;margin-bottom:20px;}
+.join-card .dm-badge{display:inline-block;background:var(--gold);color:#000;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;margin-bottom:12px;}
+.join-card input[type="text"]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.95rem;text-align:center;box-sizing:border-box;margin-bottom:10px;}
+.join-card input:focus{border-color:var(--accent);outline:none;}
+.join-card .color-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;}
+.join-card .color-row span{font-size:0.8rem;color:var(--text-dim);}
+.join-card .join-color-btn{width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+.join-card .join-color-palette{display:none;position:absolute;bottom:40px;background:var(--surface);border:2px solid var(--accent);border-radius:8px;padding:6px;gap:4px;flex-wrap:wrap;width:140px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+.join-card .join-color-palette.show{display:flex;}
+.join-card .join-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;}
+.join-card .join-color-swatch:hover{border-color:#fff;transform:scale(1.2);}
+.join-card .join-color-swatch.selected{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+.join-card .join-btn{width:100%;padding:12px;background:var(--accent);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:1rem;font-weight:bold;transition:opacity 0.15s;}
+.join-card .join-btn:hover{opacity:0.9;}
+.join-card .join-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.join-card .error-msg{color:var(--red);font-size:0.8rem;margin-top:8px;min-height:20px;}
+/* ━━ 导航 ━━ */
+.navbar{position:fixed;top:0;left:0;right:0;z-index:100;}
+body.embed .navbar{display:none;}
+/* ━━ 主体 ━━ */
+.wrap{position:fixed;top:56px;left:0;right:0;bottom:0;display:flex;flex-direction:column;}
+body.embed .wrap{top:0;}
+#stage{flex:1;position:relative;background:radial-gradient(ellipse at center,#1a1a3e 0%,#0a0a14 70%);overflow:hidden;}
+#dice-box-container{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;}
+/* ━━ 控制栏 ━━ */
+.ctrls{flex-shrink:0;background:var(--surface);border-top:2px solid var(--accent);display:flex;flex-direction:column;flex-shrink:0;font-size:0.82rem;max-height:55vh;overflow-y:auto;position:relative;z-index:10;}
+.ctrl-tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border);padding:0;position:sticky;top:0;z-index:11;}
+.ctrl-tab{flex:1;padding:10px 16px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:0.9rem;font-weight:600;transition:all 0.15s;border-bottom:3px solid transparent;}
+.ctrl-tab:hover{color:var(--text);}
+.ctrl-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface);}
+.ctrl-panel{padding:6px 10px;display:flex;flex-direction:column;gap:4px;}
+.ctrl-panel.hidden-tab{display:none!important;}
+/* ━━ 控制行 ━━ */
+.ctrl-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.ctrl-row+.ctrl-row{margin-top:2px;}
+.dbs{display:flex;gap:3px;}
+.dbs button{padding:4px 10px;border:2px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:0.78rem;font-weight:600;}
+.dbs button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.stp{display:flex;align-items:center;gap:3px;}
+.stp button{width:24px;height:24px;border:2px solid var(--border);border-radius:3px;cursor:pointer;font-size:0.8rem;background:var(--bg);color:var(--text);}
+.stp span{min-width:20px;text-align:center;}
+.tog{display:flex;}
+.tog button{padding:3px 8px;border:2px solid var(--border);background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.75rem;}
+.tog button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+.presets{display:flex;gap:3px;flex-wrap:wrap;}
+.presets button{padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.72rem;white-space:nowrap;transition:all 0.15s;}
+.presets button:hover{color:var(--text);border-color:var(--accent);background:var(--surface);}
+.rbtn{padding:8px 20px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.95rem;font-weight:bold;cursor:pointer;margin-left:auto;}
+.rbtn:disabled{opacity:.5;cursor:not-allowed;}
+.tbl-btn{padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.75rem;}
+.tbl-btn:hover{color:var(--text);border-color:var(--accent);}
+.tbl-sel{padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:0.72rem;}
+.keep-inp{width:32px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:0.75rem;text-align:center;}
+#custom-expr{flex:1;min-width:100px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.78rem;}
+#custom-expr:focus{border-color:var(--accent);outline:none;}
+#custom-expr::placeholder{color:var(--text-dim);font-size:0.7rem;}
+.explode-on{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;}
+.hidden-on{background:var(--red)!important;color:#fff!important;border-color:var(--red)!important;}
+/* ━━ 结果浮层 ━━ */
+.rov{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.92);color:#ffd700;padding:10px 24px;border-radius:20px;font-size:1.2rem;font-weight:bold;z-index:100;pointer-events:none;transition:opacity .4s;border:1px solid var(--gold);max-width:90%;text-align:center;}
+.rov.hide{opacity:0;}
+.status{position:absolute;top:12px;right:16px;z-index:101;font-size:0.7rem;color:#888;background:rgba(0,0,0,0.6);padding:4px 10px;border-radius:10px;}
+/* ━━ 检定面板 ━━ */
+.check-input-row{display:flex;gap:6px;align-items:center;}
+.check-input-row input{flex:1;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);font-size:0.85rem;}
+.check-input-row input:focus{border-color:var(--accent);outline:none;}
+.check-input-row button{padding:5px 14px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:bold;font-size:0.85rem;}
+.skill-grid{display:flex;flex-direction:column;gap:2px;}
+.skill-row-label{font-size:0.68rem;color:var(--text-dim);margin-right:4px;}
+.skill-btns{display:flex;gap:3px;flex-wrap:wrap;}
+.skill-btns button{padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.72rem;white-space:nowrap;transition:all 0.12s;}
+.skill-btns button:hover{color:var(--text);border-color:var(--accent);}
+.ability-gen-row{display:flex;gap:6px;align-items:center;margin-top:2px;}
+.ability-gen-row button{padding:4px 10px;border:1px solid var(--gold);border-radius:4px;background:var(--bg);color:var(--gold);cursor:pointer;font-size:0.75rem;}
+.ability-gen-row button:hover{background:var(--gold);color:#000;}
+#gen-result{font-size:0.8rem;color:var(--gold);margin-left:4px;}
+.char-sel-row{display:flex;gap:6px;align-items:center;}
+.char-sel-row select{padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--gold);font-size:0.75rem;max-width:180px;}
+#char-badge{color:var(--gold);font-size:0.72rem;display:none;}
+/* ━━ 聊天面板 ━━ */
+.chat-panel{position:fixed;left:0;top:56px;bottom:0;width:280px;background:var(--surface);border-right:2px solid var(--accent);z-index:199;display:flex;flex-direction:column;transform:translateX(-280px);transition:transform 0.3s ease;}
+.chat-panel.open{transform:translateX(0);}
+.chat-panel.open~.chat-toggle{left:280px;}
+.chat-panel.open~.wrap{left:280px!important;}
+.chat-toggle{position:fixed;left:0;top:66px;width:28px;height:80px;background:var(--accent);border:none;border-radius:0 8px 8px 0;color:#fff;cursor:pointer;z-index:200;font-size:14px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:left 0.3s ease;padding:4px 2px;line-height:1.2;}
+.chat-header{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.chat-header b{color:var(--gold);font-size:0.85rem;flex:1;}
+.chat-header button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;}
+.chat-header button:hover{color:var(--text);}
+.chat-msgs{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:3px;}
+.chat-msg{font-size:0.78rem;line-height:1.4;padding:3px 6px;background:var(--bg);border-radius:6px;word-break:break-word;}
+.chat-msg .cm-time{color:var(--text-dim);font-size:0.65rem;margin-right:4px;}
+.chat-msg .cm-name{font-weight:bold;}
+.chat-msg .cm-text{color:var(--text);}
+.chat-msg.system{text-align:center;color:var(--text-dim);font-size:0.7rem;background:transparent;font-style:italic;}
+.chat-input-row{padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:4px;}
+.chat-input-row input{flex:1;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;}
+.chat-input-row input:focus{border-color:var(--accent);outline:none;}
+.chat-input-row button{padding:6px 12px;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8rem;}
+.chat-input-row button:disabled{opacity:0.5;cursor:not-allowed;}
+
+</style>
+  <script src="/static/online-presence.js"></script>
+  <script src="/static/event-popup.js"></script>
+</head>
+<body>
+<!-- ━━ 加入房间覆盖层 ━━ -->
+<div id="join-overlay">
+  <div class="join-card">
+    <h2>🎲 欢迎来到 尘封之卷</h2>
+    <div class="subtitle" id="join-subtitle">请输入你的ID加入房间</div>
+    <div class="dm-badge" id="join-dm-badge" style="display:none;">👑 主持人</div>
+    <input type="text" id="join-username" placeholder="输入你的玩家ID" maxlength="20" enterkeyhint="done">
+    <div class="color-row" style="position:relative;">
+      <span>ID颜色：</span>
+      <button class="join-color-btn" id="join-color-btn" style="background:#00bcd4;" onclick="toggleJoinColorPalette()"></button>
+      <div class="join-color-palette" id="join-color-palette"></div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;">
+      <label style="color:var(--gold);cursor:pointer;"><input type="radio" name="join-role" value="DM"> 👑 DM</label>
+      <label style="color:var(--text);cursor:pointer;"><input type="radio" name="join-role" value="PL" checked> 🎭 PL</label>
+    </div>
+    <button class="join-btn" id="join-btn" onclick="doJoin()">🚪 进入骰娘</button>
+    <div class="error-msg" id="join-error"></div>
+  </div>
+</div>
+
+<!-- ━━ 聊天面板 ━━ -->
+<div class="chat-panel" id="chat-panel">
+  <div class="chat-header">
+    <b>💬 聊天</b>
+    <span id="chat-online" style="font-size:0.7rem;color:var(--green);"></span>
+    <button onclick="toggleChat()" title="折叠聊天">◀</button>
+  </div>
+  <div id="chat-online-users" style="padding:2px 8px;border-bottom:1px solid var(--border);font-size:0.7rem;color:var(--text-dim);display:flex;gap:5px;flex-wrap:wrap;min-height:20px;flex-shrink:0;"></div>
+  <div class="chat-msgs" id="chat-msgs">
+    <div class="chat-msg system">输入ID加入房间后即可聊天</div>
+  </div>
+  <div class="chat-input-row">
+    <input type="text" id="chat-input" placeholder="输入消息..." disabled enterkeyhint="send" onkeydown="if(event.key==='Enter')sendChatMsg()">
+    <button onclick="sendChatMsg()" id="chat-send-btn" disabled>发送</button>
+  </div>
+</div>
+<button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" title="展开聊天">💬<br>聊<br>天</button>
+
+<nav class="navbar" style="position:relative;"><a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a><div class="navbar-links"><a href="/dice3d" class="active">🎲 掷骰</a><a href="/map">地图</a><a href="/character">角色卡</a><a href="/spells">法术</a><a href="/combat">战斗</a><a href="/chat">💬 聊天室</a><a href="/reference">参考</a><a href="/mods">🧩 Mod</a><a href="/dice-help">📜 掷骰帮助</a></div></nav>
+
+<div class="wrap has-nav">
+<div id="stage">
+  <div id="dice-box-container" style="background:url(/static/dice-engine-v3/textures/木桌.png) center/cover"></div>
+  <div class="rov hide" id="rov"></div>
+  <div class="status" id="status"></div>
+</div>
+<div class="ctrls">
+  <!-- Tab 切换 -->
+  <div class="ctrl-tabs">
+    <button class="ctrl-tab active" data-tab="dice" onclick="switchTab('dice')">🎲 掷骰</button>
+    <button class="ctrl-tab" data-tab="check" onclick="switchTab('check')">🎯 检定</button>
+    <button class="ctrl-tab" data-tab="save" onclick="switchTab('save')">🛡 豁免</button>
+  </div>
+  <!-- 掷骰面板 -->
+  <div class="ctrl-panel" id="panel-dice">
+    <div class="ctrl-row">
+      <span>骰子:</span><div class="dbs" id="dbs"><button data-s="4">d4</button><button data-s="6">d6</button><button data-s="8">d8</button><button data-s="10">d10</button><button data-s="12">d12</button><button data-s="20" class="on">d20</button><button data-s="100">d100</button></div>
+      <span>模式:</span><div class="tog" id="tog"><button data-a="" class="on">正常</button><button data-a="adv">优势</button><button data-a="dis">劣势</button></div>
+      <button id="explode-btn" class="tbl-btn" onclick="toggleExplode()">💥爆炸</button>
+      <span>保留:</span><select id="keep-mode" class="tbl-sel" onchange="onKeepModeChange()"><option value="">无</option><option value="kh">保留最高</option><option value="kl">保留最低</option><option value="dh">丢弃最高</option><option value="dl">丢弃最低</option></select>
+      <input id="keep-count" type="number" value="1" min="1" class="keep-inp" style="display:none;" onchange="onKeepCountChange()">
+      <button id="hidden-btn" class="tbl-btn" onclick="toggleHidden()" title="暗骰：仅自己可见，不广播到聊天室" style="display:none;">🌫暗骰</button>
+    </div>
+    <div class="ctrl-row">
+      <span>个数:</span><div class="stp"><button onclick="chgC(-1)">−</button><span id="cv">1</span><button onclick="chgC(1)">+</button></div>
+      <span>加值:</span><div class="stp"><button onclick="chgM(-1)">−</button><span id="mv">+0</span><button onclick="chgM(1)">+</button></div>
+      <span>快捷:</span><div class="presets"><button onclick="quickRoll('3d6')">3d6</button><button onclick="quickRoll('4d6k3')">4d6k3</button><button onclick="quickRoll('2d6+3')">2d6+3</button><button onclick="quickRoll('8d6')">🔥8d6</button><button onclick="quickRoll('1d8+2')">1d8+2</button><button onclick="quickRoll('1d20+5')">1d20+5</button><button onclick="quickRoll('d20 adv')">d20优势</button><button onclick="quickRoll('d20 dis')">d20劣势</button></div>
+    </div>
+    <div class="ctrl-row">
+      <span>自定义:</span><input id="custom-expr" type="text" placeholder="如: 4d6k3 / adv d20 / 2d8+1d6+3" onkeydown="if(event.key==='Enter')doRoll()" oninput="parseCustomInput()">
+      <span>桌布:</span><select class="tbl-sel" id="tbl-select" onchange="changeSurface(this.value)"><option value="wood">木桌</option><option value="wood2">木桌2</option><option value="blue-felt" selected>蓝毡</option><option value="stone">石板</option><option value="white-cloth">白布</option><option value="marble">大理石</option><option value="grass">草地</option><option value="snow">雪地</option><option value="ice">冰面</option><option value="star-light">星空浅</option><option value="star-mid">星空中</option><option value="star-dark">星空深</option></select>
+      <button class="tbl-btn" onclick="document.getElementById('tbl-file').click()">📁自定义</button><input type="file" id="tbl-file" accept="image/*" onchange="uploadBg(this)" style="display:none">
+      <button class="rbtn" id="rb" onclick="doRoll()">🎲 投掷！</button>
+    </div>
+  </div>
+  <!-- 检定面板 -->
+  <div class="ctrl-panel hidden-tab" id="panel-check">
+    <div class="ctrl-row">
+      <div class="char-sel-row">
+        <select id="active-char-select" onchange="setActiveChar()"><option value="">👤 无对象</option></select>
+        <span id="char-badge"></span>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <div class="check-input-row" style="flex:1;">
+        <input type="text" id="check-target" placeholder="察觉 / 力量 / 隐匿..." onkeydown="if(event.key==='Enter')doCheck()">
+        <button onclick="doCheck()">检定</button>
+      </div>
+      <div class="tog" id="check-adv-toggle">
+        <button class="on" data-adv="">正常</button><button data-adv="adv">✨优势</button><button data-adv="dis">💀劣势</button>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <div class="skill-grid" style="flex:1;">
+        <div class="ctrl-row"><span class="skill-row-label">力量</span><div class="skill-btns"><button onclick="fillCheckTarget('运动')">运动</button></div></div>
+        <div class="ctrl-row"><span class="skill-row-label">敏捷</span><div class="skill-btns"><button onclick="fillCheckTarget('特技')">特技</button><button onclick="fillCheckTarget('巧手')">巧手</button><button onclick="fillCheckTarget('隐匿')">隐匿</button></div></div>
+        <div class="ctrl-row"><span class="skill-row-label">智力</span><div class="skill-btns"><button onclick="fillCheckTarget('奥秘')">奥秘</button><button onclick="fillCheckTarget('历史')">历史</button><button onclick="fillCheckTarget('调查')">调查</button><button onclick="fillCheckTarget('自然')">自然</button><button onclick="fillCheckTarget('宗教')">宗教</button></div></div>
+        <div class="ctrl-row"><span class="skill-row-label">感知</span><div class="skill-btns"><button onclick="fillCheckTarget('驯兽')">驯兽</button><button onclick="fillCheckTarget('洞悉')">洞悉</button><button onclick="fillCheckTarget('医药')">医药</button><button onclick="fillCheckTarget('察觉')">察觉</button><button onclick="fillCheckTarget('生存')">生存</button></div></div>
+        <div class="ctrl-row"><span class="skill-row-label">魅力</span><div class="skill-btns"><button onclick="fillCheckTarget('欺诈')">欺诈</button><button onclick="fillCheckTarget('威吓')">威吓</button><button onclick="fillCheckTarget('表演')">表演</button><button onclick="fillCheckTarget('游说')">游说</button></div></div>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <div class="ability-gen-row">
+        <button onclick="generateAbilities()">📊 生成属性 (4d6k3)</button>
+        <span id="gen-result"></span>
+      </div>
+    </div>
+  </div>
+  <!-- 豁免面板 -->
+  <div class="ctrl-panel hidden-tab" id="panel-save">
+    <div class="ctrl-row">
+      <div class="char-sel-row">
+        <select id="save-char-select" onchange="setSaveChar()"><option value="">👤 无对象</option></select>
+        <span id="save-char-badge" style="color:var(--gold);font-size:0.72rem;display:none;"></span>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <span>属性:</span>
+      <div class="skill-btns">
+        <button onclick="doSave('力量')">力量</button>
+        <button onclick="doSave('敏捷')">敏捷</button>
+        <button onclick="doSave('体质')">体质</button>
+        <button onclick="doSave('智力')">智力</button>
+        <button onclick="doSave('感知')">感知</button>
+        <button onclick="doSave('魅力')">魅力</button>
+      </div>
+    </div>
+    <div class="ctrl-row">
+      <span>模式:</span>
+      <div class="tog" id="save-adv-toggle">
+        <button class="on" data-adv="">正常</button><button data-adv="adv">✨优势</button><button data-adv="dis">💀劣势</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>if(location.search.includes("embed"))document.body.classList.add("embed");</script>
+
+<!-- ━━ 加入房间 + 检定逻辑（非模块）━━━ -->
+<script>
+// ━━ 身份工具 ━━━
+var _localActiveChar=null;
+var _localSaveChar=null;
+function getIdentity(){
+  try{var s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));return{name:(s&&s.name)||'',role:(s&&s.role)||'PL'};}catch(e){return{name:'',role:'PL'};}
+}
+// ━━ Tab切换 ━━━
+window.switchTab=function(tab){
+  document.querySelectorAll('.ctrl-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
+  document.getElementById('panel-dice').classList.toggle('hidden-tab',tab!=='dice');
+  document.getElementById('panel-check').classList.toggle('hidden-tab',tab!=='check');
+  document.getElementById('panel-save').classList.toggle('hidden-tab',tab!=='save');
+  if(tab==='save')loadSaveChars();
+  setTimeout(function(){window.dispatchEvent(new Event('resize'));},100);
+};
+// ━━ 检定面板 ━━━
+window.fillCheckTarget=function(target){document.getElementById('check-target').value=target;};
+function getCheckAdvantage(){
+  var a=document.querySelector('#check-adv-toggle .on');
+  if(!a)return null;
+  var v=a.dataset.adv;
+  if(v==='adv')return true;if(v==='dis')return false;return null;
+}
+// 检定toggle
+document.querySelectorAll('#check-adv-toggle button').forEach(function(b){
+  b.addEventListener('click',function(){
+    this.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+    this.classList.add('on');
+  });
+});
+window.doCheck=async function(){
+  var target=document.getElementById('check-target').value.trim();
+  if(!target)return;
+  var adv=getCheckAdvantage();
+  var body={target:target,advantage:adv};
+  if(_localActiveChar&&_localActiveChar.id)body.char_id=_localActiveChar.id;
+  try{
+    var resp=await fetch('/api/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var data=await resp.json();
+
+    // 播放3D骰子动画
+    var d20vals=data.d20_rolls||[data.d20_roll];
+    var dn=d20vals.length+'d20@'+d20vals.join(',');
+    var color=window._pc?window._pc(window._mn()):'white';
+    if(window._diceBox){
+      try{await window._diceBox.roll(dn,{theme:{theme_colorset:color}});}catch(e){}
+    }
+
+    var advLabel=data.advantage===true?'优势':(data.advantage===false?'劣势':'');
+    var critHtml='';
+    if(data.is_crit_success)critHtml=' 🎯大成功！';
+    if(data.is_crit_failure)critHtml=' 💀大失败！';
+    var modText='';
+    if(data.ability_mod)modText+='属性:'+(data.ability_mod>=0?'+':'')+data.ability_mod+' ';
+    if(data.prof_bonus)modText+='熟练:+'+data.prof_bonus+' ';
+    var charLine='';
+    if(data.char_name)charLine='<b>'+data.char_name+'</b> ';
+    var parts=[charLine+'<b>🎯 '+data.label+' 检定 = '+data.total+'</b>'];
+    if(advLabel)parts.push('('+advLabel+')');
+    parts.push(' | d20:'+d20vals.join(',')+' | '+modText+critHtml);
+    document.getElementById('rov').innerHTML=parts.join('');
+    document.getElementById('rov').classList.remove('hide');
+    setTimeout(function(){document.getElementById('rov').classList.add('hide');},6000);
+    broadcastCheckResult(data,charLine,advLabel,modText,critHtml);
+    var s2=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
+    if(s2&&s2.name)recordDiceStats(s2.name,d20vals);
+  }catch(e){}
+};
+// ━━ 检定/豁免广播 ━━━
+function broadcastCheckResult(data,charLine,advLabel,modText,critHtml){
+  try{
+    var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
+    if(!s||!s.name)return;
+    var textParts=[];
+    if(charLine)textParts.push(charLine.replace(/<\/?b>/g,''));
+    else textParts.push(s.name);
+    textParts.push(data.label+' = '+data.total);
+    if(advLabel)textParts.push('('+advLabel+')');
+    var d20vals=data.d20_rolls||[data.d20_roll];
+    textParts.push('| d20:'+d20vals.join(','));
+    if(data.is_crit_success)textParts.push('大成功！');
+    if(data.is_crit_failure)textParts.push('大失败！');
+    var text=textParts.join(' ');
+    fetch("/api/chat/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:s.name,text:text,color:s.color||'#00bcd4',role:s.role||'PL'})}).catch(function(){});
+    if(typeof syncWs!=='undefined'&&syncWs&&syncWs.readyState===1){
+      var dn=d20vals.length+'d20@'+d20vals.join(',');
+      syncWs.send(JSON.stringify({type:"dice_roll_det",detNotation:dn,notation:data.label,roller:s.name,color:s.color||'white',total:data.total,values:d20vals,is_crit_success:data.is_crit_success||false,is_crit_failure:data.is_crit_failure||false}));
+    }
+  }catch(e){}
+}
+// ━━ 角色选择器 ━━━
+async function loadCharSelect(){
+  try{
+    var id=getIdentity();
+    var resp=await fetch('/api/characters?name='+encodeURIComponent(id.name)+'&role='+encodeURIComponent(id.role));
+    var data=await resp.json();
+    var chars=Array.isArray(data)?data:(data.characters||[]);
+    var sel=document.getElementById('active-char-select');
+    sel.innerHTML='<option value="">👤 无对象</option>';
+    chars.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name+' ('+(c.level||1)+'级 '+(c.class||'')+')';sel.appendChild(o);});
+  }catch(e){}
+}
+window.setActiveChar=async function(){
+  var cid=document.getElementById('active-char-select').value;
+  var badge=document.getElementById('char-badge');
+  if(!cid){badge.style.display='none';_localActiveChar=null;return;}
+  try{
+    var resp=await fetch('/api/character/'+cid);
+    var data=await resp.json();
+    if(!data.error){badge.textContent='✅ '+data.name;badge.style.display='inline';_localActiveChar={id:cid,name:data.name};}
+  }catch(e){}
+};
+// ━━ 属性生成 ━━━
+window.generateAbilities=function(){
+  document.getElementById('gen-result').textContent='🎲 生成中...';
+  var promises=[];
+  for(var i=0;i<6;i++){promises.push(fetch('/api/roll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expression:'4d6k3'})}).then(function(r){return r.json();}));}
+  Promise.all(promises).then(function(results){
+    var scores=results.map(function(r){return r.total;}).sort(function(a,b){return b-a;});
+    document.getElementById('gen-result').textContent='['+scores.join(', ')+'] 合计:'+scores.reduce(function(a,b){return a+b;},0);
+  });
+};
+// ━━ 豁免面板 ━━━
+async function loadSaveChars(){
+  try{
+    var id=getIdentity();
+    var resp=await fetch('/api/characters?name='+encodeURIComponent(id.name)+'&role='+encodeURIComponent(id.role));
+    var data=await resp.json();
+    var chars=Array.isArray(data)?data:(data.characters||[]);
+    var sel=document.getElementById('save-char-select');
+    sel.innerHTML='<option value="">👤 无对象</option>';
+    chars.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name+' ('+(c.level||1)+'级 '+(c.class||'')+')';sel.appendChild(o);});
+  }catch(e){}
+}
+window.setSaveChar=async function(){
+  var cid=document.getElementById('save-char-select').value;
+  var badge=document.getElementById('save-char-badge');
+  if(!cid){badge.style.display='none';_localSaveChar=null;return;}
+  try{
+    var resp=await fetch('/api/character/'+cid);
+    var data=await resp.json();
+    if(!data.error){badge.textContent='✅ '+data.name;badge.style.display='inline';_localSaveChar={id:cid,name:data.name};}
+  }catch(e){}
+};
+function getSaveAdvantage(){
+  var a=document.querySelector('#save-adv-toggle .on');
+  if(!a)return null;
+  var v=a.dataset.adv;
+  if(v==='adv')return true;if(v==='dis')return false;return null;
+}
+document.querySelectorAll('#save-adv-toggle button').forEach(function(b){
+  b.addEventListener('click',function(){
+    this.parentElement.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+    this.classList.add('on');
+  });
+});
+window.doSave=async function(ability){
+  var adv=getSaveAdvantage();
+  var body={target:ability,advantage:adv};
+  if(_localSaveChar&&_localSaveChar.id)body.char_id=_localSaveChar.id;
+  try{
+    var resp=await fetch('/api/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var data=await resp.json();
+    var d20vals=data.d20_rolls||[data.d20_roll];
+    var dn=d20vals.length+'d20@'+d20vals.join(',');
+    var color=window._pc?window._pc(window._mn()):'white';
+    if(window._diceBox){try{await window._diceBox.roll(dn,{theme:{theme_colorset:color}});}catch(e){}}
+    var advLabel=data.advantage===true?'优势':(data.advantage===false?'劣势':'');
+    var critHtml='';
+    if(data.is_crit_success)critHtml=' 🎯大成功！';
+    if(data.is_crit_failure)critHtml=' 💀大失败！';
+    var modText='';
+    if(data.ability_mod)modText+='属性:'+(data.ability_mod>=0?'+':'')+data.ability_mod+' ';
+    if(data.prof_bonus)modText+='熟练:+'+data.prof_bonus+' ';
+    var charLine='';
+    if(data.char_name)charLine='<b>'+data.char_name+'</b> ';
+    var parts=[charLine+'<b>🛡 '+ability+'豁免 = '+data.total+'</b>'];
+    if(advLabel)parts.push('('+advLabel+')');
+    parts.push(' | d20:'+d20vals.join(',')+' | '+modText+critHtml);
+    document.getElementById('rov').innerHTML=parts.join('');
+    document.getElementById('rov').classList.remove('hide');
+    setTimeout(function(){document.getElementById('rov').classList.add('hide');},6000);
+    broadcastCheckResult(data,charLine,advLabel,modText,critHtml);
+    // 豁免也是 d20 掷骰：计入骰子统计（修复大成功/大失败漏计）
+    var s2=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
+    if(s2&&s2.name)recordDiceStats(s2.name,d20vals);
+  }catch(e){}
+};
+loadCharSelect();
+// ━━ 加入房间 ━━━
+(function(){
+  var SK='dnd_joined_room';
+  try{var _s=JSON.parse(sessionStorage.getItem(SK));if(_s&&_s.name){document.getElementById('join-overlay').classList.add('hidden');if(_s.is_dm||_s.role==='DM'){document.getElementById('hidden-btn').style.display='';}fetchOnlineUsers();_heartbeatId=setInterval(fetchOnlineUsers,8000);return;}}catch(e){}
+  var joinColor='#00bcd4';
+  var CP=['#00bcd4','#4caf50','#ff9800','#e91e63','#9c27b0','#2196f3','#ff5722','#607d8b','#795548','#cddc39','#00e5ff','#76ff03','#ffd740','#ff4081','#b388ff','#448aff','#ff6e40','#90a4ae','#8d6e63','#ffff00'];
+  function bp(){var p=document.getElementById('join-color-palette');p.innerHTML=CP.map(function(c){return'<div class="join-color-swatch'+(c===joinColor?' selected':'')+'" style="background:'+c+';" onclick="window._selJC(\''+c+'\')"></div>';}).join('');}
+  bp();
+  window.toggleJoinColorPalette=function(){bp();document.getElementById('join-color-palette').classList.toggle('show');};
+  window._selJC=function(c){joinColor=c;document.getElementById('join-color-btn').style.background=c;document.getElementById('join-color-palette').classList.remove('show');};
+  // 检查官网登录状态，自动绑定账号
+  fetch('/api/auth/me').then(function(r){return r.json();}).then(function(d){if(d.ok&&d.user){window._portalUserId=d.user.id;document.getElementById('join-username').value=d.user.username;document.getElementById('join-subtitle').textContent='已绑定官网账号：'+d.user.username+'（可修改显示名）';}}).catch(function(){});
+  fetch('/api/dm-status').then(function(r){return r.json();}).then(function(d){if(d.is_dm){joinColor='#ffd700';document.getElementById('join-color-btn').style.background='#ffd700';document.getElementById('join-dm-badge').style.display='inline-block';document.getElementById('join-subtitle').textContent='你是主持人，请输入ID进入';}});
+  document.getElementById('join-username').addEventListener('keydown',function(e){if(e.key==='Enter')doJoin();});
+  window._portalUserId=null;
+  window.doJoin=function(){
+    var name=document.getElementById('join-username').value.trim();
+    if(!name){document.getElementById('join-error').textContent='请输入你的ID';return;}
+    var btn=document.getElementById('join-btn');btn.disabled=true;btn.textContent='⏳ 连接中...';
+    var jr=document.querySelector('input[name="join-role"]:checked');
+    var role=jr?jr.value:'PL';
+    var body={name:name,color:joinColor,role:role};
+    if(window._portalUserId)body.user_id=window._portalUserId;
+    fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(data){
+      if(data.ok){var save={name:name,color:joinColor,is_dm:data.is_dm,role:role};if(window._portalUserId)save.user_id=window._portalUserId;sessionStorage.setItem(SK,JSON.stringify(save));document.getElementById('join-overlay').classList.add('hidden');if(data.is_dm||role==='DM'){document.getElementById('hidden-btn').style.display='';}if(data.online_count!==undefined){document.getElementById('chat-online').textContent=data.online_count+'人在线';}loadCharSelect();_heartbeatId=setInterval(fetchOnlineUsers,8000);}
+      else{document.getElementById('join-error').textContent='加入失败: '+(data.error||'未知错误');btn.disabled=false;btn.textContent='🚪 进入骰娘';}
+    }).catch(function(e){document.getElementById('join-error').textContent='网络错误: '+e.message;btn.disabled=false;btn.textContent='🚪 进入骰娘';});
+  };
+  document.addEventListener('click',function(e){if(!e.target.closest('.color-row')){document.getElementById('join-color-palette').classList.remove('show');}});
+})();
+// ━━ 聊天室 ━━━
+var _chatOpen=false,_chatPollTimer=null,_chatLastId=0,_heartbeatId=null;
+function updateOnlineUsers(users,count){
+  document.getElementById('chat-online').textContent=(count||0)+'人在线';
+  var div=document.getElementById('chat-online-users');
+  if(!users){return;}
+  if(!users.length){div.innerHTML='<span style="color:var(--text-dim)">暂无</span>';return;}
+  div.innerHTML=users.map(function(u){
+    var isDM=u.role==='DM',c=u.color||'#00bcd4';if(isDM)c='#ffd700';
+    return '<span style="color:'+c+';font-weight:600;">'+(isDM?'👑':'')+u.name+'</span>';
+  }).join('');
+}
+function fetchOnlineUsers(){
+  var s;try{s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));}catch(e){}
+  if(!s||!s.name)return;
+  fetch('/api/room/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:s.name,color:s.color||'',role:s.role||'PL'})}).then(function(r){return r.json();}).then(function(d){if(d.online_count!==undefined)updateOnlineUsers(d.online_users,d.online_count);}).catch(function(){});
+}
+window.toggleChat=function(){
+  _chatOpen=!_chatOpen;
+  document.getElementById('chat-panel').classList.toggle('open',_chatOpen);
+  document.getElementById('chat-toggle-btn').classList.toggle('shifted',_chatOpen);
+  if(_chatOpen){enableChatInput();pollChat();fetchOnlineUsers();}else{if(_chatPollTimer)clearTimeout(_chatPollTimer);}
+};
+function enableChatInput(){
+  var id=getIdentity();
+  if(id.name){
+    document.getElementById('chat-input').disabled=false;
+    document.getElementById('chat-send-btn').disabled=false;
+  }
+}
+function formatTime(ts){
+  if(!ts||ts===0)return'';
+  if(typeof ts==='string'&&ts.includes(':'))return ts.substring(0,5);
+  var d=new Date(ts*1000);if(isNaN(d.getTime()))return'';
+  var h=d.getHours(),m=d.getMinutes();
+  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+}
+function renderChat(msgs){
+  var container=document.getElementById('chat-msgs');
+  var id=getIdentity();var myName=id.name;
+  msgs.forEach(function(m){
+    if(m.id<=_chatLastId)return;_chatLastId=m.id;
+    var div=document.createElement('div');
+    var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+    if(m.event){
+      // 已被DM撤回：从界面移除该事件消息（若已显示），撤回后完全不可见
+      if(m._recalled){
+        if(m.event_id){
+          var ex=document.querySelector('#chat-msgs [data-event-id="'+m.event_id+'"]');
+          if(ex)ex.remove();
+        }
+        return;
+      }
+      // 事件消息：独立显示，非DM名义
+      div.className='chat-msg event';
+      div.setAttribute('data-event-id',m.event_id||'');
+      div.style.cssText='background:linear-gradient(135deg,rgba(255,215,0,0.14),rgba(255,215,0,0.04));border:1px solid #ffd700;';
+      div.innerHTML='<span class="cm-time">'+formatTime(m.time)+'</span>'+
+        '<div style="color:#ffd700;font-weight:bold;font-size:0.85rem;">📜 事件：'+esc(m.event_title)+'</div>'+
+        '<div style="color:var(--text,#ddd);margin-top:4px;white-space:pre-line;">'+esc(m.event_content)+'</div>';
+    }
+    else if(m.name==='系统'||m.name==='system'){div.className='chat-msg system';div.textContent=m.text;}
+    else{
+      div.className='chat-msg';
+      var nameColor=m.color||'#00bcd4';if(m.is_dm)nameColor='#ffd700';
+      var dmBadge=m.is_dm?' <span style="background:#ffd700;color:#000;font-size:0.6rem;padding:0 2px;border-radius:2px;">DM</span>':'';
+      div.innerHTML='<span class="cm-time">'+formatTime(m.time)+'</span><span class="cm-name" style="color:'+nameColor+';">'+m.name+'</span>'+dmBadge+' <span class="cm-text">'+m.text+'</span>';
+    }
+    container.appendChild(div);
+  });
+  if(msgs.length>0){container.scrollTop=container.scrollHeight;}
+  // 清理旧消息（保留最近200条）
+  while(container.children.length>200){container.removeChild(container.firstChild);}
+}
+function pollChat(){
+  fetch('/api/chat/messages').then(function(r){return r.json();}).then(function(data){
+    var msgs=Array.isArray(data)?data:(data.messages||[]);
+    renderChat(msgs);
+  }).catch(function(){});
+  _chatPollTimer=setTimeout(pollChat,3000);
+}
+window.sendChatMsg=function(){
+  var input=document.getElementById('chat-input');
+  var text=input.value.trim();if(!text)return;
+  var id=getIdentity();if(!id.name)return;
+  fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:id.name,text:text,color:sessionStorage.getItem('dnd_joined_room')?JSON.parse(sessionStorage.getItem('dnd_joined_room')).color:'',role:id.role})}).then(function(r){return r.json();}).then(function(){
+    input.value='';pollChat();
+  }).catch(function(){});
+};
+// 加入后启用聊天
+var _origDoJoin=window.doJoin;
+window.doJoin=function(){
+  var orig=document.getElementById('join-overlay').classList.contains('hidden');
+  _origDoJoin();
+  setTimeout(function(){
+    if(document.getElementById('join-overlay').classList.contains('hidden')&&!orig){
+      enableChatInput();
+      if(_chatOpen)pollChat();
+    }
+  },500);
+};
+</script>
+
+<!-- ━━ 3D引擎（模块）━━━ -->
+<script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import DiceBox from '/static/dice-engine-v3/index.js';
+
+var S=20,C=1,M=0,A='',EXPLODING=false,KEEP_MODE='',KEEP_COUNT=1,HIDDEN_ROLL=false;
+var initOk=false,box=null,syncWs=null;
+var rov=document.getElementById('rov'),st=document.getElementById('status');
+
+function mn(){try{return JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}").name||"anon";}catch(e){return"anon";}}
+var PC=['white','red','blue','green','orange','purple','cyan','gold'],_ci=0,_cm={};
+function pc(n){if(!_cm[n])_cm[n]=PC[_ci++%PC.length];return _cm[n];}
+
+window.chgC=function(d){C=Math.max(1,Math.min(40,C+d));document.getElementById('cv').textContent=C;syncCustomInput();};
+window.chgM=function(d){M=Math.max(-99,Math.min(999,M+d));var s=M>=0?'+':'';document.getElementById('mv').textContent=s+M;syncCustomInput();};
+window.toggleExplode=function(){EXPLODING=!EXPLODING;var b=document.getElementById('explode-btn');if(EXPLODING)b.classList.add('explode-on');else b.classList.remove('explode-on');syncCustomInput();};
+window.toggleHidden=function(){HIDDEN_ROLL=!HIDDEN_ROLL;var b=document.getElementById('hidden-btn');if(HIDDEN_ROLL)b.classList.add('hidden-on');else b.classList.remove('hidden-on');};
+window.onKeepModeChange=function(){KEEP_MODE=document.getElementById('keep-mode').value;var inp=document.getElementById('keep-count');inp.style.display=KEEP_MODE?'inline':'none';syncCustomInput();};
+window.onKeepCountChange=function(){KEEP_COUNT=parseInt(document.getElementById('keep-count').value)||1;syncCustomInput();};
+window.quickRoll=function(expr){document.getElementById('custom-expr').value=expr;parseCustomInput();doRoll();};
+
+// 用上方控件状态构建表达式（自定义框为空时的构建逻辑）
+function buildExprFromControls(){
+  var parts=[];
+  if(S===100){parts.push('d100');}
+  else if(A==='adv'){parts.push('d'+S+' adv');}
+  else if(A==='dis'){parts.push('d'+S+' dis');}
+  else{parts.push(C+'d'+S);if(KEEP_MODE==='kh')parts.push('k'+KEEP_COUNT);else if(KEEP_MODE==='kl')parts.push('kl'+KEEP_COUNT);else if(KEEP_MODE==='dh')parts.push('dh'+KEEP_COUNT);else if(KEEP_MODE==='dl')parts.push('dl'+KEEP_COUNT);if(EXPLODING)parts.push('!');}
+  if(M!==0)parts.push(M>0?'+'+M:''+M);
+  return parts.join('');
+}
+
+function buildExpression(){
+  var custom=document.getElementById('custom-expr').value.trim();
+  if(custom)return custom;
+  return buildExprFromControls();
+}
+
+// 控件 → 自定义输入框：点击上方控件后实时同步显示当前表达式
+function syncCustomInput(){
+  var el=document.getElementById('custom-expr');
+  if(el)el.value=buildExprFromControls();
+}
+
+// 面数按钮高亮与控件状态同步
+function updateSidesUI(){
+  document.querySelectorAll('#dbs button').forEach(function(b){b.classList.toggle('on',parseInt(b.dataset.s)===S);});
+}
+// 模式按钮高亮与控件状态同步
+function updateTogUI(){
+  document.querySelectorAll('#tog button').forEach(function(b){b.classList.toggle('on',b.dataset.a===A);});
+}
+
+// 自定义输入框 → 控件：输入时解析表达式同步骰数/加值/面数/模式等
+// 仅同步能可靠解析的部分，复杂混合表达式尽力同步第一组骰子与末尾加值
+function parseCustomInput(){
+  var el=document.getElementById('custom-expr');
+  if(!el)return;
+  var v=el.value.trim().toLowerCase();
+  if(!v)return;
+  var m;
+  // 模式（adv/dis 关键字）
+  if(/(^|\s)adv($|\s)/.test(v)){A='adv';}
+  else if(/(^|\s)dis($|\s)/.test(v)){A='dis';}
+  else{A='';}
+  // 第一组骰子 XdY（d100 无个数）
+  m=v.match(/(\d*)\s*d\s*(\d+)/);
+  if(m){
+    var _c=parseInt(m[1])||1;
+    var _s=parseInt(m[2]);
+    if(_s===100){S=100;C=1;}
+    else{S=_s;C=Math.max(1,Math.min(40,_c));}
+  }
+  // 保留模式：kl3 / dh3 / dl3 / k3(=kh) / kh3
+  m=v.match(/kl\s*(\d+)/)||v.match(/dh\s*(\d+)/)||v.match(/dl\s*(\d+)/)||v.match(/kh?\s*(\d+)/);
+  if(m){
+    KEEP_MODE=(v.indexOf('kl')>=0)?'kl':(v.indexOf('dh')>=0?'dh':(v.indexOf('dl')>=0?'dl':'kh'));
+    KEEP_COUNT=Math.max(1,parseInt(m[1])||1);
+  }else{
+    KEEP_MODE='';
+  }
+  // 爆炸骰
+  EXPLODING=v.indexOf('!')>=0;
+  // 末尾加值 +/-N
+  m=v.match(/([+-])\s*(\d+)\s*$/);
+  M=m?(m[1]==='-'?-1:1)*parseInt(m[2]):0;
+  M=Math.max(-99,Math.min(999,M));
+  // ── 同步上方控件显示 ──
+  document.getElementById('cv').textContent=C;
+  document.getElementById('mv').textContent=(M>=0?'+':'')+M;
+  updateSidesUI();
+  updateTogUI();
+  document.getElementById('explode-btn').classList.toggle('explode-on',EXPLODING);
+  var km=document.getElementById('keep-mode'),kc=document.getElementById('keep-count');
+  if(km){km.value=KEEP_MODE;kc.style.display=KEEP_MODE?'inline':'none';kc.value=KEEP_COUNT;}
+}
+
+function buildDetNotation(apiResult){
+  // 优先使用后端分组信息（混合多重骰子，如 1d20+1d4+3）
+  // 引擎要求单 @ 格式：骰子组用 + 连接，@ 后按骰子顺序排列全部结果
+  if(apiResult.groups_detail && apiResult.groups_detail.length){
+    // 引擎无 d100 模型：每个 d100 拆为两个 d10 动画（十位+个位，0 显示为 10）
+    var setParts=[],allVals=[];
+    apiResult.groups_detail.forEach(function(g){
+      if(g.sides===100){
+        var d10s=[];
+        g.rolls.forEach(function(v100){
+          var t100=Math.floor(v100/10)%10;
+          var o100=v100%10;
+          if(t100===0)t100=10;
+          if(o100===0)o100=10;
+          d10s.push(t100,o100);
+        });
+        setParts.push(d10s.length+'d10');
+        allVals=allVals.concat(d10s);
+        return;
+      }
+      setParts.push(g.rolls.length+'d'+g.sides);
+      allVals=allVals.concat(g.rolls);
+    });
+    return setParts.join('+')+'@'+allVals.join(',');
+  }
+  // 旧路径（无分组信息）
+  if(S===100){
+    var total=apiResult.total;
+    var tens=Math.floor(total/10)%10;
+    var ones=total%10;
+    if(tens===0)tens=10;
+    if(ones===0)ones=10;
+    return '2d10@'+tens+','+ones;
+  }
+  var sides=S;
+  var rolls=apiResult.rolls||[];
+  return rolls.length+'d'+sides+'@'+rolls.join(',');
+}
+
+function showResult(data,rollerName){
+  var expr=data.expression||buildExpression();
+  var values=data.rolls||[];
+  var total=data.total,kept=data.kept_rolls;
+  var parts=[];
+  if(rollerName)parts.push('<b>'+rollerName+'</b> ');
+  parts.push('<b>'+expr+' = '+total+'</b> ['+values.join(', ')+']');
+  if(kept&&kept.length<values.length)parts.push(' 保留:['+kept.join(', ')+']');
+  if(data.is_crit_success)parts.push(' 🎯大成功！');
+  if(data.is_crit_failure)parts.push(' 💀大失败！');
+  rov.innerHTML=parts.join('');
+  rov.classList.remove('hide');
+  setTimeout(function(){rov.classList.add('hide');},6000);
+}
+
+function broadcastRoll(apiResult,expr,detNotation){
+  if(HIDDEN_ROLL)return;
+  var name=mn(),color=pc(name);
+  try{
+    if(syncWs&&syncWs.readyState===1){
+      syncWs.send(JSON.stringify({
+        type:"dice_roll_det",
+        detNotation:detNotation,
+        notation:expr,
+        roller:name,
+        color:color,
+        total:apiResult.total,
+        values:apiResult.rolls,
+        is_crit_success:apiResult.is_crit_success||false,
+        is_crit_failure:apiResult.is_crit_failure||false
+      }));
+    }
+    var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
+    fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+expr+" = ["+apiResult.total+"]",hidden:false,role:s.role||"PL",color:s.color||""})}).catch(function(){});
+  }catch(e){}
+}
+
+// ━━ 骰子统计上报 ━━━
+function recordDiceStats(name,d20vals){
+  if(!name||!d20vals||!d20vals.length)return;
+  // 上报每一次d20结果（不仅仅是暴击），服务端统计概率
+  d20vals.forEach(function(v){
+    fetch('/api/dice-stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,roll:v})}).catch(function(){});
+  });
+}
+
+window.doRoll=async function(){
+  if(!initOk)return;
+  rov.classList.add('hide');
+  var expr=buildExpression();
+  var name=mn(),color=pc(name);
+  try{
+    var resp=await fetch('/api/roll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expression:expr})});
+    if(!resp.ok){var et=await resp.text();throw new Error(et||'API错误');}
+    var data=await resp.json();
+    var dn=buildDetNotation(data);
+    // 立即广播，不等本地动画，减少远程延迟
+    if(!HIDDEN_ROLL){broadcastRoll(data,expr,dn);}
+    // 骰子统计上报：仅 d20 计入（暗骰也计入）；
+    // 按表达式面数过滤，避免 d100=1/20、1d6=1 等被误计为大成功/大失败
+    var _sm=expr.match(/(\d+)d(\d+)/)||expr.match(/d(\d+)/);
+    var _sides=_sm?(parseInt(_sm[2]!==undefined?_sm[2]:_sm[1])||0):0;
+    if(_sides===20)recordDiceStats(name,data.rolls||[]);
+    await box.roll(dn,{theme:{theme_colorset:color}});
+    showResult(data,name);
+  }catch(e){console.error(e);rov.innerHTML='❌ 掷骰失败: '+e.message;rov.classList.remove('hide');setTimeout(function(){rov.classList.add('hide');},4000);}
+};
+
+window.changeSurface=function(v){
+  var c=document.getElementById('dice-box-container');
+  var imgs={'wood':'/static/dice-engine-v3/textures/木桌.png','wood2':'/static/dice-engine-v3/textures/木桌2.png','blue-felt':'/static/dice-engine-v3/textures/蓝毡.png','stone':'/static/dice-engine-v3/textures/石板.png','white-cloth':'/static/dice-engine-v3/textures/白布.png','marble':'/static/dice-engine-v3/textures/大理石.png','grass':'/static/dice-engine-v3/textures/草地.png','snow':'/static/dice-engine-v3/textures/雪地.png','ice':'/static/dice-engine-v3/textures/冰面.png','star-light':'/static/dice-engine-v3/textures/star-light.png','star-mid':'/static/dice-engine-v3/textures/star-mid.png','star-dark':'/static/dice-engine-v3/textures/star-dark.png'};
+  c.style.background='url('+imgs[v]+') center/cover';
+  if(box)box.updateConfig({theme_surface:v});
+  try{sessionStorage.setItem('dice_surface',v);}catch(e){}
+};
+window.uploadBg=function(input){
+  if(!input.files||!input.files[0])return;
+  var reader=new FileReader();
+  reader.onload=function(e){document.getElementById('dice-box-container').style.backgroundImage='url('+e.target.result+')';document.getElementById('dice-box-container').style.backgroundSize='cover';document.getElementById('dice-box-container').style.backgroundPosition='center';};
+  reader.readAsDataURL(input.files[0]);
+};
+
+
+// ━━ 桌面背景同步（主页面 ↔ 地图iframe）━━━
+(function(){
+  var sel=document.getElementById("tbl-select");
+  var saved=null;
+  try{saved=sessionStorage.getItem("dice_surface");}catch(e){}
+  if(saved&&sel){sel.value=saved;if(typeof changeSurface==="function")changeSurface(saved);}
+  window.addEventListener("storage",function(e){
+    if(e.key==="dice_surface"&&e.newValue){
+      if(sel)sel.value=e.newValue;
+      if(typeof changeSurface==="function")changeSurface(e.newValue);
+    }
+  });
+})();
+document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);if(S===100){C=1;document.getElementById('cv').textContent='1';}syncCustomInput();});});
+document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;syncCustomInput();});});
+
+(async function(){
+  try{
+    st.textContent='初始化中...';
+    box=new DiceBox('#dice-box-container',{assetPath:'/static/dice-engine-v3/',sounds:false,theme_surface:'blue-felt',theme_colorset:'white',theme_material:'glass',gravity_multiplier:400,light_intensity:0.7,strength:1});
+    await box.initialize();initOk=true;st.textContent='✅ 就绪';
+    // 暴露给非模块脚本（检定功能需要）
+    window._diceBox=box;window._mn=mn;window._pc=pc;
+    try{
+      syncWs=new WebSocket((location.protocol==="https:"?"wss:":"ws:")+location.host+"/ws");
+      syncWs.onopen=function(){st.textContent='✅ 联机同步';};
+      syncWs.onmessage=function(e){
+        try{
+          var d=JSON.parse(e.data);
+          if(d.type==="dice_roll_det"||d.type==="dice_roll_v2"){
+            if(d.roller===mn())return;
+            var dn=d.detNotation||(d.rolls?d.rolls.length+'d'+(d.sides||20)+'@'+d.rolls.join(','):'');
+            if(dn)box.roll(dn,{theme:{theme_colorset:d.color||'white'}}).catch(function(){});
+            var vals=d.values||d.rolls||[];
+            var parts=['<b>'+d.roller+'</b> 🎲 '+(d.notation||d.expression||'')+' = <b>'+d.total+'</b> ['+vals.join(', ')+']'];
+            if(d.is_crit_success)parts.push(' 🎯大成功！');
+            if(d.is_crit_failure)parts.push(' 💀大失败！');
+            rov.innerHTML=parts.join('');rov.classList.remove('hide');
+            setTimeout(function(){rov.classList.add('hide');},5000);
+          }
+        }catch(ex){}
+      };
+    }catch(e){console.log('WS离线',e);st.textContent='✅ 离线模式';}
+  }catch(e){console.error(e);st.textContent='❌ 失败: '+e.message;}
+})();
+</script>
+</body>
+</html>

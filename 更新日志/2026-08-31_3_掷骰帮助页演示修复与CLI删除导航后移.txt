@@ -1,0 +1,51 @@
+2026-08-31_3_掷骰帮助页演示修复与CLI删除导航后移
+
+一、修复：演示掷骰全部按钮无效（web/templates/dice-help.html）
+问题：
+演示区预设按钮/输入后点"演示投掷"全部无反应。浏览器控制台报错：
+dice-help:1 Uncaught TypeError: Failed to resolve module specifier
+"cannon-es". Relative references must start with either "/", "./",
+or "../".
+
+根因：
+dice-help.html 的 module script 直接 import DiceBox，但缺失
+<script type="importmap"> 映射——dice-engine-v3/DiceBox.js 内部
+`import from 'three'` / `from 'cannon-es'` 是裸模块名，浏览器无法
+解析，导致整个 module 不执行，window.demoRoll / demoPreset 未定义，
+页面内联 onclick 全部失效（dice3d-e.html 588 行有该 importmap，
+新页面漏抄）。
+
+修复：
+- 在 module script 前补充与 dice3d-e.html 一致的 importmap：
+  {"imports":{"three":"/static/three/three.module.min.js",
+  "cannon-es":"/static/three/cannon-es.js"}}
+
+二、删除：页面 CLI 部分（用户要求"CLI部分全部删除"）
+- 删除「🖥️ CLI 掷骰指令」卡片区（.r/.check/.save/.ds/.init/.attack/
+  .damage 等 9 张卡片）
+- 删除「📚 其他 CLI 指令」折叠区（.char/.ss/长休短休/资料查询/
+  事件表/系统）
+- 同步删除 .cmd-grid/.cmd-card/details.collapse/code.cmd 相关 CSS
+- 页面保留：🎲 演示掷骰 + ✏️ 掷骰表达式语法
+
+三、调整：导航入口移到功能栏最后（用户要求）
+- 「📜 掷骰帮助」从「🎲 掷骰」后（第 2 位）移到各导航末尾
+  （Mod 之后；map 页在事件之后；index/events 在聊天室之后）
+- 共 10 处：dice3d-e / map / character / spells / combat / chat /
+  reference / mods / events / index / dice-help 自身
+
+验证：
+- node 逻辑测试 24/24 通过（parseDiceExpr/rollGroup/buildDetNotation/
+  demoRoll 全链路，脚本归档备份）
+- Flask test_client：/dice-help 200；importmap 存在；CLI 内容已无；
+  10 页面导航均"掷骰帮助在末尾"
+- importmap JSON 校验通过（与 dice3d-e.html 一致，该页工作正常）
+
+涉及文件：
+- web/templates/dice-help.html
+- 10 个导航模板
+- 备份：backups/掷骰帮助页_现场快照_20260831/（快照已更新）
+- 更新日志 2026-08-31_2 为本页面最初创建记录
+
+注意：如浏览器仍报 cannon-es 错误，为旧页面缓存，请强刷（Ctrl+F5）。
+需要重启服务器生效（web/app.py 路由，如未重启过）。

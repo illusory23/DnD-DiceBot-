@@ -1,0 +1,79 @@
+2026-09-01_8_模组时间全员可编辑与清空按钮
+
+需求（用户反馈）：
+1. 模组时间增加清空（重置）按钮
+2. PL 点击时间面板看不到编辑内容（推进/设置/进位），只显示时间
+
+实现：
+
+一、清空按钮（DM 此前版本）
+- 时间面板推进行右侧新增红色「🗑 清空」按钮：确认后重置为默认
+  （圣历 1年1月1日 8时0分 + 进位 60/24/30/12），Toast 提示成功
+
+二、PL 可编辑（放开权限，web/static/map.js + web/app.py）
+- 前端：时间面板 DM 控件区不再按 _isDM 隐藏（全员可见）；
+  移除 advanceTime/setCampaignTime/saveTimeConfig/resetCampaignTime/
+  advanceTimeCustomMonth 的 _isDM 守卫（5 处）
+- 后端：POST /api/campaign-time 移除 _is_dm_request 403 判定——
+  全员可设置/推进，updated_by 记录操作者名
+
+三、验证
+- 清空重置链路（龙历 99年7月20日 → 圣历 1年1月1日 8时0分 + 默认进位）✓
+- PL 推进：200，updated_by='PL甲' ✓
+- node --check / py_compile 通过
+
+涉及文件：
+- web/static/map.js、web/templates/map.html、web/app.py
+- 备份：backups/模组时间与笔记前_20260901_*
+
+需要重启服务器生效（web/app.py 权限放开）。
+
+—— 追加（2026-09-01 二次更新）——
+需求：清空时间后不需要默认，直接为空。
+- 后端 POST /api/campaign-time 新增 clear 模式（删除时间记录）；
+  GET 无记录返回空状态 {empty: true, 字段空}
+- 前端：resetCampaignTime 改调 clear（确认文案"清空模组时间？
+  清空后需重新设置起始时间"，成功提示"已清空"）；
+  loadCampaignTime 空状态显示"⏳ 未设置模组时间"+ 提示设置；
+  表单清空；空状态推进按钮提示"请先设置起始时间"
+- 验证：未设置→empty ✓；设置→正常；清空→empty（不重置默认）✓；
+  清空后再设置 ✓
+
+—— 追加（2026-09-01 三次更新）——
+需求纠正：时间编辑恢复为 DM 专属（上轮"PL 也可编辑"理解错误）。
+- 前端：loadCampaignTime 控件按 _isDM 显示（PL 只读）；恢复
+  advanceTime/advanceTimeCustom/advanceTimeCustomMonth/
+  saveTimeConfig/setCampaignTime/resetCampaignTime 的 _isDM 守卫（6 处）
+- 后端：POST /api/campaign-time 恢复 _is_dm_request 403 判定
+  （测试环境本地 IP 会被判定为 DM 属既有行为，生产按 name/IP 判定）
+- 笔记面板：renderNotes 代码经 vm 实测正常（含 ➕ 新增按钮/列表），
+  用户端如仍无按钮请强刷缓存（Ctrl+F5）
+
+—— 追加（2026-09-01 四次更新）——
+笔记面板空白排查：代码/结构/作用域/渲染（vm 完整链路 1570 字符含
+➕按钮/列表）全部验证正常；空白最可能是浏览器缓存旧版 map.html
+（无 sidebar-panel-notes div 的版本，点击笔记 Tab 时 JS 报错导致
+所有面板失活呈现空白）。已加错误兜底：加载中提示 + 具体错误信息
+显示（不再空白）；请硬刷新（Ctrl+Shift+R）验证。
+
+—— 追加（2026-09-01 五次更新）——真正根因修复：
+浏览器报错 map.js?v=90:4069 Uncaught ReferenceError: loadNotes is not defined
+根因：map.js 存在嵌套 IIFE——switchSidebarTab/mapNextRound/
+mapNextCombatant 在外层（depth 1），loadNotes/tickStatusRounds 在
+内层（depth 2，状态系统块）。外层调用内层函数 → 作用域不可见 →
+ReferenceError（笔记面板空白、回合递减不生效）。
+修复：
+- loadNotes 挂 window（window.loadNotes），switchSidebarTab 经
+  window.loadNotes 调用（内层函数改名 loadNotesInner）
+- tickStatusRounds 挂 window，mapNextRound/mapNextCombatant 经
+  window.tickStatusRounds 调用
+- map.js 版本号 v90 → v91（此前笔记系统一直在 v90 标签下新增，
+  浏览器缓存旧 v90 文件是持续看到旧行为的直接原因）
+验证：node --check 通过；4 处桥接断言通过；页面含 v91/笔记 Tab/面板
+
+—— 追加（2026-09-01 六次更新）——
+快速掷骰按钮遮挡展开界面：dice-float-btn z-index 190 高于侧边栏
+（150），侧边栏/统计面板展开时按钮浮在其上遮挡内容。
+修复：_syncStatsToggle 联动掷骰按钮——展开时 right 移至
+calc(260px + 1rem)（侧边栏左侧），收起恢复 1rem；map-page.js
+v78 → v79。

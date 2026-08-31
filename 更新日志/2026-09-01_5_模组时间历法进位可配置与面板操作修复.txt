@@ -1,0 +1,38 @@
+2026-09-01_5_模组时间历法进位可配置与面板操作修复
+
+需求（用户反馈）：
+1. 模组时间进位可能与现实不同（不同模组历法不同），需要网站内的
+   编辑配置功能（非文件导入）
+2. 时间面板内无法操作（同状态池历史问题：漏加地图事件排除）
+
+实现：
+
+一、历法进位可配置（core/models.py + web/app.py + map.html/map.js）
+- CampaignTime 表新增 4 个进位配置字段（幂等补列 _ensure_campaign_time_columns，
+  旧库 ALTER TABLE 补齐，默认 60/24/30/12）：
+  · minutes_per_hour  1 小时 = N 分钟
+  · hours_per_day     1 日   = N 小时
+  · days_per_month    1 月   = N 日
+  · months_per_year   1 年   = N 月
+- GET /api/campaign-time 输出配置；POST set 支持保存配置
+  （范围 1-999，缺省沿用当前值）
+- advance 推进按配置进位（100分=1时、40时=1日、42日=1月、13月=1年等
+  任意组合）
+- 面板"⚙️ 设置起始时间"折叠区新增"进位(每单位=N)"一行 4 个输入框：
+  分/时、时/日、日/月、月/年，随保存一并提交
+
+二、时间面板无法操作修复（map.js）
+- 地图事件排除列表（wheel 缩放 + mousedown）补 #time-panel——
+  面板内输入/按钮/滚轮不再被地图手势拦截（与状态池同一根因）
+
+三、验证
+- 自定义历法（100分/时、40时/日、42日/月、13月/年）：
+  +100分→1时 ✓；+1月→2月1日 ✓；1月1日+13月→2年1月1日 ✓
+- 默认历法回归：95分→1:35 ✓
+- node --check / py_compile 通过；页面元素齐全
+
+涉及文件：
+- core/models.py、web/app.py、web/static/map.js、web/templates/map.html
+- 备份：backups/模组时间与笔记前_20260901_*
+
+需要重启服务器生效（模型字段 + 补列 + API + 前端）。

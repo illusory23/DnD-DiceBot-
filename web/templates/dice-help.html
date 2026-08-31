@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📜 掷骰帮助 — 尘封之卷</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/common-error-handler.js"></script>
+<script src="/static/common-dialog.js"></script>
+<style>
+/* ━━ 掷骰帮助页专属样式（冰霜主题，与全站一致） ━━ */
+body{background:var(--bg);color:var(--text);}
+.main-container{max-width:980px;margin:0 auto;padding:14px 16px 40px;}
+.page-title{font-size:1.15rem;color:var(--gold);margin:0.4rem 0 0.8rem;display:flex;align-items:center;gap:8px;}
+.doc-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.9rem 1rem;margin-bottom:0.9rem;}
+.doc-card h3{font-size:0.95rem;color:var(--accent);margin:0 0 0.6rem;display:flex;align-items:center;gap:6px;}
+.doc-card h3 .tag{font-size:0.62rem;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1px 8px;font-weight:normal;margin-left:auto;}
+code.dice{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--gold);font-size:0.85em;font-family:Consolas,Menlo,monospace;}
+/* ━━ 演示掷骰区 ━━ */
+#demo-stage{position:relative;height:260px;border:1px solid var(--border);border-radius:8px;background:radial-gradient(ellipse at center,#1a1a3e 0%,#0a0a14 70%);overflow:hidden;margin-bottom:8px;}
+#demo-dice-box{position:absolute;top:0;left:0;right:0;bottom:0;}
+#demo-status{position:absolute;top:8px;right:10px;font-size:0.68rem;color:#888;background:rgba(0,0,0,0.6);padding:3px 10px;border-radius:10px;z-index:5;}
+#demo-result{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.92);color:var(--gold);padding:8px 20px;border-radius:16px;font-size:1rem;font-weight:bold;z-index:6;border:1px solid var(--gold);max-width:92%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.demo-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.demo-row input#demo-expr{flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);font-size:0.9rem;}
+.demo-row input#demo-expr:focus{border-color:var(--accent);outline:none;}
+.presets{display:flex;gap:4px;flex-wrap:wrap;}
+.presets button{padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-dim);cursor:pointer;font-size:0.74rem;white-space:nowrap;transition:all 0.15s;}
+.presets button:hover{color:var(--text);border-color:var(--accent);background:var(--surface);}
+.demo-go{padding:8px 22px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:0.95rem;font-weight:bold;cursor:pointer;}
+.demo-go:disabled{opacity:0.5;cursor:not-allowed;}
+.demo-note{font-size:0.72rem;color:var(--text-dim);margin-top:6px;display:flex;gap:6px;align-items:center;}
+/* ━━ 文档表格 ━━ */
+.doc-table{width:100%;border-collapse:collapse;font-size:0.8rem;}
+.doc-table th{background:var(--surface2);color:var(--gold);padding:6px 10px;text-align:left;border:1px solid var(--border);font-weight:bold;white-space:nowrap;}
+.doc-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:top;color:var(--text);}
+.doc-table tr:nth-child(even) td{background:rgba(255,255,255,0.02);}
+.doc-table td .dim{color:var(--text-dim);font-size:0.75em;}
+</style>
+  <script src="/static/online-presence.js"></script>
+</head>
+<body>
+<nav class="navbar" style="position:relative;">
+    <a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a>
+    <div class="navbar-links">
+        <a href="/dice3d">🎲 掷骰</a>
+        <a href="/map">地图</a>
+        <a href="/character">角色卡</a>
+        <a href="/spells">法术</a>
+        <a href="/combat">战斗</a>
+        <a href="/chat">💬 聊天室</a>
+        <a href="/reference">参考</a>
+        <a href="/mods">🧩 Mod</a>
+        <a href="/dice-help" class="active">📜 掷骰帮助</a>
+    </div>
+</nav>
+
+<div class="main-container">
+    <div class="page-title">📜 掷骰帮助 · 指令与说明</div>
+
+    <!-- ═══ 演示掷骰（本地独立） ═══ -->
+    <div class="doc-card">
+        <h3>🎲 演示掷骰 <span class="tag">🔒 本地独立 · 不广播 / 不统计 / 不调接口</span></h3>
+        <div id="demo-stage">
+            <div id="demo-dice-box"></div>
+            <div id="demo-status">引擎加载中…</div>
+            <div id="demo-result"></div>
+        </div>
+        <div class="demo-row">
+            <input type="text" id="demo-expr" placeholder="输入表达式，如 2d20+5 / 4d6k3 / adv d20" onkeydown="if(event.key==='Enter')demoRoll()">
+            <button class="demo-go" id="demo-go-btn" onclick="demoRoll()">🎲 演示投掷</button>
+        </div>
+        <div class="demo-row" style="margin-top:6px;">
+            <span style="font-size:0.75rem;color:var(--text-dim);">快捷:</span>
+            <div class="presets">
+                <button onclick="demoPreset('3d6')">3d6</button>
+                <button onclick="demoPreset('4d6k3')">4d6k3</button>
+                <button onclick="demoPreset('2d6+3')">2d6+3</button>
+                <button onclick="demoPreset('1d20+5')">1d20+5</button>
+                <button onclick="demoPreset('d20 adv')">d20优势</button>
+                <button onclick="demoPreset('d20 dis')">d20劣势</button>
+                <button onclick="demoPreset('3d6!')">3d6!爆炸</button>
+                <button onclick="demoPreset('d100')">d100</button>
+                <button onclick="demoPreset('2d8+1d6+3')">2d8+1d6+3</button>
+            </div>
+        </div>
+        <div class="demo-note">🔒 本演示在页面内独立计算与播放 3D 动画：掷骰结果仅显示在本页，不广播到聊天室、不参与排行榜统计、不访问任何接口。</div>
+    </div>
+
+    <!-- ═══ 表达式语法 ═══ -->
+    <div class="doc-card">
+        <h3>✏️ 掷骰表达式语法</h3>
+        <table class="doc-table">
+            <thead><tr><th style="width:150px;">语法</th><th>含义</th><th>示例</th></tr></thead>
+            <tbody>
+                <tr><td><code class="dice">XdY</code></td><td>掷 X 个 Y 面骰子</td><td><code class="dice">3d6</code>、<code class="dice">1d20</code>（可省略个数：<code class="dice">d20</code>）</td></tr>
+                <tr><td><code class="dice">+N / -N</code></td><td>加值 / 减值（可多个）</td><td><code class="dice">1d20+5</code>、<code class="dice">2d6+1d4-2</code></td></tr>
+                <tr><td><code class="dice">adv</code></td><td>优势：掷 2 个 d20 取最高（可写前后：<code class="dice">adv d20+5</code> 或 <code class="dice">d20+5 adv</code>）</td><td><code class="dice">adv d20</code>、<code class="dice">d20 adv</code></td></tr>
+                <tr><td><code class="dice">dis</code></td><td>劣势：掷 2 个 d20 取最低</td><td><code class="dice">dis d20</code>、<code class="dice">d20 dis</code></td></tr>
+                <tr><td><code class="dice">!</code></td><td>爆炸骰：投出最大值时追加掷一颗（连续追加）</td><td><code class="dice">3d6!</code></td></tr>
+                <tr><td><code class="dice">k3</code></td><td>保留最高 3 颗（kh3 同义）</td><td><code class="dice">4d6k3</code>（经典属性生成）</td></tr>
+                <tr><td><code class="dice">kl3</code></td><td>保留最低 3 颗</td><td><code class="dice">5d6kl3</code></td></tr>
+                <tr><td><code class="dice">dh3</code></td><td>丢弃最高 3 颗</td><td><code class="dice">5d6dh3</code></td></tr>
+                <tr><td><code class="dice">dl3</code></td><td>丢弃最低 3 颗</td><td><code class="dice">4d6dl1</code></td></tr>
+                <tr><td><code class="dice">d100</code></td><td>百面骰（百分比判定，1-100）</td><td><code class="dice">d100</code></td></tr>
+                <tr><td><span class="dim">混合表达式</span></td><td>多组骰子与加值自由组合，按 <code class="dice">+ / -</code> 拆组逐组投掷（保留/爆炸按组生效）</td><td><code class="dice">2d8+1d6+3</code>、<code class="dice">1d20+1d4+2</code></td></tr>
+            </tbody>
+        </table>
+        <div style="font-size:0.74rem;color:var(--text-dim);margin-top:6px;">💡 自然 20（大成功）与自然 1（大失败）按 d20 原始骰值判定，加值不影响判定。</div>
+    </div>
+
+</div>
+
+<!-- ═══ 演示掷骰引擎（本地独立，语义与 core/dice_engine.py 对齐） ═══ -->
+<script type="importmap">{"imports":{"three":"/static/three/three.module.min.js","cannon-es":"/static/three/cannon-es.js"}}</script>
+<script type="module">
+import DiceBox from '/static/dice-engine-v3/index.js';
+
+var box = null, initOk = false;
+var st = document.getElementById('demo-status');
+var resultEl = document.getElementById('demo-result');
+var goBtn = document.getElementById('demo-go-btn');
+
+// ━━ 本地表达式解析：XdY + ±加值 + adv/dis + ! + k3/kl3/dh3/dl3（按 +/- 拆组） ━━
+function parseDiceExpr(expr) {
+    var e = String(expr || '').trim().toLowerCase();
+    if (!e) return null;
+    var advantage = null;
+    if (/(^|\s)adv($|\s)|(^|[\s+(])adv([\s+-]|$)/.test(e)) { advantage = true; e = e.replace(/adv/g, ''); }
+    else if (/(^|\s)dis($|\s)|(^|[\s+(])dis([\s+-]|$)/.test(e)) { advantage = false; e = e.replace(/dis/g, ''); }
+    e = e.replace(/\s+/g, '');
+    if (!e) return null;
+    var segs = e.split(/(?=[+-])/);
+    var groups = [], bonus = 0;
+    for (var i = 0; i < segs.length; i++) {
+        var s = segs[i];
+        var sign = 1;
+        if (s.charAt(0) === '+') s = s.slice(1);
+        else if (s.charAt(0) === '-') { sign = -1; s = s.slice(1); }
+        if (!s) continue;
+        var m = s.match(/^(\d*)d(\d+)(kl|dh|dl|k)?(\d+)?(!)?$/);
+        if (m) {
+            var count = m[1] ? parseInt(m[1], 10) : 1;
+            if (count < 1) count = 1;
+            if (count > 100) count = 100;
+            var sides = parseInt(m[2], 10);
+            if (sides < 2) sides = 2;
+            if (sides > 10000) sides = 10000;
+            var keepMode = null;
+            if (m[3] === 'k') keepMode = 'kh';
+            else if (m[3]) keepMode = m[3];
+            var keepCount = m[4] ? parseInt(m[4], 10) : 1;
+            groups.push({ count: count, sides: sides, keepMode: keepMode, keepCount: keepCount, explode: !!m[5], sign: sign });
+        } else if (/^\d+$/.test(s)) {
+            bonus += sign * parseInt(s, 10);
+        } else {
+            return null; // 无法解析的片段 → 整体不合法
+        }
+    }
+    if (!groups.length) return null;
+    return { groups: groups, bonus: bonus, advantage: advantage };
+}
+
+function rollDie(sides) { return Math.floor(Math.random() * sides) + 1; }
+
+// 掷一组骰子；adv/dis 作用于第一组（掷 2 个取高/低，与后端一致）
+// rolls=原始骰值（3D 动画全部显示），kept=结算用值
+function rollGroup(g, isFirst, advantage) {
+    var rolls = [];
+    if (advantage !== null && isFirst) {
+        var a = rollDie(g.sides), b = rollDie(g.sides);
+        var pick = advantage ? Math.max(a, b) : Math.min(a, b);
+        return { rolls: [a, b], kept: [pick], originals: [a, b], keepMode: null };
+    }
+    for (var i = 0; i < g.count; i++) {
+        var v = rollDie(g.sides);
+        if (g.explode && v === g.sides) {
+            while (v === g.sides) { rolls.push(v); v = rollDie(g.sides); }
+            rolls.push(v);
+        } else {
+            rolls.push(v);
+        }
+    }
+    var kept = rolls.slice();
+    var sorted;
+    if (g.keepMode === 'kh') { sorted = rolls.slice().sort(function(a, b) { return b - a; }); kept = sorted.slice(0, g.keepCount); }
+    else if (g.keepMode === 'kl') { sorted = rolls.slice().sort(function(a, b) { return a - b; }); kept = sorted.slice(0, g.keepCount); }
+    else if (g.keepMode === 'dh') { sorted = rolls.slice().sort(function(a, b) { return a - b; }); kept = sorted.slice(0, rolls.length - g.keepCount); }
+    else if (g.keepMode === 'dl') { sorted = rolls.slice().sort(function(a, b) { return b - a; }); kept = sorted.slice(0, rolls.length - g.keepCount); }
+    return { rolls: rolls, kept: kept, originals: rolls, keepMode: g.keepMode };
+}
+
+// 构建 3D 确定性格式（与掷骰页一致：组 + @ + 全部原始骰值）
+function buildDetNotation(groups) {
+    var setParts = [], vals = [];
+    groups.forEach(function(g) {
+        if (g.sides === 100) {
+            // 引擎无 d100 模型：每个 d100 拆为两个 d10 动画（十位+个位，0 显示为 10）
+            var d10s = [];
+            g.rolls.forEach(function(v100) {
+                var t = Math.floor(v100 / 10) % 10, o = v100 % 10;
+                if (t === 0) t = 10;
+                if (o === 0) o = 10;
+                d10s.push(t, o);
+            });
+            setParts.push(d10s.length + 'd10');
+            vals = vals.concat(d10s);
+            return;
+        }
+        setParts.push(g.rolls.length + 'd' + g.sides);
+        vals = vals.concat(g.rolls);
+    });
+    return setParts.join('+') + '@' + vals.join(',');
+}
+
+function demoRoll() {
+    var exprEl = document.getElementById('demo-expr');
+    var expr = exprEl.value.trim();
+    if (!expr) return;
+    resultEl.textContent = '';
+    var parsed = parseDiceExpr(expr);
+    if (!parsed) {
+        resultEl.textContent = '⚠️ 表达式无法解析：' + expr;
+        return;
+    }
+    var res = [];
+    var total = parsed.bonus, isCritS = false, isCritF = false;
+    var detail = [];
+    parsed.groups.forEach(function(g, i) {
+        var r = rollGroup(g, i === 0, parsed.advantage);
+        res.push({ sides: g.sides, rolls: r.rolls, kept: r.kept });
+        total += g.sign * r.kept.reduce(function(a, b) { return a + b; }, 0);
+        // 大成功/大失败按 d20 原始骰值判定（与后端一致）
+        r.originals.forEach(function(v) {
+            if (g.sides === 20) { if (v === 20) isCritS = true; if (v === 1) isCritF = true; }
+        });
+    });
+    if (total < 0) total = 0;
+    var det = buildDetNotation(res);
+    var critTxt = isCritS ? ' 🎯大成功！' : (isCritF ? ' 💀大失败！' : '');
+    var keptTxt = [];
+    res.forEach(function(r) {
+        if (r.keepMode && r.kept.length < r.rolls.length) keptTxt.push('[' + r.kept.join(',') + ']');
+    });
+    var text = expr + ' = ' + total + ' [' + res.map(function(r) { return r.rolls.join(','); }).join(';') + ']' + (keptTxt.length ? ' 保留:' + keptTxt.join(' ') : '') + critTxt;
+    resultEl.textContent = text;
+    // 本地 3D 动画（引擎不可用时静默降级为文本结果）
+    if (initOk && box) {
+        try {
+            box.roll(det, { theme: { theme_colorset: 'white' } }).catch(function() {});
+        } catch (e) {}
+    }
+}
+
+window.demoPreset = function(expr) {
+    document.getElementById('demo-expr').value = expr;
+    demoRoll();
+};
+window.demoRoll = demoRoll;
+
+(async function() {
+    try {
+        box = new DiceBox('#demo-dice-box', {
+            assetPath: '/static/dice-engine-v3/', sounds: false,
+            theme_surface: 'blue-felt', theme_colorset: 'white', theme_material: 'glass',
+            gravity_multiplier: 400, light_intensity: 0.7, strength: 1
+        });
+        await box.initialize();
+        initOk = true;
+        st.textContent = '✅ 演示引擎就绪';
+    } catch (e) {
+        st.textContent = '⚠️ 3D 引擎不可用（文本演示仍可用）';
+    }
+})();
+</script>
+</body>
+</html>

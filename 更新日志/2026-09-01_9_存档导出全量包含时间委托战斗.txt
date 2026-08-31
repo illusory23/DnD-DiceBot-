@@ -1,0 +1,41 @@
+2026-09-01_9_存档与导出全量包含（时间/委托/画布/战斗/状态池）
+
+需求（用户确认）：
+存档和导出功能需要包含所有信息（时间、委托、画布、战斗），
+导入/加载存档后恢复到之前一模一样的状态。
+
+实现：
+
+一、collectState 补全（web/static/map.js v91 → v92）
+- mapTokens 序列化增加 statuses（状态池状态此前只随 WS 同步，
+  存档丢失）——现在随存档保存/恢复
+- 画布（笔画/文字/图层/迷雾）+ 战斗（mapCombatants/mapRound）
+  此前已包含 ✓
+
+二、导出/导入/服务器存档全量化（web/static/map-saves.js v74 → v75）
+- 导出 JSON（exportMapJSON，改 async）：collectState 基础上附加
+  · campaignTime（模组时间：历法/年月日时分/进位配置）
+  · notes（线索与委托：公开+私有全量）
+  · _meta.version 升 3，附加 hasCampaignTime/noteCount 统计
+- 新增 restoreCampaignExtras(state)（导入与服务器加载共用）：
+  · 模组时间写回（POST set 全字段含进位；仅 DM 可写，非 DM 提示
+    "模组时间未恢复（仅 DM 可设置模组时间）"）
+  · 笔记逐条写回（POST /api/notes，保留 kind/title/描述/来源/NPC/
+    奖励/状态/公开私有），成功 Toast 汇总"已恢复 N 条笔记"
+- 导入 JSON（handleMapJSONImport）与服务器存档加载
+  （loadMapFromServerByName）在 applyState 恢复画布/战斗后，
+  均调用 restoreCampaignExtras 恢复时间与笔记
+
+三、验证
+- collectState 含 statuses 断言 ✓
+- 恢复逻辑 vm 端到端：1 时间请求（set 全字段含进位 100/40/42/13）
+  + 2 笔记请求（clue 公开 / quest 私有）全部正确 ✓
+- 4 处挂接断言（导出附加/导入恢复/服务器加载恢复/非 DM 提示）✓
+- node --check 语法通过；map.js v92 / map-saves.js v75
+
+涉及文件：
+- web/static/map.js（v92）、web/static/map-saves.js（v75）、
+  web/templates/map.html（版本号同步）
+- 备份：backups/模组时间与笔记前_20260901_*
+
+不需要重启服务器（纯前端静态资源，刷新/强刷地图页即可）。

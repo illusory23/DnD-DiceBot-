@@ -34,6 +34,8 @@ class DiceResult:
 
 def roll_die(sides: int) -> int:
     """投掷单个骰子"""
+    if sides < 1:
+        raise ValueError(f"骰子面数必须>=1，收到: {sides}")
     return random.randint(1, sides)
 
 
@@ -84,6 +86,11 @@ def parse_dice_expression(expr: str) -> dict:
         else:
             count = 1
             sides = int(d_match.group(3))
+
+        # 解析层校验：骰子数量/面数必须 >=1（1d0、0d6 等非法表达式明确报错，
+        # 而非 random.randint 抛裸异常或静默归零）
+        if count < 1 or sides < 1:
+            raise ValueError(f"无效骰子表达式（骰子数量与面数必须>=1）: {expr}")
 
         rest = part_clean[d_match.end():]
         keep_highest = None

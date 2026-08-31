@@ -1,0 +1,31 @@
+2026-09-01_4_跑团页面登录拦截（防直接输网址绕过）
+
+需求（用户确认）：
+跑团平台房间与探索北境增加身份验证监测——未登录提示"请先登录"，
+点击确认后返回官网页面；防止直接通过网址进入跳过官网登录。
+
+实现：
+
+一、服务端拦截（web/app.py，before_request）
+- 白名单页面：/map /chat /dice3d /dice-help /character /combat /spells
+  /events /reference /mods /north-expedition
+- 未登录（_get_current_user 为空）GET 访问 → 302 重定向 /?need_login=1
+  （官网首页）；已登录正常访问
+- 官网页面（/ 等）、/api/*、/static 不受影响；POST 不受影响
+- 服务端判定（cookie session）→ 直接输网址/禁用 JS 均无法绕过
+
+二、官网首页提示（web/templates/portal/index.html）
+- URL 带 need_login=1 → Toast 提示"🔒 请先登录官网账号后使用跑团功能"
+  → 自动打开登录弹窗（showModal('login')）
+
+三、验证
+- 未登录 /map /north-expedition /dice3d /chat → 302 /?need_login=1 ✓
+- 官网 / → 200；/api/campaign-time → 200（不拦截）✓
+- 注册登录后 /map → 200 ✓
+- CI 冒烟测试仅检查首页与 API，不受影响 ✓
+
+涉及文件：
+- web/app.py、web/templates/portal/index.html
+- 备份：backups/模组时间与笔记前_20260901_*
+
+需要重启服务器生效。

@@ -1,0 +1,48 @@
+2026-08-31_10_法术效果库第一期（伤害/治疗/临时生命）
+
+目标：跑团过程中使用法术时效果自动生效（每个法术登记专属效果与词条）。
+进度文档：优化方向/法术效果库进度.md
+
+一、新增 web/static/spell-effects.js（法术效果库）
+- 效果条目：法术名 → { kind, expr|fixed, save?, dmgType?, desc }
+  · damage：攻击流程命中后自动用词条 expr 掷伤害
+  · heal：治疗流程自动用词条 expr 掷治疗
+  · temp_hp：治疗流程掷 expr / 用 fixed，结算改为设置临时生命
+  · fn：专属效果函数（吸血鬼之触：命中后按实际伤害自动回血）
+- 首批登记 24 条：15 伤害（火球术 8d6/闪电束 8d6/魔法飞弹 1d4+1×3/
+  死亡一指 7d8+30/连环闪电 10d8 等）+ 6 治疗（疗伤术 1d8+3/治愈真言
+  1d4+3/医疗术 fixed 70 等）+ 2 临时生命（虚假生命 1d4+4/援助术 5）
+  + 1 专属函数（吸血鬼之触）
+- 数值基准：玩家手册（PHB）经典数值；未登记法术保持原手动流程不阻塞
+- 辅助提取脚本 web/_extract_spell_effects.py（CHM 词条按"法术名｜英文名"
+  锚点分段提取，可复用扩展）
+
+二、流程接入（web/static/map.js v87 → v88）
+- 攻击方式选择：选法术时伤害表达式优先查效果库（eff.expr），未登记回退
+  描述正则提取（extractSpellDamage）
+- 治疗方式选择：选法术时表达式/固定值/kind 优先查效果库，未登记回退
+  extractHealDice；healCtx 记录 kind/fixed
+- 治疗掷骰：纯数字表达式（固定值法术，如医疗术 70）直接作固定值不掷骰
+- 确认结算：kind=temp_hp → 调用新增 temp 参数设置临时生命（不影响战斗
+  面板 HP/不触发满血逻辑），播报"获得了 N 点临时生命值"
+- 专属函数迁移：原 SPELL_ATTACK_EFFECTS 表移除，吸血鬼之触迁入效果库
+  （kind:'fn'，map.js 加载时注册 e.fn = spellEffectVampiricTouch），
+  applySpellAttackEffect 改为查效果库分发
+
+三、后端（web/app.py）
+- /api/character/<name>/hp 新增 temp 参数：{amount, temp:true} →
+  set_hp(temp_hp=amount)（复用 #20 边界校验：>=0），返回实际 temp_hp
+
+四、验证
+- node test_spell_effects.mjs 21/21（效果库 24 条数据/三类齐全/流程接入
+  断言/页面引入顺序/版本号），脚本已归档
+- temp API 端到端：+8 设置成功、负数归零、普通治疗不受影响
+- node --check + py_compile 语法通过；map.html v=88
+
+涉及文件：
+- web/static/spell-effects.js（新增）、web/static/map.js（v88）、
+  web/templates/map.html、web/app.py、web/_extract_spell_effects.py（新增）
+- 进度文档：优化方向/法术效果库进度.md
+- 备份：backups/法术效果库第一期前_20260831_*
+
+需要重启服务器生效（web/app.py 新增 temp 参数）。

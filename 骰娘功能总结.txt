@@ -1,6 +1,6 @@
 ✦ 尘封之卷 — 完整功能总结
 ═══════════════════════════════════════════════════════════════════
-版本：v5.11  |  更新日期：2026-08-27  |  数据库：PostgreSQL 33 表（新增 friend_messages 私聊表）
+版本：v5.12  |  更新日期：2026-09-01  |  数据库：PostgreSQL 35 表（新增 campaign_time 模组时间 / notes 线索委托）
 
 
 ━━━ 目录 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -87,6 +87,43 @@
      💾 北境存档加固 — 失败计数+指数退避重试；日志裁剪（500条上限，存档v3）
      👁️ 公开角色 — DM 可设公开/私有（is_public），PL 只读查看公开角色
      🎭 地图隐私 — 他人 token 头像与名称均可见，仅角色信息面板不可查看（canViewCharInfo 拦截）
+
+  ── v5.12 新增功能（2026-08-31 ~ 09-01）──
+     📜 掷骰帮助页 — /dice-help（指令说明 + 独立本地演示掷骰器，不广播/
+       不统计/不调接口；3D 引擎 importmap 依赖；CLI 部分按用户要求删除；
+       导航入口位于各页导航末尾）
+     🎲 掷骰页三 Tab 对象选择 — 掷骰/检定/豁免各自独立角色选择器
+       （未选默认无对象），消息主体=角色名（选了）或玩家名（未选），
+       发送者保持玩家名；骰子统计仍按玩家
+     ✨ 法术效果库 — spell-effects.js：24 条登记（伤害/治疗/临时生命/
+       专属函数），攻击命中自动用词条伤害表达式、治疗/临时生命自动
+       生效（固定值法术不掷骰）；回血攻击法术（吸血鬼之触）走效果表
+       fn；攻击列表排除治疗类法术（isAttackSpell）
+     📌 DM 状态池 — 右侧竖条按钮 + 独立可拖动面板（左右分栏）：
+       token 级状态（name/单位 回合·分钟·小时·永久/剩余回合），
+       DM 添加/编辑时长/一键清空/未入图角色折叠；右栏快捷状态词条
+       （localStorage 持久化 + 拖拽到角色行）；token 头顶 3 秒浮动
+       提示"特殊状态：xxx"全体可见；状态随战斗轮自动递减回合数；
+       获得状态聊天室系统播报（无播报人）；状态弹窗（信息面板
+       📌 状态（无）/（有·N））
+     🕐 模组时间 — 右侧竖条 + 可拖动面板：xx历xx年xx月xx日xx时xx分，
+       历法进位可配置（分/时、时/日、日/月、月/年），DM 推进
+       （+30分钟/+1小时/+1天/+1月 + 自定义单位）+ 设置起始 + 清空
+       （清空=空状态）；30 秒轮询同步；存档导出/导入包含
+     📜 线索与委托笔记 — 地图侧边栏「📜 笔记」Tab：🔍线索/📋委托
+       双分区，DM/PL 均可编辑，可公开（全团）/私有（仅创建者），
+       PG 存储跨设备（未登录引导官网）；存档导出/导入包含
+     🔒 跑团页面登录拦截 — 未登录访问跑团平台/北境页面 → 重定向
+       官网 ?need_login=1（Toast 提示 + 自动打开登录框），防直接
+       输网址绕过
+     💾 存档全量化 — 导出 JSON/服务器存档/导入/加载包含全部：
+       画布+战斗+状态池（token.statuses）+模组时间+线索委托，
+       导入/加载后恢复一模一样（时间仅 DM 可写回）
+     🎲 多 d100 动画修复 — 每个 d100 拆两个 d10（2d100→4d10）
+     🔧 审查修复 — dice_engine 骰子数量/面数校验（1d0/0d6 报错）、
+       set_hp 边界校验统一（HP 夹紧 0~max，临时HP≥0）、README 路由
+       同步、状态池/时间面板地图事件排除、嵌套 IIFE 作用域桥接
+       （loadNotes/tickStatusRounds 挂 window）
 
   ── v5.11 新增功能（2026-08-27）──
      ✏️ 自定义生物结构化分区输入 — 参考界面生物表单改 5 个二级分区
@@ -315,6 +352,7 @@
     /north-expedition     北境探索 ★新核心玩法（独立生存冒险系统）
     /user                 用户中心（个人主页 + 骰子排行榜）
     /dice3d 或 /dice3d-e  3D掷骰主页（掷骰 + 检定 + 豁免 + 聊天）
+    /dice-help           掷骰帮助页（指令说明 + 本地演示掷骰器，v5.12）
     /map                  战术地图 ★核心协作功能
     /character            角色卡编辑
     /combat               战斗追踪器
@@ -1161,13 +1199,14 @@
 ═══════════════════════════════════════════════════════════════════
 
   ── 服务端存储（2026-08-15 起全量 PostgreSQL，31 表）──
-    PostgreSQL：dicebot 库 31 张表 ——
+    PostgreSQL：dicebot 库 35 张表 ——
       角色数据（characters/abilities/skills/weapons/items/coins/spell_slots/
       learned_spells/prepared_spells/background_details/features 等）
       用户与门户（users/community_posts/workshop_items/notifications/
       favorites/topics/announcements 等）
       跑团运行（chat_messages/shared_canvas/combat_state/event_stats/
-      dice_stats/audit_logs/north_saves 等）
+      dice_stats/audit_logs/north_saves/campaign_time 模组时间/
+      notes 线索委托 等）
     DATABASE_URL 环境变量可覆盖（config.py，默认 postgresql://）
     目录：  web/static/avatars/      官网用户头像
     目录：  web/static/images/       角色头像/资源图片
@@ -1258,6 +1297,7 @@
   │   │   │   ├── index.html      官网门户首页（全新设计）
   │   │   │   └── user.html       用户中心 / 排行榜
   │   │   ├── dice3d-e.html       3D 掷骰主页（掷骰 + 检定 + 豁免 + 聊天）
+  │   │   ├── dice-help.html      掷骰帮助页（指令说明 + 本地演示掷骰，v5.12）
   │   │   ├── dice3d.html         3D 掷骰（自动重定向到 dice3d-e）
   │   │   ├── test4.html          北境雪原沉浸式全屏场景（极光/飘雪动画）
   │   │   ├── north-expedition.html 北境探索 ★新核心玩法（生存冒险系统）
@@ -1275,6 +1315,8 @@
   │       ├── dice-box/           骰子主题贴图资源
   │       ├── dice-v2/            旧版 3D 骰子（v2 引擎，保留兼容）
   │       ├── map.js              战术地图前端逻辑
+  │       ├── map-saves.js        地图存档（导出全量化 v5.12）
+  │       ├── spell-effects.js    法术效果库（v5.12）
   │       ├── combat.js           战斗追踪器前端逻辑
   │       ├── character.js        角色卡前端逻辑
   │       └── style.css           全局样式

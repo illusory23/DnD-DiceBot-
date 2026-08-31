@@ -1,0 +1,41 @@
+2026-08-31_6_掷骰页三Tab对象选择
+
+需求：掷骰页（/dice3d）掷骰/检定/豁免三个 Tab 均增加"选择对象"，
+未选择默认无对象，消息显示主体为玩家名；选择后显示角色名。
+
+现状问题（web/templates/dice3d-e.html，内联 JS）：
+1. 掷骰 Tab 无对象选择器（检定/豁免已有，但各自独立加载）
+2. 豁免选择器仅在切换到豁免 Tab 时才加载（switchTab 内调用），
+   每次切换重建 innerHTML → 已选角色被重置丢失
+3. 掷骰消息无主体名（聊天室只发"🎲 3d6 = [10]"），检定/豁免有主体
+4. 检定/豁免的 WS 广播 roller 恒为玩家名（与文本主体不一致）
+
+优化：
+- 掷骰 Tab 新增「对象:」选择器（#roll-char-select + 金色徽章），
+  默认"👤 无对象"；setRollChar() 选择角色存入 _localRollChar
+- 提取公共加载函数 loadCharsInto(selId)，掷骰/检定/豁免三选择器
+  同源（/api/characters）加载
+- 页面加载时与加入房间后均统一加载三个选择器；
+  移除 switchTab 中 loadSaveChars 重载（切 Tab 不再重置选择）
+- 三个 Tab 选择状态独立（_localRollChar/_localActiveChar/
+  _localSaveChar 互不干扰，不全局共享）
+- 消息主体规则统一：
+  · 掷骰：选择对象 → 主体为角色名；未选择 → 玩家名
+    （结果浮层 showResult、聊天室广播、WS dice_roll_det roller 三处一致）
+  · 检定/豁免：已有"角色名/玩家名"逻辑，WS roller 同步改为消息主体
+  · 骰子统计 recordDiceStats 仍按玩家名（统计归属玩家，与对象无关）
+- 暗骰逻辑不变（不广播）
+
+验证（node test_dice3d_obj.mjs，25/25 通过，脚本已归档备份）：
+- 结构断言 19 项：三选择器存在/默认无对象/公共加载/加载时机/
+  switchTab 不重置/subject 传递/统计按玩家名
+- 行为测试 6 项（vm 提取真实 broadcastRoll）：
+  选角色 → WS 与聊天消息主体为角色名；未选 → 回退玩家名；
+  消息文本格式不变；暗骰不广播
+- Flask test_client：/dice3d 200 且含掷骰选择器
+
+涉及文件：
+- web/templates/dice3d-e.html
+- 备份：backups/掷骰页三Tab对象选择前_20260831_*
+
+不需要重启服务器（纯模板内联 JS，刷新页面即可生效）。

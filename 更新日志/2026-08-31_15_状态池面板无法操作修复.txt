@@ -1,0 +1,27 @@
+2026-08-31_15_状态池面板无法操作修复
+
+问题（用户反馈）：
+状态池界面内无法操作（输入框点不进去、按钮无响应等）。
+
+根因（web/static/map.js）：
+状态池面板（#status-pool-panel）与状态弹窗（#status-popup）位于
+map-area 容器内，但未加入地图事件排除列表——地图的滚轮缩放
+（wheel，678 行）与鼠标按下（mousedown，716 行）处理中，token-
+info-panel / layer-panel / char-sidebar / dice-popup / map-toolbar
+均被排除，唯独新增的两个状态界面漏了。点击面板会先触发地图的
+选择/取消/拖拽逻辑，导致输入框无法聚焦、按钮点击被吞。
+
+修复（map.js）：
+- wheel 排除列表加入 #status-pool-panel、#status-popup
+  （面板内滚轮滚动不再触发地图缩放）
+- mousedown 排除列表加入 #status-pool-panel、#status-popup
+  （面板内点击/输入不再触发地图选择逻辑）
+
+验证：
+- node --check 语法通过；两处排除断言通过；map 页 200
+
+涉及文件：
+- web/static/map.js（v90）
+- 备份：backups/DM状态池前_20260831_*
+
+不需要重启服务器（静态 JS，刷新/强刷地图页即可生效）。

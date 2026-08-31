@@ -1,0 +1,48 @@
+2026-08-31_5_审查报告15-20-35修复与优先级重排
+
+依据：审查报告_代码问题汇总_2026-08-30.txt（鉴权/归属项待房间功能时解决，
+Mod 项暂未开放，均按要求忽略）
+
+一、#15 [高] 骰子面数/数量解析校验（core/dice_engine.py）
+问题：roll_die 未校验 sides>=1，1d0 等非法表达式抛 random.randint 裸异常；
+      0d6-10 静默归零掩盖错误。
+修复：
+- roll_die：sides<1 时抛 ValueError（明确信息"骰子面数必须>=1"）
+- parse_dice_expression：解析出 count/sides 后校验 >=1，非法表达式
+  抛 ValueError("无效骰子表达式（骰子数量与面数必须>=1）")
+- 调用方 web/app.py api_roll 已有 except ValueError → 400，无需改动
+- 顺带解决 #17（0d6-10 不再静默归零，解析层直接报错）
+
+二、#20 [中] set_hp 边界校验统一（core/character.py）
+问题：set_hp 未做边界校验（可写 hp_current 负值/超上限、temp_hp 负数、
+      hp_max 负数），与 adjust_hp 不一致。
+修复：与 adjust_hp 统一 —— hp_max>=0；hp_current 夹紧 [0, hp_max]；
+      临时 HP >= 0（无上限，按审查建议）。
+
+三、#35 [中] README 路由/模板与实际同步（README.md）
+对照 web/app.py 实际路由修正：
+- / → portal/index.html（原写 /portal/ 与 index.html，均不符）
+- /user → portal/user.html（原写 /portal/user）
+- /dice3d → dice3d-e.html（原写 dice3d.html，该模板已不存在）
+- /north → /north-expedition（README 三处 /north 全部更正）
+- 新增 /dice-help、/user 条目；删除无路由的 /dice3d-e、/_test_dice 条目
+- 目录树注释、5.4 主要入口表、2.3 章节标题同步
+
+四、审查报告重构（审查报告_代码问题汇总_2026-08-30.txt）
+- 删除已完成项 #15/#20/#35（#17 随 #15 顺带解决，一并删除）
+- 剩余问题重新排列优先级（P1 凭据安全 → P2 并发稳定 → P3 逻辑校验 →
+  P4 前端体验 → P5 工程/性能，共 23 项）置于文档最前
+- 忽略项置后：鉴权/归属 7 项（#1-#7，待房间功能）、Mod 4 项（#22-#25）
+- 保留误报纠正与总体评价；文件原为只读属性，已去除只读
+
+验证（python test_review_fix_20260831.py，33/33 通过，脚本已归档）：
+- #15：1d0/0d6/d0 抛 ValueError；3d6/d20 adv/4d6k3/5/1d20+1d4+3 正常
+- #20：超上限夹紧/负值归零/temp_hp 负归零/hp_max 负归零/正常设置/adjust_hp 回归
+- #35：README 路由表逐项对照（14 项断言）
+
+涉及文件：
+- core/dice_engine.py、core/character.py、README.md、
+  审查报告_代码问题汇总_2026-08-30.txt（重构）
+- 备份：backups/审查修复15-20-35前_20260831_*
+
+需要重启服务器生效（core/*.py 后端改动，make_server 无热重载）。

@@ -2,7 +2,7 @@
 
 **Chronicles of Dust — Online TRPG Platform**
 
-> 版本：v5.11 | 更新日期：2026-08-27
+> 版本：v5.12 | 更新日期：2026-09-01
 
 一个集 D&D 5E 跑团工具、北境雪原探索玩法、官网门户于一体的综合性 TRPG 平台。基于 Python Flask 后端 + 原生 HTML/CSS/JS 前端构建。
 
@@ -95,7 +95,7 @@
 | 📦 内容管理 | 自定义法术/怪物/物品增删 |
 | 🗄️ 数据备份 | 一键备份（在线 sqlite 备份）、zip 下载、恢复（安全网）、日志清理 |
 
-### 2.3 北境雪原 (`/north`)
+### 2.3 北境雪原 (`/north-expedition`)
 
 | 功能 | 说明 |
 |------|------|
@@ -154,11 +154,11 @@
 │   ├── app.py                     # Flask 主程序（路由、API）
 │   ├── admin.py                   # 管理员后台 Blueprint（/admin/*）
 │   ├── templates/                 # HTML 模板
-│   │   ├── index.html             # 平台首页（事件表 + 角色卡）
+│   │   ├── index.html             # 跑团平台首页（快速检定）
 │   │   ├── topic_detail.html      # 每周话题独立页（含评论区）
 │   │   ├── north-expedition.html  # ★ 北境雪原主页面
-│   │   ├── dice3d.html            # 独立 3D 掷骰页
-│   │   ├── dice3d-e.html          # 增强版 3D 掷骰（带角色联动）
+│   │   ├── dice3d-e.html          # 3D 掷骰页（/dice3d 直接渲染，含检定/豁免）
+│   │   ├── dice-help.html         # 掷骰帮助页（指令说明 + 本地演示掷骰，v5.12）
 │   │   ├── character.html         # 角色管理
 │   │   ├── combat.html            # 战斗追踪
 │   │   ├── spells.html            # 法术书
@@ -192,9 +192,10 @@
 │       ├── character.js           # 角色卡 JS
 │       ├── combat.js              # 战斗 JS
 │       ├── map.js                 # 地图主逻辑 JS
+│       ├── map-saves.js           # 地图存档（导出全量化，v5.12）
+│       ├── spell-effects.js       # 法术效果库（伤害/治疗/临时生命，v5.12）
 │       ├── map-idb.js             # 地图 IndexedDB 缓存
 │       ├── map-fog.js             # 地图战争迷雾
-│       ├── map-saves.js           # 地图存档槽
 │       ├── map-page.js            # 地图加入房间覆盖层
 │       ├── north-main.js          # 北境核心引擎
 │       ├── north-camp.js          # 北境营地系统（商店/仓库/工作间）
@@ -267,10 +268,10 @@ python app.py
 
 | 路径 | 说明 |
 |------|------|
-| `/` | 平台首页（事件表 + 角色卡） |
-| `/north` | 北境雪原（独立探索玩法） |
-| `/dice3d` | 独立 3D 掷骰页 |
-| `/portal/` | 官网门户 |
+| `/` | 官网门户首页（酒馆/工坊/用户系统/公告） |
+| `/north-expedition` | 北境雪原（独立探索玩法） |
+| `/dice3d` | 3D 掷骰页（掷骰/检定/豁免） |
+| `/user` | 用户中心 / 排行榜 |
 
 ---
 
@@ -278,21 +279,20 @@ python app.py
 
 | 路由 | 模板 | 说明 |
 |------|------|------|
-| `/` | `index.html` | 平台首页 |
-| `/north` | `north-expedition.html` | ★ 北境雪原 |
-| `/dice3d` | `dice3d.html` | 3D 掷骰 |
-| `/dice3d-e` | `dice3d-e.html` | 增强版 3D 掷骰 |
-| `/test4` | `test4.html` | 备用测试页 |
-| `/character` | `character.html` | 角色管理 |
+| `/` | `portal/index.html` | 官网门户首页（酒馆/工坊/公告/在线统计） |
+| `/user` | `portal/user.html` | 用户中心 / 排行榜 |
+| `/north-expedition` | `north-expedition.html` | ★ 北境雪原（独立探索玩法） |
+| `/dice3d` | `dice3d-e.html` | 3D 掷骰（掷骰/检定/豁免/暗骰） |
+| `/dice-help` | `dice-help.html` | 掷骰帮助（指令说明 + 本地演示掷骰） |
+| `/test4` | `test4.html` | 北境雪原沉浸式场景页 |
+| `/character` | `character.html` | 角色卡编辑 |
 | `/combat` | `combat.html` | 战斗追踪 |
-| `/spells` | `spells.html` | 法术查询 |
-| `/reference` | `reference.html` | 怪物图鉴 |
-| `/map` | `map.html` | 战斗地图 |
+| `/spells` | `spells.html` | 法术书 |
+| `/reference` | `reference.html` | 资料库搜索（规则/法术/怪物/物品/CHM） |
+| `/map` | `map.html` | 战术地图 |
 | `/chat` | `chat.html` | 聊天室 |
-| `/mods` | `mods.html` | Mod 配置 |
-| `/events` | `events.html` | 事件展示 |
-| `/portal/` | `portal/index.html` | 官网首页 |
-| `/portal/user` | `portal/user.html` | 用户中心 |
+| `/mods` | `mods.html` | Mod 管理 |
+| `/events` | `events.html` | 随机事件表 |
 | `/post/<id>` | `portal/post_detail.html` | 帖子独立详情页（含点赞/收藏/评论） |
 | `/workshop/<id>` | `portal/workshop_detail.html` | 工坊独立详情页 |
 | `/notifications` | `portal/notifications.html` | 消息通知页 |
@@ -300,8 +300,7 @@ python app.py
 | `/changelog` | `portal/changelog.html` | 历史版本更新日志页 |
 | `/guide` | `portal/guide.html` | 新手使用指南页（v5.4 新增，静态五章） |
 | `/topics/<id>` | `topic_detail.html` | 每周话题详情（含评论） |
-| `/admin` | `admin/*` | 管理员后台（14 大模块） |
-| `/_test_dice` | `_test_dice.html` | 骰子测试 |
+| `/admin` | `admin/*` | 管理员后台 |
 
 ---
 
@@ -513,6 +512,18 @@ python app.py
 详见 `骰娘/更新日志/` 目录，每条更新一个独立 txt 文件。
 
 命名格式：`YYYY-MM-DD_序号_主题.txt`
+
+### 近期重要更新（2026-08-31 ~ 09-01 · v5.12）
+
+- **掷骰帮助页**：/dice-help——指令说明 + 本地独立演示掷骰器（不广播/不统计/不调接口）；导航入口位于各页末尾
+- **掷骰三 Tab 对象选择**：掷骰/检定/豁免各自独立角色选择器，消息主体=角色名（选了）/玩家名（未选），发送者保持玩家名；多 d100 动画修复（每个 d100 拆两个 d10）
+- **法术效果库**（spell-effects.js）：24 条登记（伤害/治疗/临时生命/专属函数），攻击命中自动用词条伤害表达式、治疗/临时生命自动生效（固定值不掷骰）；回血攻击法术（吸血鬼之触）效果表驱动；攻击列表排除治疗类
+- **DM 状态池**：token 级状态（回合·分钟·小时·永久，战斗轮递减）、左右分栏可拖动面板（编辑时长/一键清空/快捷词条拖拽）、头顶 3 秒浮动提示、聊天室系统播报、信息面板 📌 状态弹窗
+- **模组时间**：右上竖条 + 可拖动面板（历法/年月日时分/进位可配置），DM 推进/设置/清空；30 秒轮询
+- **线索与委托笔记**：地图侧边栏 Tab（🔍线索/📋委托），DM/PL 可编辑，公开/私有，PG 跨设备
+- **跑团页面登录拦截**：未登录访问跑团/北境页面重定向官网登录（防直接输网址绕过）
+- **存档全量化**：导出/导入/服务器存档包含画布+战斗+状态池+模组时间+线索委托，恢复一模一样
+- **修复**：骰子面数/数量解析校验（1d0/0d6 报错）、set_hp 边界校验、README 路由同步、状态池/时间面板事件排除、嵌套 IIFE 作用域桥接
 
 ### 近期重要更新（2026-08-27 · v5.11）
 

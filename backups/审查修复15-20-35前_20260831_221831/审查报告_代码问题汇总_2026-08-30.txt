@@ -1,0 +1,213 @@
+════════════════════════════════════════════════════════════
+ 「尘封之卷」DnD 骰娘跑团平台 — 代码审查问题汇总
+ 审查日期：2026-08-30
+════════════════════════════════════════════════════════════
+
+一、项目概览与技术栈
+────────────────────────────────────────────────────────
+· 技术栈：Flask + Flask-Sock(WebSocket) + SQLAlchemy + PostgreSQL(SQLite可回滚)
+· 核心模块：dice_engine(骰子引擎)、dnd5e_rules(D&D5e规则)、character(角色)、
+  combat(战斗)、chm_search(CHM规则书检索)、mod_loader(Mod加载器)
+· 前端：web/templates(14页) + web/static(25个JS/CSS)，含角色卡、地图迷雾、
+  聊天室、官网门户、北境求生小游戏、管理后台
+· 数据：PostgreSQL + JSON静态资源(法术/怪物/技能/物品/CHM提取)
+· 工程：GitHub Actions(ci/lint/smoke-test)、flake8、requirements.txt
+
+注：标 ✓ 的条目为已亲自打开源码复核确认；未标 ✓ 的为代理审查发现，未经逐条复核。
+
+
+二、高优先级问题（安全 / 凭据 / 并发）
+────────────────────────────────────────────────────────
+
+【安全：多处写接口缺鉴权】
+
+1. [严重] 角色删除未校验归属  ✓
+   文件：web/app.py，行 ~1796（/api/character/<name_or_id> DELETE）
+   问题：直接 delete_character(char_id)，不检查当前登录用户是否为角色所有者，
+        任何登录用户(甚至未登录者，若该接口无登录前置)都可删除任意角色。
+   建议：删除前调用 _get_current_user()，校验是角色所有者或管理员。
+
+2. [严重] 共享画布 HTTP POST 无鉴权  ✓
+   文件：web/app.py，行 ~750（/api/shared-canvas POST）
+   问题：可推送 strokes/layers/tokens/fog 等键，任意恶意覆盖共享画布内容，
+        无身份校验、无内容结构/大小白名单。
+   建议：写操作增加登录校验，并限制字段结构、大小、白名单。
+
+3. [高] WebSocket /ws 未鉴权  ✓
+   文件：web/app.py，行 ~612（@sock.route('/ws')）
+   问题：连接加入集合前未校验登录态，未登录客户端可连接并走画布/骰子同步通道。
+   严重度可视数据敏感度适当下调，但原则上应鉴权。
+   建议：入口校验登录态，未通过立即 ws.close()。
+
+4. [高] DM 判定仅靠 name/IP，可被冒充  ✓(代码存在 _is_dm_request 依赖 name/IP)
+   文件：web/app.py，_is_dm_request 被多个 /api/dm/* 接口调用
+   问题：仅靠 name == _dm_name 或 IP 匹配判定 DM，知道 DM 名即可冒充 DM
+        发布/删除事件。
+   建议：DM 接口强制 _get_current_user()，并以 user_id 校验。
+
+5. [中] 聊天/酒馆聊天发送接口无登录校验
+   文件：web/app.py（/api/chat/send、/api/tavern/chat/send）
+   问题：未调用 _get_current_user()，未登录客户端可直接发消息。
+   建议：若允许游客，则过滤、限频、限长度；否则强制登录。
+
+6. [中] 房间心跳/离开接口身份校验不足
+   文件：web/app.py（/api/room/heartbeat、/api/room/leave）
+   问题：leave 删除 _online_users 中任意 name 的在线记录，未校验与当前会话一致。
+   建议：删除在线记录前校验 name 与 session 一致。
+
+7. [低] 公告管理接口职责/删除方法未完全核对
+   文件：web/app.py（/api/admin/announcements）
+   说明：POST 有管理员校验，未见独立 DELETE 路由，需核对补全。
+
+【安全：凭据泄露】
+
+8. [严重] 数据库密码明文硬编码  ✓
+   文件：config.py，行 16-19
+   内容：'postgresql+psycopg2://postgres:asd204402@localhost:5432/dicebot'
+   问题：仓库配置含明文口令。
+   建议：改为必须由环境变量注入，无环境变量则报错并禁用该默认值；立即轮换密码。
+
+9. [高] 初始管理员账密未排除出版本库  ✓(仓库根目录存在 初始管理员账密.txt)
+   文件：初始管理员账密.txt（仓库根目录）
+   建议：.gitignore 增加对账密、secret_key、*.env 的排除，勿提交远程。
+
+10. [中] 历史备份含默认 SECRET_KEY
+    文件：backups/P0修复前_20260806/app.py，行 ~109
+    建议：清理历史备份中硬编码 secret，运行环境始终用环境变量注入。
+
+【并发：进程内全局状态线程不安全】
+
+11. [高] _online_users 全局字典无锁读写
+    文件：web/app.py（心跳/加入/离开/过期清理多处）
+    问题：多线程并发读写可能状态错乱。
+    建议：为 _online_users 独立加锁，或统一到 _online_sessions 交由 _online_lock 保护。
+
+12. [中] _chat_messages / active_char_id 全局可变状态无锁
+    文件：web/app.py
+    建议：加锁或改为请求级/session 级状态。
+
+13. [中] 战斗追踪器用模块级单例
+    文件：core/combat.py（get_tracker()）
+    问题：仅适用单进程单 worker；多 worker 下各实例状态不一致。
+    建议：单进程部署可接受，若扩容须改造为持久化/分布式。
+
+14. [中] WebSocket 发送并发风险
+    文件：web/app.py ws_canvas
+    建议：避免同一 ws 并发发送，增加连接关闭标志。
+
+
+三、中等 / 逻辑类问题
+────────────────────────────────────────────────────────
+
+【骰子引擎 core/dice_engine.py】
+
+15. [高] roll_die 未校验 sides>=1，非法表达式(如 1d0)可抛异常。
+    建议：解析时校验骰子数量>=1、面数>=1。
+
+16. [中] 优势/劣势仅作用于第一组骰子；暴击成功/失败可同时命中的判定略松散。
+    建议：统一"最高/最低自然值决定"规则。
+
+17. [低] 伤害强制归零会掩盖错误表达式（如 0d6-10 → 0）。
+    建议：解析阶段校验，而非静默归零。
+
+18. [低] generate_ability_scores("point_buy") 实际返回固定标准数组，点购法未实现。
+
+【角色系统 core/character.py】
+
+19. [中] 大量 update_* 用 setattr+hasattr 反射写入，无字段白名单/类型/业务范围校验，
+    可写 hp_max=0、speed=-10。
+    建议：增加字段白名单和数值校验。
+
+20. [中] set_hp 未做 HP/临时HP 边界校验（0~hp_max），与 adjust_hp 不一致。
+    建议：统一边界校验。
+
+21. [低] resolve_portrait_path 建议补显式路径白名单校验。
+
+【Mod 加载器 core/mod_loader.py】
+
+22. [高] sys.path.insert(0, mod_dir) 将 Mod 目录置于标准库前，
+    Mod 若命名 json.py/os.py 等可覆盖标准库。
+    建议：移除前置插入或强制命名空间隔离。
+
+23. [高] exec_module 无沙箱，Mod 即任意代码执行载体（官方已注明测试中，不推荐使用）。
+    建议：正式开放前加沙箱/权限/超时，或保持禁用。
+
+24. [中] 卸载时不清理 sys.modules，重载可能拿到旧模块实例。
+
+25. [中] mod.json 缺少必要字段/id 合法性校验。
+
+【CHM 检索 core/chm_search.py】
+
+26. [高] read_detail_page 未强制校验解析后路径仍在 CHM 目录内，存在路径穿越读取风险。
+    建议：补 filepath.resolve().is_relative_to(CHM_DIR.resolve())。
+
+27. [中] 中文字符判断范围 '一'<=c<='鿿' 过宽，建议用明确 CJK 区间。
+
+28. [中] 全文未命中时遍历整个 CHM 目录，性能隐患，建议加缓存/上限。
+
+29. [中] HTML 正文/锚点用正则解析，复杂 HTML 下不稳，建议换 HTML 解析库。
+
+30. [中] 多源搜索结果未做内容去重。
+
+【前端 XSS】
+
+31. [中] 聊天室 chat.html:555-561 的 @mention 用正则拼接 innerHTML，在线用户名
+    (:575) 未转义，存在 DOM 注入/XSS 风险。
+    建议：统一转义或改用 textContent + 标记解析。
+
+32. [低] 全站未配置 CSP，多处依赖运行时转义。
+    建议：增加内容安全策略头。
+
+33. [中] 前端接口一致性：全站在线心跳用 /api/online/heartbeat，房间用
+    /api/room/heartbeat，两条心跳机制并存易混淆。
+
+
+四、工程 / 文档问题
+────────────────────────────────────────────────────────
+
+34. [高] .gitignore 过简(仅 logs/*.log/__pycache__/*.pyc)，账密、secret、
+    备份文件易误提交。
+    建议：补充 .env、*.txt、初始管理员*、secret_key、backups/。
+
+35. [中] README 路由/模板与实际不符：
+    - README 写 /portal/ 前缀，实际官网挂 /、用户中心 /user
+    - README 写 /dice3d → dice3d.html，实际 /dice3d → dice3d-e.html
+    建议：README 与代码同步。
+
+36. [中] CI 缺前端 lint(原生 JS 无 ESLint)；flake8 规则偏宽松且 --exit-zero。
+
+37. [中] 未发现 dependabot.yml；websockets>=12.0 等版本需复核。
+
+38. [低] 个别路由异常会把内部 str(e) 返回给客户端，建议生产仅返回通用提示。
+
+
+五、代理审查误报纠正（经亲自复核，以下并非 bug）
+────────────────────────────────────────────────────────
+
+1. hit_die_for_class 中文职业不匹配 → 假。
+   字典键本就是中文('野蛮人':12)，.lower() 对中文无效，中文与英文名均能正确命中。
+
+2. adjust_hp 不消耗临时血 → 假。
+   character.py:553-557 明确先扣 temp_hp 再结算，实现正确。
+
+提示：全自动审查存在幻觉风险，重大改动前请以原始代码为准。
+
+
+六、优先修复清单（按性价比排序）
+────────────────────────────────────────────────────────
+ 1  角色删除 / DM 接口补登录+归属校验        web/app.py DELETE:1796、_is_dm_request
+ 2  共享画布 POST、WebSocket 补鉴权          web/app.py:750、:612
+ 3  数据库口令改为环境变量注入并轮换           config.py:16
+ 4  .gitignore 排除账密/secret/备份          根目录
+ 5  Mod 沙箱 + 移除 sys.path 前置             core/mod_loader.py
+ 6  骰子面数/数量校验                         core/dice_engine.py
+ 7  update_* 反射写加白名单校验               core/character.py
+ 8  全局状态(在线/聊天/活跃角色)加锁或改状态    web/app.py
+ 9  CHM 路径穿越 + I/O 性能                   core/chm_search.py
+10  聊天 @mention / 用户名转义 + CSP          web/templates/chat.html
+
+════════════════════════════════════════════════════════════
+ 总体评价：功能庞大、规则库完善，单机/局域网跑团已很好用；
+ 主要短板在【安全边界】(多项写接口缺鉴权、凭据明文)与【进程内存态并发】。
+ 若对外公网部署，前 5 项必须优先处理。
+════════════════════════════════════════════════════════════

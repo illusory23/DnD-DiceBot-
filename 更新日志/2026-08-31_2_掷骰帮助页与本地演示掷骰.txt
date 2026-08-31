@@ -1,0 +1,38 @@
+2026-08-31_2_掷骰帮助页与本地演示掷骰
+
+新增：掷骰帮助页 /dice-help（web/templates/dice-help.html，新增文件）
+内容：
+1) 🎲 演示掷骰（独立本地演示器）
+   - 3D 物理骰子动画（复用 dice-engine-v3 引擎，本地渲染）
+   - 本地随机掷骰：不访问 /api/roll、不广播聊天室、不记统计、不连 WS
+   - 语义与 core/dice_engine.py 对齐：XdY 多组按 +/- 拆组、±加值、
+     adv/dis（第一组掷 2 取高/低，动画显示 2 个 d20）、! 爆炸骰、
+     k3/kl3/dh3/dl3 保留丢弃、d100 拆 2d10 动画、自然 20/1 大成功大失败
+   - 3D 引擎不可用时自动降级为文本结果
+   - 页面内标注"🔒 本地独立 · 不广播 / 不统计 / 不调接口"
+2) ✏️ 掷骰表达式语法表（XdY/加值/adv/dis/!/保留丢弃/d100/混合表达式）
+3) 🖥️ CLI 掷骰指令卡片（.r/.r adv/.r dis/.dnd/.check/.save/.ds/
+   .init/.attack/.damage）
+4) 📚 其他 CLI 指令折叠区（.char/.ss/长休短休/资料查询/事件表/系统）
+页面风格与全站一致（navbar + main-container + 冰霜主题 card/表格/代码样式）
+
+路由与导航：
+- web/app.py 新增 GET /dice-help → render_template('dice-help.html')
+- 全站 10 处导航栏新增「📜 掷骰帮助」入口（位于🎲掷骰之后）：
+  dice3d-e / map（toolbar 行）/ character / spells / combat / chat /
+  reference / mods / events / index
+
+验证（node test_dice_help.mjs，24/24 通过，脚本已归档备份）：
+- parseDiceExpr 13 项（多组/加值/优劣/爆炸/保留/d100/非法输入/空格容错）
+- rollGroup 4 项（爆炸追加/kh 保留/优势取高/劣势取低）
+- buildDetNotation 3 项（多组/d100 拆分/个位 0 特例）
+- demoRoll 完整链路 4 项（3d6/非法表达式/adv/混合双组，DOM stub）
+- Flask test_client：/dice-help 200、/dice3d 200、/map 200 且导航含新入口
+
+涉及文件：
+- web/templates/dice-help.html（新增）
+- web/app.py（新增路由）
+- 10 个导航模板（各加一行链接）
+- 备份：backups/掷骰帮助页新增前_20260831_*（现场快照）
+
+需要重启服务器生效（web/app.py 新增路由，make_server 无热重载）。

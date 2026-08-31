@@ -159,7 +159,7 @@ body.embed .wrap{top:0;}
 </div>
 <button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" title="展开聊天">💬<br>聊<br>天</button>
 
-<nav class="navbar" style="position:relative;"><a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a><div class="navbar-links"><a href="/dice3d" class="active">🎲 掷骰</a><a href="/map">地图</a><a href="/character">角色卡</a><a href="/spells">法术</a><a href="/combat">战斗</a><a href="/chat">💬 聊天室</a><a href="/reference">参考</a><a href="/mods">🧩 Mod</a></div></nav>
+<nav class="navbar" style="position:relative;"><a href="/" class="navbar-brand"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f6d365"/><stop offset="40%" style="stop-color:#fda085"/><stop offset="100%" style="stop-color:#f6d365"/></linearGradient><filter id="sf"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#f6d365" flood-opacity="0.4"/></filter></defs><rect x="20" y="20" width="60" height="60" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><rect x="20" y="20" width="60" height="60" transform="rotate(45,50,50)" fill="none" stroke="url(#sg)" stroke-width="3" filter="url(#sf)"/><circle cx="50" cy="14" r="2.5" fill="url(#sg)"/><circle cx="76" cy="24" r="2.5" fill="url(#sg)"/><circle cx="86" cy="50" r="2.5" fill="url(#sg)"/><circle cx="76" cy="76" r="2.5" fill="url(#sg)"/><circle cx="50" cy="86" r="2.5" fill="url(#sg)"/><circle cx="24" cy="76" r="2.5" fill="url(#sg)"/><circle cx="14" cy="50" r="2.5" fill="url(#sg)"/><circle cx="24" cy="24" r="2.5" fill="url(#sg)"/><circle cx="50" cy="50" r="5" fill="url(#sg)"/></svg> 尘封之卷</a><div class="navbar-links"><a href="/dice3d" class="active">🎲 掷骰</a><a href="/map">地图</a><a href="/character">角色卡</a><a href="/spells">法术</a><a href="/combat">战斗</a><a href="/chat">💬 聊天室</a><a href="/reference">参考</a><a href="/mods">🧩 Mod</a><a href="/dice-help">📜 掷骰帮助</a></div></nav>
 
 <div class="wrap has-nav">
 <div id="stage">
@@ -177,6 +177,13 @@ body.embed .wrap{top:0;}
   <!-- 掷骰面板 -->
   <div class="ctrl-panel" id="panel-dice">
     <div class="ctrl-row">
+      <div class="char-sel-row">
+        <span style="color:var(--text-dim);font-size:0.75rem;">对象:</span>
+        <select id="roll-char-select" onchange="setRollChar()"><option value="">👤 无对象</option></select>
+        <span id="roll-char-badge" style="color:var(--gold);font-size:0.72rem;display:none;"></span>
+      </div>
+    </div>
+    <div class="ctrl-row">
       <span>骰子:</span><div class="dbs" id="dbs"><button data-s="4">d4</button><button data-s="6">d6</button><button data-s="8">d8</button><button data-s="10">d10</button><button data-s="12">d12</button><button data-s="20" class="on">d20</button><button data-s="100">d100</button></div>
       <span>模式:</span><div class="tog" id="tog"><button data-a="" class="on">正常</button><button data-a="adv">优势</button><button data-a="dis">劣势</button></div>
       <button id="explode-btn" class="tbl-btn" onclick="toggleExplode()">💥爆炸</button>
@@ -190,7 +197,7 @@ body.embed .wrap{top:0;}
       <span>快捷:</span><div class="presets"><button onclick="quickRoll('3d6')">3d6</button><button onclick="quickRoll('4d6k3')">4d6k3</button><button onclick="quickRoll('2d6+3')">2d6+3</button><button onclick="quickRoll('8d6')">🔥8d6</button><button onclick="quickRoll('1d8+2')">1d8+2</button><button onclick="quickRoll('1d20+5')">1d20+5</button><button onclick="quickRoll('d20 adv')">d20优势</button><button onclick="quickRoll('d20 dis')">d20劣势</button></div>
     </div>
     <div class="ctrl-row">
-      <span>自定义:</span><input id="custom-expr" type="text" placeholder="如: 4d6k3 / adv d20 / 2d8+1d6+3" onkeydown="if(event.key==='Enter')doRoll()">
+      <span>自定义:</span><input id="custom-expr" type="text" placeholder="如: 4d6k3 / adv d20 / 2d8+1d6+3" onkeydown="if(event.key==='Enter')doRoll()" oninput="parseCustomInput()">
       <span>桌布:</span><select class="tbl-sel" id="tbl-select" onchange="changeSurface(this.value)"><option value="wood">木桌</option><option value="wood2">木桌2</option><option value="blue-felt" selected>蓝毡</option><option value="stone">石板</option><option value="white-cloth">白布</option><option value="marble">大理石</option><option value="grass">草地</option><option value="snow">雪地</option><option value="ice">冰面</option><option value="star-light">星空浅</option><option value="star-mid">星空中</option><option value="star-dark">星空深</option></select>
       <button class="tbl-btn" onclick="document.getElementById('tbl-file').click()">📁自定义</button><input type="file" id="tbl-file" accept="image/*" onchange="uploadBg(this)" style="display:none">
       <button class="rbtn" id="rb" onclick="doRoll()">🎲 投掷！</button>
@@ -264,6 +271,7 @@ body.embed .wrap{top:0;}
 // ━━ 身份工具 ━━━
 var _localActiveChar=null;
 var _localSaveChar=null;
+var _localRollChar=null;
 function getIdentity(){
   try{var s=JSON.parse(sessionStorage.getItem('dnd_joined_room'));return{name:(s&&s.name)||'',role:(s&&s.role)||'PL'};}catch(e){return{name:'',role:'PL'};}
 }
@@ -273,7 +281,6 @@ window.switchTab=function(tab){
   document.getElementById('panel-dice').classList.toggle('hidden-tab',tab!=='dice');
   document.getElementById('panel-check').classList.toggle('hidden-tab',tab!=='check');
   document.getElementById('panel-save').classList.toggle('hidden-tab',tab!=='save');
-  if(tab==='save')loadSaveChars();
   setTimeout(function(){window.dispatchEvent(new Event('resize'));},100);
 };
 // ━━ 检定面板 ━━━
@@ -352,17 +359,22 @@ function broadcastCheckResult(data,charLine,advLabel,modText,critHtml){
   }catch(e){}
 }
 // ━━ 角色选择器 ━━━
-async function loadCharSelect(){
+// 公共角色列表加载：填充指定选择器（掷骰/检定/豁免三 Tab 同源）
+async function loadCharsInto(selId){
   try{
     var id=getIdentity();
     var resp=await fetch('/api/characters?name='+encodeURIComponent(id.name)+'&role='+encodeURIComponent(id.role));
     var data=await resp.json();
     var chars=Array.isArray(data)?data:(data.characters||[]);
-    var sel=document.getElementById('active-char-select');
+    var sel=document.getElementById(selId);
+    if(!sel)return;
     sel.innerHTML='<option value="">👤 无对象</option>';
     chars.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.name+' ('+(c.level||1)+'级 '+(c.class||'')+')';sel.appendChild(o);});
   }catch(e){}
 }
+async function loadCharSelect(){return loadCharsInto('active-char-select');}
+async function loadSaveChars(){return loadCharsInto('save-char-select');}
+window.loadRollChars=function(){return loadCharsInto('roll-char-select');};
 window.setActiveChar=async function(){
   var cid=document.getElementById('active-char-select').value;
   var badge=document.getElementById('char-badge');
@@ -371,6 +383,16 @@ window.setActiveChar=async function(){
     var resp=await fetch('/api/character/'+cid);
     var data=await resp.json();
     if(!data.error){badge.textContent='✅ '+data.name;badge.style.display='inline';_localActiveChar={id:cid,name:data.name};}
+  }catch(e){}
+};
+window.setRollChar=async function(){
+  var cid=document.getElementById('roll-char-select').value;
+  var badge=document.getElementById('roll-char-badge');
+  if(!cid){badge.style.display='none';_localRollChar=null;return;}
+  try{
+    var resp=await fetch('/api/character/'+cid);
+    var data=await resp.json();
+    if(!data.error){badge.textContent='✅ '+data.name;badge.style.display='inline';_localRollChar={id:cid,name:data.name};}
   }catch(e){}
 };
 // ━━ 属性生成 ━━━
@@ -449,7 +471,7 @@ window.doSave=async function(ability){
     if(s2&&s2.name)recordDiceStats(s2.name,d20vals);
   }catch(e){}
 };
-loadCharSelect();
+loadCharSelect();loadSaveChars();loadRollChars();
 // ━━ 加入房间 ━━━
 (function(){
   var SK='dnd_joined_room';
@@ -475,7 +497,7 @@ loadCharSelect();
     if(window._portalUserId)body.user_id=window._portalUserId;
     fetch('/api/room/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).then(function(data){
-      if(data.ok){var save={name:name,color:joinColor,is_dm:data.is_dm,role:role};if(window._portalUserId)save.user_id=window._portalUserId;sessionStorage.setItem(SK,JSON.stringify(save));document.getElementById('join-overlay').classList.add('hidden');if(data.is_dm||role==='DM'){document.getElementById('hidden-btn').style.display='';}if(data.online_count!==undefined){document.getElementById('chat-online').textContent=data.online_count+'人在线';}loadCharSelect();_heartbeatId=setInterval(fetchOnlineUsers,8000);}
+      if(data.ok){var save={name:name,color:joinColor,is_dm:data.is_dm,role:role};if(window._portalUserId)save.user_id=window._portalUserId;sessionStorage.setItem(SK,JSON.stringify(save));document.getElementById('join-overlay').classList.add('hidden');if(data.is_dm||role==='DM'){document.getElementById('hidden-btn').style.display='';}if(data.online_count!==undefined){document.getElementById('chat-online').textContent=data.online_count+'人在线';}loadCharSelect();loadSaveChars();loadRollChars();_heartbeatId=setInterval(fetchOnlineUsers,8000);}
       else{document.getElementById('join-error').textContent='加入失败: '+(data.error||'未知错误');btn.disabled=false;btn.textContent='🚪 进入骰娘';}
     }).catch(function(e){document.getElementById('join-error').textContent='网络错误: '+e.message;btn.disabled=false;btn.textContent='🚪 进入骰娘';});
   };
@@ -598,17 +620,16 @@ function mn(){try{return JSON.parse(sessionStorage.getItem("dnd_joined_room")||"
 var PC=['white','red','blue','green','orange','purple','cyan','gold'],_ci=0,_cm={};
 function pc(n){if(!_cm[n])_cm[n]=PC[_ci++%PC.length];return _cm[n];}
 
-window.chgC=function(d){C=Math.max(1,Math.min(40,C+d));document.getElementById('cv').textContent=C;};
-window.chgM=function(d){M=Math.max(-99,Math.min(999,M+d));var s=M>=0?'+':'';document.getElementById('mv').textContent=s+M;};
-window.toggleExplode=function(){EXPLODING=!EXPLODING;var b=document.getElementById('explode-btn');if(EXPLODING)b.classList.add('explode-on');else b.classList.remove('explode-on');};
+window.chgC=function(d){C=Math.max(1,Math.min(40,C+d));document.getElementById('cv').textContent=C;syncCustomInput();};
+window.chgM=function(d){M=Math.max(-99,Math.min(999,M+d));var s=M>=0?'+':'';document.getElementById('mv').textContent=s+M;syncCustomInput();};
+window.toggleExplode=function(){EXPLODING=!EXPLODING;var b=document.getElementById('explode-btn');if(EXPLODING)b.classList.add('explode-on');else b.classList.remove('explode-on');syncCustomInput();};
 window.toggleHidden=function(){HIDDEN_ROLL=!HIDDEN_ROLL;var b=document.getElementById('hidden-btn');if(HIDDEN_ROLL)b.classList.add('hidden-on');else b.classList.remove('hidden-on');};
-window.onKeepModeChange=function(){KEEP_MODE=document.getElementById('keep-mode').value;var inp=document.getElementById('keep-count');inp.style.display=KEEP_MODE?'inline':'none';};
-window.onKeepCountChange=function(){KEEP_COUNT=parseInt(document.getElementById('keep-count').value)||1;};
-window.quickRoll=function(expr){document.getElementById('custom-expr').value=expr;doRoll();};
+window.onKeepModeChange=function(){KEEP_MODE=document.getElementById('keep-mode').value;var inp=document.getElementById('keep-count');inp.style.display=KEEP_MODE?'inline':'none';syncCustomInput();};
+window.onKeepCountChange=function(){KEEP_COUNT=parseInt(document.getElementById('keep-count').value)||1;syncCustomInput();};
+window.quickRoll=function(expr){document.getElementById('custom-expr').value=expr;parseCustomInput();doRoll();};
 
-function buildExpression(){
-  var custom=document.getElementById('custom-expr').value.trim();
-  if(custom)return custom;
+// 用上方控件状态构建表达式（自定义框为空时的构建逻辑）
+function buildExprFromControls(){
   var parts=[];
   if(S===100){parts.push('d100');}
   else if(A==='adv'){parts.push('d'+S+' adv');}
@@ -618,21 +639,91 @@ function buildExpression(){
   return parts.join('');
 }
 
+function buildExpression(){
+  var custom=document.getElementById('custom-expr').value.trim();
+  if(custom)return custom;
+  return buildExprFromControls();
+}
+
+// 控件 → 自定义输入框：点击上方控件后实时同步显示当前表达式
+function syncCustomInput(){
+  var el=document.getElementById('custom-expr');
+  if(el)el.value=buildExprFromControls();
+}
+
+// 面数按钮高亮与控件状态同步
+function updateSidesUI(){
+  document.querySelectorAll('#dbs button').forEach(function(b){b.classList.toggle('on',parseInt(b.dataset.s)===S);});
+}
+// 模式按钮高亮与控件状态同步
+function updateTogUI(){
+  document.querySelectorAll('#tog button').forEach(function(b){b.classList.toggle('on',b.dataset.a===A);});
+}
+
+// 自定义输入框 → 控件：输入时解析表达式同步骰数/加值/面数/模式等
+// 仅同步能可靠解析的部分，复杂混合表达式尽力同步第一组骰子与末尾加值
+function parseCustomInput(){
+  var el=document.getElementById('custom-expr');
+  if(!el)return;
+  var v=el.value.trim().toLowerCase();
+  if(!v)return;
+  var m;
+  // 模式（adv/dis 关键字）
+  if(/(^|\s)adv($|\s)/.test(v)){A='adv';}
+  else if(/(^|\s)dis($|\s)/.test(v)){A='dis';}
+  else{A='';}
+  // 第一组骰子 XdY（d100 无个数）
+  m=v.match(/(\d*)\s*d\s*(\d+)/);
+  if(m){
+    var _c=parseInt(m[1])||1;
+    var _s=parseInt(m[2]);
+    if(_s===100){S=100;C=1;}
+    else{S=_s;C=Math.max(1,Math.min(40,_c));}
+  }
+  // 保留模式：kl3 / dh3 / dl3 / k3(=kh) / kh3
+  m=v.match(/kl\s*(\d+)/)||v.match(/dh\s*(\d+)/)||v.match(/dl\s*(\d+)/)||v.match(/kh?\s*(\d+)/);
+  if(m){
+    KEEP_MODE=(v.indexOf('kl')>=0)?'kl':(v.indexOf('dh')>=0?'dh':(v.indexOf('dl')>=0?'dl':'kh'));
+    KEEP_COUNT=Math.max(1,parseInt(m[1])||1);
+  }else{
+    KEEP_MODE='';
+  }
+  // 爆炸骰
+  EXPLODING=v.indexOf('!')>=0;
+  // 末尾加值 +/-N
+  m=v.match(/([+-])\s*(\d+)\s*$/);
+  M=m?(m[1]==='-'?-1:1)*parseInt(m[2]):0;
+  M=Math.max(-99,Math.min(999,M));
+  // ── 同步上方控件显示 ──
+  document.getElementById('cv').textContent=C;
+  document.getElementById('mv').textContent=(M>=0?'+':'')+M;
+  updateSidesUI();
+  updateTogUI();
+  document.getElementById('explode-btn').classList.toggle('explode-on',EXPLODING);
+  var km=document.getElementById('keep-mode'),kc=document.getElementById('keep-count');
+  if(km){km.value=KEEP_MODE;kc.style.display=KEEP_MODE?'inline':'none';kc.value=KEEP_COUNT;}
+}
+
 function buildDetNotation(apiResult){
   // 优先使用后端分组信息（混合多重骰子，如 1d20+1d4+3）
   // 引擎要求单 @ 格式：骰子组用 + 连接，@ 后按骰子顺序排列全部结果
   if(apiResult.groups_detail && apiResult.groups_detail.length){
-    // d100 单组：API返回单个值，但3D动画需要两个d10
-    if(apiResult.groups_detail.length===1 && apiResult.groups_detail[0].sides===100){
-      var v100=apiResult.groups_detail[0].rolls[0];
-      var t100=Math.floor(v100/10)%10;
-      var o100=v100%10;
-      if(t100===0)t100=10;
-      if(o100===0)o100=10;
-      return '2d10@'+t100+','+o100;
-    }
+    // 引擎无 d100 模型：每个 d100 拆为两个 d10 动画（十位+个位，0 显示为 10）
     var setParts=[],allVals=[];
     apiResult.groups_detail.forEach(function(g){
+      if(g.sides===100){
+        var d10s=[];
+        g.rolls.forEach(function(v100){
+          var t100=Math.floor(v100/10)%10;
+          var o100=v100%10;
+          if(t100===0)t100=10;
+          if(o100===0)o100=10;
+          d10s.push(t100,o100);
+        });
+        setParts.push(d10s.length+'d10');
+        allVals=allVals.concat(d10s);
+        return;
+      }
       setParts.push(g.rolls.length+'d'+g.sides);
       allVals=allVals.concat(g.rolls);
     });
@@ -667,9 +758,10 @@ function showResult(data,rollerName){
   setTimeout(function(){rov.classList.add('hide');},6000);
 }
 
-function broadcastRoll(apiResult,expr,detNotation){
+function broadcastRoll(apiResult,expr,detNotation,subject){
   if(HIDDEN_ROLL)return;
   var name=mn(),color=pc(name);
+  if(!subject)subject=name;
   try{
     if(syncWs&&syncWs.readyState===1){
       syncWs.send(JSON.stringify({
@@ -685,7 +777,9 @@ function broadcastRoll(apiResult,expr,detNotation){
       }));
     }
     var s=JSON.parse(sessionStorage.getItem("dnd_joined_room")||"{}");
-    fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:"🎲 "+expr+" = ["+apiResult.total+"]",hidden:false,role:s.role||"PL",color:s.color||""})}).catch(function(){});
+    // 发送者保持玩家名；消息内容带主体（选择角色 → 角色名；未选 → 玩家名），
+    // 与检定消息格式一致（如"祖神 🎲 1d20 = [1]"）
+    fetch("/api/dice-broadcast",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,text:subject+" 🎲 "+expr+" = ["+apiResult.total+"]",hidden:false,role:s.role||"PL",color:s.color||""})}).catch(function(){});
   }catch(e){}
 }
 
@@ -703,20 +797,22 @@ window.doRoll=async function(){
   rov.classList.add('hide');
   var expr=buildExpression();
   var name=mn(),color=pc(name);
+  // 对象：掷骰 Tab 选择了角色 → 消息主体为角色名；未选择 → 玩家名
+  var subject=(_localRollChar&&_localRollChar.name)?_localRollChar.name:name;
   try{
     var resp=await fetch('/api/roll',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expression:expr})});
     if(!resp.ok){var et=await resp.text();throw new Error(et||'API错误');}
     var data=await resp.json();
     var dn=buildDetNotation(data);
     // 立即广播，不等本地动画，减少远程延迟
-    if(!HIDDEN_ROLL){broadcastRoll(data,expr,dn);}
-    // 骰子统计上报：仅 d20 计入（暗骰也计入）；
+    if(!HIDDEN_ROLL){broadcastRoll(data,expr,dn,subject);}
+    // 骰子统计上报：仅 d20 计入（暗骰也计入）；统计归属玩家名（与对象无关）
     // 按表达式面数过滤，避免 d100=1/20、1d6=1 等被误计为大成功/大失败
     var _sm=expr.match(/(\d+)d(\d+)/)||expr.match(/d(\d+)/);
     var _sides=_sm?(parseInt(_sm[2]!==undefined?_sm[2]:_sm[1])||0):0;
     if(_sides===20)recordDiceStats(name,data.rolls||[]);
     await box.roll(dn,{theme:{theme_colorset:color}});
-    showResult(data,name);
+    showResult(data,subject);
   }catch(e){console.error(e);rov.innerHTML='❌ 掷骰失败: '+e.message;rov.classList.remove('hide');setTimeout(function(){rov.classList.add('hide');},4000);}
 };
 
@@ -748,8 +844,8 @@ window.uploadBg=function(input){
     }
   });
 })();
-document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);if(S===100){C=1;document.getElementById('cv').textContent='1';}});});
-document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;});});
+document.querySelectorAll('#dbs button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#dbs button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');S=parseInt(this.dataset.s);if(S===100){C=1;document.getElementById('cv').textContent='1';}syncCustomInput();});});
+document.querySelectorAll('#tog button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#tog button').forEach(function(x){x.classList.remove('on');});this.classList.add('on');A=this.dataset.a;syncCustomInput();});});
 
 (async function(){
   try{

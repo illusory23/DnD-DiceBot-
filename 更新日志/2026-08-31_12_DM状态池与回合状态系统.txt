@@ -1,0 +1,61 @@
+2026-08-31_12_DM状态池与回合状态系统
+
+需求（用户确认）：
+DM 后台增加状态池（含所有 PL 角色与拖入地图的角色），DM 可在角色后
+添加不同状态（含持续时间/回合数）；玩家视角：token 头顶 3 秒浮动
+文本"特殊状态：内容"淡化消失；玩家可在地图左上角角色简易信息界面
+查看自己状态（📌 状态（无）/（有·N）），点击弹独立小界面；状态池
+为独立可拖动面板。
+
+实现（web/static/map.js v89 → v90 + web/templates/map.html）：
+
+一、数据模型与同步
+- tokenNetData 增加 statuses 字段：[{id, name, addedBy, rounds,
+  maxRounds, ts}]；rounds=null 表示永久；随 WS op tokens 增量同步 +
+  地图存档持久化（旧存档无字段 → 默认 [] 兜底）
+- createMapTokenElement 第 11 参 statuses；mergeRemoteTokens 合并时
+  按 id 对比新状态 → 触发头顶浮动提示（全端一致）
+
+二、DM 状态池（独立可拖动面板）
+- 工具栏新增「📌 状态池」按钮（仅 DM 显示，applyRoleRestrictions 控制）
+- 面板 #status-pool-panel（makeDraggable 可拖动）：
+  · 角色列表 = 地图 token（有 token 的角色）+ 平台角色并集
+    （未拖入地图的角色灰显"🚫 未拖入地图"提示）
+  · 每行：角色名 + 状态 chip（名称·剩余/初始回合 或 ∞ 永久，DM 可 ×删除）
+    + 添加区（状态名输入 + 回合数输入（留空=永久）+ ➕）
+
+三、玩家视角
+- token 头顶浮动文本：添加/同步状态时显示"特殊状态：内容" 3 秒后
+  淡化消失（.token-float-text，1s 过渡）
+- 角色简易信息界面（token-info-panel）新增「📌 状态（无）/（有·N）」
+  按钮；点击弹独立小界面 #status-popup（可拖动）：列出状态
+  （名称/剩余回合/添加者），DM 可删除
+- PL 视角：他人 token 信息面板本就拦截（canViewCharInfo），
+  状态入口随之不可见；仅自己（或 DM 公开角色）可查看
+
+四、回合递减（战斗轮联动）
+- tickStatusRounds()：战斗回合轮转（mapNextCombatant 新回合分支 +
+  mapNextRound）时，战斗列表内角色的状态回合数 -1；
+  递减但未移除也同步（回合数变化可见）；归零自动移除并头顶提示
+  "状态结束：内容"；永久状态不递减；非战斗角色状态不自动递减
+  （DM 手动删除）
+
+五、修复过程中发现并修正的 bug
+- tickStatusRounds 原实现 changed 仅在状态移除时置位，递减未移除
+  时不广播同步 → 改为递减即标记并广播
+- 广播条件限定"有状态"的战斗内 token（避免无状态 token 冗余重发）
+
+验证（node test_status_system.mjs，30/30 通过，脚本已归档）：
+- 结构断言 18 项（tokenNetData/createMapTokenElement/mergeRemoteTokens
+  新状态提示/浮动文本 3 秒/回合递减/函数齐全/权限控制/状态按钮/
+  拖动注册/面板按钮/样式/版本号 v90）
+- 逻辑测试 12 项（真实函数 vm 执行）：添加"中毒"3 回合 + WS 广播 +
+  头顶提示；回合数 0 → 永久；新回合 3→2 递减且广播；归零移除 +
+  "状态结束"提示；非战斗角色不减；删除清空；序列化含 statuses
+- node --check 语法通过；map 页 200 且含按钮/面板/v90
+
+涉及文件：
+- web/static/map.js（v90）、web/templates/map.html（v=90）
+- 备份：backups/DM状态池前_20260831_*
+
+不需要重启服务器（纯前端静态资源，刷新/强刷地图页即可生效）。
